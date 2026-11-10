@@ -17,7 +17,7 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 import java.util.List;
 
 /**
- * 커뮤니티 모듈 안의 컨텍스트(review · favorite) 사이 규칙. 계층 규칙은 {@link LayerArchitectureTest}가 건다.
+ * 커뮤니티 모듈 안의 컨텍스트(review · favorite · activity) 사이 규칙. 계층 규칙은 {@link LayerArchitectureTest}가 건다.
  * <ul>
  *   <li>다른 컨텍스트는 자기 out 어댑터만 참조하고, 그 대상은 상대의 app/port/in(들어오는 포트)뿐이다.
  *       app · domain · in은 다른 컨텍스트를 모르고 자기 app/port(나가는 포트)만 쓴다</li>
@@ -30,7 +30,7 @@ import java.util.List;
 class CommunityContextArchitectureTest {
 
     private static final String BASE = "com.bbcc.kidly.boundedcontext.";
-    private static final List<String> CONTEXTS = List.of("review", "favorite");
+    private static final List<String> CONTEXTS = List.of("review", "favorite", "activity");
 
     @ArchTest
     static final ArchRule EVERY_CONTEXT_HAS_CLASSES = CompositeArchRule.of(CONTEXTS.stream()

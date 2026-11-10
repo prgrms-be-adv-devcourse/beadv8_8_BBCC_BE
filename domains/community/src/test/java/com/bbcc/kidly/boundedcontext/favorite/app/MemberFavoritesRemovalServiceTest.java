@@ -18,7 +18,8 @@ class MemberFavoritesRemovalServiceTest {
     private List<Long> deletedProductIds = List.of();
 
     private final MemberFavoritesRemovalService service = new MemberFavoritesRemovalService(
-        (MemberFavoriteRows) memberId -> deletedProductIds,
+        (MemberFavoriteRows) memberId -> deletedProductIds.stream().map(MemberFavoritesRemovalServiceTest::deleted)
+            .toList(),
         new FavoriteStatsCounter() {
             @Override
             public void increase(Long productId, LocalDateTime now) {
@@ -30,7 +31,21 @@ class MemberFavoritesRemovalServiceTest {
                 stats.add(productId + "-" + count);
                 return decreasedRows;
             }
-        });
+        }, org.mockito.Mockito.mock(com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog.class));
+
+    private static MemberFavoriteRows.DeletedFavorite deleted(Long productId) {
+        return new MemberFavoriteRows.DeletedFavorite() {
+            @Override
+            public Long getId() {
+                return productId * 10;
+            }
+
+            @Override
+            public Long getProductId() {
+                return productId;
+            }
+        };
+    }
 
     @Test
     @DisplayName("회원 찜을 모두 지우고 실제로 지운 행 기준으로 상품별 지운 수만큼 찜 수를 줄인다")
