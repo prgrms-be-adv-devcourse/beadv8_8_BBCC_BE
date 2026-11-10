@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * @param recommendedSize 맞는 사이즈가 없거나 사이즈 무관 상품이면 null
  * @param fit 추천 사이즈가 없으면 null
- * @param candidateSizes 추천 사이즈가 없으면 빈 목록
+ * @param candidateSizes 규칙이 고른 후보 사이즈. 규칙이 맞는 사이즈를 찾지 못하면 빈 목록이고, AI가 고른 추천 사이즈는 이 목록 밖일 수 있다
  * @param lastPurchasedSize 같은 카테고리에서 이 자녀에게 산 사이즈. 지금은 늘 null
  * @param source 추천을 정한 쪽. AI 또는 RULE
  * @param reasons 사이즈를 고른 근거. 없으면 빈 목록

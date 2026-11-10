@@ -134,7 +134,7 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거) | 🔒 |
+| GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거 `reasons`(`type` · `detail` · `sourceId`) · 출처 `source`(`AI` · `RULE`)). AI가 규칙 계산 결과를 받아 그 상품의 실제 사이즈 안에서 고른다. AI가 없거나 실패 · 2.5초 초과 · 하루 호출 상한 · 상품에 없는 사이즈를 답하면 규칙 결과로 답하고 `source`는 `RULE`, `reasons`는 `[]`이다. AI 답은 규칙 후보 밖의 사이즈일 수 있어 `recommendedSize`가 `candidateSizes`에 없을 수 있다. 사이즈 구분이 없는 상품은 AI를 부르지 않는다. 같은 자녀 · 상품 · 입력이면 24시간 동안 지난 AI 답을 다시 쓴다 | 🔒 |
 | GET | `/api/v1/recommendations/products` | 자녀 맞춤 상품(`childId` · `categoryId` · `page` · `size` · `asOf`). 선호 점수 순이고, 응답 끝에 기준 시각 `asOf`(한국 시간, 시간대 표시 없음, 초 단위)가 있다. 2쪽부터는 1쪽 응답의 `asOf`를 그대로 보낸다. 없으면 지금 시각이고, 지금보다 늦으면 400 | 🔒 |
 | POST | `/api/v1/recommendations/product-views` | 상품 상세 진입 기록(`productId` · 선택 `childId`. 같은 회원 · 자녀 · 상품은 같은 날(한국 시간) 한 번만 기록, 응답 204, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404) | 🔒 |
 | GET | `/api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(상의, 하의 순서이고 없으면 `[]`. 칸 `part`(`TOP` · `BOTTOM`) · `categoryId` · `measurements`(실측 항목 코드별 cm)). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
