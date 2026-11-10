@@ -28,7 +28,8 @@ public class PostgresTasteSimilarityReader implements TasteSimilarityReader {
             return similarities;
         }
         List<Map.Entry<Long, Double>> rows = jdbcClient.sql("""
-                SELECT product_id, 1 - (embedding OPERATOR(recommend.<=>) CAST(:taste AS recommend.vector)) AS similarity
+                SELECT product_id,
+                       1 - (embedding OPERATOR(recommend.<=>) CAST(:taste AS recommend.vector)) AS similarity
                 FROM recommend.replica_product
                 WHERE embedding IS NOT NULL AND product_id IN (:productIds)
                 """)
