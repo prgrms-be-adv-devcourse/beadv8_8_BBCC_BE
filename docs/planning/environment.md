@@ -6,7 +6,7 @@
 
 | 영역 | 선택 |
 |---|---|
-| 백엔드 | Java 25 · Spring Boot 4.1 · Spring Data JPA · QueryDSL · Spring Batch(정산, 메타데이터는 settlement 스키마) · Spring for Apache Kafka · springdoc(Swagger) · ArchUnit(경계 · 계층 검사). 서비스는 Spring Security를 쓰지 않음(인증은 Gateway) |
+| 백엔드 | Java 25 · Spring Boot 4.1 · Spring Data JPA · QueryDSL · Spring Batch(정산 · 추천, 메타데이터는 각 서비스 스키마 settlement · recommend) · Spring for Apache Kafka · springdoc(Swagger) · ArchUnit(경계 · 계층 검사). 서비스는 Spring Security를 쓰지 않음(인증은 Gateway) |
 | 데이터 | PostgreSQL 18 · Flyway로 스키마 관리 (`V{yyyyMMddHHmm}__*.sql`, JPA는 검증만, 적용된 파일은 고치지 않고 새 파일 추가) · 모듈마다 DB 스키마를 나눔 (member · childprofile · seller · product · recommend · orders · payment · settlement · community · notification · setting) · 암호화는 토스 paymentKey (AES-256-GCM, 대상은 2.1) · 검색은 PostgreSQL이 아니라 Elasticsearch(상품의 검색용 표는 되돌리기용으로 남음) |
 | 이벤트 | Kafka. 보내는 도메인마다 토픽 하나(`kidly.{도메인}.events`, 파티션 3 · 복제 1), 키는 correlationId, 받는 도메인마다 구독 그룹 `kidly.{도메인}`과 DLT. 결제는 아웃박스 표(`payment.payment_outbox`)로 보냄. 도메인마다 Kafka 수신 스위치로 Spring 이벤트로 되돌릴 수 있음 |
 | 인증 | 카카오 로그인(화면이 인가 코드를 받아 서버로 보냄) · JWT(RS256) · API Gateway(apps/gateway, WebFlux)가 검증 · 무효화 확인 · 역할 검사 · CORS |
@@ -18,7 +18,7 @@
 | 임베딩 | OpenAI `text-embedding-3-small`(1,536차원). 상품 복사본이 바뀔 때 이름 · 브랜드 · 설명 · 정보 값을 합쳐 한 번 호출. 처음 채우기는 묶음 호출. 검색어는 홈 맛보기 계산 때 묶어 호출 |
 | 벡터 저장소 | P17에서 선택. Spring AI `VectorStore` 뒤에 두어 starter 교체로 바꿀 수 있음. 상품 ID · 벡터 · 거르기 칸(상태 · 카테고리 · 사이즈 무관)만 두고 본문은 복사본 표에서 읽음 |
 | RAG 자료 | 성장도표 설명문, 사이즈 측정 안내(글 조각 + 출처 id). Spring AI `QuestionAnswerAdvisor`로 프롬프트에 붙임. 숫자 표(성장도표 · LMS)는 RAG가 아니라 규칙 계산 입력 |
-| 추천 저장소 | 추천 DB(지금은 공용 PostgreSQL `recommend` 스키마, 분리 뒤 추천 전용). 복사본, 활동 기록, 자녀 선호 점수, AI 응답(입력 해시 키), 호출 횟수 |
+| 추천 저장소 | 추천 DB(지금은 공용 PostgreSQL `recommend` 스키마, 분리 뒤 추천 전용). 복사본, 활동 기록, 자녀 선호 점수, AI 응답(입력 해시 키), 호출 횟수, Spring Batch 실행 기록 |
 | 실패 대비 | Gateway timeout 3초 · circuit breaker, 추천 서비스 내부 timeout 2.5초, 하루 호출 상한. 실패 시 규칙 결과 또는 빈 목록 |
 | 배포 | EC2 2대(t3.large: 앱 · PostgreSQL · Kafka, t3.medium: 모니터링 · ES, k3s). 추천 서비스를 k3s로 옮기는 시점은 배포 계획에 따름 |
 | 모니터링 | Prometheus · Loki · Alloy · Grafana, Slack 알림 (자세한 구성은 10장) |

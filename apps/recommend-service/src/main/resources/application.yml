@@ -18,6 +18,17 @@ spring:
     baseline-version: 202611021557
     # 버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있으므로 옛 버전도 적용한다
     out-of-order: true
+  batch:
+    job:
+      # 기동할 때 작업을 저절로 돌리지 않는다. 스케줄러만 실행한다
+      enabled: false
+    jdbc:
+      # Batch 실행 기록 테이블은 recommend 스키마에 둔다
+      table-prefix: recommend.BATCH_
+      # 실행 기록 테이블은 Flyway가 만든다 (db/migration/recommend/V202611101059__spring_batch_schema.sql)
+      initialize-schema: never
+      # Batch 기본(SERIALIZABLE)은 이 서비스의 Hibernate 연결 설정이 거부한다
+      isolation-level-for-create: default
   jpa:
     open-in-view: false
     hibernate:
