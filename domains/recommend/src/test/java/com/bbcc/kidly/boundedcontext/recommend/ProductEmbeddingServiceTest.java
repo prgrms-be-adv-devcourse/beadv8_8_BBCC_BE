@@ -3,6 +3,9 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.embedding.ProductEmbeddingService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbedder;
@@ -57,6 +60,18 @@ class ProductEmbeddingServiceTest {
         inOrder.verify(embedder).embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT));
         inOrder.verify(store).saveIfTextUnchanged(PRODUCT_1_ID, PRODUCT_1_TEXT, vector1);
         inOrder.verify(store).saveIfTextUnchanged(PRODUCT_2_ID, PRODUCT_2_TEXT, vector2);
+    }
+
+    @Test
+    @DisplayName("낡은 상품이 없으면 임베딩 요청을 보내지 않는다")
+    void doNotRequestWhenNothingIsStale() {
+        given(store.findStale(anyInt())).willReturn(List.of());
+
+        service.embedStaleProducts();
+
+        verify(store).findStale(anyInt());
+        verifyNoMoreInteractions(store);
+        verifyNoInteractions(embedder);
     }
 
     private static EmbeddingVector vectorOf(float value) {
