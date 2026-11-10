@@ -16,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CompanionSelectionTest {
 
@@ -72,6 +73,19 @@ class CompanionSelectionTest {
         assertThat(selection.source()).isEqualTo(CompanionSource.AI);
         assertThat(selection.picks()).extracting(pick -> pick.product().productId())
             .containsExactly(4L, 1L, 2L, 3L);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    @DisplayName("AI가 고른 상품의 이유가 비어 있으면 상품은 쓰고 이유는 없는 것으로 본다")
+    void treatBlankReasonAsMissing(String blankReason) {
+        List<CompanionCandidate> ranked = rankedCandidates(6);
+
+        CompanionSelection selection = CompanionSelection.of(List.of(new CompanionAiPick(4L, blankReason)), ranked);
+
+        assertThat(selection.source()).isEqualTo(CompanionSource.AI);
+        assertThat(selection.picks().getFirst().product().productId()).isEqualTo(4L);
+        assertThat(selection.picks().getFirst().reason()).isNull();
     }
 
     static Stream<List<CompanionAiPick>> noUsableAiPicks() {
