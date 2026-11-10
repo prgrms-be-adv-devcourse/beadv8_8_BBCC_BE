@@ -93,6 +93,20 @@ class AiResponseServiceTest {
         assertThat(jsonMapper.readValue(savedJson.getValue(), Answer.class)).isEqualTo(freshAnswer());
     }
 
+    @Test
+    @DisplayName("하루 상한에 닿았으면 AI를 부르지 않고 AI 결과 없음을 돌려준다")
+    void returnNothingWhenDailyLimitReached() {
+        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(false);
+        AtomicInteger calls = new AtomicInteger();
+
+        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, countingCall(calls, freshAnswer()));
+
+        assertThat(answer).isEmpty();
+        assertThat(calls).hasValue(0);
+        verify(store, never()).save(any(), any(), any(), any());
+    }
+
     private static Answer freshAnswer() {
         return new Answer(List.of(7L), "새로 부른 답");
     }
