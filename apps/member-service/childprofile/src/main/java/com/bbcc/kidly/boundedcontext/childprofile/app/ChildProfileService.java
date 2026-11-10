@@ -99,7 +99,7 @@ public class ChildProfileService {
     @Transactional
     public void deleteAll(Long memberId) {
         var now = LocalDateTime.now();
-        var children = childProfileRepository.findAllByMemberId(memberId);
+        var children = childProfileRepository.findAllByMemberIdForUpdate(memberId);
         for (var child : children) {
             child.delete(now);
             publish(child, true, now);

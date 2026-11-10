@@ -13,6 +13,8 @@ public interface ChildProfileRepository {
 
     List<ChildProfile> findAllByMemberId(Long memberId);
 
+    List<ChildProfile> findAllByMemberIdForUpdate(Long memberId);
+
     // 삭제되지 않은 자녀 전체
     List<ChildProfile> findAll();
 
