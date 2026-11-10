@@ -68,9 +68,10 @@ class ProductChangedDataTest {
         ProductChangedEvent.Data data = ProductChangedData.of(product, top,
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 0));
 
-        // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로는 다른 테스트가 확인하므로 여기서는 비교하지 않는다
+        // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 · 판매 시작 시각은 다른 테스트가 확인하므로 여기서는 비교하지 않는다
         assertThat(data).usingRecursiveComparison()
-            .ignoringFields("infoValues", "options.values", "brand", "description", "sizeSpecs", "categoryPath")
+            .ignoringFields("infoValues", "options.values", "brand", "description", "sizeSpecs", "categoryPath",
+                "saleStartedAt")
             .isEqualTo(new ProductChangedEvent.Data(
                 PRODUCT_ID, SELLER_ID, "상품 A", CATEGORY_ID, ProductStatus.ON_SALE, product.getThumbnailUrl(),
                 REGISTERED_AT, false, List.of(
@@ -217,6 +218,15 @@ class ProductChangedDataTest {
         assertThat(data.categoryPath()).containsExactly(
             new ProductChangedEvent.CategoryPathEntry(CLOTHING_CATEGORY_ID, "의류"),
             new ProductChangedEvent.CategoryPathEntry(CATEGORY_ID, "상의"));
+    }
+
+    @Test
+    @DisplayName("이벤트 data의 판매 시작 시각은 상품의 판매 시작 시각이다")
+    void carrySaleStartedAt() {
+        withOptionsAndSizeSpecs110And120();
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
+
+        assertThat(ProductChangedData.of(product, top, Map.of()).saleStartedAt()).isEqualTo(ProductFixture.NOW);
     }
 
     @Test
