@@ -153,6 +153,18 @@ class AiResponseServiceTest {
         verify(store, never()).save(any(), any(), any(), any());
     }
 
+    @Test
+    @DisplayName("AI가 null을 돌려주면 AI 결과 없음을 돌려주고 저장하지 않는다")
+    void returnNothingWhenAiReturnsNull() {
+        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
+
+        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, () -> null);
+
+        assertThat(answer).isEmpty();
+        verify(store, never()).save(any(), any(), any(), any());
+    }
+
     private static void sleep(Duration duration) {
         try {
             Thread.sleep(duration);
