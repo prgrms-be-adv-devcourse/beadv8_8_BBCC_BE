@@ -212,6 +212,38 @@ class ReferenceGarmentApiTest {
             Arguments.of("TOP", "\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": null", INVALID_VALUE));
     }
 
+    @Test
+    @DisplayName("세부 종류 ID를 문자열 숫자로 보내도 숫자와 똑같이 저장되고, 응답의 ID는 문자열이다")
+    void saveWithStringCategoryId() {
+        put(MEMBER_1_ID, CHILD_1_ID, "TOP", TOP_BODY.replace("\"categoryId\": 7", "\"categoryId\": \"7\""))
+            .expectStatus().isOk()
+            .expectBody(Map.class).isEqualTo(garment("TOP", "7", Map.of("TOTAL_LENGTH", 42.0, "CHEST_WIDTH", 34.5)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidRequestBodies")
+    @DisplayName("세부 종류 ID가 없거나 1보다 작거나 실측 칸이 없으면 400 잘못된 요청이고 저장되지 않는다")
+    void rejectInvalidRequestFields(String body, String detail) {
+        expectProblem(put(MEMBER_1_ID, CHILD_1_ID, "TOP", body),
+            400, "잘못된 요청입니다", detail, path(CHILD_1_ID) + "/TOP");
+
+        list(MEMBER_1_ID, CHILD_1_ID).expectStatus().isOk().expectBody().json("[]");
+    }
+
+    static Stream<Arguments> invalidRequestBodies() {
+        String measurements = "\"measurements\": {\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": 34.5}";
+        String idRequired = "categoryId: 세부 종류 ID가 필요합니다.";
+        String idPositive = "categoryId: 세부 종류 ID는 1 이상이어야 합니다.";
+        String measurementsRequired = "measurements: 실측을 입력해 주세요.";
+        return Stream.of(
+            Arguments.of("{" + measurements + "}", idRequired),
+            Arguments.of("{\"categoryId\": null, " + measurements + "}", idRequired),
+            Arguments.of("{\"categoryId\": 0, " + measurements + "}", idPositive),
+            Arguments.of("{\"categoryId\": -7, " + measurements + "}", idPositive),
+            Arguments.of("{\"categoryId\": 7}", measurementsRequired),
+            Arguments.of("{\"categoryId\": 7, \"measurements\": null}", measurementsRequired));
+    }
+
     private static Map<String, Object> garment(String part, String categoryId, Map<String, Double> measurements) {
         return Map.of("part", part, "categoryId", categoryId, "measurements", measurements);
     }
