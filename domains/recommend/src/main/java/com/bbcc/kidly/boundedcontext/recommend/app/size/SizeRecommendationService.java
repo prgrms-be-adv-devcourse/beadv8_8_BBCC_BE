@@ -42,9 +42,9 @@ public class SizeRecommendationService {
         return toResult(draft.productId(), draft.childId(), recommendation);
     }
 
-    // AI 모델이 없으면 부르지 않고, 답을 얻지 못하면 null이라 규칙 결과로 답한다
+    // AI 모델이 없거나 사이즈 구분이 없는 상품이면 부르지 않고, 답을 얻지 못하면 null이라 규칙 결과로 답한다
     private AiSizeAnswer askAi(SizeRecommendationDraft draft) {
-        if (aiSizeChooser.isEmpty()) {
+        if (aiSizeChooser.isEmpty() || draft.productSizes().isSizeFree()) {
             return null;
         }
         AiSizeChooser chooser = aiSizeChooser.get();
