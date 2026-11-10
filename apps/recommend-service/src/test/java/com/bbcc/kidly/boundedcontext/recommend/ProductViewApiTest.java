@@ -132,9 +132,11 @@ class ProductViewApiTest {
         "{}                    | productId: 상품 ID가 필요합니다.",
         "{\"productId\": null} | productId: 상품 ID가 필요합니다.",
         "{\"productId\": 0}    | productId: 상품 ID는 1 이상이어야 합니다.",
-        "{\"productId\": -1}   | productId: 상품 ID는 1 이상이어야 합니다."})
-    @DisplayName("상품 ID가 없거나 1보다 작으면 400 ProblemDetail을 받고 기록은 남지 않는다")
-    void rejectInvalidProductId(String body, String detail) {
+        "{\"productId\": -1}   | productId: 상품 ID는 1 이상이어야 합니다.",
+        "{\"productId\": 31, \"childId\": 0}  | childId: 자녀 ID는 1 이상이어야 합니다.",
+        "{\"productId\": 31, \"childId\": -1} | childId: 자녀 ID는 1 이상이어야 합니다."})
+    @DisplayName("상품 ID가 없거나 1보다 작거나, 자녀 ID가 1보다 작으면 400 ProblemDetail을 받고 기록은 남지 않는다")
+    void rejectInvalidIds(String body, String detail) {
         view(MEMBER_1_ID, body)
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
