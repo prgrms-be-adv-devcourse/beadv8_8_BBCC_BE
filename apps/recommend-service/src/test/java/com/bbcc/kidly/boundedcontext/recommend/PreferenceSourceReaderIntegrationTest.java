@@ -51,6 +51,21 @@ class PreferenceSourceReaderIntegrationTest {
         assertThat(reader.findChildTargets(SINCE, SINCE, 1, 2)).containsExactly(3L, 4L);
     }
 
+    @Test
+    @DisplayName("대상 회원은 자녀를 고르지 않은 활동만 세고 after보다 큰 ID만 limit개까지 중복 없이 읽는다")
+    void readMemberTargetsFromActivitiesWithoutChild() {
+        memberActivity(1L, SINCE);
+        memberActivity(1L, SINCE.plusDays(1));
+        memberActivity(2L, SINCE.minusSeconds(1));
+        PreferenceTestData.insertActivity(jdbc, ActivityType.CART_ITEM_ADDED, 3L, 7L, SINCE.plusDays(1), 100L, null,
+            null, 1L);
+        memberActivity(4L, SINCE);
+        memberActivity(5L, SINCE);
+
+        assertThat(reader.findMemberTargets(SINCE, 0, 10)).containsExactly(1L, 4L, 5L);
+        assertThat(reader.findMemberTargets(SINCE, 1, 1)).containsExactly(4L);
+    }
+
     private void childActivity(Long childProfileId, LocalDateTime occurredAt) {
         PreferenceTestData.insertActivity(jdbc, ActivityType.PRODUCT_VIEWED, 1L, childProfileId, occurredAt, 100L,
             null, null, null);
