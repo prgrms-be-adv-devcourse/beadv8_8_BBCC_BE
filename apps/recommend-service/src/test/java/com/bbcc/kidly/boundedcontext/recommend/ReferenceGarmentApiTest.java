@@ -31,6 +31,8 @@ class ReferenceGarmentApiTest {
 
     private static final Long TOP_CATEGORY_ID = 7L;
 
+    private static final Long OUTER_CATEGORY_ID = 8L;
+
     private static final Long BOTTOM_CATEGORY_ID = 70L;
 
     private static final String TOP_BODY =
@@ -53,6 +55,7 @@ class ReferenceGarmentApiTest {
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
         applyProduct(31L, TOP_CATEGORY_ID, "상의");
         applyProduct(32L, BOTTOM_CATEGORY_ID, "하의");
+        applyProduct(33L, OUTER_CATEGORY_ID, "아우터");
     }
 
     @Test
@@ -89,6 +92,24 @@ class ReferenceGarmentApiTest {
             .expectBody(List.class).isEqualTo(List.of(
                 garment("TOP", "7", Map.of("TOTAL_LENGTH", 42.0, "CHEST_WIDTH", 34.5)),
                 garment("BOTTOM", "70", Map.of("TOTAL_LENGTH", 55.5, "WAIST_WIDTH", 26.0))));
+    }
+
+    @Test
+    @DisplayName("같은 구분을 다시 저장하면 새 값이 기존 기준 옷을 교체하고, 빼고 보낸 선택 실측은 사라진다")
+    void replaceSamePart() {
+        put(MEMBER_1_ID, CHILD_1_ID, "TOP", "{\"categoryId\": 7, \"measurements\": {\"TOTAL_LENGTH\": 42,"
+            + " \"CHEST_WIDTH\": 34.5, \"SHOULDER_WIDTH\": 30, \"SLEEVE_LENGTH\": 40.5}}")
+            .expectStatus().isOk();
+
+        put(MEMBER_1_ID, CHILD_1_ID, "TOP",
+            "{\"categoryId\": 8, \"measurements\": {\"TOTAL_LENGTH\": 45.5, \"CHEST_WIDTH\": 36}}")
+            .expectStatus().isOk()
+            .expectBody(Map.class).isEqualTo(garment("TOP", "8", Map.of("TOTAL_LENGTH", 45.5, "CHEST_WIDTH", 36.0)));
+
+        list(MEMBER_1_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody(List.class).isEqualTo(List.of(
+                garment("TOP", "8", Map.of("TOTAL_LENGTH", 45.5, "CHEST_WIDTH", 36.0))));
     }
 
     private static Map<String, Object> garment(String part, String categoryId, Map<String, Double> measurements) {
