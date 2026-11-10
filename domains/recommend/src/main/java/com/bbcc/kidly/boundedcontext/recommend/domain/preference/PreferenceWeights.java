@@ -16,6 +16,11 @@ public final class PreferenceWeights {
 
     public static final int ACTIVITY_WINDOW_DAYS = 30;
 
+    /**
+     * 장바구니에 담고 빼지 않은 상품을 지금도 장바구니에 있는 상품으로 보는 기간이다. 점수용 활동 창과 따로 바꾼다.
+     */
+    public static final int CART_PRESENCE_DAYS = 30;
+
     public static final int PURCHASE_WINDOW_DAYS = 180;
 
     /**
