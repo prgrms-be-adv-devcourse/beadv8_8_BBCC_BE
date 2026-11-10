@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class AiResponseKeyTest {
 
@@ -135,5 +136,20 @@ class AiResponseKeyTest {
 
         assertThatThrownBy(() -> AiResponseKey.of(nullCandidate)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> AiResponseKey.of(nullCart)).isInstanceOf(NullPointerException.class);
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {
+        "",
+        "abc",
+        "4d092372bb5f88230177cc2003d2186e3775606081ac2f57b99968fc6881d24",
+        "4d092372bb5f88230177cc2003d2186e3775606081ac2f57b99968fc6881d2480",
+        "4D092372BB5F88230177CC2003D2186E3775606081AC2F57B99968FC6881D248",
+        "4d092372bb5f88230177cc2003d2186e3775606081ac2f57b99968fc6881d24g",
+        " 4d092372bb5f88230177cc2003d2186e3775606081ac2f57b99968fc6881d24"
+    })
+    @DisplayName("64자 소문자 hex가 아니면 키를 만들지 않는다")
+    void rejectNonHashValue(String value) {
+        assertThatThrownBy(() -> new AiResponseKey(value)).isInstanceOf(IllegalArgumentException.class);
     }
 }
