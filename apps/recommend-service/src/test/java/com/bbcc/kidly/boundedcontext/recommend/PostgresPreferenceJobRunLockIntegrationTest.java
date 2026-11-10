@@ -28,6 +28,8 @@ class PostgresPreferenceJobRunLockIntegrationTest {
 
     private static final long WAIT_SECONDS = 10;
 
+    private static final String LOCK_KEY = "kidly.recommend.preference-job";
+
     @Autowired
     private PreferenceJobRunLock runLock;
 
@@ -51,6 +53,7 @@ class PostgresPreferenceJobRunLockIntegrationTest {
                 awaitLatch(release);
             }));
             assertThat(holding.await(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
+            assertThat(advisoryLockCount()).isEqualTo(1);
 
             boolean otherRan = runLock.runExclusively(() -> otherWorkRan.set(true));
 
@@ -122,9 +125,13 @@ class PostgresPreferenceJobRunLockIntegrationTest {
         }
     }
 
-    // 세션 잠금은 같은 세션에서 다시 잡아도 성공하므로, 풀렸는지는 DB가 들고 있는 잠금 수로 확인한다
+    // 세션 잠금은 같은 세션에서 다시 잡아도 성공하므로, 풀렸는지는 DB가 들고 있는 이 키의 잠금 수로 확인한다
     private int advisoryLockCount() {
-        return jdbcTemplate.queryForObject("select count(*) from pg_locks where locktype = 'advisory'", Integer.class);
+        return jdbcTemplate.queryForObject("""
+            select count(*) from pg_locks
+            where locktype = 'advisory' and objsubid = 1
+              and ((classid::bigint << 32) | objid::bigint) = hashtextextended(?, 0)
+            """, Integer.class, LOCK_KEY);
     }
 
     private static void awaitLatch(CountDownLatch latch) {
