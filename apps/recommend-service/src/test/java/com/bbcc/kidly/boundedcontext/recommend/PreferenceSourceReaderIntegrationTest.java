@@ -9,6 +9,8 @@ import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -86,6 +88,31 @@ class PreferenceSourceReaderIntegrationTest {
             new RecentActivity(ActivityType.SEARCH, null, 50L, null, from, false),
             new RecentActivity(ActivityType.PRODUCT_VIEWED, 100L, 10L, "Nike", from.plusHours(2), false),
             new RecentActivity(ActivityType.CART_ITEM_ADDED, 101L, 20L, "Own", to, false));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-60, true", "0, true", "1, false"})
+    @DisplayName("PREF-07 담은 장바구니 줄은 기간 끝 시각까지 뺐을 때만 removedFromCart다")
+    void markCartItemRemovedOnlyUntilEndOfPeriod(long removedSecondsAfterEnd, boolean removed) {
+        LocalDateTime to = SINCE.plusHours(3);
+        insert(ActivityType.CART_ITEM_ADDED, 7L, SINCE.plusHours(1), 100L, 10L, "Nike", 5L);
+        insert(ActivityType.CART_ITEM_REMOVED, 7L, to.plusSeconds(removedSecondsAfterEnd), 100L, null, null, 5L);
+        insert(ActivityType.CART_ITEM_ADDED, 7L, SINCE.plusHours(2), 101L, 10L, "Nike", 6L);
+
+        assertThat(reader.findChildActivities(7L, SINCE, to)).extracting(RecentActivity::removedFromCart)
+            .containsExactly(removed, false);
+    }
+
+    @Test
+    @DisplayName("회원 활동은 자녀를 고르지 않은 활동만 읽는다")
+    void readMemberActivitiesWithoutChild() {
+        LocalDateTime to = SINCE.plusHours(3);
+        PreferenceTestData.insertActivity(jdbc, ActivityType.PRODUCT_VIEWED, 1L, null, SINCE, 100L, 10L, "Nike", null);
+        PreferenceTestData.insertActivity(jdbc, ActivityType.CART_ITEM_ADDED, 1L, 7L, SINCE, 100L, 10L, "Nike", 1L);
+        PreferenceTestData.insertActivity(jdbc, ActivityType.PRODUCT_VIEWED, 2L, null, SINCE, 100L, 10L, "Nike", null);
+
+        assertThat(reader.findMemberActivities(1L, SINCE, to)).containsExactly(
+            new RecentActivity(ActivityType.PRODUCT_VIEWED, 100L, 10L, "Nike", SINCE, false));
     }
 
     private void insert(ActivityType type, Long childProfileId, LocalDateTime occurredAt, Long productId,
