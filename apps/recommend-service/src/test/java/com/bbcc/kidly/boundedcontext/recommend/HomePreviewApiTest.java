@@ -21,7 +21,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
@@ -64,6 +67,52 @@ class HomePreviewApiTest {
             .jsonPath("$.products[0].minPrice").isNumber()
             .jsonPath("$.products[0].recommendedSize").isNotEmpty()
             .jsonPath("$.products[0].reason").isEmpty();
+    }
+
+    @Test
+    @DisplayName("HOME-02 후보가 없으면 상품 목록은 빈 배열이다")
+    void emptyProductsWithoutCandidates() {
+        preview()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.source").isEqualTo("RULE")
+            .jsonPath("$.products").isArray()
+            .jsonPath("$.products").isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"999, 11", "1, 9999"})
+    @DisplayName("없는 자녀와 다른 회원의 자녀는 같은 404 \"자녀를 찾을 수 없습니다.\"를 ProblemDetail로 받는다")
+    void childNotFound(Long memberId, Long childId) {
+        client.get().uri(PATH + "?childId={childId}", childId)
+            .headers(TestMembers.buyer(memberId))
+            .exchange()
+            .expectStatus().isNotFound()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").isEqualTo("about:blank")
+            .jsonPath("$.title").isEqualTo("자녀를 찾을 수 없습니다")
+            .jsonPath("$.status").isEqualTo(404)
+            .jsonPath("$.detail").isEqualTo("자녀를 찾을 수 없습니다.")
+            .jsonPath("$.instance").isEqualTo(PATH);
+    }
+
+    @Test
+    @DisplayName("childId가 없으면 400이다")
+    void rejectMissingChildId() {
+        client.get().uri(PATH)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .exchange()
+            .expectStatus().isBadRequest();
+    }
+
+    @Test
+    @DisplayName("로그인 헤더가 없으면 401이다")
+    void rejectAnonymous() {
+        client.get().uri(PATH + "?childId={childId}", CHILD_1_ID)
+            .headers(TestMembers.anonymous())
+            .exchange()
+            .expectStatus().isUnauthorized();
     }
 
     private RestTestClient.ResponseSpec preview() {
