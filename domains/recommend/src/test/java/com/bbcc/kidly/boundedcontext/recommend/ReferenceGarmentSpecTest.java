@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class ReferenceGarmentSpecTest {
@@ -145,6 +146,26 @@ class ReferenceGarmentSpecTest {
         assertRejected(
             () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, matchingPath(part), measurements),
             ReferenceGarmentErrorCode.REQUIRED_MEASUREMENT_MISSING);
+    }
+
+    @ParameterizedTest(name = "{0} 기준 옷에 {1}")
+    @CsvSource({
+        "TOP, WAIST_WIDTH",
+        "TOP, RISE",
+        "TOP, FOO",
+        "BOTTOM, CHEST_WIDTH",
+        "BOTTOM, SHOULDER_WIDTH",
+        "BOTTOM, SLEEVE_LENGTH",
+        "BOTTOM, FOO",
+    })
+    @DisplayName("그 구분에 없는 실측 항목 코드가 있으면 이 구분에 없는 실측 항목이라고 거절한다")
+    void rejectedWhenMeasurementCodeIsNotForThePart(GarmentPart part, String unsupportedCode) {
+        Map<String, BigDecimal> measurements = new HashMap<>(requiredMeasurements(part));
+        measurements.put(unsupportedCode, cm("20.0"));
+
+        assertRejected(
+            () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, matchingPath(part), measurements),
+            ReferenceGarmentErrorCode.UNSUPPORTED_MEASUREMENT);
     }
 
     private static List<String> matchingPath(GarmentPart part) {

@@ -19,7 +19,9 @@ public enum ReferenceGarmentErrorCode implements ErrorCode {
     CATEGORY_PART_MISMATCH(HttpStatus.BAD_REQUEST, "구분과 맞지 않는 세부 종류입니다",
         "상의 기준 옷은 상의 · 아우터 · 원피스, 하의 기준 옷은 하의 · 치마 카테고리에서 골라 주세요."),
     REQUIRED_MEASUREMENT_MISSING(HttpStatus.BAD_REQUEST, "필수 실측이 없습니다",
-        "상의는 총장과 가슴단면, 하의는 총장과 허리단면을 입력해 주세요.");
+        "상의는 총장과 가슴단면, 하의는 총장과 허리단면을 입력해 주세요."),
+    UNSUPPORTED_MEASUREMENT(HttpStatus.BAD_REQUEST, "이 구분에 없는 실측 항목입니다",
+        "상의는 총장 · 가슴단면 · 어깨너비 · 소매길이, 하의는 총장 · 허리단면 · 밑위만 입력할 수 있습니다.");
 
     private final HttpStatus status;
     private final String title;
