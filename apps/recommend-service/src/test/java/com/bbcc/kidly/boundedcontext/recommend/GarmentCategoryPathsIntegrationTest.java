@@ -56,7 +56,8 @@ class GarmentCategoryPathsIntegrationTest {
         applyProduct(RecommendFixture.PRODUCT_A_ID, topPath());
         applyProduct(OTHER_PRODUCT_ID, topPath());
 
-        assertThat(garmentCategoryPaths.findPathOf(TOP_ID)).hasSize(2);
+        assertThat(garmentCategoryPaths.findPathOf(TOP_ID))
+            .extracting(GarmentCategoryPathEntry::categoryId).containsExactly(CLOTHING_ID, TOP_ID);
     }
 
     @Test
