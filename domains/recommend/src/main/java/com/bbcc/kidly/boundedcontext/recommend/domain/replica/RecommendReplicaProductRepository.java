@@ -7,6 +7,8 @@ public interface RecommendReplicaProductRepository {
 
     Optional<RecommendReplicaProduct> findById(Long productId);
 
+    List<RecommendReplicaProduct> findAllById(Iterable<Long> productIds);
+
     RecommendReplicaProduct save(RecommendReplicaProduct replicaProduct);
 
     /**
