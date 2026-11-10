@@ -33,7 +33,8 @@ class FavoriteServiceTest {
     private final FakeStats stats = new FakeStats();
     private final FakeProducts products = new FakeProducts();
     private final FavoriteService service =
-        new FavoriteService(favorites, stats, products, new FavoriteSeparateTransaction());
+        new FavoriteService(favorites, stats, products, new FavoriteSeparateTransaction(),
+            org.mockito.Mockito.mock(com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog.class));
 
     @Test
     @DisplayName("판매 중 상품을 찜하면 저장하고 찜 수 +1")
@@ -203,8 +204,8 @@ class FavoriteServiceTest {
         }
 
         @Override
-        public int deleteByMember(Long memberId, Long productId) {
-            return rows.remove(productId) == null ? 0 : 1;
+        public List<Long> deleteByMember(Long memberId, Long productId) {
+            return rows.remove(productId) == null ? List.of() : java.util.Arrays.asList((Long) null);
         }
 
         @Override

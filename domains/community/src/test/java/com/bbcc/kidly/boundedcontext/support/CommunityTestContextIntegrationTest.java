@@ -45,7 +45,8 @@ class CommunityTestContextIntegrationTest {
             .filter(Objects::nonNull)
             .map(Class::getName)
             .filter(type -> type.startsWith(DOMAINS) && !type.startsWith(DOMAINS + "review.")
-                && !type.startsWith(DOMAINS + "favorite.") && !type.startsWith(DOMAINS + "support."))
+                && !type.startsWith(DOMAINS + "favorite.") && !type.startsWith(DOMAINS + "activity.")
+                && !type.startsWith(DOMAINS + "support."))
             .toList();
 
         assertThat(otherDomains).isEmpty();

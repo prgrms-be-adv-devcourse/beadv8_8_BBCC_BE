@@ -30,7 +30,8 @@ class ReviewModerationAdminServiceTest {
     private final ReviewModerationStats stats = mock(ReviewModerationStats.class);
     private final ReviewModerationAdminService service = new ReviewModerationAdminService(
         mock(ReviewModerations.class), mock(Reviews.class), mock(ReviewImages.class), mock(ReviewStatsShare.class),
-        new ReviewModerationProperties(false, Duration.ofMinutes(1), 10, MAX_ATTEMPTS), stats);
+        new ReviewModerationProperties(false, Duration.ofMinutes(1), 10, MAX_ATTEMPTS), stats,
+        mock(com.bbcc.kidly.boundedcontext.review.app.port.ReviewActivityLog.class));
 
     @ParameterizedTest(name = "전체 대기 {0} · 상한 도달 {1} → PENDING {2}")
     @CsvSource({"7, 2, 5", "2, 2, 0", "2, 5, 0", "0, 1, 0"})

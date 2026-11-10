@@ -42,7 +42,7 @@ class CommunityPackageLayoutArchitectureTest {
     private static final String ADMIN_PATH = "/api/v1/admin";
     private static final String[] CONFIG = {BASE + "*.in.config..", BASE + "*.out.config.."};
     private static final Set<String> OUT_PACKAGES = Set.of("persistence", "config", "store", "storage", "moderation");
-    private static final Set<String> CONTEXTS = Set.of("review", "favorite");
+    private static final Set<String> CONTEXTS = Set.of("review", "favorite", "activity");
 
     @ArchTest
     static final ArchRule CONTEXTS_HAVE_ONLY_LAYERS = classes()

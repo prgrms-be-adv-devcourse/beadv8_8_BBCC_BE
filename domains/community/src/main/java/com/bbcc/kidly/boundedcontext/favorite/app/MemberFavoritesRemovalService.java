@@ -1,6 +1,9 @@
 package com.bbcc.kidly.boundedcontext.favorite.app;
 
+import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog.RemovedFavorite;
+import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteStatsCounter;
+import com.bbcc.kidly.boundedcontext.favorite.app.port.MemberFavoriteRows.DeletedFavorite;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.MemberFavoriteRows;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.in.MemberFavoritesRemover;
 import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteTimes;
@@ -23,22 +26,27 @@ public class MemberFavoritesRemovalService implements MemberFavoritesRemover {
 
     private final MemberFavoriteRows memberFavoriteRows;
     private final FavoriteStatsCounter favoriteStatsCounter;
+    private final FavoriteActivityLog activityLog;
 
     @Override
     @Transactional
     public int removeAll(Long memberId) {
-        List<Long> deletedProductIds = memberFavoriteRows.deleteAllByMember(memberId);
-        if (deletedProductIds.isEmpty()) {
+        List<DeletedFavorite> deleted = memberFavoriteRows.deleteAllByMember(memberId);
+        if (deleted.isEmpty()) {
             return 0;
         }
         Map<Long, Integer> perProduct = new TreeMap<>();
-        deletedProductIds.forEach(productId -> perProduct.merge(productId, 1, Integer::sum));
+        deleted.forEach(favorite -> perProduct.merge(favorite.getProductId(), 1, Integer::sum));
         LocalDateTime now = FavoriteTimes.now();
         perProduct.forEach((productId, count) -> {
             if (favoriteStatsCounter.decreaseBy(productId, count, now) == 0) {
                 throw new IllegalStateException("찜 수 행이 없습니다: productId=" + productId);
             }
         });
-        return deletedProductIds.size();
+        // 지운 행을 그대로 한 문장으로 남긴다(까닭 withdrawn, 행마다 한 건)
+        activityLog.favoritesRemovedByWithdrawal(deleted.stream()
+            .map(favorite -> new RemovedFavorite(favorite.getId(), favorite.getProductId()))
+            .toList());
+        return deleted.size();
     }
 }
