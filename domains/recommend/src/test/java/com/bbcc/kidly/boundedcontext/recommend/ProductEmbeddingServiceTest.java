@@ -151,6 +151,23 @@ class ProductEmbeddingServiceTest {
     }
 
     @Test
+    @DisplayName("글이 그 사이 바뀌어 한 상품의 저장이 거절돼도 다음 상품의 저장은 이어 간다")
+    void keepSavingWhenOneSaveIsRejected() {
+        EmbeddingVector vector1 = vectorOf(0.1f);
+        EmbeddingVector vector2 = vectorOf(0.2f);
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, false)));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT))).willReturn(List.of(vector1, vector2));
+        given(store.saveIfTextUnchanged(PRODUCT_1_ID, PRODUCT_1_TEXT, vector1)).willReturn(false);
+
+        service.embedStaleProducts();
+
+        verify(store).saveIfTextUnchanged(PRODUCT_1_ID, PRODUCT_1_TEXT, vector1);
+        verify(store).saveIfTextUnchanged(PRODUCT_2_ID, PRODUCT_2_TEXT, vector2);
+    }
+
+    @Test
     @DisplayName("요청이 실패하면 상품 글 · 예외 메시지 · 스택 트레이스 없이 상품 수와 예외 종류만 경고 로그로 남긴다")
     void logOnlyCountAndExceptionTypeWhenRequestFails() {
         given(store.findStale(BATCH_SIZE)).willReturn(List.of(
