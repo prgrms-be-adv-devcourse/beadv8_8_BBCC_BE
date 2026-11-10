@@ -27,6 +27,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -489,7 +490,8 @@ public class Product extends BaseTimeEntity {
 
     // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다.
     // 판매 시작 시각은 처음 판매중이 될 때만 넣는다. 상태가 아니라 값이 비었는지로 보는 까닭은, 판매대기에서 바로 등록 취소한 상품을
-    // 관리자가 판매중지로 되돌린 뒤 처음 판매를 시작하는 경우도 그때 처음 판매중이 되는 것이기 때문이다
+    // 관리자가 판매중지로 되돌린 뒤 처음 판매를 시작하는 경우도 그때 처음 판매중이 되는 것이기 때문이다.
+    // DB 칸이 마이크로초까지라 이벤트 값과 저장 값을 맞추려고 마이크로초 아래는 자른다
     private boolean openSale(Category category, ProductType productType, LocalDateTime now) {
         if (status == ProductStatus.ON_SALE) {
             return false;
@@ -497,7 +499,7 @@ public class Product extends BaseTimeEntity {
         SaleStartConditions.requireMet(options, sizeSpecs, category, productType);
         status = ProductStatus.ON_SALE;
         if (saleStartedAt == null) {
-            saleStartedAt = now;
+            saleStartedAt = now.truncatedTo(ChronoUnit.MICROS);
         }
         return true;
     }
