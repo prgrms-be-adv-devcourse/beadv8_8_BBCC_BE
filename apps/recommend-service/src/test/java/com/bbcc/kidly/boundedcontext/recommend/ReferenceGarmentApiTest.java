@@ -305,6 +305,19 @@ class ReferenceGarmentApiTest {
         expectChildNotFound(delete(MEMBER_1_ID, childId, "TOP"), path + "/TOP");
     }
 
+    @Test
+    @DisplayName("로그인하지 않으면 조회 · 저장 · 삭제 모두 401이고 저장되지 않는다")
+    void rejectWithoutLogin() {
+        String path = path(CHILD_1_ID);
+
+        expectUnauthorized(client.get().uri(path).exchange(), path);
+        expectUnauthorized(client.put().uri(path + "/TOP")
+            .contentType(MediaType.APPLICATION_JSON).body(TOP_BODY).exchange(), path + "/TOP");
+        expectUnauthorized(client.delete().uri(path + "/TOP").exchange(), path + "/TOP");
+
+        list(MEMBER_1_ID, CHILD_1_ID).expectStatus().isOk().expectBody().json("[]");
+    }
+
     private static Map<String, Object> garment(String part, String categoryId, Map<String, Double> measurements) {
         return Map.of("part", part, "categoryId", categoryId, "measurements", measurements);
     }
@@ -334,6 +347,10 @@ class ReferenceGarmentApiTest {
 
     private static void expectForbidden(RestTestClient.ResponseSpec response, String instance) {
         expectProblem(response, 403, "자녀에 접근할 수 없습니다", "로그인한 보호자의 자녀만 다룰 수 있습니다.", instance);
+    }
+
+    private static void expectUnauthorized(RestTestClient.ResponseSpec response, String instance) {
+        expectProblem(response, 401, "로그인이 필요합니다", "로그인 후 다시 시도해 주세요.", instance);
     }
 
     private static void expectChildNotFound(RestTestClient.ResponseSpec response, String instance) {
