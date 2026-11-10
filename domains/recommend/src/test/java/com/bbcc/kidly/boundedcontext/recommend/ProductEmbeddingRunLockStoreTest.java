@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -84,6 +85,19 @@ class ProductEmbeddingRunLockStoreTest {
         })).isInstanceOf(IllegalArgumentException.class).hasMessage("작업 실패");
 
         verify(connection).abort(any(Executor.class));
+    }
+
+    @Test
+    @DisplayName("해제 실패로 연결을 버린 뒤 닫기가 던지는 예외는 삼키고, 일은 끝났으므로 true를 돌려준다")
+    void returnTrueWhenCloseFailsAfterAbort() throws SQLException {
+        when(connection.prepareStatement(contains("pg_advisory_unlock"))).thenThrow(new SQLException("unlock"));
+        doThrow(new SQLException("close")).when(connection).close();
+
+        assertThat(lockStore.runExclusively(() -> workRan.set(true))).isTrue();
+
+        assertThat(workRan).isTrue();
+        verify(connection).abort(any(Executor.class));
+        verify(connection).close();
     }
 
     private static PreparedStatement statementReturning(boolean value) throws SQLException {
