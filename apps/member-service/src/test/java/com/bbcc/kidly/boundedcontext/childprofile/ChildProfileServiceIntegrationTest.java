@@ -16,10 +16,15 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +43,7 @@ class ChildProfileServiceIntegrationTest {
         verifications.save(GuardianVerificationFixture.verification(2L));
     }
 
+    private static final int THREAD_COUNT = 10;
     private static final Long MEMBER_ID = 1L;
     private static final Long OTHER_MEMBER_ID = 2L;
     private static final ChildProfileRequest REQUEST = new ChildProfileRequest(
@@ -55,6 +61,9 @@ class ChildProfileServiceIntegrationTest {
 
     @Autowired
     private ApplicationEvents events;
+
+    @Autowired
+    private CommittedEventRecorder recorder;
 
     @Test
     @DisplayName("등록하면 자녀가 저장되고 전체 값을 담은 자녀 변경 이벤트가 발행된다")
@@ -167,6 +176,34 @@ class ChildProfileServiceIntegrationTest {
                 assertThat(event.data().memberId()).isEqualTo(MEMBER_ID);
                 assertThat(event.data().deleted()).isTrue();
             })
+            .extracting(event -> event.data().childId())
+            .containsExactlyInAnyOrder(first, second);
+    }
+
+    @Test
+    @DisplayName("같은 회원의 자녀 전체 삭제를 동시에 처리해도 자녀마다 삭제 이벤트는 한 번만 발행한다")
+    void concurrentDeleteAll() throws Exception {
+        var first = childProfileService.register(MEMBER_ID, REQUEST).id();
+        var second = childProfileService.register(MEMBER_ID, REQUEST).id();
+        recorder.clear();
+        var start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(THREAD_COUNT)) {
+            var futures = new ArrayList<Future<?>>();
+            for (var i = 0; i < THREAD_COUNT; i++) {
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    childProfileService.deleteAll(MEMBER_ID);
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (var future : futures) {
+                future.get();
+            }
+        }
+
+        assertThat(recorder.events(ChildChangedEvent.class))
             .extracting(event -> event.data().childId())
             .containsExactlyInAnyOrder(first, second);
     }
