@@ -20,11 +20,7 @@ public interface JpaActivityRecordRepository extends JpaRepository<ActivityRecor
     @Query("delete from ActivityRecord r where r.memberId = :memberId")
     void deleteByMemberId(@Param("memberId") Long memberId);
 
-    /**
-     * 같은 날 같은 상세 진입이 이미 있으면 UNIQUE 색인과 부딪혀 행을 넣지 않고 0을 돌려준다.
-     * 먼저 조회하거나 제약 위반 예외를 잡으면 동시 요청에서 500이 나거나 트랜잭션이 깨지므로 한 문장으로 처리한다.
-     * 엔티티를 거치지 않아 감사 시각이 채워지지 않으므로 생성 · 수정 시각은 활동 시각으로 넣는다.
-     */
+    // 엔티티를 거치지 않아 감사 시각이 채워지지 않으므로 생성 · 수정 시각은 활동 시각으로 넣는다
     @Modifying
     @Query(nativeQuery = true, value = """
         INSERT INTO recommend.activity_record
@@ -43,7 +39,6 @@ public interface JpaActivityRecordRepository extends JpaRepository<ActivityRecor
     @Override
     default boolean saveProductViewedIfAbsent(ActivityRecord activityRecord) {
         requireNonNull(activityRecord, "activityRecord는 필수입니다");
-        // 위 INSERT는 상세 진입의 칸만 넣으므로 다른 종류를 넘기면 나머지 칸이 조용히 사라진다
         if (activityRecord.getType() != ActivityType.PRODUCT_VIEWED) {
             throw new IllegalArgumentException("상세 진입 기록만 저장할 수 있습니다");
         }

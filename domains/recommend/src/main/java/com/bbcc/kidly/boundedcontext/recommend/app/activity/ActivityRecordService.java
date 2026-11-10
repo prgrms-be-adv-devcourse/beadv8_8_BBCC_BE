@@ -25,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ActivityRecordService {
 
-    // 상세 진입이 같은 날인지는 서비스가 쓰는 한국 시간의 날짜로 가른다
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final ActivityRecordRepository activityRecordRepository;
@@ -92,11 +91,6 @@ public class ActivityRecordService {
         activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
     }
 
-    /**
-     * 이벤트로 받은 기록이 아니므로 이벤트 ID는 서버가 새로 만든다.
-     * 같은 날 같은 상품을 다시 보면 저장하지 않고 조용히 끝낸다. 새로 고칠 때마다 기록이 쌓여 한 상품이 취향 계산을 독차지하지 않게 하려는 것이다.
-     * 자녀를 골랐으면 이 회원이 볼 수 있는 자녀인지 먼저 확인하고, 아니면 아무것도 저장하지 않고 자녀를 찾을 수 없다고 응답한다.
-     */
     public void recordProductViewed(Long memberId, Long productId, Long childId) {
         if (childId != null) {
             requireVisibleChild(memberId, childId);
@@ -106,7 +100,6 @@ public class ActivityRecordService {
         activityRecordRepository.saveProductViewedIfAbsent(ActivityRecord.productViewed(info));
     }
 
-    // 없는 자녀, 다른 회원의 자녀, 삭제된 자녀는 같은 오류로 알려 다른 회원의 자녀가 있는지 드러내지 않는다
     private void requireVisibleChild(Long memberId, Long childId) {
         Optional<RecommendReplicaChild> child = replicaChildRepository.findById(childId);
         if (child.isEmpty() || !child.get().isVisibleTo(memberId)) {

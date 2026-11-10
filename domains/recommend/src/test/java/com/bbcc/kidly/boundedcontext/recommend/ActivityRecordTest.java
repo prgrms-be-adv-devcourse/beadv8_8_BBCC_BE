@@ -213,7 +213,6 @@ class ActivityRecordTest {
                 REMOVED_QTY, null))));
     }
 
-    // 자녀를 고르지 않은 상세 진입도 회원의 활동이라 남긴다
     @ParameterizedTest(name = "자녀 ID {0}")
     @MethodSource("childProfileIds")
     @DisplayName("상세 진입 값으로 상세 진입 종류의 활동 기록을 만들고 고른 자녀를 그대로 담으며 장바구니 · 수량 · 검색 칸은 비운다")

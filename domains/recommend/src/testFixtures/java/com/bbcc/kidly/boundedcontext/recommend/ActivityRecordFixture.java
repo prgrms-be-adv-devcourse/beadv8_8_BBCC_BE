@@ -82,7 +82,6 @@ public final class ActivityRecordFixture {
             productId, PRODUCT_A_120_OPTION_ID, REMOVED_QTY, REMOVED_AT);
     }
 
-    // 회원 1이 상품 31의 상세에 들어갔다. 자녀를 고르지 않았으면 childProfileId는 null이다
     public static ActivityRecord.ProductViewedInfo productViewedFor(Long childProfileId) {
         return new ActivityRecord.ProductViewedInfo(VIEW_EVENT_ID, MEMBER_1_ID, childProfileId, PRODUCT_A_ID,
             VIEWED_AT);

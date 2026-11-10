@@ -98,13 +98,11 @@ class RecommendMigrationIntegrationTest {
             var jdbc = new JdbcTemplate(dataSource);
             serviceFlyway(dataSource).target(BEFORE_PRODUCT_VIEW_UNIQUE_VERSION).load().migrate();
             LocalDateTime tenAm = LocalDateTime.of(2026, 11, 10, 10, 0);
-            // 1 · 2: 자녀 없이 같은 날 두 번(2는 지워진다). 3: 다음 날. 4 · 5: 자녀 11로 같은 날 두 번(5는 지워진다)
             insertActivity(jdbc, 1, "PRODUCT_VIEWED", 1L, null, 31L, tenAm);
             insertActivity(jdbc, 2, "PRODUCT_VIEWED", 1L, null, 31L, tenAm.withHour(23).withMinute(59));
             insertActivity(jdbc, 3, "PRODUCT_VIEWED", 1L, null, 31L, tenAm.plusDays(1));
             insertActivity(jdbc, 4, "PRODUCT_VIEWED", 1L, 11L, 31L, tenAm.minusHours(1));
             insertActivity(jdbc, 5, "PRODUCT_VIEWED", 1L, 11L, 31L, tenAm);
-            // 6: 다른 회원. 7: 다른 상품. 8 · 9: 같은 날 같은 상품의 장바구니 담기라 종류가 달라 지워지지 않는다
             insertActivity(jdbc, 6, "PRODUCT_VIEWED", 2L, null, 31L, tenAm);
             insertActivity(jdbc, 7, "PRODUCT_VIEWED", 1L, null, 32L, tenAm);
             insertActivity(jdbc, 8, "CART_ITEM_ADDED", 1L, null, 31L, tenAm);

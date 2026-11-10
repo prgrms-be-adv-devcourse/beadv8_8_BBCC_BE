@@ -44,7 +44,6 @@ class ProductViewApiTest {
     @Autowired
     private JpaActivityRecordRepository activityRecordRepository;
 
-    // 추천은 이벤트로 받아 둔 자녀 복사본으로 자녀를 확인하므로, 복사본은 리스너가 부르는 서비스에 이벤트를 넘겨 만든다
     @Autowired
     private RecommendReplicaChildService replicaChildService;
 
@@ -180,7 +179,6 @@ class ProductViewApiTest {
         assertThat(activityRecordRepository.findAll()).isEmpty();
     }
 
-    // 자녀 1의 자녀 정보 변경됨에서 회원과 삭제 여부만 바꾼다
     private static ChildChangedEvent childChanged(Long memberId, boolean deleted) {
         return new ChildChangedEvent(UUID.randomUUID(), RecommendFixture.CHILD_CHANGED_AT, new ChildChangedEvent.Data(
             CHILD_1_ID, memberId, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE,

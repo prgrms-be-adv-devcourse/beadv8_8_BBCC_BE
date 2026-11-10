@@ -34,10 +34,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 상세 진입 기록을 같은 날 한 번만 저장하는 규칙을 실제 DB에서 확인한다.
- * 같은 날인지는 서비스가 정하는 한국 시간의 날짜로 가르므로, HTTP로는 시각을 정할 수 없는 날짜 경계와 동시 저장을 여기서 본다.
- */
 @IntegrationTest
 class ProductViewRecordIntegrationTest {
 
@@ -48,7 +44,6 @@ class ProductViewRecordIntegrationTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
-    // 저장된 기록 전체를 읽으려고 JpaRepository의 기본 조회를 쓴다
     @Autowired
     private JpaActivityRecordRepository activityRecordRepository;
 
@@ -119,7 +114,6 @@ class ProductViewRecordIntegrationTest {
             MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, ADDED_QTY, CART_QTY, addedAt));
     }
 
-    // 작업마다 자기 스레드 · 자기 트랜잭션으로 저장하고, 출발 신호 하나로 함께 시작한다
     private <T> List<T> runAtOnce(IntFunction<T> task) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(THREADS);
         CountDownLatch start = new CountDownLatch(1);
