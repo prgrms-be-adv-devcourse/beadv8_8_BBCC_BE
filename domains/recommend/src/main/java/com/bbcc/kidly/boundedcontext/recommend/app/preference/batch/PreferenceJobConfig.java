@@ -81,7 +81,8 @@ public class PreferenceJobConfig {
     public PreferenceTargetReader childPreferenceReader(PreferenceSourceReader sourceReader,
         PreferenceSnapshotStore snapshotStore, @Value(BASE_TIME_EXPRESSION) LocalDateTime baseTime,
         @Value("${kidly.recommend.preference.chunk-size:100}") int chunkSize) {
-        return new PreferenceTargetReader(new ChildPreferenceTargets(sourceReader, snapshotStore), baseTime, chunkSize);
+        return new PreferenceTargetReader(
+            new ChildPreferenceTargets(sourceReader, snapshotStore), baseTime, chunkSize);
     }
 
     @Bean
@@ -103,7 +104,8 @@ public class PreferenceJobConfig {
     public PreferenceTargetReader memberPreferenceReader(PreferenceSourceReader sourceReader,
         PreferenceSnapshotStore snapshotStore, @Value(BASE_TIME_EXPRESSION) LocalDateTime baseTime,
         @Value("${kidly.recommend.preference.chunk-size:100}") int chunkSize) {
-        return new PreferenceTargetReader(new MemberPreferenceTargets(sourceReader, snapshotStore), baseTime, chunkSize);
+        return new PreferenceTargetReader(
+            new MemberPreferenceTargets(sourceReader, snapshotStore), baseTime, chunkSize);
     }
 
     @Bean
