@@ -21,6 +21,9 @@ public class ProductEmbeddingService {
 
     public void embedStaleProducts() {
         List<ProductEmbeddingTarget> targets = store.findStale(BATCH_SIZE);
+        if (targets.isEmpty()) {
+            return;
+        }
         embedTogether(targets);
     }
 
