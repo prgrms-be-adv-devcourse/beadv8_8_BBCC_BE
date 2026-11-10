@@ -3,6 +3,10 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.ai;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -11,7 +15,37 @@ import java.util.List;
 public record AiResponseKey(String value) {
 
     public static AiResponseKey of(Input input) {
-        throw new UnsupportedOperationException();
+        String text = "productId=" + input.productId()
+            + "\nchildProfileId=" + input.childProfileId()
+            + "\nageMonths=" + input.ageMonths()
+            + "\nheightCm=" + input.heightCm().toPlainString()
+            + "\nweightKg=" + input.weightKg().toPlainString()
+            + "\nbodyType=" + input.bodyType().name()
+            + "\npreferredFit=" + input.preferredFit().name()
+            + "\ncandidateProductIds=" + joinIds(input.candidateProductIds())
+            + "\ncartProductIds=" + joinIds(input.cartProductIds())
+            + "\npromptVersion=" + input.promptVersion();
+        return new AiResponseKey(sha256Hex(text));
+    }
+
+    private static String joinIds(List<Long> ids) {
+        StringBuilder joined = new StringBuilder();
+        for (Long id : ids) {
+            if (joined.length() > 0) {
+                joined.append(',');
+            }
+            joined.append(id);
+        }
+        return joined.toString();
+    }
+
+    private static String sha256Hex(String text) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("JDK는 SHA-256을 항상 제공합니다", e);
+        }
     }
 
     public record Input(
