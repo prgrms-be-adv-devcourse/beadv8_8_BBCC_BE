@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment;
 
+import com.bbcc.kidly.global.error.BusinessException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -22,6 +23,18 @@ public enum GarmentPart {
         this.requiredCodes = requiredCodes;
         this.optionalCodes = optionalCodes;
         this.categoryNames = categoryNames;
+    }
+
+    /**
+     * 주소로 받은 구분 이름에서 구분을 찾는다. 응답의 구분과 같은 이름만 받으므로 소문자나 다른 말은 거절한다.
+     */
+    public static GarmentPart from(String name) {
+        for (GarmentPart part : values()) {
+            if (part.name().equals(name)) {
+                return part;
+            }
+        }
+        throw new BusinessException(ReferenceGarmentErrorCode.UNKNOWN_PART);
     }
 
     boolean acceptsCode(String measurementCode) {
