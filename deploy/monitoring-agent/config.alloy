@@ -187,19 +187,28 @@ discovery.file "kidly_recommend" {
 	files = ["/etc/alloy/targets/recommend/*.yml"]
 }
 
-// k3s 에 뜨는 환경(namespace recommend-<환경>, deploy/recommend, #1028)은 이 서버의 단독 k3s API 로 Pod 를 찾는다
+prometheus.scrape "kidly_recommend" {
+	job_name        = "kidly-recommend"
+	targets         = discovery.file.kidly_recommend.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// k3s 에 뜨는 서비스(namespace kidly-<환경>, deploy/k3s, #1142)는 이 서버의 단독 k3s API 로 Pod 를 찾는다
 // kubeconfig 는 docker-compose.yml 이 마운트한다. 호스트 네트워크라 API(127.0.0.1:6443)와 Pod IP 에 바로 닿는다
-discovery.kubernetes "recommend_pods" {
+// Pod 라벨 app 이 compose profile 이름(search · member 등)이라 job · service_name 을 compose 때와 같은 kidly-<app> 으로 붙인다
+discovery.kubernetes "kidly_pods" {
 	role            = "pod"
 	kubeconfig_file = "/etc/rancher/k3s/k3s.yaml"
 
 	namespaces {
-		names = ["recommend-dev", "recommend-prod"]
+		names = ["kidly-dev", "kidly-prod"]
 	}
 }
 
-discovery.relabel "recommend_pods" {
-	targets = discovery.kubernetes.recommend_pods.targets
+discovery.relabel "kidly_pods" {
+	targets = discovery.kubernetes.kidly_pods.targets
 
 	rule {
 		source_labels = ["__meta_kubernetes_pod_phase"]
@@ -214,35 +223,48 @@ discovery.relabel "recommend_pods" {
 	}
 
 	rule {
+		source_labels = ["__meta_kubernetes_pod_label_app"]
+		regex         = ".+"
+		action        = "keep"
+	}
+
+	rule {
 		source_labels = ["__meta_kubernetes_namespace"]
-		regex         = "recommend-(dev|prod)"
+		regex         = "kidly-(dev|prod)"
 		target_label  = "env"
 	}
 }
 
 // 메트릭은 Pod 마다 따로 긁는다(NodePort 로 긁으면 매번 다른 Pod 에 닿는다). instance 는 Pod 이름이다
-discovery.relabel "recommend_metrics" {
-	targets = discovery.relabel.recommend_pods.output
+discovery.relabel "kidly_pod_metrics" {
+	targets = discovery.relabel.kidly_pods.output
 
 	rule {
 		source_labels = ["__meta_kubernetes_pod_name"]
 		target_label  = "instance"
 	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_app"]
+		target_label  = "job"
+		replacement   = "kidly-$1"
+	}
 }
 
 // 로그에는 compose 컨테이너와 같은 service_name 을 붙인다. instance(Pod) · job 은 loki.source.kubernetes 가 붙인다
 // k3s.yaml 이 없으면 이 컴포넌트들이 만들어지지 않아 Alloy 가 뜨지 않는다. deploy.sh 가 미리 확인한다
-discovery.relabel "recommend_logs" {
-	targets = discovery.relabel.recommend_pods.output
+discovery.relabel "kidly_pod_logs" {
+	targets = discovery.relabel.kidly_pods.output
 
 	rule {
-		target_label = "service_name"
-		replacement  = "kidly-recommend"
+		source_labels = ["__meta_kubernetes_pod_label_app"]
+		target_label  = "service_name"
+		replacement   = "kidly-$1"
 	}
 }
 
-loki.source.kubernetes "recommend" {
-	targets    = discovery.relabel.recommend_logs.output
+loki.source.kubernetes "kidly_pods" {
+	targets    = discovery.relabel.kidly_pod_logs.output
 	forward_to = [loki.process.kidly_app.receiver]
 
 	client {
@@ -250,9 +272,10 @@ loki.source.kubernetes "recommend" {
 	}
 }
 
-prometheus.scrape "kidly_recommend" {
-	job_name        = "kidly-recommend"
-	targets         = array.concat(discovery.file.kidly_recommend.targets, discovery.relabel.recommend_metrics.output)
+// job 은 위에서 Pod 마다 붙였다. job_name 은 job 이 없을 때만 쓰인다
+prometheus.scrape "kidly_pods" {
+	job_name        = "kidly-k3s"
+	targets         = discovery.relabel.kidly_pod_metrics.output
 	metrics_path    = "/actuator/prometheus"
 	scrape_interval = "15s"
 	forward_to      = [prometheus.remote_write.medium.receiver]

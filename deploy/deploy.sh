@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 열 개(SEARCH_IMAGE · GATEWAY_IMAGE · RECOMMEND_IMAGE · SETTLEMENT_IMAGE · MEMBER_IMAGE · PAYMENT_IMAGE · PRODUCT_IMAGE · NOTIFICATION_IMAGE · ORDER_IMAGE · COMMUNITY_IMAGE)을 넘긴다
 # 검색 서비스 이미지는 profile search, Gateway 이미지는 profile gateway, 추천 이미지는 profile recommend, 정산 이미지는 profile settlement, 회원 이미지는 profile member, 결제 이미지는 profile payment, 상품 이미지는 profile product, 알림 이미지는 profile notification, 주문 이미지는 profile order, 커뮤니티 이미지는 profile community 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
+# .env 의 K3S_PROFILES 에 있는 서비스는 compose 대신 이 서버의 단독 k3s(namespace kidly-<환경>, deploy/k3s)에 하나씩 차례로 올린다(#1142)
 set -euo pipefail
 : "${APP_ENV:?APP_ENV 가 필요합니다}"
 : "${SEARCH_IMAGE:?SEARCH_IMAGE 가 필요합니다}" "${GATEWAY_IMAGE:?GATEWAY_IMAGE 가 필요합니다}"
@@ -78,6 +79,54 @@ if grep -qx community-service <<< "$services"; then
   community_on=true
 fi
 compose pull
+
+# k3s 서비스. 환경 변수 · 이미지 · 메모리 상한은 compose 설정(.env · image.env)에서 그대로 뽑는다(k3s/k3s.py)
+# 서비스 하나씩 새 Pod 가 준비된 뒤 옛 Pod 를 내린다. 한꺼번에 뜨는 기동 경합(#840)과 배포 중 503 을 줄인다
+k3s_lines=$(python3 environment-state.py k3s "$APP_ENV")
+k3s_services=()
+[[ -z "$k3s_lines" ]] || mapfile -t k3s_services <<< "$k3s_lines"
+if (( ${#k3s_services[@]} > 0 )); then
+  export KUBECONFIG="$HOME/.kube/config"
+  if ! kubectl get --raw /readyz > /dev/null 2>&1; then
+    echo "::error::이 서버의 k3s API 에 붙지 못했습니다. k3s 설치와 ~/.kube/config 를 확인하세요(deploy/k3s/README.md)"
+    exit 1
+  fi
+  : "${DOCKER_CONFIG:?k3s 이미지 pull secret 을 만들 GHCR 로그인(DOCKER_CONFIG)이 필요합니다}"
+  ns=$(python3 k3s/k3s.py namespace "$APP_ENV")
+  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply --server-side -f - > /dev/null
+  python3 k3s/k3s.py pull-secret "$APP_ENV" "$DOCKER_CONFIG" | kubectl apply --server-side --force-conflicts -f - > /dev/null
+  # 두 프로세스가 함께 돌면 안 되는 서비스(k3s.py 의 SINGLE_INSTANCE)는 맨 뒤에 올린다. 그 전에 compose 의 옛 컨테이너를 멈추므로
+  # Gateway 가 NodePort 로 다시 뜰 때까지 그 서비스만 잠깐 응답하지 못한다(처음 옮길 때 한 번)
+  rolling=() last=()
+  for line in "${k3s_services[@]}"; do
+    read -r _ name _ <<< "$line"
+    if python3 k3s/k3s.py single-instance "$APP_ENV" "$name"; then last+=("$line"); else rolling+=("$line"); fi
+  done
+  ordered=("${rolling[@]}" "${last[@]}")
+  for line in "${ordered[@]}"; do
+    read -r service name node_port <<< "$line"
+    if python3 k3s/k3s.py single-instance "$APP_ENV" "$name"; then
+      compose --profile "$name" rm --stop --force "$service"
+    fi
+    # 받을 수 없는 이미지면 Pod 가 ImagePullBackOff 로 남는다. 바꾸기 전에 멈춘다
+    image=$(compose --profile "$name" config --images "$service")
+    docker manifest inspect "$image" > /dev/null || { echo "::error::$image 를 GHCR 에서 받을 수 없습니다"; exit 1; }
+    # 손으로 바꾼 필드가 있어도 레포 내용으로 되돌린다(--force-conflicts). replicas 는 매니페스트에 없어 HPA · 끄기 값이 남는다
+    compose --profile "$name" config --format json "$service" \
+      | python3 k3s/k3s.py manifest "$APP_ENV" "$service" "$name" "$node_port" \
+      | kubectl apply --server-side --force-conflicts -f - > /dev/null
+    if ! kubectl -n "$ns" rollout status "deploy/$name" --timeout 420s; then
+      echo "::error::k3s 의 $name 이 420s 안에 준비되지 않았습니다"
+      echo "::group::$name 로그 (마지막 300줄)"
+      kubectl -n "$ns" logs "deploy/$name" --tail 300 || true
+      echo "::endgroup::"
+      echo "::group::$name Pod 이벤트"
+      kubectl -n "$ns" describe pod -l "app=$name" | sed -n '/^Events:/,/^$/p' || true
+      echo "::endgroup::"
+      exit 1
+    fi
+  done
+fi
 # 앱이 healthy 가 되지 못하면 워크플로가 원인을 뽑을 수 있게 앱 로그를 남기고 실패한다 (.github/scripts/startup-error.sh)
 # --remove-orphans: compose 에서 뺀 서비스(t3.medium 으로 옮긴 elasticsearch)의 컨테이너를 지운다. 볼륨은 남는다
 if ! compose up -d --wait --remove-orphans; then
@@ -138,10 +187,15 @@ if ! compose up -d --wait --remove-orphans; then
   fi
   exit 1
 fi
-# 추천이 k3s 로 옮겨 간 환경(profile recommend 꺼짐)의 옛 추천 컨테이너를 지운다(#1028). --remove-orphans 는 꺼진 profile 의 컨테이너를 남긴다
-# recommend job 이 k3s 의 새 Pod 를 준비시킨 뒤라 추천이 끊기지 않는다. 없으면 아무것도 하지 않는다
-if [[ "$recommend_on" == false ]]; then
-  compose --profile recommend rm --stop --force recommend-service
+# k3s 로 옮겨 간 서비스의 옛 compose 컨테이너를 지운다. --remove-orphans 는 꺼진 profile 의 컨테이너를 남긴다
+# 위에서 k3s 의 새 Pod 가 준비됐고 Gateway 도 NodePort 를 보도록 다시 떴으므로 끊기지 않는다. 없으면 아무것도 하지 않는다
+for line in "${k3s_services[@]}"; do
+  read -r service name _ <<< "$line"
+  compose --profile "$name" rm --stop --force "$service"
+done
+# 추천만 따로 띄우던 옛 namespace(#1028). 같은 서비스가 kidly-<환경> 에 떴으므로 지운다. 없으면 아무것도 하지 않는다
+if (( ${#k3s_services[@]} > 0 )); then
+  kubectl delete namespace "recommend-$APP_ENV" --ignore-not-found --wait=false
 fi
 # Register all current profiles atomically; independent inventory is synchronized by deploy.yml.
 python3 environment-state.py targets "$APP_ENV"
