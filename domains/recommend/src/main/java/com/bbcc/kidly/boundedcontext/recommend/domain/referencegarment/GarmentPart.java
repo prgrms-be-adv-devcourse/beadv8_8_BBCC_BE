@@ -1,6 +1,32 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment;
 
+import java.util.List;
+import java.util.Set;
+
+/**
+ * 기준 옷의 구분이다. 구분마다 받는 카테고리가 정해져 있고, 그 표를 이 enum이 들고 있다.
+ */
 public enum GarmentPart {
-    TOP,
-    BOTTOM
+
+    TOP(Set.of("상의", "아우터", "원피스")),
+    BOTTOM(Set.of("하의", "치마"));
+
+    private final Set<String> categoryNames;
+
+    GarmentPart(Set<String> categoryNames) {
+        this.categoryNames = categoryNames;
+    }
+
+    /**
+     * 카테고리 경로에 이 구분의 카테고리 이름이 하나라도 있으면 맞다.
+     * 경로 전체를 보므로 상의를 티셔츠처럼 더 잘게 나눠도 같은 구분으로 판단한다.
+     */
+    boolean includesCategoryIn(List<String> categoryPathNames) {
+        for (String name : categoryPathNames) {
+            if (categoryNames.contains(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

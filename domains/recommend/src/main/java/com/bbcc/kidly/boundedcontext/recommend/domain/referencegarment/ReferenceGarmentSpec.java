@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment;
 
+import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,9 @@ public final class ReferenceGarmentSpec {
 
     public static ReferenceGarmentSpec of(GarmentPart part, Long categoryId, List<String> categoryPathNames,
         Map<String, BigDecimal> measurements) {
+        if (!part.includesCategoryIn(categoryPathNames)) {
+            throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
+        }
         return new ReferenceGarmentSpec(part, categoryId, measurements);
     }
 }
