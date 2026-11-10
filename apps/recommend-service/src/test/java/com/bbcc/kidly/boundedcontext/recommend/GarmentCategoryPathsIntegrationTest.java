@@ -11,11 +11,14 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.Reference
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -42,7 +45,7 @@ class GarmentCategoryPathsIntegrationTest {
     @Test
     @DisplayName("FIT-01 상품 복사본의 카테고리 경로에 있는 카테고리를 찾으면 그 경로 전체가 대분류부터 말단 순서로 돌아온다")
     void findFullPathInOrder() {
-        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath());
+        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath("의류"), RecommendFixture.PRODUCT_CHANGED_AT);
 
         List<GarmentCategoryPathEntry> path = garmentCategoryPaths.findPathOf(TOP_ID);
 
@@ -50,39 +53,41 @@ class GarmentCategoryPathsIntegrationTest {
             .containsExactly(tuple(CLOTHING_ID, "의류"), tuple(TOP_ID, "상의"));
     }
 
+    // 두 상품의 경로 이름을 다르게 해서 어느 상품의 경로가 돌아왔는지 가린다
     @Test
-    @DisplayName("FIT-01 같은 카테고리의 상품이 둘이어도 경로는 하나만 돌아온다")
-    void findOnePathWhenManyProductsShareCategory() {
-        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath());
-        applyProduct(OTHER_PRODUCT_ID, topPath());
+    @DisplayName("같은 말단 카테고리의 상품이 둘이면 더 늦게 반영된 상품의 경로 하나만 돌아온다")
+    void findPathOfLatelyAppliedProduct() {
+        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath("의류"), RecommendFixture.PRODUCT_CHANGED_AT);
+        applyProduct(OTHER_PRODUCT_ID, topPath("신규 의류"), RecommendFixture.PRODUCT_CHANGED_AT.plusDays(1));
 
         assertThat(garmentCategoryPaths.findPathOf(TOP_ID))
-            .extracting(GarmentCategoryPathEntry::categoryId).containsExactly(CLOTHING_ID, TOP_ID);
+            .extracting(GarmentCategoryPathEntry::categoryName).containsExactly("신규 의류", "상의");
     }
 
     @Test
-    @DisplayName("FIT-01 중간 카테고리 ID로 찾으면 그 상품의 경로 전체가 돌아오고 판단은 하지 않는다")
-    void findPathByMiddleCategory() {
-        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath());
+    @DisplayName("같은 말단 카테고리의 두 상품이 같은 시각에 반영됐으면 상품 ID가 큰 상품의 경로가 돌아온다")
+    void findPathOfLargerProductIdWhenAppliedAtSameTime() {
+        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath("의류"), RecommendFixture.PRODUCT_CHANGED_AT);
+        applyProduct(OTHER_PRODUCT_ID, topPath("신규 의류"), RecommendFixture.PRODUCT_CHANGED_AT);
 
-        List<GarmentCategoryPathEntry> path = garmentCategoryPaths.findPathOf(CLOTHING_ID);
-
-        assertThat(path).extracting(GarmentCategoryPathEntry::categoryId).containsExactly(CLOTHING_ID, TOP_ID);
+        assertThat(garmentCategoryPaths.findPathOf(TOP_ID))
+            .extracting(GarmentCategoryPathEntry::categoryName).containsExactly("신규 의류", "상의");
     }
 
-    @Test
-    @DisplayName("FIT-01 어떤 상품의 경로에도 없는 카테고리면 빈 목록이다")
-    void findNothingForUnknownCategory() {
-        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath());
+    @ParameterizedTest
+    @ValueSource(longs = {30L, 999L})
+    @DisplayName("말단 카테고리가 아니거나 어떤 상품에도 없는 카테고리면 빈 목록이다")
+    void findNothingForNonLeafOrUnknownCategory(Long categoryId) {
+        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath("의류"), RecommendFixture.PRODUCT_CHANGED_AT);
 
-        assertThat(garmentCategoryPaths.findPathOf(999L)).isEmpty();
+        assertThat(garmentCategoryPaths.findPathOf(categoryId)).isEmpty();
     }
 
     @Test
     @DisplayName("FIT-01 찾은 경로를 기준 옷 값에 넘기면 상의 · 하의 카테고리로 상의 · 하의 기준 옷이 만들어진다")
     void pathBuildsReferenceGarmentSpec() {
-        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath());
-        applyProduct(OTHER_PRODUCT_ID, bottomPath());
+        applyProduct(RecommendFixture.PRODUCT_A_ID, topPath("의류"), RecommendFixture.PRODUCT_CHANGED_AT);
+        applyProduct(OTHER_PRODUCT_ID, bottomPath(), RecommendFixture.PRODUCT_CHANGED_AT);
 
         ReferenceGarmentSpec top = ReferenceGarmentSpec.of(GarmentPart.TOP, TOP_ID,
             garmentCategoryPaths.findPathOf(TOP_ID),
@@ -95,8 +100,8 @@ class GarmentCategoryPathsIntegrationTest {
         assertThat(bottom.categoryId()).isEqualTo(BOTTOM_ID);
     }
 
-    private static List<ProductChangedEvent.CategoryPathEntry> topPath() {
-        return List.of(new ProductChangedEvent.CategoryPathEntry(CLOTHING_ID, "의류"),
+    private static List<ProductChangedEvent.CategoryPathEntry> topPath(String rootName) {
+        return List.of(new ProductChangedEvent.CategoryPathEntry(CLOTHING_ID, rootName),
             new ProductChangedEvent.CategoryPathEntry(TOP_ID, "상의"));
     }
 
@@ -105,11 +110,14 @@ class GarmentCategoryPathsIntegrationTest {
             new ProductChangedEvent.CategoryPathEntry(BOTTOM_ID, "하의"));
     }
 
-    private void applyProduct(Long productId, List<ProductChangedEvent.CategoryPathEntry> categoryPath) {
+    // 상품의 카테고리는 경로의 마지막(말단)으로 둔다
+    private void applyProduct(Long productId, List<ProductChangedEvent.CategoryPathEntry> categoryPath,
+        LocalDateTime occurredAt) {
         ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+        Long leafCategoryId = categoryPath.get(categoryPath.size() - 1).id();
         replicaProductService.applyProductChanged(new ProductChangedEvent(UUID.randomUUID(),
-            RecommendFixture.PRODUCT_CHANGED_AT, new ProductChangedEvent.Data(productId, data.sellerId(),
-            data.name(), data.categoryId(), data.status(), data.thumbnailUrl(), data.createdAt(), data.sizeFree(),
+            occurredAt, new ProductChangedEvent.Data(productId, data.sellerId(),
+            data.name(), leafCategoryId, data.status(), data.thumbnailUrl(), data.createdAt(), data.sizeFree(),
             data.options(), data.infoValues(), data.brand(), data.description(), data.sizeSpecs(), categoryPath)));
     }
 }
