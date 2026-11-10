@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 /**
- * 추천 DB의 ai_response 표에 AI 답을 줄마다 저장한다. 응답은 jsonb 칸에 넣고 문자열로 읽는다.
+ * 추천 DB의 ai_response 표로 구현한 {@link AiResponseStore}다.
  */
 @Component
 public class PostgresAiResponseStore implements AiResponseStore {

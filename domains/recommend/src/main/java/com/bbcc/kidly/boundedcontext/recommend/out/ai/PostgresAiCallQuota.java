@@ -6,7 +6,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 /**
- * 추천 DB의 ai_call_usage 표에 날짜마다 한 줄로 하루 AI 호출 횟수를 센다.
+ * 추천 DB의 ai_call_usage 표로 구현한 {@link AiCallQuota}다.
  */
 @Component
 public class PostgresAiCallQuota implements AiCallQuota {
