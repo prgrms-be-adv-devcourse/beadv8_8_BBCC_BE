@@ -141,6 +141,24 @@ class EnvironmentStateTests(unittest.TestCase):
         self.assertFalse(target.exists())
         self.assertIn('kidly-community', stopped['jobs'])
 
+    def test_k3s_recommend_is_expected_without_local_target(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=search\nSEARCH_PORT=8082\nRECOMMEND_PORT=8087\nRECOMMEND_NODE_PORT=30187\n')
+        with patch.object(state, 'run', return_value=''):
+            running = state.control('dev', 'resume')
+            self.assertIn('kidly-recommend', running['jobs'])
+            self.assertIn('kidly_app_expected{env="dev",app_job="kidly-recommend"} 1', state.metrics(running))
+            self.assertFalse((self.root / 'monitoring/targets/recommend/dev.yml').exists())
+            stopped = state.control('dev', 'stop')
+        self.assertIn('kidly-recommend', stopped['jobs'])
+
+    def test_recommend_in_both_compose_and_k3s_is_rejected(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=recommend\nRECOMMEND_PORT=8087\nRECOMMEND_NODE_PORT=30187\n')
+        with patch.object(state, 'run', return_value=''):
+            with self.assertRaisesRegex(ValueError, 'expected services'):
+                state.control('dev', 'resume')
+
     def test_kafka_exporter_has_separate_intent_and_discovery(self):
         (self.root / 'dev/.env').write_text(
             'COMPOSE_PROFILES=search,kafka-monitoring\nSEARCH_PORT=8082\n'

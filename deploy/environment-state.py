@@ -25,6 +25,9 @@ SERVICES = {
     'order-service': ('kidly-order', 'ORDER_PORT', 'order'),
     'community-service': ('kidly-community', 'COMMUNITY_PORT', 'community'),
 }
+# compose 밖 k3s(t3.large 에 단독으로 띄운 k3s)에서 도는 서비스. .env 에 이 NodePort 키가 있는 환경에서 뜬다고 본다
+# 메트릭은 monitoring-agent Alloy 가 k3s API 로 Pod 를 찾아 모으므로 대상 파일을 쓰지 않고, 기대 목록에만 넣는다
+K3S_SERVICES = {'RECOMMEND_NODE_PORT': 'kidly-recommend'}
 
 
 def validate(data):
@@ -110,6 +113,11 @@ def configuration(env):
     return targets
 
 
+def expected_jobs(env):
+    keys = {line.partition('=')[0] for line in (ROOT / env / '.env').read_text().splitlines()}
+    return [job for _, job, _ in configuration(env)] + [job for key, job in K3S_SERVICES.items() if key in keys]
+
+
 def kafka_target(env):
     # Read only monitoring keys; never expose application secrets.
     values = {}
@@ -131,7 +139,7 @@ def snapshot(env):
     data = load(env)
     if not data and not (ROOT / 'monitoring' / 'targets' / (env + '.yml')).exists():
         return None
-    jobs = [job for _, job, _ in configuration(env)]
+    jobs = expected_jobs(env)
     if data:
         return dict(data, jobs=jobs, kafka_exporter_expected=kafka_target(env) is not None)
     # Never infer intentional shutdown from a missing container or a failed scrape.
@@ -183,9 +191,8 @@ def lock(env):
 
 def control(env, action):
     with lock('environment-operation'), lock(env):
-        targets = configuration(env)
         data = {'env': env, 'enabled': action == 'resume', 'phase': 'starting' if action == 'resume' else 'stopping',
-                'changed_at': time.time(), 'jobs': [job for _, job, _ in targets], 'kafka_exporter_expected': kafka_target(env) is not None}
+                'changed_at': time.time(), 'jobs': expected_jobs(env), 'kafka_exporter_expected': kafka_target(env) is not None}
         if action == 'resume':
             # Monitor a failed startup; do not silently leave the environment disabled.
             write(data)
@@ -220,13 +227,13 @@ def main():
         print(json.dumps(snapshot(env)))
     elif action == 'plan':
         data = {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(),
-                'jobs': [job for _, job, _ in configuration(env)],
+                'jobs': expected_jobs(env),
                 'kafka_exporter_expected': kafka_target(env) is not None}
         print(json.dumps(validate(data)))
     elif action == 'targets':
         register_targets(env)
         data = {'env': env, 'enabled': True, 'phase': 'running', 'changed_at': time.time(),
-                'jobs': [job for _, job, _ in configuration(env)],
+                'jobs': expected_jobs(env),
                 'kafka_exporter_expected': kafka_target(env) is not None}
         write(data)
     elif action == 'inventory':

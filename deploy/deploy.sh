@@ -138,6 +138,11 @@ if ! compose up -d --wait --remove-orphans; then
   fi
   exit 1
 fi
+# 추천이 k3s 로 옮겨 간 환경(profile recommend 꺼짐)의 옛 추천 컨테이너를 지운다(#1028). --remove-orphans 는 꺼진 profile 의 컨테이너를 남긴다
+# recommend job 이 k3s 의 새 Pod 를 준비시킨 뒤라 추천이 끊기지 않는다. 없으면 아무것도 하지 않는다
+if [[ "$recommend_on" == false ]]; then
+  compose --profile recommend rm --stop --force recommend-service
+fi
 # Register all current profiles atomically; independent inventory is synchronized by deploy.yml.
 python3 environment-state.py targets "$APP_ENV"
 # 배포마다 이미지가 쌓여 디스크가 차므로 저장소마다 최신 3개만 남기고 지운다

@@ -8,6 +8,13 @@ compose() { docker compose -p monitoring --env-file .env "$@"; }
 # Create the watch directory before Alloy starts, including first installation.
 mkdir -p targets/kafka
 
+# 추천 Pod 수집(config.alloy 의 discovery.kubernetes)이 이 서버의 k3s kubeconfig 를 읽는다. 없으면 Alloy 가 아예 뜨지 않으므로
+# 지금 돌고 있는 Alloy 를 건드리기 전에 멈춘다(k3s 설치는 deploy/recommend/README.md)
+if [[ ! -e /etc/rancher/k3s/k3s.yaml ]]; then
+    echo "::error::/etc/rancher/k3s/k3s.yaml 이 없습니다. 이 서버에 k3s 를 먼저 설치하세요(deploy/recommend/README.md)"
+    exit 1
+fi
+
 compose pull -q
 # 옛 스택(prometheus · loki · grafana)과 같은 프로젝트 이름이라 --remove-orphans 가 그 컨테이너를 지운다
 compose up -d --force-recreate --remove-orphans
