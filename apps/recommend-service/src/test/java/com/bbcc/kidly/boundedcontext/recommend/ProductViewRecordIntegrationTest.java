@@ -97,16 +97,36 @@ class ProductViewRecordIntegrationTest {
                 ActivityType.CART_ITEM_ADDED, ActivityType.PRODUCT_VIEWED, ActivityType.CART_ITEM_ADDED);
     }
 
+    @Test
+    @DisplayName("상세 진입을 저장하면 넘긴 기록의 모든 칸이 그대로 남는다")
+    void keepEveryFieldOfSavedView() {
+        ActivityRecord record = productViewed(CHILD_1_ID, VIEW_DAY.atTime(10, 0));
+
+        saveIfAbsent(record);
+
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .usingRecursiveComparison()
+            .ignoringFields("id", "createdAt", "updatedAt")
+            .isEqualTo(record);
+    }
+
     static Stream<Long> childProfileIds() {
         return Stream.of(CHILD_1_ID, null);
     }
 
-    // 저장소의 조건부 INSERT는 수정 쿼리라 트랜잭션 안에서 불러야 한다
     private boolean saveIfAbsent(Long childProfileId, LocalDateTime viewedAt) {
-        ActivityRecord record = ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
-            UUID.randomUUID(), MEMBER_1_ID, childProfileId, PRODUCT_A_ID, viewedAt));
+        return saveIfAbsent(productViewed(childProfileId, viewedAt));
+    }
+
+    // 저장소의 조건부 INSERT는 수정 쿼리라 트랜잭션 안에서 불러야 한다
+    private boolean saveIfAbsent(ActivityRecord record) {
         return Boolean.TRUE.equals(transactionTemplate.execute(
             status -> activityRecordRepository.saveProductViewedIfAbsent(record)));
+    }
+
+    private static ActivityRecord productViewed(Long childProfileId, LocalDateTime viewedAt) {
+        return ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+            UUID.randomUUID(), MEMBER_1_ID, childProfileId, PRODUCT_A_ID, viewedAt));
     }
 
     private static ActivityRecord cartItemAdded(LocalDateTime addedAt) {
