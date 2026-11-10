@@ -1,9 +1,10 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.companion;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
-/** 보고 있는 상품과 짝이 되는 종류의 후보만 골라 순서를 정한다. */
+/** 보고 있는 상품과 짝이 되는 종류의 후보만 골라 점수가 높은 순으로 정한다. */
 public class CompanionCandidateRanker {
 
     public List<CompanionCandidate> rank(CompanionKind viewed, List<CompanionCandidate> candidates) {
@@ -14,6 +15,19 @@ public class CompanionCandidateRanker {
                 pairs.add(candidate);
             }
         }
+        pairs.sort(Comparator.comparingDouble((CompanionCandidate candidate) -> score(candidate, pairKinds))
+            .reversed());
         return pairs;
+    }
+
+    private double score(CompanionCandidate candidate, List<CompanionKind> pairKinds) {
+        return CompanionWeights.SIMILARITY * candidate.similarity()
+            + CompanionWeights.PAIR_PRIORITY * pairPriorityScore(candidate.kind(), pairKinds);
+    }
+
+    // 짝 종류가 n개일 때 우선순위 i번째(0부터)의 점수는 (n - i) / n이다.
+    private double pairPriorityScore(CompanionKind kind, List<CompanionKind> pairKinds) {
+        int size = pairKinds.size();
+        return (double) (size - pairKinds.indexOf(kind)) / size;
     }
 }
