@@ -45,8 +45,8 @@ public class RecommendedProductRanker {
             if (excludedProductIds.contains(product.productId())) {
                 continue;
             }
-            // 목록을 보는 사이 등록된 상품이 끼어들면 다음 쪽에서 앞 쪽의 상품이 다시 나온다
-            if (product.productRegisteredAt().isAfter(asOf)) {
+            // 목록을 보는 사이 판매를 시작한 상품이 끼어들면 다음 쪽에서 앞 쪽의 상품이 다시 나온다
+            if (product.saleStartedAt().isAfter(asOf)) {
                 continue;
             }
             scored.add(new ScoredProduct(product, scoreOf(product, snapshot, similarityByProductId, asOf)));
