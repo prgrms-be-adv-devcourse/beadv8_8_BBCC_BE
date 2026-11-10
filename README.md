@@ -23,16 +23,16 @@
 | 검색 | `docker compose --profile search up -d` 뒤 `./gradlew :apps:search-service:bootRun` | 8082 | 상품 목록(`GET /api/v1/products`). 색인은 처음 뜬 뒤 판매자 · 상품을 바꾸거나 관리자 다시 보내기로 채운다 |
 | 추천 | `./gradlew :apps:recommend-service:bootRun` | 8086 | 추천 |
 | 결제 | `./gradlew :apps:payment-service:bootRun` | 8087 | 결제 · 지갑 |
-| 정산 | `./gradlew :apps:settlement-service:bootRun` | 8088 | 정산 |
+| 정산 | `./gradlew :apps:settlement-service:bootRun` | 8088 | 판매자 정산서 · 정산 대상, 관리자 정산 실행 · 조회 · 지급 재요청 · 실패 메시지(DLT) |
 | 상품 | `./gradlew :apps:product-service:bootRun` | 8089 | 상품(목록 제외) · 카테고리 |
-| 알림 | `./gradlew :apps:notification-service:bootRun` | 8090 | 가입 환영 메일, 알림함 |
+| 알림 | `./gradlew :apps:notification-service:bootRun` | 8090 | 회원 · 자녀 알림함, 웹 푸시 등록, 관리자 실패 메시지(DLT). 메일 · 푸시는 이벤트를 받아 보낸다 |
 | 주문 | `./gradlew :apps:order-service:bootRun` | 8091 | 주문 · 장바구니 · 배송 · 조르기 |
 | 커뮤니티 | `./gradlew :apps:community-service:bootRun` | 8092 | 리뷰 · 찜 |
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트는 Gateway 주소(8083)로 붙는다. Swagger는 서비스마다 따로 연다(`http://localhost:<서비스 포트>/swagger-ui.html`, 알림 서비스는 없다). 서비스에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 서비스에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
 - Gateway는 Kafka(`kidly.auth.events`)로 토큰 무효화를 받는다. 회원 서비스보다 먼저 떠도 기동은 되지만, 회원 서비스가 한 번 떠서 토픽이 만들어진 뒤에 무효화 목록이 채워진다
-- 토픽은 보내는 서비스가 처음 뜰 때 만든다(회원 · 판매자 · 자녀 · 인증은 회원 서비스, 상품은 상품 서비스, 검색은 검색 서비스). 받는 서비스는 책갈피가 없으면 그때의 끝(`auto-offset-reset: latest`)부터 읽으므로, 새 Kafka(빈 `kafka-data` 볼륨)에서 받는 서비스의 구독 그룹이 생기기 전에 나간 메시지(보내는 서비스가 뜨며 넣는 초기 회원 · 판매자 · 자녀 · 상품 데이터 등)는 건너뛰고 다시 오지 않는다. 처음 한 번은 보내는 서비스(회원 · 상품)를 띄운 뒤 받는 서비스(주문 · 결제 · 추천 · 커뮤니티 · 알림)를 다시 시작한다. 상품은 관리자 `POST /api/v1/admin/products/changed-events`로 판매 중인 상품의 `product.changed`를 다시 보낼 수도 있다
+- 토픽은 보내는 서비스가 처음 뜰 때 만든다(회원 · 판매자 · 자녀 · 인증은 회원 서비스, 상품은 상품 서비스, 검색은 검색 서비스). 받는 서비스는 책갈피가 없으면 그때의 끝(`auto-offset-reset: latest`)부터 읽으므로, 새 Kafka(빈 `kafka-data` 볼륨)에서 받는 서비스의 구독 그룹이 생기기 전에 나간 메시지(보내는 서비스가 뜨며 넣는 초기 회원 · 판매자 · 자녀 · 상품 데이터 등)는 건너뛰고 다시 오지 않는다. 처음 한 번은 보내는 서비스(회원 · 상품)를 띄운 뒤 받는 서비스(주문 · 결제 · 추천 · 커뮤니티 · 정산 · 알림)를 다시 시작한다. 상품은 관리자 `POST /api/v1/admin/products/changed-events`로 판매 중인 상품의 `product.changed`를 다시 보낼 수도 있다
 - 검색 서비스를 띄우기 전에는 검색 토픽(`kidly.search.events`)이 없으므로, 추천 서비스는 기동은 되지만 검색 리스너가 토픽을 찾는 `UNKNOWN_TOPIC_OR_PARTITION` WARN을 1초에 한두 줄씩 남긴다. 검색 서비스를 한 번 띄워 토픽이 생기면 사라진다
 
 ## 빌드 · 테스트
@@ -53,11 +53,11 @@
 | `apps/member-service` | 회원 서비스. 회원 · 인증 · 판매자 도메인은 이 서비스에만 있다. |
 | `apps/recommend-service` | 추천 서비스(#704). 추천 도메인은 이 서비스에만 있다 |
 | `apps/payment-service` | 결제 서비스(#525). 결제 도메인은 이 서비스에만 있다. 결제 마이그레이션은 서비스 `baseline-version`(`202611021930`, 고정)보다 뒤 버전으로 더한다 |
-| `apps/settlement-service` | 정산 서비스(#729). 정산 도메인은 이 서비스에만 있다. 구매확정 · 지급 결과는 Kafka로만 받으므로 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다 |
+| `apps/settlement-service` | 정산 서비스(#729). 정산 도메인은 이 서비스에만 있다. 구매확정 · 지급 결과는 Kafka로만 받으므로 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다. 평일 09:05~17:05 매시간 자동 정산하고(`SETTLEMENT_RUN_CRON`, 공휴일은 공공데이터 API `HOLIDAY_API_SERVICE_KEY`로 건너뛴다), 지급 요청은 아웃박스에 남긴 뒤 `kidly.settlement.events`로 보낸다. 받기 실패 메시지는 DB에 보관해 관리자가 재처리한다 |
 | `apps/product-service` | 상품 서비스(#791). 상품 도메인은 이 서비스에만 있다. 상품 마이그레이션(`domains/product`의 `db/migration/product`)은 이 서비스만 적용한다. 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다 |
 | `apps/order-service` | 주문 서비스(주문 · 장바구니 · 배송 · 조르기, #826). 주문 도메인은 이 서비스에만 있다. 주문 마이그레이션은 이 서비스만 적용한다. 주문 표가 이미 있는 DB는 baseline(`202611031100`, 고정)으로 건너뛰고, 빠진 표는 보강 마이그레이션이 만든다 |
 | `apps/community-service` | 커뮤니티 서비스(리뷰 · 찜, #827). 커뮤니티 도메인은 이 서비스에만 있다. 마이그레이션은 도메인 모듈에만 있고 이 서비스만 적용한다. 이미 테이블이 있는 DB는 baseline(`202611031200`, 고정)으로 건너뛴다 |
-| `apps/notification-service` | 알림 서비스(#833). 알림 도메인은 이 서비스에만 있다. 회원 가입 이벤트를 받아(구독 그룹 `kidly.notification`) 환영 메일을 보낸다. 알림함 API(#852)는 Gateway가 넘긴다. 알림 테이블이 이미 있는 DB는 `202610190901`(고정)에서 baseline을 잡는다. 새 알림 마이그레이션은 `domains/notification`의 `db/migration/notification`에 둔다 |
+| `apps/notification-service` | 알림 서비스(#833). 알림 도메인은 이 서비스에만 있다. 회원 · 판매자 · 상품 · 주문 · 결제 · 인증 토픽을 받아(구독 그룹 `kidly.notification`) 메일 · 알림함 · 웹 푸시(FCM, `FIREBASE_CREDENTIALS`가 비면 보내지 않음)를 남긴다. 받기 실패 메시지는 DB에 보관해 관리자가 재처리하고, 회원이 탈퇴하면 알림함 · 발송 주소 · 본문 · 푸시 FID를 바로 지운다. 알림함 API는 Gateway가 넘긴다. 알림 테이블이 이미 있는 DB는 `202610190901`(고정)에서 baseline을 잡는다. 새 알림 마이그레이션은 `domains/notification`의 `db/migration/notification`에 둔다 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식. JPA 공통 동작은 `integrationTest`로 실제 PostgreSQL에서 확인한다 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
 | `domains/*` | 도메인 모듈. 폴더 이름이 도메인 이름이다 |
