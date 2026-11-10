@@ -1,9 +1,13 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceJobRunLock;
+import com.bbcc.kidly.boundedcontext.recommend.app.preference.PreferenceJobResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.preference.PreferenceJobService;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -47,5 +51,14 @@ class PreferenceJobServiceTest {
 
         assertThatThrownBy(() -> service.run(yesterday)).isInstanceOf(IllegalArgumentException.class);
         verifyNoInteractions(runLock, jobOperator);
+    }
+
+    @Test
+    @DisplayName("PREF-11 다른 서버가 잠금을 쥐고 있으면 Job을 시작하지 않고 LOCKED다")
+    void lockedWhenAnotherServerHoldsLock() {
+        given(runLock.runExclusively(any())).willReturn(false);
+
+        assertThat(service.run(LocalDate.now(ZoneId.of("Asia/Seoul")))).isEqualTo(PreferenceJobResult.LOCKED);
+        verifyNoInteractions(jobOperator, jobRepository);
     }
 }
