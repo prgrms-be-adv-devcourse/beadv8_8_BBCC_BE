@@ -111,31 +111,11 @@ class PreferenceJobIntegrationTest {
     @Test
     @DisplayName("PREF-11 실패한 chunk는 롤백되고, 다시 실행하면 첫 실행의 기준 시각으로 실패한 chunk부터 이어서 처리한다")
     void restartFromFailedChunk() {
-        jdbc.update("""
-            INSERT INTO recommend.activity_record (event_id, type, member_id, child_profile_id, occurred_at,
-                product_id, category_id, created_at, updated_at)
-            SELECT gen_random_uuid(), 'PRODUCT_VIEWED', 1, id, ?, 100, 10, now(), now()
-            FROM generate_series(1, 150) AS id
-            """, now().minusDays(1));
-        jdbc.execute("""
-            CREATE FUNCTION recommend.fail_child_120() RETURNS trigger AS $$
-            BEGIN
-                RAISE EXCEPTION 'child 120 fails';
-            END;
-            $$ LANGUAGE plpgsql
-            """);
-        try {
-            jdbc.execute("""
-                CREATE TRIGGER fail_child_120 BEFORE INSERT ON recommend.child_category_affinity
-                FOR EACH ROW WHEN (NEW.child_profile_id = 120) EXECUTE FUNCTION recommend.fail_child_120()
-                """);
+        PreferenceJobTestData.insertChildrenViewed(jdbc, 150, now().minusDays(1));
 
-            assertThat(service.run(today())).isEqualTo(PreferenceJobResult.FAILED);
-            assertThat(categoryChildIds()).containsExactlyElementsOf(range(1, 100));
-        } finally {
-            jdbc.execute("DROP TRIGGER IF EXISTS fail_child_120 ON recommend.child_category_affinity");
-            jdbc.execute("DROP FUNCTION IF EXISTS recommend.fail_child_120()");
-        }
+        assertThat(runFailingInsertsInto("child_category_affinity", "NEW.child_profile_id = 120"))
+            .isEqualTo(PreferenceJobResult.FAILED);
+        assertThat(categoryChildIds()).containsExactlyElementsOf(range(1, 100));
         LocalDateTime firstBaseTime = calculatedAts().getFirst();
 
         assertThat(service.run(today())).isEqualTo(PreferenceJobResult.COMPLETED);
@@ -146,6 +126,24 @@ class PreferenceJobIntegrationTest {
             """, Long.class)).isEqualTo(50L);
         assertThat(categoryChildIds()).containsExactlyElementsOf(range(1, 150));
         assertThat(calculatedAts()).containsExactly(firstBaseTime);
+    }
+
+    @Test
+    @DisplayName("PREF-11 서버가 자녀 Step 도중 죽어 Job 실행 문맥에 기준 시각이 없어도, 다시 실행하면 첫 실행의 기준 시각을 쓰고 끝난 chunk의 줄을 남긴다")
+    void restartAfterCrashKeepsFirstBaseTime() throws InterruptedException {
+        PreferenceJobTestData.insertChildrenViewed(jdbc, 150, now().minusDays(1));
+        assertThat(runFailingInsertsInto("child_category_affinity", "NEW.child_profile_id = 120"))
+            .isEqualTo(PreferenceJobResult.FAILED);
+        LocalDateTime firstBaseTime = calculatedAts().getFirst();
+        PreferenceJobTestData.markExecutionsRunning(jdbc, LocalDateTime.now().minusMinutes(31));
+        // 첫 실행의 Job 실행 문맥은 빈 채로 저장되고 Step이 끝나야 다시 저장되므로, Step 도중 죽으면 비어 있다
+        jdbc.update("DELETE FROM recommend.batch_job_execution_context");
+        waitForNextSecond(firstBaseTime);
+
+        assertThat(service.run(today())).isEqualTo(PreferenceJobResult.COMPLETED);
+
+        assertThat(calculatedAts()).containsExactly(firstBaseTime);
+        assertThat(categoryChildIds()).containsExactlyElementsOf(range(1, 150));
     }
 
     @Test
@@ -217,22 +215,27 @@ class PreferenceJobIntegrationTest {
             brand, cartItemId);
     }
 
-    // 오늘 기준일을 한 번 실행한 뒤, 서버가 자녀 Step 도중 죽은 것처럼 Job · 자녀 Step 실행을 STARTED로 되돌린다.
-    // Batch 저장소 API는 이 테스트 모듈에서 보이지 않아 실제 실행 기록을 SQL로 고친다
+    // 오늘 기준일을 한 번 실행한 뒤 서버가 자녀 Step 도중 죽은 것처럼 되돌린다
     private void leaveRunningExecution(LocalDateTime lastActivity) {
         assertThat(service.run(today())).isEqualTo(PreferenceJobResult.COMPLETED);
-        jdbc.update("""
-            UPDATE recommend.batch_job_execution
-            SET status = 'STARTED', exit_code = 'UNKNOWN', end_time = NULL, start_time = ?, last_updated = ?
-            """, lastActivity, lastActivity);
-        jdbc.update("""
-            UPDATE recommend.batch_step_execution
-            SET status = 'STARTED', exit_code = 'EXECUTING', end_time = NULL, start_time = ?, last_updated = ?
-            WHERE step_name = 'childPreferenceStep'
-            """, lastActivity, lastActivity);
-        jdbc.update("""
-            UPDATE recommend.batch_step_execution SET last_updated = ? WHERE step_name <> 'childPreferenceStep'
-            """, lastActivity);
+        PreferenceJobTestData.markExecutionsRunning(jdbc, lastActivity);
+    }
+
+    // 트리거로 조건에 맞는 줄의 저장을 실패시킨 채 실행한다. 트리거는 결과와 상관없이 지운다
+    private PreferenceJobResult runFailingInsertsInto(String table, String condition) {
+        try {
+            PreferenceJobTestData.failInserts(jdbc, table, condition);
+            return service.run(today());
+        } finally {
+            PreferenceJobTestData.stopFailingInserts(jdbc, table);
+        }
+    }
+
+    // 기준 시각은 초 단위라 같은 초에 다시 실행하면 새로 정한 시각이 첫 시각과 같아 구별되지 않는다
+    private static void waitForNextSecond(LocalDateTime baseTime) throws InterruptedException {
+        while (!now().truncatedTo(ChronoUnit.SECONDS).isAfter(baseTime)) {
+            Thread.sleep(50);
+        }
     }
 
     private Integer executionCount() {
