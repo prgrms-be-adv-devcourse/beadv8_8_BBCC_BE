@@ -62,6 +62,7 @@ class RecommendedProductSelectorTest {
             expectedSize,
             PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_BRAND,
+            PRODUCT_A_REGISTERED_AT,
             PRODUCT_A_REGISTERED_AT));
     }
 
@@ -144,7 +145,28 @@ class RecommendedProductSelectorTest {
             null,
             PRODUCT_A_CATEGORY_ID,
             PRODUCT_A_BRAND,
+            PRODUCT_A_REGISTERED_AT,
             PRODUCT_A_REGISTERED_AT));
+    }
+
+    @Test
+    @DisplayName("PREF-05 복사본에 판매 시작 시각이 있으면 추천 상품의 판매 시작 시각으로 쓴다")
+    void useSaleStartedAtOfReplica() {
+        LocalDateTime saleStartedAt = PRODUCT_A_REGISTERED_AT.plusDays(3);
+
+        List<RecommendedProduct> result = selector.select(
+            childSizeInputWithHeight(115.0), List.of(productAReplicaSaleStartedAt(saleStartedAt)), TODAY);
+
+        assertThat(result).extracting(RecommendedProduct::saleStartedAt).containsExactly(saleStartedAt);
+    }
+
+    @Test
+    @DisplayName("PREF-05 복사본에 판매 시작 시각이 없으면 등록 시각을 추천 상품의 판매 시작 시각으로 쓴다")
+    void useRegisteredAtWhenSaleStartedAtIsMissing() {
+        List<RecommendedProduct> result = selector.select(
+            childSizeInputWithHeight(115.0), List.of(productAReplicaSaleStartedAt(null)), TODAY);
+
+        assertThat(result).extracting(RecommendedProduct::saleStartedAt).containsExactly(PRODUCT_A_REGISTERED_AT);
     }
 
     @ParameterizedTest(name = "품절 {0}, 옵션 판매 상태 {1}")
@@ -189,5 +211,13 @@ class RecommendedProductSelectorTest {
             List.of(smallestId, largestId, middleId), TODAY);
 
         assertThat(result).extracting(RecommendedProduct::productId).containsExactly(3L, 2L, 1L);
+    }
+
+    private static RecommendReplicaProduct productAReplicaSaleStartedAt(LocalDateTime saleStartedAt) {
+        RecommendReplicaProduct.ChangeInfo base = RecommendFixture.productAChange();
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(base.productId(),
+            base.sellerId(), base.categoryId(), base.name(), base.status(), base.thumbnailUrl(),
+            base.registeredAt(), base.sizeFree(), base.options(), base.brand(), base.description(),
+            base.sizeSpecs(), base.infoValues(), base.occurredAt(), base.categoryPath(), saleStartedAt));
     }
 }

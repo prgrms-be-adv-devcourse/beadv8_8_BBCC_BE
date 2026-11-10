@@ -25,7 +25,7 @@ public class RecommendedProductRanker {
     // 점수가 같아도 요청마다 순서가 같아야 쪽을 넘길 때 상품이 겹치거나 빠지지 않는다
     private static final Comparator<ScoredProduct> RANK_ORDER =
             Comparator.comparingDouble(ScoredProduct::score)
-                    .thenComparing(scored -> scored.product().productRegisteredAt())
+                    .thenComparing(scored -> scored.product().saleStartedAt())
                     .thenComparing(scored -> scored.product().productId())
                     .reversed();
 
@@ -45,8 +45,8 @@ public class RecommendedProductRanker {
             if (excludedProductIds.contains(product.productId())) {
                 continue;
             }
-            // 목록을 보는 사이 등록된 상품이 끼어들면 다음 쪽에서 앞 쪽의 상품이 다시 나온다
-            if (product.productRegisteredAt().isAfter(asOf)) {
+            // 목록을 보는 사이 판매를 시작한 상품이 끼어들면 다음 쪽에서 앞 쪽의 상품이 다시 나온다
+            if (product.saleStartedAt().isAfter(asOf)) {
                 continue;
             }
             scored.add(new ScoredProduct(product, scoreOf(product, snapshot, similarityByProductId, asOf)));
@@ -97,7 +97,7 @@ public class RecommendedProductRanker {
     }
 
     private double freshnessOf(RecommendedProduct product, LocalDateTime asOf) {
-        double elapsedDays = Duration.between(product.productRegisteredAt(), asOf).toSeconds() / SECONDS_PER_DAY;
+        double elapsedDays = Duration.between(product.saleStartedAt(), asOf).toSeconds() / SECONDS_PER_DAY;
         if (elapsedDays < 0 || elapsedDays >= PreferenceWeights.FRESHNESS_DAYS) {
             return 0;
         }

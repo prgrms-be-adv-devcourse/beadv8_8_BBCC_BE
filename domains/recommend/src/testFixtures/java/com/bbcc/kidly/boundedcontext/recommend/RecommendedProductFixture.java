@@ -30,7 +30,7 @@ public final class RecommendedProductFixture {
     public static RecommendedProduct recommendedProduct(
         Long productId, Long categoryId, String brand, LocalDateTime registeredAt) {
         return new RecommendedProduct(productId, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, PRODUCT_A_THUMBNAIL_URL,
-            25_000L, "110", categoryId, brand, registeredAt);
+            25_000L, "110", categoryId, brand, registeredAt, registeredAt);
     }
 
     /**
@@ -38,5 +38,14 @@ public final class RecommendedProductFixture {
      */
     public static RecommendedProduct recommendedProductRegisteredAt(Long productId, LocalDateTime registeredAt) {
         return recommendedProduct(productId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, registeredAt);
+    }
+
+    /**
+     * 상품 A의 카테고리 · 브랜드로 등록 시각과 판매 시작 시각을 따로 정한다.
+     */
+    public static RecommendedProduct recommendedProductSaleStartedAt(
+        Long productId, LocalDateTime registeredAt, LocalDateTime saleStartedAt) {
+        return new RecommendedProduct(productId, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, PRODUCT_A_THUMBNAIL_URL,
+            25_000L, "110", PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, registeredAt, saleStartedAt);
     }
 }

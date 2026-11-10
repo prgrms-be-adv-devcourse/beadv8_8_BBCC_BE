@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.OLD_REGISTERED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.recommendedProduct;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.recommendedProductRegisteredAt;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendedProductFixture.recommendedProductSaleStartedAt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
@@ -52,6 +53,18 @@ class RecommendedProductRankerTest {
 
         // 취향 벡터가 없는 식에서 최신성의 가중치는 0.20이다
         assertThat(score).isCloseTo(0.20 * freshness, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("PREF-05 최신성은 등록 시각이 아니라 판매 시작 시각으로 잰다")
+    void freshnessUsesSaleStartedAt() {
+        // 30일 전에 만들어 두고 3.5일 전에 판매를 시작한 상품이다
+        RecommendedProduct product = recommendedProductSaleStartedAt(
+            PRODUCT_ID, OLD_REGISTERED_AT, BASE_TIME.minusSeconds(302_400));
+
+        double score = ranker.scoreOf(product, PreferenceSnapshot.empty(), NO_SIMILARITIES, BASE_TIME);
+
+        assertThat(score).isCloseTo(0.20 * 0.5, within(1e-9));
     }
 
     @Test
@@ -136,8 +149,8 @@ class RecommendedProductRankerTest {
     }
 
     @Test
-    @DisplayName("PREF-06 점수가 같으면 등록 시각이 늦은 상품, 그것도 같으면 상품 ID가 큰 상품이 먼저 나온다")
-    void sameScoreOrderedByRegisteredAtThenProductId() {
+    @DisplayName("PREF-06 점수가 같으면 판매 시작 시각이 늦은 상품, 그것도 같으면 상품 ID가 큰 상품이 먼저 나온다")
+    void sameScoreOrderedBySaleStartedAtThenProductId() {
         PreferenceSnapshot snapshot = snapshot(0.6, 0.6, null);
         // 세 상품 모두 등록한 지 7일이 넘어 카테고리 · 브랜드 몫만 받는다
         RecommendedProduct earlier = recommendedProduct(3L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT);
@@ -151,7 +164,22 @@ class RecommendedProductRankerTest {
     }
 
     @Test
-    @DisplayName("PREF-06 활동이 없는 자녀의 목록은 등록 최신순이다")
+    @DisplayName("PREF-06 점수가 같으면 등록 시각이 아니라 판매 시작 시각이 늦은 상품이 먼저 나온다")
+    void sameScoreOrderedBySaleStartedAt() {
+        // 두 상품 모두 판매를 시작한 지 7일이 넘어 최신성 몫이 없고 점수가 같다
+        RecommendedProduct registeredLaterSoldEarlier = recommendedProductSaleStartedAt(
+            2L, OLD_REGISTERED_AT.plusDays(5), OLD_REGISTERED_AT.plusDays(6));
+        RecommendedProduct registeredEarlierSoldLater = recommendedProductSaleStartedAt(
+            1L, OLD_REGISTERED_AT, OLD_REGISTERED_AT.plusDays(10));
+
+        List<RecommendedProduct> ranked = ranker.rank(List.of(registeredLaterSoldEarlier, registeredEarlierSoldLater),
+            PreferenceSnapshot.empty(), NO_SIMILARITIES, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(registeredEarlierSoldLater, registeredLaterSoldEarlier);
+    }
+
+    @Test
+    @DisplayName("PREF-06 활동이 없는 자녀의 목록은 판매 시작 최신순이다")
     void noActivityKeepsNewestFirst() {
         // 최근 7일 안에 등록한 상품과 그 전에 등록한 상품이 섞여 있다
         RecommendedProduct oldest = recommendedProductRegisteredAt(3L, OLD_REGISTERED_AT);
@@ -179,8 +207,8 @@ class RecommendedProductRankerTest {
     }
 
     @Test
-    @DisplayName("PREF-09 기준 시각보다 늦게 등록한 상품은 빼고, 기준 시각에 등록한 상품은 남긴다")
-    void productsRegisteredAfterAsOfAreRemoved() {
+    @DisplayName("PREF-09 기준 시각보다 늦게 판매를 시작한 상품은 빼고, 기준 시각에 판매를 시작한 상품은 남긴다")
+    void saleStartedAtAsOfIsKeptAndAfterIsRemoved() {
         RecommendedProduct atAsOf = recommendedProductRegisteredAt(1L, BASE_TIME);
         RecommendedProduct afterAsOf = recommendedProductRegisteredAt(2L, BASE_TIME.plusSeconds(1));
 
@@ -188,6 +216,19 @@ class RecommendedProductRankerTest {
             PreferenceSnapshot.empty(), NO_SIMILARITIES, Set.of(), BASE_TIME);
 
         assertThat(ranked).containsExactly(atAsOf);
+    }
+
+    @Test
+    @DisplayName("PREF-09 기준 시각 전에 등록했어도 기준 시각보다 늦게 판매를 시작한 상품은 뺀다")
+    void productsSaleStartedAfterAsOfAreRemoved() {
+        RecommendedProduct saleStartedAtAsOf = recommendedProductSaleStartedAt(1L, OLD_REGISTERED_AT, BASE_TIME);
+        RecommendedProduct saleStartedAfterAsOf =
+            recommendedProductSaleStartedAt(2L, OLD_REGISTERED_AT, BASE_TIME.plusSeconds(1));
+
+        List<RecommendedProduct> ranked = ranker.rank(List.of(saleStartedAtAsOf, saleStartedAfterAsOf),
+            PreferenceSnapshot.empty(), NO_SIMILARITIES, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(saleStartedAtAsOf);
     }
 
     private static PreferenceSnapshot snapshot(double categoryScore, double brandScore, TasteVector tasteVector) {
