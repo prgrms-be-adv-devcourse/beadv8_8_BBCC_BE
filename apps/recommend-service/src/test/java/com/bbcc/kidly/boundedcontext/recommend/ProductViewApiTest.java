@@ -45,15 +45,14 @@ class ProductViewApiTest {
     }
 
     @Test
-    @DisplayName("같은 상품의 상세에 두 번 들어가면 기록이 두 줄 남는다")
-    void recordSameProductTwice() {
+    @DisplayName("PREF-15 같은 회원이 같은 상품의 상세에 같은 날 두 번 들어가면 둘 다 204를 받고 기록은 한 줄만 남는다")
+    void recordSameProductOnceOnSameDay() {
         view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent();
-        view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent();
+        view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent().expectBody().isEmpty();
 
         assertThat(activityRecordRepository.findAll())
             .extracting(ActivityRecord::getType, ActivityRecord::getProductId)
-            .containsExactly(tuple(ActivityType.PRODUCT_VIEWED, PRODUCT_A_ID),
-                tuple(ActivityType.PRODUCT_VIEWED, PRODUCT_A_ID));
+            .containsExactly(tuple(ActivityType.PRODUCT_VIEWED, PRODUCT_A_ID));
     }
 
     @Test
