@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
@@ -14,6 +15,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -33,7 +37,11 @@ class ReferenceGarmentApiTest {
 
     private static final Long OUTER_CATEGORY_ID = 8L;
 
+    private static final Long DRESS_CATEGORY_ID = 9L;
+
     private static final Long BOTTOM_CATEGORY_ID = 70L;
+
+    private static final Long SKIRT_CATEGORY_ID = 71L;
 
     private static final String TOP_BODY =
         "{\"categoryId\": 7, \"measurements\": {\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": 34.5}}";
@@ -56,6 +64,8 @@ class ReferenceGarmentApiTest {
         applyProduct(31L, TOP_CATEGORY_ID, "상의");
         applyProduct(32L, BOTTOM_CATEGORY_ID, "하의");
         applyProduct(33L, OUTER_CATEGORY_ID, "아우터");
+        applyProduct(34L, DRESS_CATEGORY_ID, "원피스");
+        applyProduct(35L, SKIRT_CATEGORY_ID, "치마");
     }
 
     @Test
@@ -127,8 +137,66 @@ class ReferenceGarmentApiTest {
         delete(MEMBER_1_ID, CHILD_1_ID, "TOP").expectStatus().isNoContent().expectBody().isEmpty();
     }
 
+    @ParameterizedTest(name = "{0} 기준 옷에 카테고리 {1}")
+    @CsvSource({"TOP, 7", "TOP, 8", "TOP, 9", "BOTTOM, 70", "BOTTOM, 71"})
+    @DisplayName("FIT-01 상의 기준 옷은 상의 · 아우터 · 원피스 카테고리로, 하의 기준 옷은 하의 · 치마 카테고리로 저장된다")
+    void saveWithMatchingCategory(String part, String categoryId) {
+        put(MEMBER_1_ID, CHILD_1_ID, part, body(categoryId, requiredMeasurements(part)))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$").value(Map.class, body -> assertThat(body)
+                .containsEntry("part", part)
+                .containsEntry("categoryId", categoryId));
+    }
+
+    @ParameterizedTest(name = "{0} 기준 옷에 카테고리 {1}")
+    @CsvSource({"TOP, 70", "TOP, 71", "BOTTOM, 7", "BOTTOM, 8", "BOTTOM, 9"})
+    @DisplayName("FIT-01 구분과 맞지 않는 카테고리면 400이고 저장되지 않는다")
+    void rejectCategoryOfOtherPart(String part, String categoryId) {
+        expectProblem(put(MEMBER_1_ID, CHILD_1_ID, part, body(categoryId, requiredMeasurements(part))),
+            400, "구분과 맞지 않는 세부 종류입니다",
+            "상의 기준 옷은 상의 · 아우터 · 원피스, 하의 기준 옷은 하의 · 치마 카테고리에서 골라 주세요.",
+            path(CHILD_1_ID) + "/" + part);
+
+        list(MEMBER_1_ID, CHILD_1_ID).expectStatus().isOk().expectBody().json("[]");
+    }
+
+    @ParameterizedTest(name = "카테고리 {0}")
+    @ValueSource(strings = {"999", "30"})
+    @DisplayName("상품 복사본이 없는 카테고리나 말단이 아닌 카테고리(의류)면 400이고 저장되지 않는다")
+    void rejectUnknownOrNonLeafCategory(String categoryId) {
+        expectProblem(put(MEMBER_1_ID, CHILD_1_ID, "TOP", body(categoryId, requiredMeasurements("TOP"))),
+            400, "확인할 수 없는 세부 종류입니다", "기준 옷의 세부 종류를 상품 카테고리에서 다시 골라 주세요.",
+            path(CHILD_1_ID) + "/TOP");
+
+        list(MEMBER_1_ID, CHILD_1_ID).expectStatus().isOk().expectBody().json("[]");
+    }
+
     private static Map<String, Object> garment(String part, String categoryId, Map<String, Double> measurements) {
         return Map.of("part", part, "categoryId", categoryId, "measurements", measurements);
+    }
+
+    private static String requiredMeasurements(String part) {
+        if ("TOP".equals(part)) {
+            return "\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": 34.5";
+        }
+        return "\"TOTAL_LENGTH\": 55.5, \"WAIST_WIDTH\": 26";
+    }
+
+    private static String body(String categoryId, String measurements) {
+        return "{\"categoryId\": " + categoryId + ", \"measurements\": {" + measurements + "}}";
+    }
+
+    private static void expectProblem(RestTestClient.ResponseSpec response, int status, String title, String detail,
+        String instance) {
+        response.expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").isEqualTo("about:blank")
+            .jsonPath("$.title").isEqualTo(title)
+            .jsonPath("$.status").isEqualTo(status)
+            .jsonPath("$.detail").isEqualTo(detail)
+            .jsonPath("$.instance").isEqualTo(instance);
     }
 
     private static String path(Long childId) {
