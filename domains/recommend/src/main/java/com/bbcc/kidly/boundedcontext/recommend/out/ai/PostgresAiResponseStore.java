@@ -25,11 +25,12 @@ public class PostgresAiResponseStore implements AiResponseStore {
         return jdbcClient.sql("""
                 SELECT response::text
                 FROM recommend.ai_response
-                WHERE response_type = :type AND input_hash = :hash
+                WHERE response_type = :type AND input_hash = :hash AND created_at >= :createdAfter
                 LIMIT 1
                 """)
             .param("type", type.name())
             .param("hash", key.value())
+            .param("createdAfter", createdAfter)
             .query(String.class)
             .optional();
     }
