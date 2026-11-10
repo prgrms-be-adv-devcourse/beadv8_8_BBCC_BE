@@ -32,7 +32,7 @@ public class ReferenceGarmentService {
     @Transactional
     public ReferenceGarmentResult save(Long memberId, Long childId, String partName, Long categoryId,
         Map<String, BigDecimal> measurements) {
-        GarmentPart part = GarmentPart.valueOf(partName);
+        GarmentPart part = GarmentPart.from(partName);
         ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
             part, categoryId, garmentCategoryPaths.findPathOf(categoryId), measurements);
         Optional<ReferenceGarment> existing = referenceGarmentRepository.findByChildProfileIdAndPart(childId, part);
@@ -45,6 +45,6 @@ public class ReferenceGarmentService {
 
     @Transactional
     public void delete(Long memberId, Long childId, String partName) {
-        referenceGarmentRepository.deleteByChildProfileIdAndPart(childId, GarmentPart.valueOf(partName));
+        referenceGarmentRepository.deleteByChildProfileIdAndPart(childId, GarmentPart.from(partName));
     }
 }

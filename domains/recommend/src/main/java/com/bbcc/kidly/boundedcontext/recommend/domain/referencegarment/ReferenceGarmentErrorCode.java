@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ReferenceGarmentErrorCode implements ErrorCode {
 
+    UNKNOWN_PART(HttpStatus.BAD_REQUEST, "알 수 없는 기준 옷 구분입니다", "기준 옷 구분은 TOP 또는 BOTTOM입니다."),
     CATEGORY_NOT_FOUND(HttpStatus.BAD_REQUEST, "확인할 수 없는 세부 종류입니다",
         "기준 옷의 세부 종류를 상품 카테고리에서 다시 골라 주세요."),
     CATEGORY_PART_MISMATCH(HttpStatus.BAD_REQUEST, "구분과 맞지 않는 세부 종류입니다",
