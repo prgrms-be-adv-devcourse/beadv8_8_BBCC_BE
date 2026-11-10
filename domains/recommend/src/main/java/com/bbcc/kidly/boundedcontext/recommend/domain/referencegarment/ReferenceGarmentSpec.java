@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -29,6 +31,8 @@ public final class ReferenceGarmentSpec {
 
     public static ReferenceGarmentSpec of(GarmentPart part, Long categoryId, List<String> categoryPathNames,
         Map<String, BigDecimal> measurements) {
+        requireNonNull(part, "part는 필수입니다");
+        requireNonNull(categoryId, "categoryId는 필수입니다");
         if (categoryPathNames == null || categoryPathNames.isEmpty()) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
         }
