@@ -20,7 +20,7 @@ public final class RecommendedProductFixture {
     public static final LocalDateTime BASE_TIME = LocalDateTime.of(2026, 11, 6, 12, 0);
 
     /**
-     * 기준 시각보다 30일 이른 등록 시각이다. 최신성 1점을 받지 않는다.
+     * 기준 시각보다 30일 이른 등록 시각이다. 최신성 몫을 받지 않는다.
      */
     public static final LocalDateTime OLD_REGISTERED_AT = BASE_TIME.minusDays(30);
 
