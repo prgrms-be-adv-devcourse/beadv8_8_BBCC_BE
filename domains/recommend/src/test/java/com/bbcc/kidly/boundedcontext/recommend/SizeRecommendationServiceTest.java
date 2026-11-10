@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
@@ -16,7 +17,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import java.util.List;
 import java.util.Optional;
@@ -71,6 +74,56 @@ class SizeRecommendationServiceTest {
         assertThat(result.source()).isEqualTo("AI");
         assertThat(result.reasons()).containsExactly(
             new SizeRecommendationResult.Reason("HEIGHT", "키 114cm는 110의 권장 키 안이에요.", null));
+    }
+
+    @Test
+    @DisplayName("AI 답이 없으면(실패 · 시간 초과 · 호출 상한) 규칙 결과로 답하고, 출처는 RULE이고 근거는 빈 목록이다")
+    void answerWithRuleWhenAiGivesNothing() {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftOf(RULE_120));
+        given(aiResponseService.respond(
+            eq(AiResponseType.SIZE_RECOMMENDATION), eq(KEY_INPUT), eq(AiSizeAnswer.class), any()))
+            .willReturn(Optional.empty());
+
+        SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertRuleResult(result);
+    }
+
+    @Test
+    @DisplayName("AI 모델이 없으면 AI를 부르지 않고 규칙 결과로 답한다")
+    void answerWithRuleWithoutAiModel() {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftOf(RULE_120));
+
+        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+            .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertRuleResult(result);
+        verifyNoInteractions(aiResponseService);
+    }
+
+    @Test
+    @DisplayName("사이즈 구분이 없는 상품이면 AI를 부르지 않고 SIZE_FREE 안내로 답한다")
+    void answerSizeFreeWithoutAi() {
+        ProductSizes sizeFreeProduct = ProductSizes.of(true, List.of(SizeRange.of("FREE", 90, 130)));
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
+            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION));
+
+        SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.recommendedSize()).isNull();
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(result.notices()).extracting(SizeRecommendationResult.Notice::code).containsExactly("SIZE_FREE");
+        verifyNoInteractions(aiResponseService, aiSizeChooser);
+    }
+
+    private static void assertRuleResult(SizeRecommendationResult result) {
+        assertThat(result.recommendedSize()).isEqualTo("120");
+        assertThat(result.fit()).isEqualTo("ROOMY");
+        assertThat(result.notices()).extracting(SizeRecommendationResult.Notice::code)
+            .containsExactly("BODY_TYPE_ADJUSTED");
+        assertThat(result.candidateSizes()).containsExactly("110", "120");
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(result.reasons()).isEmpty();
     }
 
     private SizeRecommendationService service() {
