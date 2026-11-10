@@ -108,14 +108,16 @@ class ProductEmbeddingTextTest {
     }
 
     @Test
-    @DisplayName("글이 4,000자를 넘으면 4,000 code point에서 자르고 마지막 줄인 설명이 잘린다")
+    @DisplayName("글이 4,000자를 넘으면 4,000 code point에서 자르고 카테고리 줄은 남고 마지막 줄인 설명이 잘린다")
     void truncateDescriptionAtMaxLength() {
-        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", List.of(), "키들리", List.of(),
-            "a".repeat(5_000));
+        ProductEmbeddingText text = ProductEmbeddingText.compose("면 티셔츠", List.of("의류", "상의"), "키들리",
+            List.of(), "a".repeat(5_000));
 
         assertThat(text.value().codePointCount(0, text.value().length()))
             .isEqualTo(ProductEmbeddingText.MAX_LENGTH);
-        assertThat(text.value()).startsWith("상품명: 면 티셔츠\n브랜드: 키들리\n설명: aaa").endsWith("a");
+        assertThat(text.value())
+            .startsWith("상품명: 면 티셔츠\n카테고리: 의류 > 상의\n브랜드: 키들리\n설명: aaa")
+            .endsWith("a");
     }
 
     @Test
