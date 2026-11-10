@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReason;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -58,9 +59,15 @@ public class SizeRecommendationService {
         for (SizeNotice notice : recommendation.getNotices()) {
             notices.add(new SizeRecommendationResult.Notice(notice.name(), notice.getMessage()));
         }
+        List<SizeRecommendationResult.Reason> reasons = new ArrayList<>();
+        for (SizeReason reason : recommendation.getReasons()) {
+            reasons.add(new SizeRecommendationResult.Reason(
+                reason.type().name(), reason.detail(), reason.sourceId()));
+        }
         // 지난 구매 사이즈는 아직 채우지 않는다
         return new SizeRecommendationResult(
             productId, childId, recommendation.getRecommendedSize(), fit,
-            notices, recommendation.getCandidateSizes(), null);
+            notices, recommendation.getCandidateSizes(), null,
+            recommendation.getSource().name(), reasons);
     }
 }
