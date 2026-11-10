@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReason;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReasonType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSource;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -120,6 +121,37 @@ class SizeRecommendationAiTest {
         assertThat(result.getRecommendedSize()).isEqualTo("110");
         assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
         assertThat(result.getCandidateSizes()).containsExactly("120");
+    }
+
+    @Test
+    @DisplayName("AI 근거 중 모르는 종류이거나 문구가 빈 것은 버리고, 글 조각 ID는 비우며, 나머지는 순서대로 남긴다")
+    void keepOnlyUsableReasons() {
+        AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT", Arrays.asList(
+            new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, "chunk-1"),
+            new AiSizeAnswer.Reason("COLOR", "색이 예뻐요.", null),
+            new AiSizeAnswer.Reason(null, "종류가 없어요.", null),
+            new AiSizeAnswer.Reason("BODY_TYPE", " ", null),
+            new AiSizeAnswer.Reason("PREFERRED_FIT", null, null),
+            null,
+            new AiSizeAnswer.Reason("body_type", "소문자 종류예요.", null),
+            new AiSizeAnswer.Reason("RULE_RESULT", "규칙도 110을 후보로 봤어요.", null)));
+
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer);
+
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
+        assertThat(result.getReasons()).containsExactly(
+            new SizeReason(SizeReasonType.HEIGHT, HEIGHT_DETAIL, null),
+            new SizeReason(SizeReasonType.RULE_RESULT, "규칙도 110을 후보로 봤어요.", null));
+    }
+
+    @Test
+    @DisplayName("AI가 근거를 비우면 근거 없이 AI 답을 쓴다")
+    void adoptAiAnswerWithoutReasons() {
+        SizeRecommendation result = RULE_120.decideWith(
+            RecommendFixture.productA(), new AiSizeAnswer("110", "TIGHT", null));
+
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
+        assertThat(result.getReasons()).isEmpty();
     }
 
     private static void assertRuleResult(SizeRecommendation result) {
