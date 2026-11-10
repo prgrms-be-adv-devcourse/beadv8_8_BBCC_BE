@@ -23,7 +23,23 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
     @Override
     public List<Long> findChildTargets(LocalDateTime activitySince, LocalDateTime purchaseSince,
         long afterChildProfileId, int limit) {
-        throw new UnsupportedOperationException();
+        return jdbcClient.sql("""
+                SELECT child_profile_id FROM (
+                    SELECT child_profile_id FROM recommend.activity_record
+                    WHERE child_profile_id > :after AND occurred_at >= :activitySince
+                    UNION
+                    SELECT child_profile_id FROM recommend.purchase_record
+                    WHERE child_profile_id > :after AND confirmed_at >= :purchaseSince
+                ) targets
+                ORDER BY child_profile_id
+                LIMIT :limit
+                """)
+            .param("after", afterChildProfileId)
+            .param("activitySince", activitySince)
+            .param("purchaseSince", purchaseSince)
+            .param("limit", limit)
+            .query(Long.class)
+            .list();
     }
 
     @Override

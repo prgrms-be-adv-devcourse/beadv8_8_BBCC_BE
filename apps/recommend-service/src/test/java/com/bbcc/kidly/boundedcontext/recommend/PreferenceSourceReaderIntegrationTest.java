@@ -40,6 +40,17 @@ class PreferenceSourceReaderIntegrationTest {
         assertThat(reader.findChildTargets(SINCE, SINCE, 0, 10)).containsExactly(1L, 3L, 4L, 6L);
     }
 
+    @Test
+    @DisplayName("대상 자녀는 after보다 큰 ID만 limit개까지 읽는다")
+    void readChildTargetsAfterIdWithLimit() {
+        childActivity(1L, SINCE);
+        childActivity(3L, SINCE);
+        childActivity(4L, SINCE);
+        childActivity(6L, SINCE);
+
+        assertThat(reader.findChildTargets(SINCE, SINCE, 1, 2)).containsExactly(3L, 4L);
+    }
+
     private void childActivity(Long childProfileId, LocalDateTime occurredAt) {
         PreferenceTestData.insertActivity(jdbc, ActivityType.PRODUCT_VIEWED, 1L, childProfileId, occurredAt, 100L,
             null, null, null);
