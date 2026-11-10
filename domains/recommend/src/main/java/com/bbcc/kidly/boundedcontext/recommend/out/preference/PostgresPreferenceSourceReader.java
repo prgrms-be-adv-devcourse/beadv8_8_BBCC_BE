@@ -96,16 +96,14 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
         if (productIds.isEmpty()) {
             return embeddings;
         }
-        List<Map.Entry<Long, EmbeddingVector>> rows = jdbcClient.sql("""
+        jdbcClient.sql("""
                 SELECT product_id, CAST(embedding AS text) AS embedding FROM recommend.replica_product
                 WHERE embedding IS NOT NULL AND product_id IN (:productIds)
                 """)
             .param("productIds", productIds)
-            .query((rs, rowNum) -> Map.entry(rs.getLong("product_id"), VectorText.parse(rs.getString("embedding"))))
-            .list();
-        for (Map.Entry<Long, EmbeddingVector> row : rows) {
-            embeddings.put(row.getKey(), row.getValue());
-        }
+            .query(rs -> {
+                embeddings.put(rs.getLong("product_id"), VectorText.parse(rs.getString("embedding")));
+            });
         return embeddings;
     }
 

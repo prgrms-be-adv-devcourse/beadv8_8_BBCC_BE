@@ -4,7 +4,6 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.TasteSimilari
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -27,7 +26,7 @@ public class PostgresTasteSimilarityReader implements TasteSimilarityReader {
         if (productIds.isEmpty()) {
             return similarities;
         }
-        List<Map.Entry<Long, Double>> rows = jdbcClient.sql("""
+        jdbcClient.sql("""
                 SELECT product_id,
                        1 - (embedding OPERATOR(recommend.<=>) CAST(:taste AS recommend.vector)) AS similarity
                 FROM recommend.replica_product
@@ -35,11 +34,9 @@ public class PostgresTasteSimilarityReader implements TasteSimilarityReader {
                 """)
             .param("taste", VectorText.format(taste))
             .param("productIds", productIds)
-            .query((rs, rowNum) -> Map.entry(rs.getLong("product_id"), rs.getDouble("similarity")))
-            .list();
-        for (Map.Entry<Long, Double> row : rows) {
-            similarities.put(row.getKey(), row.getValue());
-        }
+            .query(rs -> {
+                similarities.put(rs.getLong("product_id"), rs.getDouble("similarity"));
+            });
         return similarities;
     }
 }
