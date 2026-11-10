@@ -116,6 +116,7 @@ public class PreferenceJobService {
     // 진행이 staleAfter 넘게 없는 실행만 죽은 것으로 보고 FAILED로 닫는다. 닫는 사이 진행이 생기면 버전 충돌로 실행 중으로 본다
     private boolean recoverIfStale(JobExecution execution) {
         LocalDateTime lastActivity = lastActivityOf(execution);
+        // Spring Batch가 진행 시각을 JVM 기본 시간대의 LocalDateTime.now()로 남기므로 같은 시계로 비교한다
         if (!lastActivity.isBefore(LocalDateTime.now().minus(staleAfter))) {
             return false;
         }
