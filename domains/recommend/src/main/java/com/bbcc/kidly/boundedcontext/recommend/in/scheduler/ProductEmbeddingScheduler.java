@@ -23,6 +23,11 @@ public class ProductEmbeddingScheduler {
     @Scheduled(fixedDelayString = "${kidly.recommend.embedding.interval:PT1M}",
         initialDelayString = "${kidly.recommend.embedding.interval:PT1M}")
     public void embedStaleProducts() {
-        embeddingService.embedStaleProducts();
+        try {
+            embeddingService.embedStaleProducts();
+        } catch (RuntimeException e) {
+            // 예외 메시지와 스택 트레이스에는 DB 오류의 행 값이 들어갈 수 있어 예외 종류만 남긴다
+            log.error("상품 임베딩 주기가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());
+        }
     }
 }
