@@ -119,15 +119,16 @@
 ## 검색 이벤트 발행 (`search.performed`, #611)
 - 추천이 회원의 관심사로 쓴다. 토픽 `kidly.search.events`(파티션 3 · 복제 1, `out/SearchKafkaConfig`가 선언), 키는 회원 ID, 본문은 공통 칸 7개 + `data`
 - 보내는 때: 로그인 회원이 검색어(앞뒤 공백을 빼고 비지 않은 것)로 찾은 첫 페이지. 비로그인 · 검색어 없는 둘러보기 · 다음 페이지 · 검색 실패(503)는 보내지 않는다
-- `data`: `memberId` · `keyword`(앞뒤 공백 뺀 값) · `categoryId` · `attributeValueIds`(항목 code → 값 ID 목록) · `resultCount`(전체 결과 수, 0건도). 검색 시각은 `occurredAt`. 결과 목록은 담지 않는다
+- `data`: `memberId` · `keyword`(앞뒤 공백 뺀 값) · `categoryId` · `attributeValueIds`(항목 code → 값 ID 목록) · `resultCount`(전체 결과 수, 0건도) · `childId`(#1089, 추가 칸). 검색 시각은 `occurredAt`. 결과 목록은 담지 않는다
+- 자녀 ID(#1089): 보호자가 고른 자녀 프로필이 있으면 FE가 상품 목록 쿼리 파라미터 `childId`(양수, 선택)로 보내고 이벤트 `data.childId`에 그대로 담는다. 없으면 null이다. 추천이 자녀별 관심사를 쌓는 데 쓴다. 검색 결과는 `childId`로 달라지지 않는다(거르지 않는다). 검색 서비스는 자녀 데이터가 없어 그 자녀가 이 회원의 것인지 확인하지 못한다. 확인은 받는 쪽이 한다(추천은 복사본에서 회원이 같은 자녀만 남기고 아니면 자녀 없이 기록한다). 자녀 토큰(`X-Child-*`)의 검색은 자녀 계정 → 프로필 대응이 없어 담지 않는다
 - DB가 없어 아웃박스를 쓰지 않는다. 검색 응답 스레드는 전송을 검색 전용 스레드 하나(대기열 1만 건)에 넘기고 기다리지 않는다. 보내지 못하면 ERROR 로그(eventType · eventId · 키 · 예외 종류)만 남기고 버린다. 검색어가 들어 있어 본문 · 예외 메시지는 남기지 않는다
 - `kidly.kafka.producer.enabled=false`(Kafka 없는 테스트)면 보내지 않는 구현을 쓴다. `@KafkaIntegrationTest`만 켠다
 
 ## 검색 결과 클릭 기록 (`search.result-clicked`, #1004)
 - 로그인 회원이 검색 결과에서 상품을 누르면 FE가 `POST /api/v1/search/clicks`(`in/SearchClickController` · `app/SearchClickService`)를 부른다. `@LoginMember`라 회원 헤더가 없으면 401, 성공하면 204다. 저장하지 않고 이벤트로만 남긴다
-  - 요청 `app/dto/SearchClickRequest`: `keyword`(공백만은 안 됨, 50자 이하. 목록 API와 같음), `productId`(양수), `rank`(보여 준 목록에서의 위치, 첫 페이지 첫 상품이 1. 1~10,000, 목록이 1만 건 너머를 보여 주지 않아서다), `sort`(목록 정렬 값, 없으면 `NEWEST`). 검색어 · 정렬은 그 목록을 찾을 때 보낸 값을 그대로 보낸다
+  - 요청 `app/dto/SearchClickRequest`: `keyword`(공백만은 안 됨, 50자 이하. 목록 API와 같음), `productId`(양수), `rank`(보여 준 목록에서의 위치, 첫 페이지 첫 상품이 1. 1~10,000, 목록이 1만 건 너머를 보여 주지 않아서다), `sort`(목록 정렬 값, 없으면 `NEWEST`), `childId`(양수, 선택, #1089). 검색어 · 정렬은 그 목록을 찾을 때 보낸 값을 그대로 보낸다
   - 누른 상품이 색인에 있는지 · 그 순위에 있었는지는 확인하지 않는다. 클릭마다 Elasticsearch를 다시 찾지 않으려는 것이다
-- 이벤트 `data`: `memberId` · `keyword`(앞뒤 공백 뺀 값, `search.performed`와 같은 규칙) · `productId` · `rank` · `sort`. 자녀 ID는 담지 않는다(`search.performed`와 같이 보류)
+- 이벤트 `data`: `memberId` · `keyword`(앞뒤 공백 뺀 값, `search.performed`와 같은 규칙) · `productId` · `rank` · `sort` · `childId`(#1089, 추가 칸. 목록을 찾을 때 보낸 자녀를 그대로 보내면 담기고 없으면 null. `search.performed`와 같이 출처에서는 회원의 자녀인지 확인하지 않는다)
 - `search.performed`와 같은 토픽 · 키(회원 ID) · 전송 길(`SearchEventSender`, 검색 전용 스레드, 실패는 로그만)이다. 그래서 한 회원의 검색과 클릭은 한 파티션에 순서대로 들어간다
 - Gateway는 `search-clicks` 라우트(POST, 경로가 정확히 같을 때만)로 이 서비스에 넘긴다
 

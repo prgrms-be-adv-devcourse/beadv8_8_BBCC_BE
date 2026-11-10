@@ -27,6 +27,20 @@ class SearchEventsTest {
     }
 
     @Test
+    @DisplayName("검색 이벤트의 자녀 ID는 고른 값을 담고, 예전 모양으로 만들면 null이다(#1089)")
+    void searchPerformedChildId() {
+        assertThat(new SearchPerformedEvent.Data(7L, "원피스", null, Map.of(), 12L, 11L).childId()).isEqualTo(11L);
+        assertThat(new SearchPerformedEvent.Data(7L, "원피스", null, Map.of(), 12L).childId()).isNull();
+    }
+
+    @Test
+    @DisplayName("클릭 이벤트의 자녀 ID는 고른 값을 담고, 예전 모양으로 만들면 null이다(#1089)")
+    void searchResultClickedChildId() {
+        assertThat(new SearchResultClickedEvent.Data(7L, "원피스", 31L, 3, "NEWEST", 11L).childId()).isEqualTo(11L);
+        assertThat(new SearchResultClickedEvent.Data(7L, "원피스", 31L, 3, "NEWEST").childId()).isNull();
+    }
+
+    @Test
     @DisplayName("클릭 이벤트는 search.result-clicked이고 대상 · 순서 키는 검색 이벤트와 같은 회원이다")
     void searchResultClicked() {
         var event = new SearchResultClickedEvent(EVENT_ID, NOW,

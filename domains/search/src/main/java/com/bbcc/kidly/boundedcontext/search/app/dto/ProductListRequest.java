@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.search.app.dto;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -11,6 +12,7 @@ import java.util.List;
  * 상품 목록 API와 같은 검증이다. 목록 API를 검색으로 옮겨도 받는 요청이 바뀌지 않게 한다.
  *
  * @param attributes 고른 항목 값이다. "항목code:값ID" 형식의 문자열 목록이다 (예: COLOR:3)
+ * @param childId 보호자가 고른 자녀 프로필 ID다. 검색 결과는 바꾸지 않고 검색 이벤트에만 담는다(#1089)
  * @param sort 정렬 이름이다. 보내지 않으면 NEWEST다. RELEVANCE(관련도순)는 검색어가 없으면 NEWEST와 같다
  */
 public record ProductListRequest(
@@ -29,7 +31,9 @@ public record ProductListRequest(
     Integer page,
     @Min(value = 1, message = "페이지 크기는 1 이상 100 이하여야 합니다.")
     @Max(value = 100, message = "페이지 크기는 1 이상 100 이하여야 합니다.")
-    Integer size) {
+    Integer size,
+    @Positive(message = "자녀 ID는 양수여야 합니다.")
+    Long childId) {
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 20;

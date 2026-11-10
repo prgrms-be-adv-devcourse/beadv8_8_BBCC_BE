@@ -60,7 +60,7 @@ public final class ActivityRecordFixture {
 
     public static ActivityRecord.SearchInfo search() {
         return new ActivityRecord.SearchInfo(SEARCH_EVENT_ID, MEMBER_1_ID, KEYWORD, PRODUCT_A_CATEGORY_ID,
-            ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT);
+            ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT, null);
     }
 
     // 회원 1이 자녀 11을 고르고 상품 31의 옵션 32를 2개 담아 그 줄이 3개가 됐다
@@ -89,6 +89,11 @@ public final class ActivityRecordFixture {
     public static SearchPerformedEvent searchPerformedEvent() {
         return new SearchPerformedEvent(SEARCH_EVENT_ID, SEARCHED_AT, new SearchPerformedEvent.Data(MEMBER_1_ID,
             KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT));
+    }
+
+    public static SearchPerformedEvent searchPerformedEventWithChild(Long childId) {
+        return new SearchPerformedEvent(SEARCH_EVENT_ID, SEARCHED_AT, new SearchPerformedEvent.Data(MEMBER_1_ID,
+            KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, childId));
     }
 
     public static CartItemAddedEvent cartItemAddedEvent() {

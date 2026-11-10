@@ -22,6 +22,6 @@ public class SearchClickService {
         // 검색 이벤트(search.performed)와 같은 검색어로 묶이도록 같은 규칙(앞뒤 공백 빼기)으로 담는다
         searchEventSender.send(new SearchResultClickedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new SearchResultClickedEvent.Data(memberId, request.keyword().strip(), request.productId(),
-                request.rank(), request.sortOrDefault())));
+                request.rank(), request.sortOrDefault(), request.childId())));
     }
 }

@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecordRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ActivityRecordService {
 
     private final ActivityRecordRepository activityRecordRepository;
+    private final RecommendReplicaChildRepository replicaChildRepository;
 
     /**
      * 검색 이벤트의 값을 검색 활동 기록으로 저장한다.
@@ -37,8 +39,20 @@ public class ActivityRecordService {
             data.categoryId(),
             data.attributeValueIds(),
             data.resultCount(),
-            event.occurredAt());
+            event.occurredAt(),
+            verifiedChildId(data));
         activityRecordRepository.save(ActivityRecord.searched(info));
+    }
+
+    // 검색 서비스는 자녀가 그 회원의 것인지 확인하지 못한다. 모르는 자녀 · 다른 회원의 자녀 · 지운 자녀는 기록을 실패시키지 않고 자녀 없이 남긴다
+    private Long verifiedChildId(SearchPerformedEvent.Data data) {
+        if (data.childId() == null) {
+            return null;
+        }
+        return replicaChildRepository.findById(data.childId())
+            .filter(child -> child.isVisibleTo(data.memberId()))
+            .map(child -> data.childId())
+            .orElse(null);
     }
 
     /**

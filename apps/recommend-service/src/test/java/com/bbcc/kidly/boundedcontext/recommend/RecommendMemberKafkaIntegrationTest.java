@@ -167,7 +167,7 @@ class RecommendMemberKafkaIntegrationTest {
 
     private static ActivityRecord search(Long memberId) {
         return ActivityRecord.searched(new ActivityRecord.SearchInfo(UUID.randomUUID(), memberId, "맨투맨", 52L,
-            Map.of("COLOR", List.of(3L, 5L)), 12L, SEARCHED_AT));
+            Map.of("COLOR", List.of(3L, 5L)), 12L, SEARCHED_AT, null));
     }
 
     private static MemberWithdrawnEvent withdrawn(Long memberId) {
