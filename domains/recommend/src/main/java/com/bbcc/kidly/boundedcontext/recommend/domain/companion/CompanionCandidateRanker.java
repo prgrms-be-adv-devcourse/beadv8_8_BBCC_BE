@@ -15,7 +15,10 @@ public class CompanionCandidateRanker {
                 pairs.add(candidate);
             }
         }
+        // 점수가 같으면 더보기 목록과 같이 판매 시작 시각이 늦은 상품, 그다음 상품 ID가 큰 상품이 앞이다
         pairs.sort(Comparator.comparingDouble((CompanionCandidate candidate) -> score(candidate, pairKinds))
+            .thenComparing(candidate -> candidate.product().saleStartedAt())
+            .thenComparing(candidate -> candidate.product().productId())
             .reversed());
         return pairs;
     }
