@@ -75,9 +75,9 @@ public class AiResponseService {
     ) {
         LocalDateTime now = LocalDateTime.now(clock);
         AiResponseKey key = AiResponseKey.of(input);
-        Optional<String> stored = store.findLatestSince(type, key, now.minus(reusePeriod));
+        Optional<T> stored = findStored(type, key, now, responseType);
         if (stored.isPresent()) {
-            return Optional.of(jsonMapper.readValue(stored.get(), responseType));
+            return stored;
         }
         if (!quota.tryAcquire(now.toLocalDate(), dailyCallLimit)) {
             return Optional.empty();
@@ -88,6 +88,25 @@ public class AiResponseService {
         }
         saveQuietly(type, key, result.get(), now);
         return result;
+    }
+
+    private <T> Optional<T> findStored(
+        AiResponseType type,
+        AiResponseKey key,
+        LocalDateTime now,
+        Class<T> responseType
+    ) {
+        try {
+            Optional<String> json = store.findLatestSince(type, key, now.minus(reusePeriod));
+            if (json.isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(jsonMapper.readValue(json.get(), responseType));
+        } catch (RuntimeException e) {
+            log.warn("저장된 AI 응답을 읽지 못해 없는 것으로 본다. type={}, cause={}",
+                type, e.getClass().getSimpleName());
+            return Optional.empty();
+        }
     }
 
     private void saveQuietly(AiResponseType type, AiResponseKey key, Object response, LocalDateTime now) {
