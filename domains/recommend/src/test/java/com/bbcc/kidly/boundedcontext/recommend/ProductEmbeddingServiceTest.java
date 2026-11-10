@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -121,6 +122,25 @@ class ProductEmbeddingServiceTest {
         verifyNoMoreInteractions(store);
         verify(embedder).embed(List.of(PRODUCT_3_TEXT));
         verifyNoMoreInteractions(embedder);
+    }
+
+    @Test
+    @DisplayName("앞서 실패한 상품의 요청이 실패하면 그 뒤 상품은 보내지 않는다")
+    void stopAfterRetriedRequestFails() {
+        EmbeddingVector vector3 = vectorOf(0.3f);
+        given(store.findStale(anyInt())).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_3_ID, PRODUCT_3_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, true)));
+        given(embedder.embed(List.of(PRODUCT_3_TEXT))).willReturn(List.of(vector3));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT))).willThrow(new IllegalStateException("임베딩 요청 실패"));
+
+        assertThatCode(service::embedStaleProducts).doesNotThrowAnyException();
+
+        verify(store).saveIfTextUnchanged(PRODUCT_3_ID, PRODUCT_3_TEXT, vector3);
+        verify(store).markAttempted(List.of(PRODUCT_1_ID));
+        verify(store, never()).markAttempted(List.of(PRODUCT_2_ID));
+        verify(embedder, never()).embed(List.of(PRODUCT_2_TEXT));
     }
 
     private static EmbeddingVector vectorOf(float value) {
