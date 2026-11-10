@@ -244,6 +244,24 @@ class ReferenceGarmentApiTest {
             Arguments.of("{\"categoryId\": 7, \"measurements\": null}", measurementsRequired));
     }
 
+    @ParameterizedTest(name = "구분 {0}")
+    @ValueSource(strings = {"SHOES", "top", "상의"})
+    @DisplayName("주소의 구분이 TOP이나 BOTTOM이 아니면 저장도 삭제도 400이고 기준 옷은 바뀌지 않는다")
+    void rejectUnknownPart(String part) {
+        put(MEMBER_1_ID, CHILD_1_ID, "TOP", TOP_BODY).expectStatus().isOk();
+        String detail = "기준 옷 구분은 TOP 또는 BOTTOM입니다.";
+
+        expectProblem(put(MEMBER_1_ID, CHILD_1_ID, part, TOP_BODY),
+            400, "알 수 없는 기준 옷 구분입니다", detail, path(CHILD_1_ID) + "/" + part);
+        expectProblem(delete(MEMBER_1_ID, CHILD_1_ID, part),
+            400, "알 수 없는 기준 옷 구분입니다", detail, path(CHILD_1_ID) + "/" + part);
+
+        list(MEMBER_1_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody(List.class).isEqualTo(List.of(
+                garment("TOP", "7", Map.of("TOTAL_LENGTH", 42.0, "CHEST_WIDTH", 34.5))));
+    }
+
     private static Map<String, Object> garment(String part, String categoryId, Map<String, Double> measurements) {
         return Map.of("part", part, "categoryId", categoryId, "measurements", measurements);
     }
