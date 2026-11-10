@@ -93,6 +93,35 @@ class SizeRecommendationAiTest {
         assertThat(result.getReasons()).isEmpty();
     }
 
+    @Test
+    @DisplayName("규칙이 맞는 사이즈를 찾지 못해도 AI가 상품에 있는 사이즈를 고르면 그 답을 쓴다")
+    void adoptAiAnswerWhenRuleFoundNoSize() {
+        AiSizeAnswer answer = new AiSizeAnswer("120", "ROOMY",
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+
+        SizeRecommendation result = SizeRecommendation.noMatchingSize().decideWith(RecommendFixture.productA(), answer);
+
+        assertThat(result.getRecommendedSize()).isEqualTo("120");
+        assertThat(result.getFit()).isEqualTo(Fit.ROOMY);
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
+        assertThat(result.getCandidateSizes()).isEmpty();
+        assertThat(result.getNotices()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("INV-R04 AI가 규칙 후보 밖의 상품 사이즈를 골라도 그 답을 쓰고, 후보는 규칙 후보 그대로 둔다")
+    void adoptAiAnswerOutsideRuleCandidates() {
+        SizeRecommendation ruleOnly120 = SizeRecommendation.recommended("120", Fit.PROPER, List.of(), List.of("120"));
+        AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT",
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+
+        SizeRecommendation result = ruleOnly120.decideWith(RecommendFixture.productA(), answer);
+
+        assertThat(result.getRecommendedSize()).isEqualTo("110");
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
+        assertThat(result.getCandidateSizes()).containsExactly("120");
+    }
+
     private static void assertRuleResult(SizeRecommendation result) {
         assertThat(result.getRecommendedSize()).isEqualTo("120");
         assertThat(result.getFit()).isEqualTo(Fit.PROPER);
