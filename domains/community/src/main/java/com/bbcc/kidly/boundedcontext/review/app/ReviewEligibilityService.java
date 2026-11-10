@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.review.app;
 
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewActivityLog;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewEligibilities;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewEligibility;
@@ -22,6 +23,7 @@ public class ReviewEligibilityService implements ReviewEligibilityRecorder {
 
     private final ReviewEligibilities reviewEligibilities;
     private final ReviewSeparateTransaction separateTransaction;
+    private final ReviewActivityLog activityLog;
 
     @Override
     public void record(PurchaseConfirmed confirmed) {
@@ -32,7 +34,11 @@ public class ReviewEligibilityService implements ReviewEligibilityRecorder {
             confirmed.orderItemId(), confirmed.orderId(), confirmed.memberId(), confirmed.productId(),
             confirmed.optionId(), confirmed.size(), confirmed.confirmedAt()));
         try {
-            separateTransaction.run(() -> reviewEligibilities.saveAndFlush(eligibility));
+            separateTransaction.run(() -> {
+                ReviewEligibility saved = reviewEligibilities.saveAndFlush(eligibility);
+                // 새로 만든 자격만 남는다(이미 있음 · 동시 수신으로 막힌 저장은 이 트랜잭션과 함께 되돌려진다)
+                activityLog.eligibilityCreated(saved.getId(), saved.getProductId(), saved.getOrderItemId());
+            });
         } catch (DataIntegrityViolationException e) {
             if (!UniqueViolations.isViolationOf(e, ORDER_ITEM_UNIQUE)
                 || !reviewEligibilities.existsByOrderItemId(confirmed.orderItemId())) {

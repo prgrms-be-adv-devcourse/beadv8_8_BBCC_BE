@@ -1,15 +1,15 @@
 # 커뮤니티 도메인 설계 규칙
 
-커뮤니티 모듈(리뷰 · 찜 컨텍스트) 안의 설계 규칙이다. 도메인 경계 · `shared` 계약 · Kafka 토픽/키/그룹 · 묻고 바꿀 것은 루트 `CLAUDE.md`를 따르고, 여기와 부딪히면 루트가 우선이다.
+커뮤니티 모듈(리뷰 · 찜 · 활동 기록 컨텍스트) 안의 설계 규칙이다. 도메인 경계 · `shared` 계약 · Kafka 토픽/키/그룹 · 묻고 바꿀 것은 루트 `CLAUDE.md`를 따르고, 여기와 부딪히면 루트가 우선이다.
 
 ## 1. 컨텍스트 · 계층과 포트
-- 이 모듈은 컨텍스트 둘이다: `boundedcontext.review`(중심: 리뷰 · 작성 자격 · 상품 복사본 · 회원 탈퇴 수신) · `boundedcontext.favorite`(찜). 저장은 모두 `community` 스키마다
+- 이 모듈은 컨텍스트 셋이다: `boundedcontext.review`(중심: 리뷰 · 작성 자격 · 상품 복사본 · 회원 탈퇴 수신) · `boundedcontext.favorite`(찜) · `boundedcontext.activity`(활동 기록, 다른 컨텍스트를 부르지 않는다). 저장은 모두 `community` 스키마다
 - 컨텍스트 사이는 in · out으로만 잇는다(`api` 패키지는 두지 않는다). 받는 쪽은 들어오는 포트를 자기 `app.port.in`에 두고 app이 구현한다. 부르는 쪽은 필요한 것을 자기 `app.port`에 자기 말로 두고, `out.{상대}` 어댑터가 상대 `app.port.in`을 불러 값을 옮겨 담는다. 다른 컨텍스트를 아는 것은 이 어댑터뿐이다(app · domain · in은 모른다). 예: 찜은 상품 정보를 review의 `app.port.in.ProductCatalog`(상품 ID 묶음 → 이름 · 썸네일 · 표시 상태, 한 쿼리)로 읽고, 찜 쪽 `app.port.FavoriteProducts`를 `favorite.out.review` 어댑터가 구현한다. 시각 · 커서 · size 도우미처럼 같은 규칙의 코드도 컨텍스트마다 따로 둔다(컨텍스트 사이 참조 금지)
 - `domain`: 업무 규칙 · 불변식(엔티티 · 값, JPA 엔티티 겸용). JPA 표준 어노테이션만 쓰고 Spring · `common` · 로그를 쓰지 않는다. 업무 판단은 domain 메서드가 하고 app은 순서만 조율한다. 불변식 위반은 도메인 예외다
 - `app`: 유스케이스 서비스. 오류 코드는 컨텍스트마다 `ErrorCode`를 구현한 enum(`ReviewErrorCode` · `FavoriteErrorCode`)과 `BusinessException`
 - `app.port`: 나가는 것(저장소 · 다른 컨텍스트)의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안에 둔다(값은 record, 종류는 enum). 나가는 포트 구현은 `out`(저장소는 Spring Data `Jpa…Repository`가 포트를 상속), 들어오는 포트 구현은 app
 - `in`: `web`(컨트롤러 · `dto`, 관리자 API는 `web.admin`) · `event`(이벤트 수신 · 매퍼) · `scheduler`(주기 실행, app 서비스만 부른다) · `mcp`(운영 조회 MCP 창구, app 조회 서비스만 부른다) · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
-- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`, 주기 실행 잠금 `SessionAdvisoryRunLock`) · `storage`(DB 밖 파일 저장소 어댑터. 예: 리뷰 사진 업로드 주소를 서명하는 `S3ReviewImageStorage`) · `moderation`(리뷰 내용 검사기 어댑터: 금칙어 · OpenAI 호환 AI와 이어 붙이기) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 여섯만 둔다(`CommunityPackageLayoutArchitectureTest`)
+- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`, 주기 실행 잠금 `SessionAdvisoryRunLock`, 활동 행 JDBC 저장 `ActivityStore`) · `storage`(DB 밖 파일 저장소 어댑터. 예: 리뷰 사진 업로드 주소를 서명하는 `S3ReviewImageStorage`) · `moderation`(리뷰 내용 검사기 어댑터: 금칙어 · OpenAI 호환 AI와 이어 붙이기) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 여섯만 둔다(`CommunityPackageLayoutArchitectureTest`)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`
 - 한 앱 안에서 빈 · 엔티티 이름이 다른 도메인과 겹치면 기동이 실패한다: 다른 도메인에 같은 이름이 있을 수 있는 클래스(`…EventListener` · `SpringEventReceiver` · `EventGuard` 등)는 `Community` 접두어를 붙이고, 엔티티는 `@Entity(name = "Community…")`로 이름을 정한다
 - 검사: 계층 규칙은 `LayerArchitectureTest`(`LayerRules`), 컨텍스트 사이 규칙(내 out → 상대 `app.port.in`만)은 `CommunityContextArchitectureTest`, 패키지 배치는 `CommunityPackageLayoutArchitectureTest`. 컨텍스트 루트의 `package-info`는 `@NullMarked`로 클래스를 남겨 뼈대만 있을 때도 검사 대상이 비지 않게 한다
@@ -59,6 +59,12 @@
   - 스케줄러 마지막 성공 시각 `kidly.community.scheduler.last.success.seconds{task}`: 켜진 스케줄러만 등록하고 처음 값은 기동 시각. 끝까지 돈 주기만 갱신(잠금을 못 잡아 건너뜀 · 예외 · 사진 저장소에 닿지 않는 설정은 그대로)
   - 사진 업로드 확인 불가(503) 카운터 · 상품 복사본 마지막 반영 뒤 지난 시간(복사본이 없으면 NaN)
   - 레지스트리는 앱이 준다(community-service: actuator + Prometheus, `/actuator/prometheus`). 모듈 테스트 앱은 메모리 레지스트리(`support.CommunityTestMeterRegistryConfig`)
+- 활동 기록(#1128, 통계 1차): 작성 자격 생성 · 리뷰 작성/수정/삭제 · 찜 추가/삭제 · 검사 결정을 표 `community.activity`(append-only, 인덱스 `(occurred_at, id)`만, FK · 업무 제약 없음)에 한 행씩 남긴다
+  - 종류는 `activity.domain.ActivityType`, 속성 키는 `ActivityAttribute` 한 곳에만 둔다. 종류마다 속성은 `Activity`의 생성 메서드가 정한다. 회원 ID · 닉네임 · 본문 · 사진 주소는 넣지 않는다
+  - review · favorite은 자기 `app.port`의 기록 포트(`ReviewActivityLog` · `FavoriteActivityLog`) → 자기 `out.activity` 어댑터 → activity `app.port.in.ActivityRecorder`로 부른다. 기록은 원래 변경과 같은 트랜잭션에만 합류한다(`Propagation.MANDATORY`, 밖에서 부르면 실패)
+  - 실제로 바뀐 것만 남긴다: 이미 있는 자격 · 이미 찜 · 없는 찜 취소 · 같은 값 수정 · 버전이 바뀌어 버린 검사 결과 · 판단 못 함 · 같은 값 관리자 요청은 남기지 않는다. 회원 탈퇴로 지운 찜은 delete … returning으로 받은 행을 한 문장(INSERT … SELECT unnest)으로 남긴다(까닭 withdrawn)
+  - 흐름 카운터(`activity.app.ActivityMetrics`, 라벨 고정)는 커밋 뒤에만 오른다(afterCommit): `kidly.community.reviews{action}` · `favorites{action, cause}` · `moderation.decisions{by, status}`. 작성 자격 생성 · 백필은 세지 않는다
+  - 백필(마이그레이션 V202611101700): 지금 남은 작성 자격 · 리뷰 · 찜 · 통과/대기가 아닌 검사 결정을 원본 시각으로, `backfilled: true`와 `NOT EXISTS`(같은 종류 · 대상)로 다시 돌려도 중복이 없다. 이미 지워진 리뷰 · 찜 · 과거 수정 · 통과 결정은 원본이 없어 넣지 않는다
 - 수신으로 처음 보는 행을 만들 때는 먼저 조회하고, 저장은 따로 연 트랜잭션(`ReviewSeparateTransaction`)에서 바로 반영한다. ID를 직접 넣는 엔티티(상품 복사본)는 Spring Data `save`가 merge가 되어 이미 커밋된 행을 덮어쓰므로, 새 행은 persist만 하는 저장소 조각(`out.store.ReplicaProductInsert`)으로 넣는다. 동시 수신으로 그 행의 유일 제약(SQLState 23505 + 제약 이름)에 막히고 다시 조회해 행이 있으면 "이미 있음"으로 수렴한다(복사본은 이어서 늦을 때만 덮어쓰기). 그 밖의 위반은 던진다(재시도 → DLT). 로그에 값을 남기지 않는다
 - 따로 연 트랜잭션은 바깥 트랜잭션이 있는 채로 열리므로 수신 한 건이 DB 커넥션을 최대 2개 쓴다. Kafka 리스너는 동시성 1이라 커넥션 2개로 끝나고, Spring 이벤트 경로는 발행 쪽 스레드 수만큼 동시에 2개씩 들 수 있다(커넥션 풀 크기를 정할 때 본다)
 - 저장했다가 다시 비교 · 정렬 · 커서에 쓰는 시각(`occurredAt` · `confirmedAt` · 생성 · 수정 시각)은 도메인에서 마이크로초로 잘라 저장 · 비교한다(`ReviewTimes`). 실행 환경에 따라 나노초가 나오는데 DB는 마이크로초로 저장해, 자르지 않으면 같은 이벤트가 "더 늦은" 값으로 보인다. 테스트의 기준 시각은 나노초가 있는 고정값으로 쓴다
@@ -87,7 +93,7 @@
 
 ## 6. 테스트
 - 단위 테스트는 `test`, 스프링 + Testcontainers는 태그로 나눠 `integrationTest`(`@IntegrationTest`) · `functionalTest`(`@FunctionalTest`)로 이 모듈에서 돈다. 규칙 테스트는 `archTest`
-- 주석 · 컨테이너 · 정리는 모듈 공통 `boundedcontext.support`(앱의 `com.bbcc.kidly.support`와 다른 패키지)를 쓰고, 테스트 앱은 `CommunityTestApplication`(리뷰 · 찜 컨텍스트 · `common`만)이다. 테스트가 끝나면 `community` 스키마의 표를 비운다(`CommunityDatabaseCleanerExtension`)
+- 주석 · 컨테이너 · 정리는 모듈 공통 `boundedcontext.support`(앱의 `com.bbcc.kidly.support`와 다른 패키지)를 쓰고, 테스트 앱은 `CommunityTestApplication`(리뷰 · 찜 · 활동 기록 컨텍스트 · `common`만)이다. 테스트가 끝나면 `community` 스키마의 표를 비운다(`CommunityDatabaseCleanerExtension`)
 - `@IntegrationTest` · `@FunctionalTest`를 쓰는 테스트 클래스에 개별 설정(`@MockitoBean`, `@TestPropertySource` 등)을 붙이지 않는다(컨텍스트가 새로 뜬다)
 - 커뮤니티 테스트는 다른 도메인 코드를 쓰지 않는다(`CommunityTestIndependenceTest`). 다른 도메인이 보내던 이벤트는 테스트가 직접 넣는다
 - 쓰기 입력마다 "두 번 → 1회분" 테스트, 카운터는 동시 호출 테스트를 둔다. 경계(아래 · 정확히 · 위)를 확인하고, 시간은 now 기준 상대값으로 쓴다

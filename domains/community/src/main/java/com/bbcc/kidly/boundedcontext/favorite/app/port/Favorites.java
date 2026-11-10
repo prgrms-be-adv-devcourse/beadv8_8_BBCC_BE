@@ -19,11 +19,11 @@ public interface Favorites {
     Favorite saveAndFlush(Favorite favorite);
 
     /**
-     * 그 회원의 그 상품 찜을 지운다(한 문장).
+     * 그 회원의 그 상품 찜을 지운다(한 문장, delete … returning).
      *
-     * @return 지운 행 수(0 또는 1)
+     * @return 지운 찜 ID(없으면 빈 목록, 있으면 하나)
      */
-    int deleteByMember(Long memberId, Long productId);
+    List<Long> deleteByMember(Long memberId, Long productId);
 
     /**
      * 내 찜 첫 쪽: 최신순(created_at desc, id desc).
