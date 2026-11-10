@@ -22,9 +22,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * 기준 옷의 세부 종류 카테고리를 상품 복사본의 카테고리 경로에서 찾는 조회를 실제 DB로 확인한다.
- */
 @IntegrationTest
 class GarmentCategoryPathsIntegrationTest {
 
@@ -42,7 +39,6 @@ class GarmentCategoryPathsIntegrationTest {
     @Autowired
     private RecommendReplicaProductService replicaProductService;
 
-    // ID와 이름이 순서대로 커지지 않는 경로로, 값의 크기로 정렬해서는 통과하지 못하게 한다
     @Test
     @DisplayName("상품 복사본의 카테고리 경로에 있는 카테고리를 찾으면 그 경로 전체가 대분류부터 말단 순서로 돌아온다")
     void findFullPathInOrder() {
@@ -54,7 +50,6 @@ class GarmentCategoryPathsIntegrationTest {
             .containsExactly(tuple(CLOTHING_ID, "의류"), tuple(TOP_ID, "상의"));
     }
 
-    // 두 상품의 경로 이름을 다르게 해서 어느 상품의 경로가 돌아왔는지 가린다
     @Test
     @DisplayName("같은 말단 카테고리의 상품이 둘이면 더 늦게 반영된 상품의 경로 하나만 돌아온다")
     void findPathOfLatelyAppliedProduct() {
@@ -111,7 +106,6 @@ class GarmentCategoryPathsIntegrationTest {
             new ProductChangedEvent.CategoryPathEntry(BOTTOM_ID, "하의"));
     }
 
-    // 상품의 카테고리는 경로의 마지막(말단)으로 둔다
     private void applyProduct(Long productId, List<ProductChangedEvent.CategoryPathEntry> categoryPath,
         LocalDateTime occurredAt) {
         ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();

@@ -3,9 +3,6 @@ package com.bbcc.kidly.boundedcontext.recommend.app.port.referencegarment;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentCategoryPathEntry;
 import java.util.List;
 
-/**
- * 기준 옷의 세부 종류 카테고리를 상품 카테고리에서 찾는 나가는 연결의 요청서다.
- */
 public interface GarmentCategoryPaths {
 
     /**

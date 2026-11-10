@@ -27,7 +27,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 자녀별 기준 옷을 실제 DB에 저장하고 읽고 지우는 규칙을 확인한다. 리포지토리는 트랜잭션을 열지 않으므로 호출은 TransactionTemplate으로 감싼다.
+ * 리포지토리는 트랜잭션을 열지 않으므로 호출은 TransactionTemplate으로 감싼다.
  */
 @IntegrationTest
 class ReferenceGarmentRepositoryIntegrationTest {
