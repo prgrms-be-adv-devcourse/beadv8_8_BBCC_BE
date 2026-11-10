@@ -28,12 +28,12 @@ import org.springframework.stereotype.Service;
 /**
  * 홈 화면에 보여 줄 맛보기 상품 4개를 만든다.
  */
-// 이 서비스에는 @Transactional을 걸지 않는다. 다음 단계에서 이 서비스가 트랜잭션 밖에서만 부를 수 있는
-// AI 공통 서비스를 부르기 때문이다. DB를 읽는 일은 각 읽기 빈이 자기 트랜잭션에서 한다
+// 이 서비스는 트랜잭션 밖에서만 부를 수 있는 AI 공통 서비스를 부르므로 @Transactional을 걸지 않는다
 @Service
 public class HomePreviewService {
 
-    // AI 답의 칸 이름이나 뜻, 프롬프트를 바꾸면 올려서 이전 버전의 저장된 답을 다시 쓰지 않게 한다
+    // AI 답의 칸 이름이나 뜻, 프롬프트를 바꾸면 올려서 이전 버전의 저장된 답을 다시 쓰지 않게 한다.
+    // 프롬프트 문구는 OpenAiHomePreviewPicker에 있다
     private static final int PROMPT_VERSION = 1;
 
     private final HomePreviewCandidateReader candidateReader;
@@ -102,7 +102,8 @@ public class HomePreviewService {
             child.weightKg(), child.bodyType(), child.preferredFit(), productIds, null, PROMPT_VERSION);
     }
 
-    // 맛보기 상품의 판매자를 중복 없이 모아 한 번에 읽는다. 복사본이 없는 판매자는 맵에 들어가지 않는다
+    // 맛보기 상품의 판매자를 중복 없이 모아 한 번에 읽는다. 복사본이 없는 판매자는 맵에 들어가지 않는다.
+    // 판매자 상호는 리포지토리 기본 메서드가 자기 읽기 트랜잭션에서 읽고, 기본 칸만 읽어 지연 로딩이 없다
     private Map<Long, String> readBusinessNames(List<HomePreview.Item> items) {
         Set<Long> sellerIds = new HashSet<>();
         for (HomePreview.Item item : items) {
