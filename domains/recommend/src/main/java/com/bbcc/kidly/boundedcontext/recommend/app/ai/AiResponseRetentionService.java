@@ -37,6 +37,6 @@ public class AiResponseRetentionService {
 
     public void deleteExpiredResponses() {
         int deleted = store.deleteCreatedBefore(LocalDateTime.now(clock).minus(retention));
-        log.info("보관 기간이 지난 AI 응답을 지웠다. deleted={}", deleted);
+        log.info("보관 기간이 지난 AI 응답을 지웠습니다. deleted={}", deleted);
     }
 }

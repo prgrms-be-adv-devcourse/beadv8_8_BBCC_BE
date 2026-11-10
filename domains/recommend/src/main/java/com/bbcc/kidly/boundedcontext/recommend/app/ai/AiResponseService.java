@@ -115,7 +115,7 @@ public class AiResponseService {
         try {
             return quota.tryAcquire(now.toLocalDate(), dailyCallLimit);
         } catch (RuntimeException e) {
-            log.warn("AI 호출 횟수를 세지 못해 호출하지 않는다. type={}, cause={}",
+            log.warn("AI 호출 횟수를 세지 못해 호출하지 않습니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
             return false;
         }
@@ -134,7 +134,7 @@ public class AiResponseService {
             }
             return Optional.ofNullable(jsonMapper.readValue(json.get(), responseType));
         } catch (RuntimeException e) {
-            log.warn("저장된 AI 응답을 읽지 못해 없는 것으로 본다. type={}, cause={}",
+            log.warn("저장된 AI 응답을 읽지 못해 없는 것으로 봅니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
             return Optional.empty();
         }
@@ -144,7 +144,7 @@ public class AiResponseService {
         try {
             store.save(type, key, jsonMapper.writeValueAsString(response), now);
         } catch (RuntimeException e) {
-            log.warn("AI 응답을 저장하지 못했지만 받은 결과는 돌려준다. type={}, cause={}",
+            log.warn("AI 응답을 저장하지 못했지만 받은 결과는 돌려줍니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
         }
     }
@@ -169,6 +169,6 @@ public class AiResponseService {
 
     // 예외 메시지에 응답 본문이나 개인정보가 섞일 수 있어 클래스 이름만 남기고 스택 트레이스는 붙이지 않는다.
     private void logCallFailure(AiResponseType type, Throwable cause) {
-        log.warn("AI 호출에 실패해 결과 없이 돌려준다. type={}, cause={}", type, cause.getClass().getSimpleName());
+        log.warn("AI 호출에 실패해 결과 없이 돌려줍니다. type={}, error={}", type, cause.getClass().getSimpleName());
     }
 }
