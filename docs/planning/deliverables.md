@@ -30,7 +30,6 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | cart.item-added 장바구니 담김(발행은 이미 있음) | 주문 → 추천 | 활동 기록 저장, 선호 점수 갱신 | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
 | cart.item-removed 장바구니 빠짐(발행 요청) | 주문 → 추천 | 활동 기록 저장, 선호 점수 갱신 | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
 | search.performed 검색어 기록됨(발행은 이미 있음) | 검색 → 추천 | 활동 기록 저장 | memberId · keyword · categoryId · attributeValueIds · resultCount | 최종 |
-| child.reference-garment.changed 기준 옷 변경됨 | 자녀 프로필 → 추천 | 기준 옷 복사본 저장 | childId · part(TOP · BOTTOM) · lengthCm · widthCm · sourceOrderItemId | 최종(2순위) |
 | `member.tokens-revoked` 토큰 무효화됨 | 회원 → API Gateway | 무효화 목록에 넣어 그 회원의 기존 토큰 거절 (도메인 아님) | memberId · 무효화 시각 | 최종 |
 | `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected` 조르기 | 주문 → (추천 · 알림 예정) | 활동 신호 · 인앱 알림 | 키 = 자녀 프로필 ID | 최종(예정) |
 | `review.created` 리뷰 작성됨 | 커뮤니티 → (미정) | 추천 · 검색 신호 (K28) | 리뷰 ID · 상품 ID · 주문상품 ID · 회원 ID · 별점 · 작성 시각(본문 · 닉네임 제외) | 최종(보류) |
@@ -54,7 +53,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 
 자녀 API(등록 · 목록 · 상세 · 수정 · 삭제)는 회원 담당입니다. 명세 v2의 추천 도메인 표시와 다르며, 이 문서를 따릅니다.
 
-최종: 보내는 이벤트에 `member.tokens-revoked`(→ Gateway)가 더해졌고, 받는 이벤트는 모두 Kafka입니다. 인증은 auth 도메인으로 분리 중이며(#686, PR #717), 머지되면 무효화 이벤트가 `auth.tokens-revoked`(`kidly.auth.events`)로 바뀝니다. 기준 옷 API(2순위)는 ① 카드에 있습니다.
+최종: 보내는 이벤트에 `member.tokens-revoked`(→ Gateway)가 더해졌고, 받는 이벤트는 모두 Kafka입니다. 인증은 auth 도메인으로 분리 중이며(#686, PR #717), 머지되면 무효화 이벤트가 `auth.tokens-revoked`(`kidly.auth.events`)로 바뀝니다. 기준 옷 API(2순위)는 추천이 저장하므로 ③ 카드에 있습니다.
 
 ## 상품 · heojungseok
 
@@ -84,7 +83,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | 구분 | 내용 |
 |---|---|
 | 보내는 이벤트 | 없음 |
-| 받는 이벤트 | child.changed · product.changed(보강 칸 포함) 복사본 저장과 임베딩 갱신 · seller.changed 판매자 복사본 · order-item.purchase-confirmed 구매 기록(자녀 · 사이즈가 있을 때만) · cart.item-added · cart.item-removed(발행 요청) · order.cancelled(reason이 `BUYER_CANCELLED`일 때만) 활동 기록과 선호 점수 갱신 · search.performed 활동 기록 · member.withdrawn 활동 기록 · AI 응답 삭제 · child.reference-garment.changed 기준 옷 복사본(2순위) |
+| 받는 이벤트 | child.changed · product.changed(보강 칸 포함) 복사본 저장과 임베딩 갱신 · seller.changed 판매자 복사본 · order-item.purchase-confirmed 구매 기록(자녀 · 사이즈가 있을 때만) · cart.item-added · cart.item-removed(발행 요청) · order.cancelled(reason이 `BUYER_CANCELLED`일 때만) 활동 기록과 선호 점수 갱신 · search.performed 활동 기록 · member.withdrawn 활동 기록 · AI 응답 삭제 |
 | 구독 그룹 · DLT | `kidly.recommend`, 토픽마다 `{토픽}.recommend.dlt`, `occurredAt` 비교로 늦게 온 옛 이벤트 무시 |
 
 ## 주문 · L2J92
