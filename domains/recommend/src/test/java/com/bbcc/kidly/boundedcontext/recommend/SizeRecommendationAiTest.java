@@ -10,9 +10,12 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReasonType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSource;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -51,6 +54,25 @@ class SizeRecommendationAiTest {
         SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer);
 
         assertRuleResult(result);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unusableAnswers")
+    @DisplayName("AI 답이 없거나 적합도가 모르는 값이면 규칙 결과를 그대로 쓴다")
+    void keepRuleWhenAiAnswerIsUnusable(AiSizeAnswer answer) {
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer);
+
+        assertRuleResult(result);
+    }
+
+    static Stream<Named<AiSizeAnswer>> unusableAnswers() {
+        List<AiSizeAnswer.Reason> reasons = List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null));
+        return Stream.of(
+            Named.of("AI 답 없음", null),
+            Named.of("적합도 없음", new AiSizeAnswer("110", null, reasons)),
+            Named.of("적합도 빈 값", new AiSizeAnswer("110", "", reasons)),
+            Named.of("모르는 적합도", new AiSizeAnswer("110", "LOOSE", reasons)),
+            Named.of("소문자 적합도", new AiSizeAnswer("110", "tight", reasons)));
     }
 
     private static void assertRuleResult(SizeRecommendation result) {
