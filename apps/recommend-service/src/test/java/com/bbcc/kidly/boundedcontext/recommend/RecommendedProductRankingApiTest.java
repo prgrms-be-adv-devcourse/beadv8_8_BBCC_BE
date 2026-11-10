@@ -33,6 +33,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -171,10 +173,40 @@ class RecommendedProductRankingApiTest {
             .jsonPath("$.content[*].productId").isEqualTo(List.of("701"));
     }
 
+    @Test
+    @DisplayName("asOf가 지금보다 늦으면 400 \"잘못된 기준 시각입니다\"를 ProblemDetail로 받는다")
+    void rejectFutureAsOf() {
+        LocalDateTime tomorrow = LocalDateTime.now(SERVICE_ZONE).plusDays(1).truncatedTo(ChronoUnit.SECONDS);
+
+        expectProblem(list("&asOf=" + tomorrow), HttpStatus.BAD_REQUEST)
+            .jsonPath("$.title").isEqualTo("잘못된 기준 시각입니다")
+            .jsonPath("$.detail").isEqualTo("기준 시각은 지금보다 늦을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("asOf가 날짜 · 시각 형식이 아니면 400을 ProblemDetail로 받는다")
+    void rejectMalformedAsOf() {
+        expectProblem(list("&asOf=yesterday"), HttpStatus.BAD_REQUEST);
+    }
+
     private RestTestClient.ResponseSpec list(String query) {
         return client.get().uri(PATH + "?childId={childId}" + query, CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
             .exchange();
+    }
+
+    // 실패 응답이 ProblemDetail 5칸을 담는지 확인하고, title · detail은 부르는 쪽이 이어서 확인한다
+    private static RestTestClient.BodyContentSpec expectProblem(
+        RestTestClient.ResponseSpec response, HttpStatus status) {
+        return response
+            .expectStatus().isEqualTo(status)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").isEqualTo("about:blank")
+            .jsonPath("$.title").isNotEmpty()
+            .jsonPath("$.status").isEqualTo(status.value())
+            .jsonPath("$.detail").isNotEmpty()
+            .jsonPath("$.instance").isEqualTo(PATH);
     }
 
     // 상품 A와 같은 판매자 · 옵션(110 · 120)으로 상품 ID · 카테고리 · 등록 시각만 바꾼다. 자녀 1(115cm)에게 맞는 사이즈가 있다
