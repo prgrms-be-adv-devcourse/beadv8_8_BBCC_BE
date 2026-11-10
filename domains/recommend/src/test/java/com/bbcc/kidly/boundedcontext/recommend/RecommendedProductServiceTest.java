@@ -16,12 +16,16 @@ import static org.assertj.core.api.Assertions.tuple;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.BUSINESS_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSnapshotStore;
+import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductRanking;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductService;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
@@ -74,17 +78,23 @@ class RecommendedProductServiceTest {
     @Mock
     private RecommendReplicaSellerRepository replicaSellerRepository;
 
+    @Mock
+    private PreferenceSnapshotStore snapshotStore;
+
     @Captor
     private ArgumentCaptor<Iterable<Long>> sellerIdsCaptor;
 
     private RecommendedProductService service;
 
-    // 서비스가 체형표로 사이즈 계산기를 만들므로 @InjectMocks 대신 직접 만든다
+    // 정렬이 체형표로 사이즈 계산기를 만들므로 @InjectMocks 대신 직접 만든다.
+    // 저장된 선호가 없는 자녀라 목록은 판매 시작 최신순이다
     @BeforeEach
     void setUp() {
-        service = new RecommendedProductService(
-            replicaProductRepository, replicaChildRepository, replicaSellerRepository,
-            RecommendFixture.growthChart());
+        lenient().when(snapshotStore.findChild(any())).thenReturn(PreferenceSnapshot.empty());
+        lenient().when(snapshotStore.findMember(any())).thenReturn(PreferenceSnapshot.empty());
+        RecommendedProductRanking ranking = new RecommendedProductRanking(
+            replicaProductRepository, snapshotStore, RecommendFixture.growthChart());
+        service = new RecommendedProductService(replicaChildRepository, replicaSellerRepository, ranking);
     }
 
     @ParameterizedTest(name = "{0}")
