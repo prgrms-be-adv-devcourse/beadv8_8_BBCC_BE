@@ -112,6 +112,21 @@ class ReferenceGarmentApiTest {
                 garment("TOP", "8", Map.of("TOTAL_LENGTH", 45.5, "CHEST_WIDTH", 36.0))));
     }
 
+    @Test
+    @DisplayName("기준 옷을 지우면 204와 빈 본문을 받고 그 구분만 목록에서 빠지며, 이미 없는 구분을 다시 지워도 204다")
+    void deleteIsIdempotent() {
+        put(MEMBER_1_ID, CHILD_1_ID, "TOP", TOP_BODY).expectStatus().isOk();
+        put(MEMBER_1_ID, CHILD_1_ID, "BOTTOM", BOTTOM_BODY).expectStatus().isOk();
+
+        delete(MEMBER_1_ID, CHILD_1_ID, "TOP").expectStatus().isNoContent().expectBody().isEmpty();
+        list(MEMBER_1_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody(List.class).isEqualTo(List.of(
+                garment("BOTTOM", "70", Map.of("TOTAL_LENGTH", 55.5, "WAIST_WIDTH", 26.0))));
+
+        delete(MEMBER_1_ID, CHILD_1_ID, "TOP").expectStatus().isNoContent().expectBody().isEmpty();
+    }
+
     private static Map<String, Object> garment(String part, String categoryId, Map<String, Double> measurements) {
         return Map.of("part", part, "categoryId", categoryId, "measurements", measurements);
     }
@@ -143,5 +158,11 @@ class ReferenceGarmentApiTest {
             RecommendFixture.PRODUCT_CHANGED_AT, new ProductChangedEvent.Data(productId, data.sellerId(),
             data.name(), leafCategoryId, data.status(), data.thumbnailUrl(), data.createdAt(), data.sizeFree(),
             data.options(), data.infoValues(), data.brand(), data.description(), data.sizeSpecs(), categoryPath)));
+    }
+
+    private RestTestClient.ResponseSpec delete(Long memberId, Long childId, String part) {
+        return client.delete().uri(path(childId) + "/" + part)
+            .headers(TestMembers.buyer(memberId))
+            .exchange();
     }
 }
