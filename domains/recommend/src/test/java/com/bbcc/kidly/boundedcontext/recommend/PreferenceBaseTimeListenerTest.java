@@ -28,6 +28,18 @@ class PreferenceBaseTimeListenerTest {
             .isBetween(before, LocalDateTime.now(ZoneId.of("Asia/Seoul"))));
     }
 
+    @Test
+    @DisplayName("PREF-11 다시 실행해 앞 실행의 배치 기준 시각이 이미 있으면 바꾸지 않는다")
+    void keepBaseTimeOnRestart() {
+        JobExecution execution = newExecution();
+        LocalDateTime firstRun = LocalDateTime.of(2026, 11, 10, 3, 0, 12);
+        execution.getExecutionContext().put(PreferenceBaseTimeListener.BASE_TIME, firstRun);
+
+        listener.beforeJob(execution);
+
+        assertThat(execution.getExecutionContext().get(PreferenceBaseTimeListener.BASE_TIME)).isEqualTo(firstRun);
+    }
+
     private static JobExecution newExecution() {
         return new JobExecution(1L, new JobInstance(1L, "preferenceJob"), new JobParameters());
     }
