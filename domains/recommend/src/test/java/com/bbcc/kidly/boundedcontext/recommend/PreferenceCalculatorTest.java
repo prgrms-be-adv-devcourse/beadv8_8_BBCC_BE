@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSigna
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSignalType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +40,45 @@ class PreferenceCalculatorTest {
         PreferenceSignal signal = signal(type, BASE_TIME.minusDays(daysAgo), CATEGORY_ID, BRAND, 1L);
 
         PreferenceSnapshot snapshot = calculator.calculate(List.of(signal), NO_EMBEDDINGS, BASE_TIME);
+
+        assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(expected, within(1e-9));
+    }
+
+    @ParameterizedTest(name = "기준 시각 {0}초 전 상세 진입 → {1}")
+    @CsvSource({
+        "0, 0.3",
+        "1296000, 0.15",
+        "2592000, 0.0",
+        "2592001, 0.0",
+        "-1, 0.0",
+    })
+    @DisplayName("PREF-01 기준 시각 30일 전부터 기준 시각까지 일어난 활동만 센다")
+    void onlyActivitiesWithinThirtyDaysCount(long secondsBefore, double expected) {
+        PreferenceSignal signal =
+            signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME.minusSeconds(secondsBefore), CATEGORY_ID, BRAND, 1L);
+
+        PreferenceSnapshot snapshot = calculator.calculate(List.of(signal), NO_EMBEDDINGS, BASE_TIME);
+
+        assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(expected, within(1e-9));
+    }
+
+    @ParameterizedTest(name = "오늘 상세 {0}번 · 담기 {1}번 → {2}")
+    @CsvSource({
+        "3, 0, 0.657",
+        "1, 1, 0.72",
+        "0, 0, 0.0",
+    })
+    @DisplayName("PREF-03 카테고리 친밀도는 그 카테고리가 나온 활동 무게로 1 − Π(1 − 무게)이고, 활동이 없으면 0이다")
+    void categoryAffinityCombinesWeights(int views, int cartAdds, double expected) {
+        List<PreferenceSignal> signals = new ArrayList<>();
+        for (int i = 0; i < views; i++) {
+            signals.add(signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 1L));
+        }
+        for (int i = 0; i < cartAdds; i++) {
+            signals.add(signal(PreferenceSignalType.CART_ITEM_ADDED, BASE_TIME, CATEGORY_ID, BRAND, 1L));
+        }
+
+        PreferenceSnapshot snapshot = calculator.calculate(signals, NO_EMBEDDINGS, BASE_TIME);
 
         assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(expected, within(1e-9));
     }
