@@ -40,4 +40,17 @@ class AiResponseKeyTest {
 
         assertThat(AiResponseKey.of(shuffled)).isEqualTo(AiResponseKey.of(sorted));
     }
+
+    @Test
+    @DisplayName("키와 몸무게는 끝자리 0만 달라도 같은 키다")
+    void trailingZerosDoNotChangeKey() {
+        AiResponseKey.Input withZeros = new AiResponseKey.Input(
+            10L, 5L, 36, new BigDecimal("110.0"), new BigDecimal("14.50"),
+            BodyType.NORMAL, PreferredFit.REGULAR, List.of(1L), List.of(7L), 1);
+        AiResponseKey.Input withoutZeros = new AiResponseKey.Input(
+            10L, 5L, 36, new BigDecimal("110"), new BigDecimal("14.5"),
+            BodyType.NORMAL, PreferredFit.REGULAR, List.of(1L), List.of(7L), 1);
+
+        assertThat(AiResponseKey.of(withZeros)).isEqualTo(AiResponseKey.of(withoutZeros));
+    }
 }
