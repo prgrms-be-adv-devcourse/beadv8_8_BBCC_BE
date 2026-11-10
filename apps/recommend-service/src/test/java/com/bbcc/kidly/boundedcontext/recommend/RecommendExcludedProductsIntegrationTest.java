@@ -19,6 +19,8 @@ class RecommendExcludedProductsIntegrationTest {
 
     private static final LocalDateTime SINCE = LocalDateTime.of(2026, 11, 1, 0, 0);
 
+    private static final LocalDateTime AS_OF = SINCE.plusDays(5);
+
     private static final Long MEMBER_ID = 1L;
 
     private static final Long CHILD_ID = 7L;
@@ -39,7 +41,7 @@ class RecommendExcludedProductsIntegrationTest {
         addToCart(MEMBER_ID, null, SINCE.minusSeconds(1), 13L, 4L);
         addToCart(2L, null, SINCE.plusHours(1), 14L, 5L);
 
-        assertThat(excludedProducts.findIds(MEMBER_ID, CHILD_ID, SINCE)).containsExactlyInAnyOrder(10L, 11L);
+        assertThat(excludedProducts.findIds(MEMBER_ID, CHILD_ID, SINCE, AS_OF)).containsExactlyInAnyOrder(10L, 11L);
     }
 
     @Test
@@ -48,7 +50,20 @@ class RecommendExcludedProductsIntegrationTest {
         PreferenceTestData.insertPurchase(jdbc, CHILD_ID, 20L, SINCE.minusDays(400));
         PreferenceTestData.insertPurchase(jdbc, 8L, 21L, SINCE.plusHours(1));
 
-        assertThat(excludedProducts.findIds(MEMBER_ID, CHILD_ID, SINCE)).containsExactly(20L);
+        assertThat(excludedProducts.findIds(MEMBER_ID, CHILD_ID, SINCE, AS_OF)).containsExactly(20L);
+    }
+
+    @Test
+    @DisplayName("PREF-08 기준 시각 뒤에 일어난 담기 · 빼기 · 구매확정은 뺄 상품에 반영하지 않는다")
+    void ignoreChangesAfterAsOf() {
+        addToCart(MEMBER_ID, null, AS_OF, 30L, 6L);
+        addToCart(MEMBER_ID, null, AS_OF.plusSeconds(1), 31L, 7L);
+        addToCart(MEMBER_ID, null, SINCE.plusHours(1), 32L, 8L);
+        removeFromCart(MEMBER_ID, AS_OF.plusSeconds(1), 32L, 8L);
+        PreferenceTestData.insertPurchase(jdbc, CHILD_ID, 33L, AS_OF.plusSeconds(1));
+
+        assertThat(excludedProducts.findIds(MEMBER_ID, CHILD_ID, SINCE, AS_OF))
+            .containsExactlyInAnyOrder(30L, 32L);
     }
 
     private void addToCart(Long memberId, Long childId, LocalDateTime occurredAt, Long productId, Long cartItemId) {

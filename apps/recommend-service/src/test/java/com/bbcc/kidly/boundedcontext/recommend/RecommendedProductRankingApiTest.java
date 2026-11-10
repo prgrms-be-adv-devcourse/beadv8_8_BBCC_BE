@@ -174,6 +174,24 @@ class RecommendedProductRankingApiTest {
     }
 
     @Test
+    @DisplayName("PREF-08 1쪽을 본 뒤 그 상품을 장바구니에 담아도 같은 asOf로 받은 2쪽에 중복 · 누락이 없다")
+    void samePagesAfterCartChange() {
+        LocalDateTime asOf = LocalDateTime.now(SERVICE_ZONE).minusMinutes(1).truncatedTo(ChronoUnit.SECONDS);
+        saveProduct(801L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        saveProduct(802L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT.plusDays(1));
+        list("&page=0&size=1&asOf=" + asOf)
+            .expectBody().jsonPath("$.content[*].productId").isEqualTo(List.of("802"));
+
+        PreferenceTestData.insertActivity(jdbc, ActivityType.CART_ITEM_ADDED, MEMBER_1_ID, null,
+            LocalDateTime.now(SERVICE_ZONE), 802L, null, null, 9L);
+
+        list("&page=1&size=1&asOf=" + asOf)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("801"));
+    }
+
+    @Test
     @DisplayName("asOf가 지금보다 늦으면 400 \"잘못된 기준 시각입니다\"를 ProblemDetail로 받는다")
     void rejectFutureAsOf() {
         LocalDateTime tomorrow = LocalDateTime.now(SERVICE_ZONE).plusDays(1).truncatedTo(ChronoUnit.SECONDS);
