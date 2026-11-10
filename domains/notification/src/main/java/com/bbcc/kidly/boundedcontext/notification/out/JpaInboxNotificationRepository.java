@@ -53,10 +53,16 @@ public interface JpaInboxNotificationRepository
 
     @Override
     default long countUnread(InboxRecipient recipient) {
-        return countByRecipientTypeAndRecipientIdAndReadAtIsNull(recipient.type(), recipient.id());
+        return countUnread(recipient.type(), recipient.id());
     }
 
-    long countByRecipientTypeAndRecipientIdAndReadAtIsNull(InboxRecipientType recipientType, Long recipientId);
+    // count(*)로 센다. 이름으로 만든 count 쿼리는 count(id)가 되어, 안 읽은 알림 부분 인덱스에 id가 없으니
+    // 행마다 테이블을 다시 읽는다. count(*)는 인덱스만 읽는다(Index Only Scan)
+    @Query("""
+        SELECT count(*) FROM InboxNotification n
+        WHERE n.recipientType = :recipientType AND n.recipientId = :recipientId AND n.readAt IS NULL
+        """)
+    long countUnread(InboxRecipientType recipientType, Long recipientId);
 
     @Override
     default int readAllUnread(InboxRecipient recipient, LocalDateTime now) {
