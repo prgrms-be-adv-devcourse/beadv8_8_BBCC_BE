@@ -395,7 +395,7 @@ public class Product extends BaseTimeEntity {
         if (stoppedByAdmin) {
             throw new BusinessException(ProductErrorCode.SALE_STOPPED_BY_ADMIN);
         }
-        return openSale(category, productType);
+        return openSale(category, productType, now);
     }
 
     /**
@@ -445,7 +445,7 @@ public class Product extends BaseTimeEntity {
         requireNonNull(productType, "productType은 필수입니다");
         requireNonNull(now, "now는 필수입니다");
         validateNotDelisted();
-        boolean changed = openSale(category, productType);
+        boolean changed = openSale(category, productType, now);
         stoppedByAdmin = false;
         return changed;
     }
@@ -487,13 +487,18 @@ public class Product extends BaseTimeEntity {
         status = ProductStatus.STOPPED;
     }
 
-    // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-    private boolean openSale(Category category, ProductType productType) {
+    // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다.
+    // 판매 시작 시각은 처음 판매중이 될 때만 넣는다. 상태가 아니라 값이 비었는지로 보는 까닭은, 판매대기에서 바로 등록 취소한 상품을
+    // 관리자가 판매중지로 되돌린 뒤 처음 판매를 시작하는 경우도 그때 처음 판매중이 되는 것이기 때문이다
+    private boolean openSale(Category category, ProductType productType, LocalDateTime now) {
         if (status == ProductStatus.ON_SALE) {
             return false;
         }
         SaleStartConditions.requireMet(options, sizeSpecs, category, productType);
         status = ProductStatus.ON_SALE;
+        if (saleStartedAt == null) {
+            saleStartedAt = now;
+        }
         return true;
     }
 
