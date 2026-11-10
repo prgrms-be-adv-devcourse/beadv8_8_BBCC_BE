@@ -191,6 +191,18 @@ class AiResponseServiceTest {
         });
     }
 
+    @Test
+    @DisplayName("저장한 응답을 지금 응답 형식으로 읽지 못하면 저장한 응답이 없는 것으로 보고 AI를 다시 불러 저장한다")
+    void callAiAgainWhenStoredResponseDoesNotMatchType() {
+        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.of("[1,2,3]"));
+        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
+
+        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(answer).contains(freshAnswer());
+        verify(store).save(eq(TYPE), eq(KEY), any(), eq(NOW));
+    }
+
     private Answer freshAnswerCall() {
         return freshAnswer();
     }
