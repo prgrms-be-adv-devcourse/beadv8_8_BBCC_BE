@@ -22,7 +22,7 @@ public record AiResponseKey(String value) {
     private static final Pattern SHA_256_HEX = Pattern.compile("[0-9a-f]{64}");
 
     public AiResponseKey {
-        if (!SHA_256_HEX.matcher(value).matches()) {
+        if (value == null || !SHA_256_HEX.matcher(value).matches()) {
             throw new IllegalArgumentException("AI 응답 키는 64자 소문자 hex여야 합니다");
         }
     }
