@@ -1,13 +1,17 @@
 package com.bbcc.kidly.boundedcontext.recommend.in.referencegarment;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.referencegarment.ReferenceGarmentService;
+import com.bbcc.kidly.boundedcontext.recommend.app.referencegarment.dto.ReferenceGarmentRequest;
 import com.bbcc.kidly.boundedcontext.recommend.in.referencegarment.dto.ReferenceGarmentResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -26,5 +30,12 @@ public class ReferenceGarmentController {
         return referenceGarmentService.list(member.id(), childId).stream()
             .map(ReferenceGarmentResponse::from)
             .toList();
+    }
+
+    @PutMapping(REFERENCE_GARMENTS + "/{part}")
+    public ReferenceGarmentResponse save(@LoginMember AuthMember member, @PathVariable Long childId,
+        @PathVariable String part, @Valid @RequestBody ReferenceGarmentRequest request) {
+        return ReferenceGarmentResponse.from(referenceGarmentService.save(
+            member.id(), childId, part, request.categoryId(), request.measurements()));
     }
 }
