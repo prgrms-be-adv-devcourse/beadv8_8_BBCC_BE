@@ -19,6 +19,9 @@ public class PostgresAiCallQuota implements AiCallQuota {
 
     @Override
     public boolean tryAcquire(LocalDate date, int dailyLimit) {
+        if (dailyLimit <= 0) {
+            return false;
+        }
         int changed = jdbcClient.sql("""
                 INSERT INTO recommend.ai_call_usage (usage_date, call_count)
                 VALUES (:date, 1)
