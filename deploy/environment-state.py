@@ -25,9 +25,13 @@ SERVICES = {
     'order-service': ('kidly-order', 'ORDER_PORT', 'order'),
     'community-service': ('kidly-community', 'COMMUNITY_PORT', 'community'),
 }
-# compose 밖 k3s(t3.large 에 단독으로 띄운 k3s)에서 도는 서비스. .env 에 이 NodePort 키가 있는 환경에서 뜬다고 본다
+# compose 밖 k3s(t3.large 에 단독으로 띄운 k3s, deploy/k3s)에서 도는 서비스. .env 에 <PROFILE>_NODE_PORT 가 있으면 k3s 에 뜬다(#1142)
 # 메트릭은 monitoring-agent Alloy 가 k3s API 로 Pod 를 찾아 모으므로 대상 파일을 쓰지 않고, 기대 목록에만 넣는다
-K3S_SERVICES = {'RECOMMEND_NODE_PORT': 'kidly-recommend'}
+KUBECONFIG = Path.home() / '.kube' / 'config'
+
+
+def node_port_key(profile):
+    return profile.upper() + '_NODE_PORT'
 
 
 def validate(data):
@@ -113,9 +117,26 @@ def configuration(env):
     return targets
 
 
+def k3s_services(env):
+    """(compose 서비스, job, profile, NodePort). .env 에 <PROFILE>_NODE_PORT 가 있는 서비스"""
+    values = {}
+    for line in (ROOT / env / '.env').read_text().splitlines():
+        key, sep, value = line.partition('=')
+        if sep and key.endswith('_NODE_PORT'):
+            values[key] = ' '.join(shlex.split(value, comments=True))
+    result = []
+    for service, (job, _, profile) in SERVICES.items():
+        port = values.get(node_port_key(profile))
+        if port is None:
+            continue
+        if not port.isdigit() or not 30000 <= int(port) <= 32767:
+            raise ValueError('Invalid NodePort: ' + node_port_key(profile))
+        result.append((service, job, profile, int(port)))
+    return result
+
+
 def expected_jobs(env):
-    keys = {line.partition('=')[0] for line in (ROOT / env / '.env').read_text().splitlines()}
-    return [job for _, job, _ in configuration(env)] + [job for key, job in K3S_SERVICES.items() if key in keys]
+    return [job for _, job, _ in configuration(env)] + [job for _, job, _, _ in k3s_services(env)]
 
 
 def kafka_target(env):
@@ -176,6 +197,19 @@ def run(command, capture=False):
     return result.stdout.strip() if capture else None
 
 
+def kubectl(env, *args):
+    return ['kubectl', '--kubeconfig', str(KUBECONFIG), '-n', 'kidly-' + env, *args]
+
+
+def scale_k3s(env, replicas):
+    # HPA 가 있는 서비스도 0 이면 늘리지 않고, 1 로 되돌리면 HPA 가 다시 맡는다
+    if not k3s_services(env):
+        return
+    run(kubectl(env, 'scale', 'deployment', '--all', '--replicas', str(replicas)))
+    if replicas:
+        run(kubectl(env, 'wait', '--for=condition=Available', 'deployment', '--all', '--timeout=600s'))
+
+
 def compose(env, *args):
     return ['docker', 'compose', '-p', env, '-f', str(ROOT / env / 'docker-compose.yml'), '--project-directory', str(ROOT / env),
             '--env-file', str(ROOT / env / '.env'), '--env-file', str(ROOT / env / 'image.env'), *args]
@@ -196,6 +230,8 @@ def control(env, action):
         if action == 'resume':
             # Monitor a failed startup; do not silently leave the environment disabled.
             write(data)
+            # Gateway(compose)가 붙을 k3s 서비스를 먼저 띄운다
+            scale_k3s(env, 1)
             run(compose(env, 'up', '-d', '--wait', '--wait-timeout', '180', '--pull', 'never'))
             register_targets(env)
             data['phase'] = 'running'
@@ -204,6 +240,7 @@ def control(env, action):
             write(data)  # Automatic deployment must see this before containers are stopped.
             try:
                 run(compose(env, 'stop', '--timeout', '30'))
+                scale_k3s(env, 0)
             except Exception:
                 write(old or dict(data, enabled=True, phase='running'))
                 raise
@@ -242,6 +279,10 @@ def main():
             raise ValueError('State/environment mismatch')
         with lock('inventory'):
             write(data, monitoring=True)
+    elif action == 'k3s':
+        # deploy.sh 가 읽는다: 한 줄에 compose 서비스 · Deployment 이름 · NodePort
+        for service, _, profile, port in k3s_services(env):
+            print(service, profile, port)
     elif action in ('stop', 'resume'):
         print(json.dumps(control(env, action)))
     else:
