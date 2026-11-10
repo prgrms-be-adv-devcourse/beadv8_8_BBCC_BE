@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
@@ -16,12 +17,16 @@ public class SizeRecommendation {
     private final Fit fit;
     private final List<SizeNotice> notices;
     private final List<String> candidateSizes;
+    private final SizeRecommendationSource source;
+    private final List<SizeReason> reasons;
 
     public static SizeRecommendation noMatchingSize() {
         return new SizeRecommendation(
                 null,
                 null,
                 List.of(SizeNotice.NO_MATCHING_SIZE),
+                List.of(),
+                SizeRecommendationSource.RULE,
                 List.of()
         );
     }
@@ -31,6 +36,8 @@ public class SizeRecommendation {
                 null,
                 null,
                 List.of(SizeNotice.SIZE_FREE),
+                List.of(),
+                SizeRecommendationSource.RULE,
                 List.of()
         );
     }
@@ -49,18 +56,31 @@ public class SizeRecommendation {
         if (!candidateSizes.contains(size)) {
             throw new IllegalArgumentException("추천 사이즈는 후보 사이즈 중 하나여야 합니다");
         }
-        return new SizeRecommendation(size, fit, List.copyOf(notices), List.copyOf(candidateSizes));
+        return new SizeRecommendation(
+                size,
+                fit,
+                List.copyOf(notices),
+                List.copyOf(candidateSizes),
+                SizeRecommendationSource.RULE,
+                List.of()
+        );
     }
 
-    public SizeRecommendationSource getSource() {
-        throw new UnsupportedOperationException("아직 구현하지 않았습니다");
-    }
-
-    public List<SizeReason> getReasons() {
-        throw new UnsupportedOperationException("아직 구현하지 않았습니다");
-    }
-
+    /**
+     * 규칙 결과에 AI 답을 합친 최종 결과를 돌려준다. AI가 고른 사이즈는 규칙 후보 밖이어도 상품에 있으면 채택한다.
+     */
     public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer) {
-        throw new UnsupportedOperationException("아직 구현하지 않았습니다");
+        List<SizeReason> aiReasons = new ArrayList<>();
+        for (AiSizeAnswer.Reason reason : answer.reasons()) {
+            aiReasons.add(new SizeReason(SizeReasonType.valueOf(reason.type()), reason.detail(), reason.sourceId()));
+        }
+        return new SizeRecommendation(
+                answer.recommendedSize(),
+                Fit.valueOf(answer.fit()),
+                List.of(),
+                candidateSizes,
+                SizeRecommendationSource.AI,
+                List.copyOf(aiReasons)
+        );
     }
 }
