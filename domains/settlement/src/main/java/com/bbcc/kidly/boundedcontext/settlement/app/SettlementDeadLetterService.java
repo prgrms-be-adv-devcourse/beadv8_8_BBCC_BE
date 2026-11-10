@@ -1,10 +1,12 @@
 package com.bbcc.kidly.boundedcontext.settlement.app;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementAdminActions;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementDeadLetterReplay;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementDeadLetters;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementDeadLetters.Received;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementDeadLetters.State;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementDeadLetters.Summary;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementAdminActionType;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
@@ -29,6 +31,7 @@ public class SettlementDeadLetterService {
 
     private final SettlementDeadLetters repository;
     private final SettlementDeadLetterReplay replayer;
+    private final SettlementAdminActions settlementAdminActions;
 
     @Transactional
     public boolean receive(Received received) {
@@ -69,10 +72,14 @@ public class SettlementDeadLetterService {
         } catch (RuntimeException e) {
             String failureType = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
             repository.recordReplayFailure(id, adminId, LocalDateTime.now(), failureType);
+            settlementAdminActions.record(adminId, SettlementAdminActionType.DEAD_LETTER_REPROCESS, id,
+                LocalDateTime.now());
             log.warn("정산 DLT 재처리 실패: deadLetterId={} adminId={} exception={}", id, adminId, failureType);
             return get(id);
         }
         repository.markReprocessed(id, adminId, LocalDateTime.now());
+        settlementAdminActions.record(adminId, SettlementAdminActionType.DEAD_LETTER_REPROCESS, id,
+            LocalDateTime.now());
         log.info("정산 DLT 재처리 완료: deadLetterId={} adminId={}", id, adminId);
         return get(id);
     }
