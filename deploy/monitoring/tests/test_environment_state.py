@@ -143,10 +143,10 @@ class EnvironmentStateTests(unittest.TestCase):
 
     def test_k3s_services_are_expected_without_local_target(self):
         (self.root / 'dev/.env').write_text(
-            'COMPOSE_PROFILES=gateway\nGATEWAY_PORT=8083\nKAFKA_NODE_PORT=30092\n'
-            'RECOMMEND_NODE_PORT=30202\nMEMBER_NODE_PORT=30204\n')
+            'COMPOSE_PROFILES=gateway\nK3S_PROFILES=recommend,member\nGATEWAY_PORT=8083\nKAFKA_NODE_PORT=30092\n'
+            'RECOMMEND_NODE_PORT=30202\n')
         self.assertEqual(state.k3s_services('dev'), [('recommend-service', 'kidly-recommend', 'recommend', 30202),
-                                                     ('member-service', 'kidly-member', 'member', 30204)])
+                                                     ('member-service', 'kidly-member', 'member', None)])
         with patch.object(state, 'run', return_value=''):
             running = state.control('dev', 'resume')
             self.assertEqual(running['jobs'], ['kidly-gateway', 'kidly-recommend', 'kidly-member'])
@@ -157,7 +157,7 @@ class EnvironmentStateTests(unittest.TestCase):
         self.assertIn('kidly-member', stopped['jobs'])
 
     def test_k3s_pods_start_before_gateway_and_stop_after_compose(self):
-        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=gateway\nGATEWAY_PORT=8083\nMEMBER_NODE_PORT=30204\n')
+        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=gateway\nK3S_PROFILES=member\nGATEWAY_PORT=8083\n')
         with patch.object(state, 'run', return_value='') as run:
             state.control('dev', 'resume')
             started = [call.args[0] for call in run.call_args_list]
@@ -179,13 +179,18 @@ class EnvironmentStateTests(unittest.TestCase):
 
     def test_service_in_both_compose_and_k3s_is_rejected(self):
         (self.root / 'dev/.env').write_text(
-            'COMPOSE_PROFILES=recommend\nRECOMMEND_PORT=8087\nRECOMMEND_NODE_PORT=30202\n')
-        with patch.object(state, 'run', return_value=''):
-            with self.assertRaisesRegex(ValueError, 'expected services'):
-                state.control('dev', 'resume')
+            'COMPOSE_PROFILES=recommend\nK3S_PROFILES=recommend\nRECOMMEND_PORT=8087\n')
+        with self.assertRaisesRegex(ValueError, 'both COMPOSE_PROFILES and K3S_PROFILES: recommend'):
+            state.k3s_services('dev')
+
+    def test_unknown_k3s_profile_is_rejected(self):
+        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=gateway\nK3S_PROFILES=membr\nGATEWAY_PORT=8083\n')
+        with self.assertRaisesRegex(ValueError, 'membr'):
+            state.k3s_services('dev')
 
     def test_invalid_node_port_is_rejected(self):
-        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=gateway\nGATEWAY_PORT=8083\nMEMBER_NODE_PORT=8090\n')
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=gateway\nK3S_PROFILES=member\nGATEWAY_PORT=8083\nMEMBER_NODE_PORT=8090\n')
         with self.assertRaisesRegex(ValueError, 'MEMBER_NODE_PORT'):
             state.k3s_services('dev')
 

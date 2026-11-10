@@ -61,6 +61,7 @@ def secret_mounts(service, project_dir):
 def manifest(env, name, node_port, service, project_dir):
     ns = namespace(env)
     labels = {'app': name}
+    port = {'name': 'http', 'port': CONTAINER_PORT, 'targetPort': 'http'}
     variables = env_vars(service)
     memory = '%dMi' % mebibytes(service['mem_limit'])
     jwt_files, jwt_mounts = secret_mounts(service, project_dir)
@@ -113,10 +114,11 @@ def manifest(env, name, node_port, service, project_dir):
                      # 파일 로그는 Pod 와 함께 사라진다. 로그는 monitoring-agent Alloy 가 Pod 콘솔에서 Loki 로 모은다
                      'volumes': volumes,
                  }}}},
-        # Gateway(compose)가 host.docker.internal:<NodePort> 로 붙는다. NodePort 는 보안 그룹에서 밖으로 열지 않는다(X-Member-* 위조 방지)
+        # NodePort 가 있으면 이 서버(compose 의 Gateway · nginx)가 host 주소로 붙는다. 보안 그룹에서 밖으로 열지 않는다(X-Member-* 위조 방지)
+        # 없으면 클러스터 안에서만 <이름>:8080 으로 닿는다
         {'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': name, 'namespace': ns, 'labels': labels},
-         'spec': {'type': 'NodePort', 'selector': labels,
-                  'ports': [{'name': 'http', 'port': CONTAINER_PORT, 'targetPort': 'http', 'nodePort': node_port}]}},
+         'spec': dict({'type': 'NodePort', 'ports': [dict(port, nodePort=node_port)]} if node_port else
+                      {'type': 'ClusterIP', 'ports': [port]}, selector=labels)},
     ]
     if jwt_files:
         items.insert(1, {'apiVersion': 'v1', 'kind': 'Secret', 'metadata': {'name': name + '-jwt', 'namespace': ns},
@@ -159,8 +161,9 @@ def main(argv):
     elif command == 'pull-secret':
         print(json.dumps(pull_secret(env, argv[3])))
     elif command == 'manifest':
-        compose_service, name, node_port = argv[3], argv[4], int(argv[5])
-        if not 30000 <= node_port <= 32767:
+        compose_service, name = argv[3], argv[4]
+        node_port = None if argv[5] == '-' else int(argv[5])
+        if node_port is not None and not 30000 <= node_port <= 32767:
             raise ValueError('NodePort 는 30000~32767 이어야 합니다')
         service = json.load(sys.stdin)['services'][compose_service]
         print(json.dumps(manifest(env, name, node_port, service, Path.cwd())))

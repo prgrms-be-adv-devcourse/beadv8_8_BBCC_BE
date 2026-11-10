@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 열 개(SEARCH_IMAGE · GATEWAY_IMAGE · RECOMMEND_IMAGE · SETTLEMENT_IMAGE · MEMBER_IMAGE · PAYMENT_IMAGE · PRODUCT_IMAGE · NOTIFICATION_IMAGE · ORDER_IMAGE · COMMUNITY_IMAGE)을 넘긴다
 # 검색 서비스 이미지는 profile search, Gateway 이미지는 profile gateway, 추천 이미지는 profile recommend, 정산 이미지는 profile settlement, 회원 이미지는 profile member, 결제 이미지는 profile payment, 상품 이미지는 profile product, 알림 이미지는 profile notification, 주문 이미지는 profile order, 커뮤니티 이미지는 profile community 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
-# .env 에 <PROFILE>_NODE_PORT 가 있는 서비스는 compose 대신 이 서버의 단독 k3s(namespace kidly-<환경>, deploy/k3s)에 하나씩 차례로 올린다(#1142)
+# .env 의 K3S_PROFILES 에 있는 서비스는 compose 대신 이 서버의 단독 k3s(namespace kidly-<환경>, deploy/k3s)에 하나씩 차례로 올린다(#1142)
 set -euo pipefail
 : "${APP_ENV:?APP_ENV 가 필요합니다}"
 : "${SEARCH_IMAGE:?SEARCH_IMAGE 가 필요합니다}" "${GATEWAY_IMAGE:?GATEWAY_IMAGE 가 필요합니다}"

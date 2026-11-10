@@ -5,7 +5,7 @@
 # PostgreSQL 도 t3.medium k3s(deploy/postgres)에 인스턴스 하나로 뜨고 dev · prod 가 database · 계정(kidly_<env>)으로 나눠 쓴다. DB_URL 도 deploy 워크플로가 붙인다
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES 에 search 가 있는 환경(dev · prod)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
-# .env 에 <PROFILE>_NODE_PORT 가 있는 서비스(지금 dev 의 서비스 9개)는 compose 가 아니라 t3.large 의 단독 k3s(deploy/k3s)에 뜬다(#1142). 그 서비스의 environment · image · mem_limit 은 k3s 에서도 그대로 쓴다
+# .env 의 K3S_PROFILES 에 있는 서비스(dev)는 compose 가 아니라 t3.large 의 단독 k3s(deploy/k3s)에 뜬다(#1142). 그 서비스의 environment · image · mem_limit 은 k3s 에서도 그대로 쓴다
 # 회원(member-service)은 profile member 라 COMPOSE_PROFILES 에 member 가 있는 환경(dev · prod)에서만 뜬다
 # 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다
 # 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다

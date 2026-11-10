@@ -25,13 +25,27 @@ SERVICES = {
     'order-service': ('kidly-order', 'ORDER_PORT', 'order'),
     'community-service': ('kidly-community', 'COMMUNITY_PORT', 'community'),
 }
-# compose 밖 k3s(t3.large 에 단독으로 띄운 k3s, deploy/k3s)에서 도는 서비스. .env 에 <PROFILE>_NODE_PORT 가 있으면 k3s 에 뜬다(#1142)
+# compose 밖 k3s(t3.large 에 단독으로 띄운 k3s, deploy/k3s)에서 도는 서비스. .env 의 K3S_PROFILES 에 있는 profile 이다(#1142)
+# 한 profile 은 COMPOSE_PROFILES · K3S_PROFILES 중 한쪽에만 둔다. <PROFILE>_NODE_PORT 가 있으면 이 서버에서 그 NodePort 로 닿는다
 # 메트릭은 monitoring-agent Alloy 가 k3s API 로 Pod 를 찾아 모으므로 대상 파일을 쓰지 않고, 기대 목록에만 넣는다
 KUBECONFIG = Path.home() / '.kube' / 'config'
 
 
 def node_port_key(profile):
     return profile.upper() + '_NODE_PORT'
+
+
+def env_values(env, wanted):
+    values = {}
+    for line in (ROOT / env / '.env').read_text().splitlines():
+        key, sep, value = line.partition('=')
+        if sep and wanted(key):
+            values[key] = ' '.join(shlex.split(value, comments=True))
+    return values
+
+
+def profile_list(value):
+    return {item.strip() for item in value.split(',') if item.strip()}
 
 
 def validate(data):
@@ -118,20 +132,23 @@ def configuration(env):
 
 
 def k3s_services(env):
-    """(compose 서비스, job, profile, NodePort). .env 에 <PROFILE>_NODE_PORT 가 있는 서비스"""
-    values = {}
-    for line in (ROOT / env / '.env').read_text().splitlines():
-        key, sep, value = line.partition('=')
-        if sep and key.endswith('_NODE_PORT'):
-            values[key] = ' '.join(shlex.split(value, comments=True))
+    """(compose 서비스, job, profile, NodePort 또는 None). K3S_PROFILES 에 있는 서비스"""
+    values = env_values(env, lambda key: key in ('COMPOSE_PROFILES', 'K3S_PROFILES') or key.endswith('_NODE_PORT'))
+    k3s = profile_list(values.get('K3S_PROFILES', ''))
+    both = k3s & profile_list(values.get('COMPOSE_PROFILES', ''))
+    if both:
+        raise ValueError('Profile in both COMPOSE_PROFILES and K3S_PROFILES: ' + ','.join(sorted(both)))
+    known = {profile for _, _, profile in SERVICES.values()}
+    if k3s - known:
+        raise ValueError('Unknown K3S_PROFILES: ' + ','.join(sorted(k3s - known)))
     result = []
     for service, (job, _, profile) in SERVICES.items():
-        port = values.get(node_port_key(profile))
-        if port is None:
+        if profile not in k3s:
             continue
-        if not port.isdigit() or not 30000 <= int(port) <= 32767:
+        port = values.get(node_port_key(profile))
+        if port is not None and (not port.isdigit() or not 30000 <= int(port) <= 32767):
             raise ValueError('Invalid NodePort: ' + node_port_key(profile))
-        result.append((service, job, profile, int(port)))
+        result.append((service, job, profile, int(port) if port is not None else None))
     return result
 
 
@@ -282,7 +299,7 @@ def main():
     elif action == 'k3s':
         # deploy.sh 가 읽는다: 한 줄에 compose 서비스 · Deployment 이름 · NodePort
         for service, _, profile, port in k3s_services(env):
-            print(service, profile, port)
+            print(service, profile, port or '-')
     elif action in ('stop', 'resume'):
         print(json.dumps(control(env, action)))
     else:

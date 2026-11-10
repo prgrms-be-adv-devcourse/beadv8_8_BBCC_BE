@@ -48,6 +48,12 @@ class K3sManifestTests(unittest.TestCase):
         self.assertEqual(items['Deployment/member']['metadata']['namespace'], 'kidly-dev')
         self.assertNotIn('HorizontalPodAutoscaler/member', items)
 
+    def test_service_without_node_port_is_cluster_internal(self):
+        result = k3s.manifest('dev', 'member', None, self.service(), self.project)
+        service = [item for item in result['items'] if item['kind'] == 'Service'][0]['spec']
+        self.assertEqual(service['type'], 'ClusterIP')
+        self.assertNotIn('nodePort', service['ports'][0])
+
     def test_environment_goes_to_secret_without_unset_values(self):
         variables = self.items()['Secret/member-env']['stringData']
         self.assertEqual(variables, {'SPRING_PROFILES_ACTIVE': 'dev', 'DB_PASSWORD': 'secret'})

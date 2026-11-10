@@ -151,15 +151,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # 검색이 꺼진 환경(.env.<환경> 의 COMPOSE_PROFILES 에 search 도 없고 SEARCH_NODE_PORT 도 없음)이면 아무것도 하지 않는다. deploy job 도 이 값을 쓴다
+      # 검색이 꺼진 환경(.env.<환경> 의 COMPOSE_PROFILES · K3S_PROFILES 어디에도 search 없음)이면 아무것도 하지 않는다. deploy job 도 이 값을 쓴다
       - name: 검색이 켜진 환경인지 확인
         id: search
         env:
           APP_ENV: ${{ vars.APP_ENV }}
         run: |
-          profiles=$(sed -n 's/^COMPOSE_PROFILES=//p' "deploy/.env.$APP_ENV" | tail -n 1)
-          # 검색이 k3s 에 뜨는 환경(#1142)도 Elasticsearch 가 필요하다
-          if [[ ",$profiles," == *,search,* ]] || grep -q '^SEARCH_NODE_PORT=' "deploy/.env.$APP_ENV"; then on=true; else on=false; fi
+          # 검색이 k3s 에 뜨는 환경(K3S_PROFILES, #1142)도 Elasticsearch 가 필요하다
+          profiles=$(sed -n 's/^COMPOSE_PROFILES=//p; s/^K3S_PROFILES=//p' "deploy/.env.$APP_ENV" | paste -sd, -)
+          if [[ ",$profiles," == *,search,* ]]; then on=true; else on=false; fi
           echo "on=$on" >> "$GITHUB_OUTPUT"
           echo "검색: $on"
 
