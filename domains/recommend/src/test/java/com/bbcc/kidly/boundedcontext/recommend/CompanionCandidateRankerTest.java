@@ -35,6 +35,20 @@ class CompanionCandidateRankerTest {
         assertThat(productIds(ranked)).containsExactlyInAnyOrder(1L, 4L);
     }
 
+    @Test
+    @DisplayName("PAIR-02 후보는 0.3 × 유사도 + 0.7 × 짝 우선순위 점수 순이라, 유사도가 높은 아우터가 유사도 0인 하의보다 앞설 수 있다")
+    void rankByWeightedSumOfSimilarityAndPairPriority() {
+        // 상의의 짝은 하의(1), 아우터(2/3), 잡화(1/3) 순이다
+        List<CompanionCandidate> candidates = List.of(
+            candidate(1L, CompanionKind.ACCESSORY, 0.5),
+            candidate(2L, BOTTOM, 0.0),
+            candidate(3L, OUTER, 1.0));
+
+        List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
+
+        assertThat(productIds(ranked)).containsExactly(3L, 2L, 1L);
+    }
+
     private static CompanionCandidate candidate(Long productId, CompanionKind kind, Double similarity) {
         return candidate(productId, kind, similarity, SALE_STARTED_AT);
     }
