@@ -20,4 +20,11 @@ public interface AiResponseStore {
      * JSON이 아닌 문자열이면 저장하지 않고 예외를 던진다.
      */
     void save(AiResponseType type, AiResponseKey key, String responseJson, LocalDateTime createdAt);
+
+    /**
+     * {@code cutoff}보다 먼저 만든 줄을 지운다. 같은 시각에 만든 줄은 남긴다.
+     *
+     * @return 지운 줄 수
+     */
+    int deleteCreatedBefore(LocalDateTime cutoff);
 }

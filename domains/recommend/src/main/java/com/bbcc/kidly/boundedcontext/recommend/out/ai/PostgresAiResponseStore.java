@@ -48,4 +48,11 @@ public class PostgresAiResponseStore implements AiResponseStore {
             .param("createdAt", createdAt)
             .update();
     }
+
+    @Override
+    public int deleteCreatedBefore(LocalDateTime cutoff) {
+        return jdbcClient.sql("DELETE FROM recommend.ai_response WHERE created_at < :cutoff")
+            .param("cutoff", cutoff)
+            .update();
+    }
 }
