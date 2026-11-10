@@ -21,8 +21,16 @@ public class CompanionCandidateRanker {
     }
 
     private double score(CompanionCandidate candidate, List<CompanionKind> pairKinds) {
-        return CompanionWeights.SIMILARITY * candidate.similarity()
+        return CompanionWeights.SIMILARITY * similarityOrZero(candidate)
             + CompanionWeights.PAIR_PRIORITY * pairPriorityScore(candidate.kind(), pairKinds);
+    }
+
+    // 상품 벡터가 아직 없어 유사도를 모르는 후보는 짝 우선순위로만 순서를 정한다
+    private double similarityOrZero(CompanionCandidate candidate) {
+        if (candidate.similarity() == null) {
+            return 0.0;
+        }
+        return candidate.similarity();
     }
 
     // 짝 종류가 n개일 때 우선순위 i번째(0부터)의 점수는 (n - i) / n이다.
