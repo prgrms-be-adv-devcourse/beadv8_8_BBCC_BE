@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -28,6 +29,9 @@ class AiResponseStoreIntegrationTest {
 
     @Autowired
     private AiResponseStore store;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("저장한 응답 JSON을 같은 종류와 키로 다시 읽는다")
@@ -55,5 +59,23 @@ class AiResponseStoreIntegrationTest {
             AiResponseType.HOME_PREVIEW, KEY, NOW.plusSeconds(cutoffOffsetSeconds));
 
         assertThat(found.isPresent()).isEqualTo(expectedFound);
+    }
+
+    @Test
+    @DisplayName("같은 종류와 키로 여러 번 저장하면 가장 최근 줄을 읽고 이전 줄도 지우지 않는다")
+    void readLatestResponseAndKeepOlderRows() {
+        store.save(AiResponseType.HOME_PREVIEW, KEY, "{\"version\":\"oldest\"}", NOW.minusHours(2));
+        store.save(AiResponseType.HOME_PREVIEW, KEY, "{\"version\":\"latest\"}", NOW);
+        store.save(AiResponseType.HOME_PREVIEW, KEY, "{\"version\":\"middle\"}", NOW.minusHours(1));
+
+        Optional<String> found = store.findLatestSince(AiResponseType.HOME_PREVIEW, KEY, NOW.minusHours(24));
+
+        assertThat(found).isPresent();
+        assertThat(jsonMapper.readTree(found.get()).get("version").asString()).isEqualTo("latest");
+        assertThat(rowCount()).isEqualTo(3);
+    }
+
+    private int rowCount() {
+        return jdbcTemplate.queryForObject("select count(*) from recommend.ai_response", Integer.class);
     }
 }
