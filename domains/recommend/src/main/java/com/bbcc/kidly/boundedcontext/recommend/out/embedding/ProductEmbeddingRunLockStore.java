@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import javax.sql.DataSource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
  * OpenAI 응답을 기다리는 동안 트랜잭션을 열어 두지 않으려고 트랜잭션 잠금이 아니라 세션 잠금을 쓴다.
  * 서버가 죽어 연결이 끊기면 DB가 잠금을 푼다.
  */
+@Slf4j
 @Component
 public class ProductEmbeddingRunLockStore implements ProductEmbeddingRunLock {
 
@@ -35,10 +37,30 @@ public class ProductEmbeddingRunLockStore implements ProductEmbeddingRunLock {
                 work.run();
                 return true;
             } finally {
-                call(connection, "select pg_advisory_unlock(hashtextextended(?, 0))");
+                release(connection);
             }
         } catch (SQLException e) {
             throw new IllegalStateException("상품 임베딩 실행 잠금을 쓰지 못했습니다", e);
+        }
+    }
+
+    /**
+     * 잠금을 푼다. 풀지 못하면(해제 SQL 실패 · 쥐고 있지 않음) 그 연결을 풀로 돌려보내지 않고 버린다(abort).
+     * 잠금을 쥔 채 풀에 남으면 다음 실행이 계속 건너뛰기 때문이다.
+     */
+    private void release(Connection connection) {
+        try {
+            if (call(connection, "select pg_advisory_unlock(hashtextextended(?, 0))")) {
+                return;
+            }
+            log.warn("상품 임베딩 실행 잠금이 풀리지 않아 연결을 버립니다");
+        } catch (SQLException e) {
+            log.warn("상품 임베딩 실행 잠금을 풀지 못해 연결을 버립니다. error={}", e.getClass().getSimpleName());
+        }
+        try {
+            connection.abort(Runnable::run);
+        } catch (SQLException e) {
+            log.warn("상품 임베딩 실행 잠금 연결을 버리지 못했습니다. error={}", e.getClass().getSimpleName());
         }
     }
 
