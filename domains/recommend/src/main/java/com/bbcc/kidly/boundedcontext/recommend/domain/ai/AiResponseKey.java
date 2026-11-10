@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.ai;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
@@ -54,6 +56,9 @@ public record AiResponseKey(String value) {
     private static String joinIds(List<Long> ids) {
         if (ids == null) {
             return "";
+        }
+        for (Long id : ids) {
+            requireNonNull(id, "ID 목록에는 null을 넣을 수 없습니다");
         }
         List<Long> sorted = new ArrayList<>(ids);
         Collections.sort(sorted);
