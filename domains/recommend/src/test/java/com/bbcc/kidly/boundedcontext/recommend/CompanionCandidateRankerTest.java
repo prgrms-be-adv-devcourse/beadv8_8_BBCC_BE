@@ -88,6 +88,34 @@ class CompanionCandidateRankerTest {
     }
 
     @Test
+    @DisplayName("PAIR-02 유사도가 숫자가 아니면(NaN) 유사도가 없는 상품처럼 0으로 본다")
+    void treatNaNSimilarityAsZero() {
+        List<CompanionCandidate> candidates = List.of(
+            candidate(1L, BOTTOM, 0.1),
+            candidate(2L, BOTTOM, Double.NaN));
+
+        List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
+
+        assertThat(productIds(ranked)).containsExactly(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("PAIR-02 유사도가 0 ~ 1 밖이면 가까운 끝값으로 본다")
+    void clampSimilarityToZeroToOne() {
+        // 잡화(1/3)의 유사도 5.0을 1로 보면 0.53점이라 유사도 0인 하의(0.7점)보다 뒤다
+        List<CompanionCandidate> overOne = List.of(
+            candidate(1L, ACCESSORY, 5.0),
+            candidate(2L, BOTTOM, 0.0));
+        // 유사도 -5.0을 0으로 보면 유사도 0인 상품과 점수가 같아 상품 ID가 큰 상품이 앞이다
+        List<CompanionCandidate> belowZero = List.of(
+            candidate(3L, BOTTOM, 0.0),
+            candidate(4L, BOTTOM, -5.0));
+
+        assertThat(productIds(ranker.rank(TOP, overOne))).containsExactly(2L, 1L);
+        assertThat(productIds(ranker.rank(TOP, belowZero))).containsExactly(4L, 3L);
+    }
+
+    @Test
     @DisplayName("PAIR-02 점수가 같으면 판매 시작 시각이 늦은 상품이 앞이고, 그것도 같으면 상품 ID가 큰 상품이 앞이다")
     void breakTiesByLaterSaleStartThenLargerId() {
         LocalDateTime later = SALE_STARTED_AT.plusDays(4);
