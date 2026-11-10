@@ -86,8 +86,17 @@ public class AiResponseService {
         if (result.isEmpty()) {
             return Optional.empty();
         }
-        store.save(type, key, jsonMapper.writeValueAsString(result.get()), now);
+        saveQuietly(type, key, result.get(), now);
         return result;
+    }
+
+    private void saveQuietly(AiResponseType type, AiResponseKey key, Object response, LocalDateTime now) {
+        try {
+            store.save(type, key, jsonMapper.writeValueAsString(response), now);
+        } catch (RuntimeException e) {
+            log.warn("AI 응답을 저장하지 못했지만 받은 결과는 돌려준다. type={}, cause={}",
+                type, e.getClass().getSimpleName());
+        }
     }
 
     private <T> Optional<T> callWithTimeout(AiResponseType type, Supplier<T> call) {
