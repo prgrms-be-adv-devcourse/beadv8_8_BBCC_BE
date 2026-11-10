@@ -17,6 +17,7 @@ public interface PreferenceSourceReader {
     /**
      * 활동 기간 안에 활동했거나 구매 기간 안에 구매확정한 자녀의 ID를 중복 없이 ID 오름차순으로 읽는다.
      * afterChildProfileId보다 큰 ID만 읽어 다음 묶음을 이어 읽는다.
+     * 자녀 복사본이 삭제된 자녀는 빼고, 복사본이 아직 없는 자녀는 대상이다.
      */
     List<Long> findChildTargets(LocalDateTime activitySince, LocalDateTime purchaseSince,
         long afterChildProfileId, int limit);

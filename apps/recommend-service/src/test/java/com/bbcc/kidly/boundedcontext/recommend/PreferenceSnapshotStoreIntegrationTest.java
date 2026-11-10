@@ -27,6 +27,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class PreferenceSnapshotStoreIntegrationTest {
 
     private static final Long CHILD_ID = 7L;
+    private static final Long MEMBER_ID = 7L;
     private static final LocalDateTime CALCULATED_AT = LocalDateTime.of(2026, 11, 10, 3, 0);
 
     @Autowired
@@ -89,12 +90,12 @@ class PreferenceSnapshotStoreIntegrationTest {
         PreferenceSnapshot memberSnapshot = new PreferenceSnapshot(
             List.of(new CategoryAffinity(10L, 0.5)), List.of(new BrandAffinity("a-brand", 0.5)),
             new TasteVector(PreferenceTestData.vectorOf(0.5f), 2.0, 2), CALCULATED_AT);
-        store.replaceMember(CHILD_ID, memberSnapshot);
+        store.replaceMember(MEMBER_ID, memberSnapshot);
 
         store.replaceChild(CHILD_ID, new PreferenceSnapshot(
             List.of(new CategoryAffinity(20L, 1.0)), List.of(), null, CALCULATED_AT));
 
-        assertThat(store.findMember(CHILD_ID)).isEqualTo(memberSnapshot);
+        assertThat(store.findMember(MEMBER_ID)).isEqualTo(memberSnapshot);
     }
 
     @Test
@@ -114,7 +115,7 @@ class PreferenceSnapshotStoreIntegrationTest {
     @DisplayName("저장된 줄이 없으면 빈 스냅숏을 읽는다")
     void readEmptySnapshotWhenNothingStored() {
         assertThat(store.findChild(CHILD_ID)).isEqualTo(PreferenceSnapshot.empty());
-        assertThat(store.findMember(CHILD_ID)).isEqualTo(PreferenceSnapshot.empty());
+        assertThat(store.findMember(MEMBER_ID)).isEqualTo(PreferenceSnapshot.empty());
     }
 
     @Test
@@ -131,6 +132,43 @@ class PreferenceSnapshotStoreIntegrationTest {
         assertThatThrownBy(() -> store.replaceChild(CHILD_ID, invalid)).isInstanceOf(DataAccessException.class);
 
         assertThat(store.findChild(CHILD_ID)).isEqualTo(previous);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-1, 6", "0, 0", "1, 0"})
+    @DisplayName("PREF-11 기준 시각보다 이른 줄만 자녀 · 회원의 표 여섯 개에서 모두 지워진다")
+    void deleteRowsCalculatedBeforeBaseTime(long secondsFromBase, int deletedCount) {
+        PreferenceSnapshot snapshot = snapshotCalculatedAt(CALCULATED_AT.plusSeconds(secondsFromBase));
+        store.replaceChild(CHILD_ID, snapshot);
+        store.replaceMember(MEMBER_ID, snapshot);
+
+        int deleted = store.deleteCalculatedBefore(CALCULATED_AT);
+
+        assertThat(deleted).isEqualTo(deletedCount);
+        if (deletedCount > 0) {
+            assertThat(store.findChild(CHILD_ID)).isEqualTo(PreferenceSnapshot.empty());
+            assertThat(store.findMember(MEMBER_ID)).isEqualTo(PreferenceSnapshot.empty());
+            return;
+        }
+        assertThat(store.findChild(CHILD_ID)).isEqualTo(snapshot);
+        assertThat(store.findMember(MEMBER_ID)).isEqualTo(snapshot);
+    }
+
+    @Test
+    @DisplayName("PREF-11 이른 줄과 늦은 줄이 섞여 있으면 이른 줄만 지우고 지운 수를 돌려준다")
+    void deleteOnlyOlderRowsAmongMixed() {
+        PreferenceSnapshot older = snapshotCalculatedAt(CALCULATED_AT.minusDays(1));
+        PreferenceSnapshot current = snapshotCalculatedAt(CALCULATED_AT);
+        store.replaceChild(1L, older);
+        store.replaceChild(2L, current);
+        store.replaceMember(3L, older);
+
+        int deleted = store.deleteCalculatedBefore(CALCULATED_AT);
+
+        assertThat(deleted).isEqualTo(6);
+        assertThat(store.findChild(1L)).isEqualTo(PreferenceSnapshot.empty());
+        assertThat(store.findChild(2L)).isEqualTo(current);
+        assertThat(store.findMember(3L)).isEqualTo(PreferenceSnapshot.empty());
     }
 
     @ParameterizedTest
@@ -166,5 +204,12 @@ class PreferenceSnapshotStoreIntegrationTest {
         assertThatThrownBy(() -> jdbc.update("INSERT INTO recommend.child_brand_affinity (child_profile_id, brand,"
             + " score, calculated_at) VALUES (1, 'a-brand', 1.5, now())"))
             .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    // 표 세 개(카테고리 · 브랜드 · 취향 벡터)에 한 줄씩 들어가는 스냅숏이다
+    private static PreferenceSnapshot snapshotCalculatedAt(LocalDateTime calculatedAt) {
+        return new PreferenceSnapshot(List.of(new CategoryAffinity(10L, 0.5)),
+            List.of(new BrandAffinity("a-brand", 0.5)),
+            new TasteVector(PreferenceTestData.vectorOf(0.5f), 2.0, 2), calculatedAt);
     }
 }

@@ -51,6 +51,32 @@ class PreferenceSourceReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("PREF-11 삭제한 자녀는 활동과 구매가 있어도 대상에서 빠지고, 복사본이 없는 자녀와 삭제하지 않은 자녀는 대상이다")
+    void excludeDeletedChildrenFromTargets() {
+        childActivity(1L, SINCE);
+        PreferenceTestData.insertPurchase(jdbc, 1L, 100L, SINCE);
+        PreferenceTestData.insertPurchase(jdbc, 2L, 100L, SINCE);
+        childActivity(3L, SINCE);
+        childActivity(4L, SINCE);
+        insertReplicaChild(1L, SINCE.plusHours(1));
+        insertReplicaChild(2L, SINCE.plusHours(1));
+        insertReplicaChild(4L, null);
+
+        assertThat(reader.findChildTargets(SINCE, SINCE, 0, 10)).containsExactly(3L, 4L);
+    }
+
+    @Test
+    @DisplayName("PREF-11 삭제한 자녀가 앞에 있어도 limit개는 삭제하지 않은 자녀로 채워 페이지가 이어진다")
+    void fillPageWithoutDeletedChildren() {
+        childActivity(1L, SINCE);
+        childActivity(2L, SINCE);
+        childActivity(3L, SINCE);
+        insertReplicaChild(1L, SINCE.plusHours(1));
+
+        assertThat(reader.findChildTargets(SINCE, SINCE, 0, 2)).containsExactly(2L, 3L);
+    }
+
+    @Test
     @DisplayName("대상 자녀는 after보다 큰 ID만 limit개까지 읽는다")
     void readChildTargetsAfterIdWithLimit() {
         childActivity(1L, SINCE);
@@ -155,6 +181,14 @@ class PreferenceSourceReaderIntegrationTest {
     @DisplayName("상품 ID가 비어 있으면 빈 Map을 읽는다")
     void readNoEmbeddingsForEmptyProductIds() {
         assertThat(reader.findEmbeddings(List.of())).isEmpty();
+    }
+
+    private void insertReplicaChild(Long childProfileId, LocalDateTime deletedAt) {
+        jdbc.update("""
+            INSERT INTO recommend.replica_child (child_profile_id, member_id, birth_date, height_cm, weight_kg,
+                gender, event_occurred_at, deleted_at, created_at, updated_at)
+            VALUES (?, 1, DATE '2020-01-01', 100.0, 15.0, 'MALE', now(), ?, now(), now())
+            """, childProfileId, deletedAt);
     }
 
     private void insert(ActivityType type, Long childProfileId, LocalDateTime occurredAt, Long productId,

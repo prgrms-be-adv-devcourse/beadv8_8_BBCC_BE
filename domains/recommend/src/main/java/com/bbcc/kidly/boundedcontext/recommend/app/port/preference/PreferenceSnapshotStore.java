@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.port.preference;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
+import java.time.LocalDateTime;
 
 /**
  * 자녀 · 회원별로 계산한 카테고리 · 브랜드 친밀도와 취향 벡터를 저장하고 읽는 나가는 연결의 요청서다.
@@ -28,4 +29,12 @@ public interface PreferenceSnapshotStore {
      * 저장된 회원의 스냅숏을 읽는다. 읽는 방식은 자녀와 같다.
      */
     PreferenceSnapshot findMember(Long memberId);
+
+    /**
+     * 계산 시각이 baseTime보다 이른 줄을 자녀 · 회원의 친밀도와 취향 벡터 표에서 모두 지운다.
+     * 이번 계산이 다시 쓰지 않은 대상(탈퇴한 회원, 삭제한 자녀, 기간 안에 활동이 없어진 대상)의 줄을 정리한다.
+     *
+     * @return 지운 줄 수의 합
+     */
+    int deleteCalculatedBefore(LocalDateTime baseTime);
 }

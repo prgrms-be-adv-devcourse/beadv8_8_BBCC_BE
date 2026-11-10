@@ -59,6 +59,20 @@ public class PostgresPreferenceSnapshotStore implements PreferenceSnapshotStore 
         return find(MEMBER, memberId);
     }
 
+    @Override
+    @Transactional
+    public int deleteCalculatedBefore(LocalDateTime baseTime) {
+        int deleted = 0;
+        for (Owner owner : List.of(CHILD, MEMBER)) {
+            for (String table : List.of(owner.categoryTable(), owner.brandTable(), owner.vectorTable())) {
+                deleted += jdbcClient.sql("DELETE FROM " + table + " WHERE calculated_at < :baseTime")
+                    .param("baseTime", baseTime)
+                    .update();
+            }
+        }
+        return deleted;
+    }
+
     private void replace(Owner owner, Long id, PreferenceSnapshot snapshot) {
         deleteAll(owner, id);
         LocalDateTime calculatedAt = snapshot.calculatedAt();
