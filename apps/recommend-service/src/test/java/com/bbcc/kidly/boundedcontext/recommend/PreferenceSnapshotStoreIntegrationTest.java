@@ -41,7 +41,8 @@ class PreferenceSnapshotStoreIntegrationTest {
 
         PreferenceSnapshot found = store.findChild(CHILD_ID);
         assertThat(found.categories()).containsExactly(new CategoryAffinity(10L, 1.0), new CategoryAffinity(11L, 0.25));
-        assertThat(found.brands()).containsExactly(new BrandAffinity("a-brand", 0.0), new BrandAffinity("b-brand", 0.5));
+        assertThat(found.brands())
+            .containsExactly(new BrandAffinity("a-brand", 0.0), new BrandAffinity("b-brand", 0.5));
         assertThat(found.tasteVector()).isEqualTo(snapshot.tasteVector());
         assertThat(found.calculatedAt()).isEqualTo(CALCULATED_AT);
     }
