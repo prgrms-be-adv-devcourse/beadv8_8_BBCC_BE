@@ -38,20 +38,22 @@ public final class ReferenceGarmentSpec {
 
     /**
      * @param categoryPath 세부 종류 카테고리의 경로다. 대분류부터 말단 순서이고, 찾지 못했으면 null이거나 비어 있다.
+     *     마지막 칸의 ID가 categoryId와 달라도 찾지 못한 것으로 본다. 말단이 아닌 카테고리가 기준 옷이 되지 않게 하기 위해서다.
      */
     public static ReferenceGarmentSpec of(GarmentPart part, Long categoryId,
         List<GarmentCategoryPathEntry> categoryPath, Map<String, BigDecimal> measurements) {
         requireNonNull(part, "part는 필수입니다");
         requireNonNull(categoryId, "categoryId는 필수입니다");
-        checkCategory(part, categoryPath);
+        checkCategory(part, categoryId, categoryPath);
         Map<String, BigDecimal> given = measurements == null ? Map.of() : measurements;
         checkMeasurementCodes(part, given);
         checkMeasurementValues(given);
         return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(given));
     }
 
-    private static void checkCategory(GarmentPart part, List<GarmentCategoryPathEntry> categoryPath) {
-        if (categoryPath == null || categoryPath.isEmpty()) {
+    private static void checkCategory(GarmentPart part, Long categoryId, List<GarmentCategoryPathEntry> categoryPath) {
+        if (categoryPath == null || categoryPath.isEmpty()
+            || !categoryId.equals(categoryPath.get(categoryPath.size() - 1).categoryId())) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
         }
         if (!part.includesCategoryIn(namesOf(categoryPath))) {
