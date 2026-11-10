@@ -34,12 +34,14 @@ public class CompanionCandidateRanker {
             + CompanionWeights.PAIR_PRIORITY * pairPriorityScore(candidate.kind().orElseThrow(), pairKinds);
     }
 
-    // 상품 벡터가 아직 없어 유사도를 모르는 후보는 짝 우선순위로만 순서를 정한다
+    // 상품 벡터가 아직 없어 유사도를 모르는 후보는 짝 우선순위로만 순서를 정한다.
+    // 계산이 잘못된 값(NaN, 0 ~ 1 밖)이 짝 우선순위를 뒤집지 않도록 0 ~ 1 안으로 맞춘다
     private double similarityOrZero(CompanionCandidate candidate) {
-        if (candidate.similarity() == null) {
+        Double similarity = candidate.similarity();
+        if (similarity == null || similarity.isNaN()) {
             return 0.0;
         }
-        return candidate.similarity();
+        return Math.clamp(similarity, 0.0, 1.0);
     }
 
     // 짝 종류가 n개일 때 우선순위 i번째(0부터)의 점수는 (n - i) / n이다.
