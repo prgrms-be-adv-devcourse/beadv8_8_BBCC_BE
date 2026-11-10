@@ -149,8 +149,8 @@ class RecommendedProductRankerTest {
     }
 
     @Test
-    @DisplayName("PREF-06 점수가 같으면 등록 시각이 늦은 상품, 그것도 같으면 상품 ID가 큰 상품이 먼저 나온다")
-    void sameScoreOrderedByRegisteredAtThenProductId() {
+    @DisplayName("PREF-06 점수가 같으면 판매 시작 시각이 늦은 상품, 그것도 같으면 상품 ID가 큰 상품이 먼저 나온다")
+    void sameScoreOrderedBySaleStartedAtThenProductId() {
         PreferenceSnapshot snapshot = snapshot(0.6, 0.6, null);
         // 세 상품 모두 등록한 지 7일이 넘어 카테고리 · 브랜드 몫만 받는다
         RecommendedProduct earlier = recommendedProduct(3L, CATEGORY_ID, BRAND, OLD_REGISTERED_AT);
@@ -179,7 +179,7 @@ class RecommendedProductRankerTest {
     }
 
     @Test
-    @DisplayName("PREF-06 활동이 없는 자녀의 목록은 등록 최신순이다")
+    @DisplayName("PREF-06 활동이 없는 자녀의 목록은 판매 시작 최신순이다")
     void noActivityKeepsNewestFirst() {
         // 최근 7일 안에 등록한 상품과 그 전에 등록한 상품이 섞여 있다
         RecommendedProduct oldest = recommendedProductRegisteredAt(3L, OLD_REGISTERED_AT);
@@ -207,8 +207,8 @@ class RecommendedProductRankerTest {
     }
 
     @Test
-    @DisplayName("PREF-09 기준 시각보다 늦게 등록한 상품은 빼고, 기준 시각에 등록한 상품은 남긴다")
-    void productsRegisteredAfterAsOfAreRemoved() {
+    @DisplayName("PREF-09 기준 시각보다 늦게 판매를 시작한 상품은 빼고, 기준 시각에 판매를 시작한 상품은 남긴다")
+    void saleStartedAtAsOfIsKeptAndAfterIsRemoved() {
         RecommendedProduct atAsOf = recommendedProductRegisteredAt(1L, BASE_TIME);
         RecommendedProduct afterAsOf = recommendedProductRegisteredAt(2L, BASE_TIME.plusSeconds(1));
 
