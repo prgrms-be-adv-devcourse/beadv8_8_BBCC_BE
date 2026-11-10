@@ -33,19 +33,23 @@ public class HomePreviewSelector {
      * 홈 맛보기 결과를 고른다. aiPicks는 AI 결과가 없으면 null이거나 비어 있을 수 있다.
      * AI 답에서 후보에 없는 상품 ID(null 포함)와 이미 나온 상품 ID를 버리고,
      * 남은 것 중 앞에서 4개를 AI 답 순서와 AI가 준 이유 그대로 돌려준다.
+     * 남은 것이 4개보다 적으면 빈 자리를 아직 나오지 않은 후보 순서로 채우고, 채운 상품의 이유는 없다.
      * 남은 것이 하나도 없으면 후보 앞에서 4개(4개보다 적으면 있는 만큼)를 이유 없이 규칙 결과로 돌려준다.
      */
     public HomePreview select(List<RecommendedProduct> candidates, List<HomePreviewPick> aiPicks) {
         Objects.requireNonNull(candidates, "candidates는 필수입니다");
-        List<HomePreview.Item> aiItems = validAiItems(candidates, aiPicks);
+        Set<Long> pickedIds = new HashSet<>();
+        List<HomePreview.Item> aiItems = validAiItems(candidates, aiPicks, pickedIds);
         if (!aiItems.isEmpty()) {
+            fillRemainingSlots(aiItems, candidates, pickedIds);
             return new HomePreview(HomePreviewSource.AI, aiItems);
         }
         return new HomePreview(HomePreviewSource.RULE, ruleItems(candidates));
     }
 
     // AI 답에서 후보에 있고 아직 나오지 않은 상품만 앞에서 4개까지 AI 답 순서대로 모은다
-    private List<HomePreview.Item> validAiItems(List<RecommendedProduct> candidates, List<HomePreviewPick> aiPicks) {
+    private List<HomePreview.Item> validAiItems(
+            List<RecommendedProduct> candidates, List<HomePreviewPick> aiPicks, Set<Long> pickedIds) {
         List<HomePreview.Item> items = new ArrayList<>();
         if (aiPicks == null) {
             return items;
@@ -54,7 +58,6 @@ public class HomePreviewSelector {
         for (RecommendedProduct candidate : candidates) {
             candidateById.put(candidate.productId(), candidate);
         }
-        Set<Long> pickedIds = new HashSet<>();
         for (HomePreviewPick pick : aiPicks) {
             if (items.size() == PREVIEW_SIZE) {
                 break;
@@ -66,6 +69,19 @@ public class HomePreviewSelector {
             items.add(new HomePreview.Item(product, pick.reason()));
         }
         return items;
+    }
+
+    // 4개가 되거나 후보가 떨어질 때까지 아직 나오지 않은 후보를 후보 순서대로 이유 없이 더한다
+    private void fillRemainingSlots(
+            List<HomePreview.Item> items, List<RecommendedProduct> candidates, Set<Long> pickedIds) {
+        for (RecommendedProduct candidate : candidates) {
+            if (items.size() == PREVIEW_SIZE) {
+                return;
+            }
+            if (pickedIds.add(candidate.productId())) {
+                items.add(new HomePreview.Item(candidate, null));
+            }
+        }
     }
 
     // 후보 앞에서 4개를 이유 없이 모은다

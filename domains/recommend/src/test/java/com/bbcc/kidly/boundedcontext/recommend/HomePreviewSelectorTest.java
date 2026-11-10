@@ -84,6 +84,20 @@ class HomePreviewSelectorTest {
             .containsExactly(tuple(1L, null), tuple(2L, null), tuple(3L, null), tuple(4L, null));
     }
 
+    @Test
+    @DisplayName("HOME-04 AI가 고른 것이 4개보다 적으면 빈 자리를 고르지 않은 후보 순서로 채우고 채운 상품의 이유는 없다")
+    void fillRemainingSlotsInCandidateOrder() {
+        List<RecommendedProduct> candidates = productsWithIds(10);
+        List<HomePreviewPick> aiPicks = List.of(new HomePreviewPick(7L, "이유 7"), new HomePreviewPick(1L, "이유 1"));
+
+        HomePreview preview = selector.select(candidates, aiPicks);
+
+        assertThat(preview.source()).isEqualTo(HomePreviewSource.AI);
+        assertThat(preview.items())
+            .extracting(item -> item.product().productId(), HomePreview.Item::reason)
+            .containsExactly(tuple(7L, "이유 7"), tuple(1L, "이유 1"), tuple(2L, null), tuple(3L, null));
+    }
+
     // 상품 ID를 1부터 차례로 붙인 상품 목록이다. 목록 순서가 선호 점수 순서다
     private static List<RecommendedProduct> productsWithIds(int count) {
         List<RecommendedProduct> products = new ArrayList<>();
