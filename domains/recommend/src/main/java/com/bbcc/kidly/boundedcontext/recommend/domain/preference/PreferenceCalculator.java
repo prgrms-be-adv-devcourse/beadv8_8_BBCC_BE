@@ -28,6 +28,7 @@ public class PreferenceCalculator {
         // 친밀도는 1 − Π(1 − 무게)이므로 키마다 Π(1 − 무게)를 모은다
         Map<Long, Double> categoryRemainders = new LinkedHashMap<>();
         Map<String, Double> brandRemainders = new LinkedHashMap<>();
+        TasteVectorSum tasteVectorSum = new TasteVectorSum();
         for (PreferenceSignal signal : signals) {
             double weight = weightOf(signal, baseTime);
             if (weight <= 0) {
@@ -39,6 +40,14 @@ public class PreferenceCalculator {
             if (signal.brand() != null && !signal.brand().isBlank()) {
                 brandRemainders.merge(signal.brand(), 1 - weight, (left, right) -> left * right);
             }
+            if (!signal.type().countsForTaste() || signal.productId() == null) {
+                continue;
+            }
+            // 벡터가 아직 없는 상품을 0 벡터로 넣으면 활동이 많을수록 유사도가 낮아진다
+            EmbeddingVector productEmbedding = productEmbeddings.get(signal.productId());
+            if (productEmbedding != null) {
+                tasteVectorSum.add(productEmbedding, weight, 1);
+            }
         }
         List<CategoryAffinity> categories = new ArrayList<>();
         for (Map.Entry<Long, Double> entry : categoryRemainders.entrySet()) {
@@ -48,10 +57,14 @@ public class PreferenceCalculator {
         for (Map.Entry<String, Double> entry : brandRemainders.entrySet()) {
             brands.add(new BrandAffinity(entry.getKey(), 1 - entry.getValue()));
         }
-        return new PreferenceSnapshot(categories, brands, null, baseTime);
+        return new PreferenceSnapshot(categories, brands, tasteVectorSum.toTasteVector(), baseTime);
     }
 
     private double weightOf(PreferenceSignal signal, LocalDateTime baseTime) {
+        // 담았다가 뺀 상품이 30일 동안 순서를 끌어당기지 않게 한다
+        if (signal.removed()) {
+            return 0;
+        }
         PreferenceSignalType type = signal.type();
         LocalDateTime windowStart = baseTime.minusDays(type.windowDays());
         if (signal.occurredAt().isAfter(baseTime) || signal.occurredAt().isBefore(windowStart)) {
