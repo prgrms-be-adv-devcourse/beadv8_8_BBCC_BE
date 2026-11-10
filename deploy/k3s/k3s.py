@@ -19,6 +19,8 @@ DEFAULT_CPU_REQUEST = '50m'
 # 두 프로세스가 함께 돌면 안 되는 스케줄러가 있는 서비스. 롤링 배포의 겹치는 시간을 두지 않고 옛 Pod 를 먼저 내린다(compose 때와 같다)
 # 상품: 아웃박스 릴레이에 잠금이 없다(domains/product CLAUDE.md). 알림: 재발송 스케줄러가 같은 알림을 두 번 보낼 수 있다
 SINGLE_INSTANCE = {'product', 'notification'}
+# 이미지의 앱 유저 그룹(Dockerfile 의 groupadd -g 1001)
+APP_GID = 1001
 CONTAINER_PORT = 8080
 LOG_DIR = '/app/logs'
 
@@ -108,6 +110,8 @@ def manifest(env, name, node_port, service, project_dir):
                  'metadata': {'labels': labels, 'annotations': {'kidly/config-hash': digest}},
                  'spec': {
                      'imagePullSecrets': [{'name': 'ghcr-pull'}],
+                     # 앱은 UID/GID 1001(Dockerfile)로 돈다. Secret 파일(0440, root 소유)을 읽을 수 있게 그룹을 1001 로 붙인다
+                     'securityContext': {'fsGroup': APP_GID},
                      # 처리 중인 요청 · Kafka 메시지를 마치고 내려간다(Spring graceful shutdown 기본 30초 + preStop 5초)
                      'terminationGracePeriodSeconds': 45,
                      'containers': [container],
