@@ -22,6 +22,6 @@ public final class ReferenceGarmentSpec {
 
     public static ReferenceGarmentSpec of(GarmentPart part, Long categoryId, List<String> categoryPathNames,
         Map<String, BigDecimal> measurements) {
-        throw new UnsupportedOperationException("아직 구현하지 않았다");
+        return new ReferenceGarmentSpec(part, categoryId, measurements);
     }
 }
