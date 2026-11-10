@@ -164,6 +164,21 @@ class RecommendedProductRankerTest {
     }
 
     @Test
+    @DisplayName("PREF-06 점수가 같으면 등록 시각이 아니라 판매 시작 시각이 늦은 상품이 먼저 나온다")
+    void sameScoreOrderedBySaleStartedAt() {
+        // 두 상품 모두 판매를 시작한 지 7일이 넘어 최신성 몫이 없고 점수가 같다
+        RecommendedProduct registeredLaterSoldEarlier = recommendedProductSaleStartedAt(
+            2L, OLD_REGISTERED_AT.plusDays(5), OLD_REGISTERED_AT.plusDays(6));
+        RecommendedProduct registeredEarlierSoldLater = recommendedProductSaleStartedAt(
+            1L, OLD_REGISTERED_AT, OLD_REGISTERED_AT.plusDays(10));
+
+        List<RecommendedProduct> ranked = ranker.rank(List.of(registeredLaterSoldEarlier, registeredEarlierSoldLater),
+            PreferenceSnapshot.empty(), NO_SIMILARITIES, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(registeredEarlierSoldLater, registeredLaterSoldEarlier);
+    }
+
+    @Test
     @DisplayName("PREF-06 활동이 없는 자녀의 목록은 등록 최신순이다")
     void noActivityKeepsNewestFirst() {
         // 최근 7일 안에 등록한 상품과 그 전에 등록한 상품이 섞여 있다
