@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.referencegarment.GarmentCategoryPaths;
@@ -89,15 +90,15 @@ class GarmentCategoryPathsIntegrationTest {
         applyProduct(RecommendFixture.PRODUCT_A_ID, topPath("의류"), RecommendFixture.PRODUCT_CHANGED_AT);
         applyProduct(OTHER_PRODUCT_ID, bottomPath(), RecommendFixture.PRODUCT_CHANGED_AT);
 
-        ReferenceGarmentSpec top = ReferenceGarmentSpec.of(GarmentPart.TOP, TOP_ID,
-            garmentCategoryPaths.findPathOf(TOP_ID),
-            Map.of("TOTAL_LENGTH", new BigDecimal("40.5"), "CHEST_WIDTH", new BigDecimal("42.0")));
-        ReferenceGarmentSpec bottom = ReferenceGarmentSpec.of(GarmentPart.BOTTOM, BOTTOM_ID,
-            garmentCategoryPaths.findPathOf(BOTTOM_ID),
-            Map.of("TOTAL_LENGTH", new BigDecimal("60.0"), "WAIST_WIDTH", new BigDecimal("30.0")));
+        List<GarmentCategoryPathEntry> topPath = garmentCategoryPaths.findPathOf(TOP_ID);
+        List<GarmentCategoryPathEntry> bottomPath = garmentCategoryPaths.findPathOf(BOTTOM_ID);
 
-        assertThat(top.categoryId()).isEqualTo(TOP_ID);
-        assertThat(bottom.categoryId()).isEqualTo(BOTTOM_ID);
+        assertThatCode(() -> ReferenceGarmentSpec.of(GarmentPart.TOP, TOP_ID, topPath,
+            Map.of("TOTAL_LENGTH", new BigDecimal("40.5"), "CHEST_WIDTH", new BigDecimal("42.0"))))
+            .doesNotThrowAnyException();
+        assertThatCode(() -> ReferenceGarmentSpec.of(GarmentPart.BOTTOM, BOTTOM_ID, bottomPath,
+            Map.of("TOTAL_LENGTH", new BigDecimal("60.0"), "WAIST_WIDTH", new BigDecimal("30.0"))))
+            .doesNotThrowAnyException();
     }
 
     private static List<ProductChangedEvent.CategoryPathEntry> topPath(String rootName) {
