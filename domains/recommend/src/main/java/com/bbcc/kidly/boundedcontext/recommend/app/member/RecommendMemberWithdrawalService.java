@@ -1,6 +1,9 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.member;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.recommend.app.activity.ActivityRecordService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,8 +18,15 @@ public class RecommendMemberWithdrawalService {
 
     private final ActivityRecordService activityRecordService;
 
+    private final ReferenceGarmentRepository referenceGarmentRepository;
+
+    /**
+     * 그 회원의 활동 기록과, 삭제 표시된 자녀를 포함한 그 회원 자녀들의 기준 옷을 지운다.
+     */
     @Transactional
     public void deleteDataOfWithdrawnMember(MemberWithdrawnEvent event) {
+        Long memberId = requireNonNull(event.data().memberId(), "memberId는 필수입니다");
         activityRecordService.deleteActivityRecordsOfWithdrawnMember(event);
+        referenceGarmentRepository.deleteAllOfMember(memberId);
     }
 }
