@@ -88,6 +88,18 @@ class CompanionSelectionTest {
         assertThat(selection.picks().getFirst().reason()).isNull();
     }
 
+    @Test
+    @DisplayName("AI에 넘기는 규칙 상위 20개 밖의 상품을 AI가 고르면 후보 밖 상품으로 보고 버린다")
+    void dropAiPicksOutsideTopTwentyCandidates() {
+        List<CompanionCandidate> ranked = rankedCandidates(25);
+
+        CompanionSelection selection = CompanionSelection.of(List.of(new CompanionAiPick(21L, "후보 밖")), ranked);
+
+        assertThat(selection.source()).isEqualTo(CompanionSource.RULE);
+        assertThat(selection.picks()).extracting(pick -> pick.product().productId())
+            .containsExactly(1L, 2L, 3L, 4L);
+    }
+
     static Stream<List<CompanionAiPick>> noUsableAiPicks() {
         return Stream.of(null, List.of(), List.of(new CompanionAiPick(99L, "후보에 없는 상품")));
     }
