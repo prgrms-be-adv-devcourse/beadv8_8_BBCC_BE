@@ -112,6 +112,19 @@ class CompanionProductServiceTest {
         verifyNoInteractions(aiResponseService);
     }
 
+    @Test
+    @DisplayName("후보가 없으면 AI 공통 서비스를 부르지 않고 빈 목록을 돌려준다(하루 상한을 쓰지 않는다)")
+    void returnEmptyWithoutCallingAiWhenNoCandidates() {
+        given(candidateReader.read(MEMBER_ID, VIEWED_PRODUCT_ID, CHILD_ID)).willReturn(candidates(0));
+
+        CompanionProductsResult result = service(Optional.of(aiPicker)).recommend(MEMBER_ID, VIEWED_PRODUCT_ID,
+            CHILD_ID);
+
+        assertThat(result.source()).isEqualTo(CompanionSource.RULE);
+        assertThat(result.products()).isEmpty();
+        verifyNoInteractions(aiResponseService);
+    }
+
     private CompanionProductService service(Optional<CompanionAiPicker> picker) {
         return new CompanionProductService(candidateReader, aiResponseService, picker);
     }
