@@ -78,6 +78,23 @@ class CompanionSelectionTest {
         assertThat(selection.picks()).extracting(CompanionPick::reason).containsOnlyNulls();
     }
 
+    @Test
+    @DisplayName("AI가 4개보다 많이 고르면 AI가 고른 순서의 앞 4개만 돌려준다")
+    void keepFirstFourAiPicks() {
+        List<CompanionCandidate> ranked = rankedCandidates(6);
+        List<CompanionAiPick> aiPicks = List.of(
+            new CompanionAiPick(6L, "이유 6"),
+            new CompanionAiPick(5L, "이유 5"),
+            new CompanionAiPick(4L, "이유 4"),
+            new CompanionAiPick(3L, "이유 3"),
+            new CompanionAiPick(2L, "이유 2"));
+
+        CompanionSelection selection = CompanionSelection.of(aiPicks, ranked);
+
+        assertThat(selection.picks()).extracting(pick -> pick.product().productId())
+            .containsExactly(6L, 5L, 4L, 3L);
+    }
+
     // 상품 ID 1부터 count까지를 규칙 순서(점수 순)로 둔 후보 목록이다
     private static List<CompanionCandidate> rankedCandidates(int count) {
         List<CompanionCandidate> ranked = new ArrayList<>();
