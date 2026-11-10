@@ -14,7 +14,7 @@ CREATE TABLE recommend.ai_response (
         CHECK (response_type IN ('HOME_PREVIEW', 'BOUGHT_TOGETHER', 'SIZE_RECOMMENDATION'))
 );
 
-CREATE INDEX ai_response_type_hash_created_idx
+CREATE INDEX idx_ai_response_type_hash_created_at
     ON recommend.ai_response (response_type, input_hash, created_at DESC);
 
 -- 서비스 전체의 하루 AI 호출 횟수다. 날짜(한국 시간)마다 한 줄이고 호출할 때마다 1씩 올린다.

@@ -11,9 +11,9 @@ import java.util.Optional;
 public interface AiResponseStore {
 
     /**
-     * 그 종류와 키로 {@code createdAfter} 이후(같은 시각 포함)에 저장한 줄 중 가장 최근 줄의 응답 JSON을 읽는다.
+     * 그 종류와 키로 {@code since} 이후(같은 시각 포함)에 저장한 줄 중 가장 최근 줄의 응답 JSON을 읽는다.
      */
-    Optional<String> findLatestSince(AiResponseType type, AiResponseKey key, LocalDateTime createdAfter);
+    Optional<String> findLatestSince(AiResponseType type, AiResponseKey key, LocalDateTime since);
 
     /**
      * 응답 JSON을 새 줄로 저장한다. 같은 종류와 키라도 덮어쓰지 않고 줄을 더한다.

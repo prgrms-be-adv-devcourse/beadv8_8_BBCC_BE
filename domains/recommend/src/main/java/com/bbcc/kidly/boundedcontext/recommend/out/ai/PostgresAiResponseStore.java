@@ -21,17 +21,17 @@ public class PostgresAiResponseStore implements AiResponseStore {
     }
 
     @Override
-    public Optional<String> findLatestSince(AiResponseType type, AiResponseKey key, LocalDateTime createdAfter) {
+    public Optional<String> findLatestSince(AiResponseType type, AiResponseKey key, LocalDateTime since) {
         return jdbcClient.sql("""
                 SELECT response::text
                 FROM recommend.ai_response
-                WHERE response_type = :type AND input_hash = :hash AND created_at >= :createdAfter
+                WHERE response_type = :type AND input_hash = :hash AND created_at >= :since
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
                 """)
             .param("type", type.name())
             .param("hash", key.value())
-            .param("createdAfter", createdAfter)
+            .param("since", since)
             .query(String.class)
             .optional();
     }
