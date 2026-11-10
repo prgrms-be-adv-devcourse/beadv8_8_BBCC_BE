@@ -84,6 +84,21 @@ class CompanionProductServiceTest {
         verify(aiPicker).pick(candidates.aiRequest());
     }
 
+    @Test
+    @DisplayName("PAIR-06 AI 결과가 없으면(실패 · 제한 시간 초과 · 하루 상한) 규칙 상위 4개를 이유 없이 돌려주고 출처는 RULE이다")
+    void useRuleTopFourWhenAiAnswerIsEmpty() {
+        given(candidateReader.read(MEMBER_ID, VIEWED_PRODUCT_ID, CHILD_ID)).willReturn(candidates(6));
+        given(aiResponseService.respond(eq(AiResponseType.BOUGHT_TOGETHER), any(), eq(CompanionAiAnswer.class), any()))
+            .willReturn(Optional.empty());
+
+        CompanionProductsResult result = service(Optional.of(aiPicker)).recommend(MEMBER_ID, VIEWED_PRODUCT_ID,
+            CHILD_ID);
+
+        assertThat(result.source()).isEqualTo(CompanionSource.RULE);
+        assertThat(result.products()).extracting(CompanionProductResult::productId).containsExactly(1L, 2L, 3L, 4L);
+        assertThat(result.products()).extracting(CompanionProductResult::reason).containsOnlyNulls();
+    }
+
     private CompanionProductService service(Optional<CompanionAiPicker> picker) {
         return new CompanionProductService(candidateReader, aiResponseService, picker);
     }
