@@ -30,13 +30,18 @@ public class ChildPreferenceTargets implements PreferenceTargets {
             baseTime.minusDays(PreferenceWeights.PURCHASE_WINDOW_DAYS + 1), afterId, limit);
     }
 
+    // 기간 끝을 배치 기준 시각으로 두어, 그때까지 뺀 담기만 뺀 것으로 읽는다
     @Override
     public List<PreferenceSignal> findSignals(Long targetId, LocalDateTime baseTime) {
-        throw new UnsupportedOperationException();
+        return PreferenceSignals.of(
+            sourceReader.findChildActivities(
+                targetId, baseTime.minusDays(PreferenceWeights.ACTIVITY_WINDOW_DAYS), baseTime),
+            sourceReader.findChildPurchases(
+                targetId, baseTime.minusDays(PreferenceWeights.PURCHASE_WINDOW_DAYS), baseTime));
     }
 
     @Override
     public void replace(Long targetId, PreferenceSnapshot snapshot) {
-        throw new UnsupportedOperationException();
+        snapshotStore.replaceChild(targetId, snapshot);
     }
 }
