@@ -86,26 +86,7 @@ curl -s localhost:30187/actuator/health     # Gateway 가 붙는 경로
 
 Grafana 의 서비스 오류 · 로그 대시보드에서 `kidly-recommend` (dev) 가 그대로 보이면 지표 · 로그가 이어진 것입니다.
 
-### 스케일링 확인
-
-`loadtest.js`(k6)가 Gateway 를 거쳐 `GET /api/v1/recommendations/products` 를 부릅니다. 1분에 걸쳐 VU 30(`VUS` 로 바꾼다)까지 올리고 5분 유지한 뒤 내립니다.
-
-1. t3.large 에서 deploy 유저로 HPA 를 15초마다 기록합니다. 부하가 끝나고 Pod 가 1개로 돌아올 때까지(약 10분) 둡니다
-
-   ```bash
-   while true; do echo "$(date +%T) $(kubectl -n recommend-dev get hpa recommend --no-headers)"; kubectl -n recommend-dev top pods --no-headers; sleep 15; done | tee ~/hpa-watch.log
-   ```
-
-2. 내 컴퓨터에서 부하를 줍니다. 토큰은 dev 에 로그인한 회원의 액세스 토큰, `CHILD_ID` 는 그 회원의 자녀 ID 입니다. 토큰은 명령줄 · 셸 기록에 남지 않게 `read -rs` 로 넣습니다
-
-   ```bash
-   read -rs TOKEN && export TOKEN
-   CHILD_ID=<자녀 ID> docker run --rm -i -e TOKEN -e CHILD_ID grafana/k6:0.57.0 run - < deploy/recommend/loadtest.js
-   ```
-
-3. 늘 때 CPU 사용률이 70% 를 넘고 Pod 가 2~3개가 되는지, 부하를 뺀 뒤 5분이 지나 1분에 하나씩 줄어드는지 봅니다. 기록 · k6 요약(요청 수 · p95 · 실패율)을 #1028 에 남깁니다
-
-t3.large 는 버스트 인스턴스라 오래 부하를 주면 CPU 크레딧을 씁니다. 한 번에 10분 안쪽으로 돌립니다.
+스케일링은 dev 추천 API 에 부하를 주고 `kubectl -n recommend-dev get hpa -w` 로 Pod 수가 늘었다가, 부하를 빼고 5분 뒤 하나씩 줄어드는지 봅니다. 결과는 #1028 에 남깁니다.
 
 ## 되돌리기
 
