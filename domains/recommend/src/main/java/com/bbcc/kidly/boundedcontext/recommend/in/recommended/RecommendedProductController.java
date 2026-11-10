@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 로그인한 회원의 자녀에게 맞는 사이즈로 살 수 있는 상품 목록을 신상품순으로 돌려주는 API다.
+ * 로그인한 회원의 자녀에게 맞는 사이즈로 살 수 있는 상품 목록을 선호 점수 순으로 돌려주는 API다.
+ * 2쪽부터는 1쪽 응답의 기준 시각 asOf를 그대로 받아 쪽 사이의 순서를 지킨다.
  */
 @RestController
 @RequiredArgsConstructor
