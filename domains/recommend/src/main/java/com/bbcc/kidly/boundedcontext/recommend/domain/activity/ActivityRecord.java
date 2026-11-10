@@ -46,7 +46,7 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    // 검색 · 상세 진입은 늘 null이고, 장바구니 담기 · 빼기는 자녀를 고른 경우만 값이 있다
+    // 검색은 늘 null이고, 장바구니 담기 · 빼기 · 상세 진입은 자녀를 고른 경우만 값이 있다
     @Column(name = "child_profile_id")
     private Long childProfileId;
 
@@ -151,7 +151,8 @@ public class ActivityRecord extends BaseTimeEntity {
         return record;
     }
 
-    public record ProductViewedInfo(UUID eventId, Long memberId, Long productId, LocalDateTime occurredAt) {
+    public record ProductViewedInfo(UUID eventId, Long memberId, Long childProfileId, Long productId,
+        LocalDateTime occurredAt) {
     }
 
     public static ActivityRecord productViewed(ProductViewedInfo info) {
@@ -160,6 +161,7 @@ public class ActivityRecord extends BaseTimeEntity {
         record.type = ActivityType.PRODUCT_VIEWED;
         record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
         record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        record.childProfileId = info.childProfileId();
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;

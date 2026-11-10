@@ -1,0 +1,232 @@
+package com.bbcc.kidly.boundedcontext.recommend;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.bbcc.kidly.boundedcontext.recommend.app.embedding.ProductEmbeddingService;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbedder;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingRunLock;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingStore;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingTarget;
+import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
+
+@ExtendWith(MockitoExtension.class)
+class ProductEmbeddingServiceTest {
+
+    private static final int BATCH_SIZE = 100;
+    private static final Long PRODUCT_1_ID = 1L;
+    private static final Long PRODUCT_2_ID = 2L;
+    private static final Long PRODUCT_3_ID = 3L;
+    private static final String PRODUCT_1_TEXT = "상품명: 데일리 맨투맨";
+    private static final String PRODUCT_2_TEXT = "상품명: 데일리 후드티";
+    private static final String PRODUCT_3_TEXT = "상품명: 데일리 조거팬츠";
+
+    @Mock
+    private ProductEmbeddingStore store;
+
+    @Mock
+    private ProductEmbedder embedder;
+
+    private ProductEmbeddingService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new ProductEmbeddingService(store, embedder, grantingLock());
+    }
+
+    @Test
+    @DisplayName("처음 보내는 상품들은 시도 시각을 남긴 뒤 한 번의 요청으로 임베딩하고, 받은 벡터를 각 상품의 글과 함께 저장한다")
+    void embedNeverAttemptedProductsInOneRequest() {
+        EmbeddingVector vector1 = vectorOf(0.1f);
+        EmbeddingVector vector2 = vectorOf(0.2f);
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, false)));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT))).willReturn(List.of(vector1, vector2));
+
+        service.embedStaleProducts();
+
+        InOrder inOrder = inOrder(store, embedder);
+        inOrder.verify(store).markAttempted(List.of(PRODUCT_1_ID, PRODUCT_2_ID));
+        inOrder.verify(embedder).embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT));
+        inOrder.verify(store).saveIfTextUnchanged(PRODUCT_1_ID, PRODUCT_1_TEXT, vector1);
+        inOrder.verify(store).saveIfTextUnchanged(PRODUCT_2_ID, PRODUCT_2_TEXT, vector2);
+    }
+
+    @Test
+    @DisplayName("낡은 상품이 없으면 임베딩 요청을 보내지 않는다")
+    void doNotRequestWhenNothingIsStale() {
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of());
+
+        service.embedStaleProducts();
+
+        verify(store).findStale(BATCH_SIZE);
+        verifyNoMoreInteractions(store);
+        verifyNoInteractions(embedder);
+    }
+
+    @Test
+    @DisplayName("앞서 실패한 상품은 처음 보내는 상품들 뒤에 하나씩 따로 요청한다")
+    void embedRetriedProductsOneByOneAfterNeverAttemptedOnes() {
+        EmbeddingVector vector1 = vectorOf(0.1f);
+        EmbeddingVector vector2 = vectorOf(0.2f);
+        EmbeddingVector vector3 = vectorOf(0.3f);
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_3_ID, PRODUCT_3_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, true)));
+        given(embedder.embed(List.of(PRODUCT_3_TEXT))).willReturn(List.of(vector3));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT))).willReturn(List.of(vector1));
+        given(embedder.embed(List.of(PRODUCT_2_TEXT))).willReturn(List.of(vector2));
+
+        service.embedStaleProducts();
+
+        InOrder inOrder = inOrder(store, embedder);
+        inOrder.verify(store).markAttempted(List.of(PRODUCT_3_ID));
+        inOrder.verify(embedder).embed(List.of(PRODUCT_3_TEXT));
+        inOrder.verify(store).saveIfTextUnchanged(PRODUCT_3_ID, PRODUCT_3_TEXT, vector3);
+        inOrder.verify(store).markAttempted(List.of(PRODUCT_1_ID));
+        inOrder.verify(embedder).embed(List.of(PRODUCT_1_TEXT));
+        inOrder.verify(store).saveIfTextUnchanged(PRODUCT_1_ID, PRODUCT_1_TEXT, vector1);
+        inOrder.verify(store).markAttempted(List.of(PRODUCT_2_ID));
+        inOrder.verify(embedder).embed(List.of(PRODUCT_2_TEXT));
+        inOrder.verify(store).saveIfTextUnchanged(PRODUCT_2_ID, PRODUCT_2_TEXT, vector2);
+        verifyNoMoreInteractions(embedder);
+    }
+
+    @Test
+    @DisplayName("처음 보내는 상품들의 요청이 실패하면 아무것도 저장하지 않고, 앞서 실패한 상품도 보내지 않으며, 예외를 던지지 않는다")
+    void stopWithoutSavingWhenNeverAttemptedRequestFails() {
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_3_ID, PRODUCT_3_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true)));
+        given(embedder.embed(List.of(PRODUCT_3_TEXT))).willThrow(new IllegalStateException("임베딩 요청 실패"));
+
+        assertThatCode(service::embedStaleProducts).doesNotThrowAnyException();
+
+        verify(store).findStale(BATCH_SIZE);
+        verify(store).markAttempted(List.of(PRODUCT_3_ID));
+        verifyNoMoreInteractions(store);
+        verify(embedder).embed(List.of(PRODUCT_3_TEXT));
+        verifyNoMoreInteractions(embedder);
+    }
+
+    @Test
+    @DisplayName("앞서 실패한 상품의 요청이 실패하면 그 뒤 상품은 보내지 않는다")
+    void stopAfterRetriedRequestFails() {
+        EmbeddingVector vector3 = vectorOf(0.3f);
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_3_ID, PRODUCT_3_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, true),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, true)));
+        given(embedder.embed(List.of(PRODUCT_3_TEXT))).willReturn(List.of(vector3));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT))).willThrow(new IllegalStateException("임베딩 요청 실패"));
+
+        assertThatCode(service::embedStaleProducts).doesNotThrowAnyException();
+
+        verify(store).saveIfTextUnchanged(PRODUCT_3_ID, PRODUCT_3_TEXT, vector3);
+        verify(store).markAttempted(List.of(PRODUCT_1_ID));
+        verify(store, never()).markAttempted(List.of(PRODUCT_2_ID));
+        verify(embedder, never()).embed(List.of(PRODUCT_2_TEXT));
+    }
+
+    @Test
+    @DisplayName("글이 그 사이 바뀌어 한 상품의 저장이 거절돼도 다음 상품의 저장은 이어 간다")
+    void keepSavingWhenOneSaveIsRejected() {
+        EmbeddingVector vector1 = vectorOf(0.1f);
+        EmbeddingVector vector2 = vectorOf(0.2f);
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, false)));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT))).willReturn(List.of(vector1, vector2));
+        given(store.saveIfTextUnchanged(PRODUCT_1_ID, PRODUCT_1_TEXT, vector1)).willReturn(false);
+
+        service.embedStaleProducts();
+
+        verify(store).saveIfTextUnchanged(PRODUCT_1_ID, PRODUCT_1_TEXT, vector1);
+        verify(store).saveIfTextUnchanged(PRODUCT_2_ID, PRODUCT_2_TEXT, vector2);
+    }
+
+    @Test
+    @DisplayName("요청이 실패하면 상품 글 · 예외 메시지 · 스택 트레이스 없이 상품 수와 예외 종류만 경고 로그로 남긴다")
+    void logOnlyCountAndExceptionTypeWhenRequestFails() {
+        given(store.findStale(BATCH_SIZE)).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, false)));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT)))
+            .willThrow(new IllegalStateException("응답 본문 " + PRODUCT_1_TEXT));
+        Logger serviceLogger = (Logger) LoggerFactory.getLogger(ProductEmbeddingService.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        serviceLogger.addAppender(logs);
+
+        try {
+            service.embedStaleProducts();
+        } finally {
+            serviceLogger.detachAppender(logs);
+        }
+
+        assertThat(logs.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(event.getFormattedMessage())
+                .contains("2", "IllegalStateException")
+                .doesNotContain("응답 본문", PRODUCT_1_TEXT, PRODUCT_2_TEXT);
+            assertThat(event.getThrowableProxy()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("다른 서버가 잠금을 쥐고 있어 건너뛰면 낡은 상품을 읽지 않고 임베딩 요청도 보내지 않으며, 건너뛰었다는 DEBUG 로그만 남긴다")
+    void skipWhenLockIsHeldElsewhere() {
+        ProductEmbeddingService busyService = new ProductEmbeddingService(store, embedder, work -> false);
+        Logger serviceLogger = (Logger) LoggerFactory.getLogger(ProductEmbeddingService.class);
+        Level originalLevel = serviceLogger.getLevel();
+        serviceLogger.setLevel(Level.DEBUG);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        serviceLogger.addAppender(logs);
+
+        try {
+            busyService.embedStaleProducts();
+        } finally {
+            serviceLogger.detachAppender(logs);
+            serviceLogger.setLevel(originalLevel);
+        }
+
+        verifyNoInteractions(store, embedder);
+        assertThat(logs.list).singleElement().satisfies(event -> assertThat(event.getLevel()).isEqualTo(Level.DEBUG));
+    }
+
+    private static ProductEmbeddingRunLock grantingLock() {
+        return work -> {
+            work.run();
+            return true;
+        };
+    }
+
+    private static EmbeddingVector vectorOf(float value) {
+        float[] values = new float[EmbeddingVector.DIMENSIONS];
+        Arrays.fill(values, value);
+        return new EmbeddingVector(values);
+    }
+}

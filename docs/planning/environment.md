@@ -15,7 +15,7 @@
 | 검색 | Elasticsearch 9.4 + analysis-nori(한글 형태소), elasticsearch-java 클라이언트(Boot starter). 검색 서비스(search-service)는 DB 없이 뜨고 색인 이름 앞에 환경 이름(`dev-products`)을 붙여 dev · prod가 Elasticsearch 하나를 나눠 씀. Elasticsearch는 t3.medium k3s(heap 1g), 검색 서비스는 앱 서버 t3.large의 docker compose(heap 512m, 프로필 `search`) |
 | AI 호출 | Spring AI 2.0.x(`spring-ai-starter-model-openai`), OpenAI Responses API. 구조화 출력은 `ChatClient.entity()`로 Java record에 받음. tool은 쓰지 않음 |
 | chat 모델 | OpenAI 중간 등급(terra 계열). 모델 이름은 설정값. `reasoning-effort`는 low |
-| 임베딩 | OpenAI `text-embedding-3-small`(1,536차원). 상품 복사본이 바뀔 때 이름 · 브랜드 · 설명 · 정보 값을 합쳐 한 번 호출. 처음 채우기는 묶음 호출. 검색어는 홈 맛보기 계산 때 묶어 호출 |
+| 임베딩 | OpenAI `text-embedding-3-small`(1,536차원). 상품 복사본의 이름 · 카테고리 경로 · 브랜드 · 정보 값 · 설명을 합친 글이 바뀌면, 1분마다 도는 주기 작업이 그런 상품을 100개까지 묶어 호출(추천 서버가 여러 대여도 PostgreSQL advisory lock으로 한 대만 실행, OpenAI 키가 없으면 작업이 뜨지 않음). 처음 채우기도 같은 작업이 나눠서 함. 검색어는 홈 맛보기 계산 때 묶어 호출 |
 | 벡터 저장소 | P17에서 선택. Spring AI `VectorStore` 뒤에 두어 starter 교체로 바꿀 수 있음. 상품 ID · 벡터 · 거르기 칸(상태 · 카테고리 · 사이즈 무관)만 두고 본문은 복사본 표에서 읽음 |
 | RAG 자료 | 성장도표 설명문, 사이즈 측정 안내(글 조각 + 출처 id). Spring AI `QuestionAnswerAdvisor`로 프롬프트에 붙임. 숫자 표(성장도표 · LMS)는 RAG가 아니라 규칙 계산 입력 |
 | 추천 저장소 | 추천 DB(지금은 공용 PostgreSQL `recommend` 스키마, 분리 뒤 추천 전용). 복사본, 활동 기록, 자녀 · 회원의 카테고리 · 브랜드 친밀도와 취향 벡터, AI 응답(입력 해시 키), 호출 횟수, Spring Batch 실행 기록 |

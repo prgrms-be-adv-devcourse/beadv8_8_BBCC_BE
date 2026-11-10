@@ -2,7 +2,9 @@ package com.bbcc.kidly.boundedcontext.settlement.app;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunResult;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementAdminActions;
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementAdminActionType;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
@@ -50,11 +52,15 @@ public class SettlementRunService {
     private final SettlementSkipRepository settlementSkipRepository;
     private final SettlementRepository settlementRepository;
     private final SettlementProperties properties;
+    private final SettlementAdminActions settlementAdminActions;
 
     // 기준일은 오늘 또는 지난 날짜. 그 날 0시 전에 확정된 대기 항목을 정산한다
     public SettlementRunResult runManually(LocalDate cutoffOn, Long adminId) {
         var period = SettlementPeriod.manual(cutoffOn, LocalDate.now());
-        return run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
+        var result = run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
+        settlementAdminActions.record(adminId, SettlementAdminActionType.RUN_MANUAL, result.runId(),
+            LocalDateTime.now());
+        return result;
     }
 
     /**
@@ -85,12 +91,14 @@ public class SettlementRunService {
     // 서버가 작업 도중 죽어 실행 중으로 남은 작업을 FAILED로 정리해, 같은 기준일로 다시 실행할 수 있게 한다.
     // 보통은 다음 실행이 진행 없는 기록을 스스로 닫는다(run). 이것은 그 시간을 기다리지 않고 닫을 때 쓰며,
     // 실제로 도는 작업과 구분하지 못하므로 서버를 다시 띄운 뒤에만 쓴다
-    public SettlementRunResult recover(Long runId) {
+    public SettlementRunResult recover(Long runId, Long adminId) {
         var execution = findRun(runId);
         if (!execution.getStatus().isRunning()) {
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
         }
-        return resultOf(jobOperator.recover(execution));
+        var recovered = jobOperator.recover(execution);
+        settlementAdminActions.record(adminId, SettlementAdminActionType.RUN_RECOVER, runId, LocalDateTime.now());
+        return resultOf(recovered);
     }
 
     // runId는 작업 실행 ID. JDBC 저장소는 없는 ID면 EmptyResultDataAccessException을 던진다

@@ -289,13 +289,17 @@ class SettlementJobIntegrationTest {
         var pending = save(202L, 11L, 5_000L, CUTOFF_AT.minusDays(1));
         var stuck = startExecution(CUTOFF_AT);
 
-        var recovered = settlementRunService.recover(stuck.getId());
+        var recovered = settlementRunService.recover(stuck.getId(), ADMIN_ID);
 
         assertThat(recovered.status()).isEqualTo("FAILED");
         assertThat(recovered.finishedAt()).isNotNull();
         var result = settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
         assertThat(result.status()).isEqualTo("COMPLETED");
         assertThat(result.successCount()).isEqualTo(1);
+        assertThat(AdminActions.of(jdbcTemplate, "RUN_RECOVER", stuck.getId()))
+            .containsExactly(new AdminActions.Row(ADMIN_ID, "RUN_RECOVER", stuck.getId()));
+        assertThat(AdminActions.of(jdbcTemplate, "RUN_MANUAL", result.runId()))
+            .containsExactly(new AdminActions.Row(ADMIN_ID, "RUN_MANUAL", result.runId()));
         assertThat(settlementOf(pending).getSellerId()).isEqualTo(11L);
         assertThat(reload(settled).getSettlementId()).isEqualTo(existing.getId());
         assertThat(settlementCount()).isEqualTo(2);
@@ -322,21 +326,23 @@ class SettlementJobIntegrationTest {
     }
 
     @Test
-    @DisplayName("끝난 실행은 정리할 수 없다. SETTLEMENT_RUN_NOT_RECOVERABLE이다")
+    @DisplayName("끝난 실행은 정리할 수 없다. SETTLEMENT_RUN_NOT_RECOVERABLE이고 관리자 행위도 남지 않는다")
     void recoverNotRunning() {
         var completed = settlementRunService.runManually(CUTOFF_ON, ADMIN_ID);
         var failed = failExecution(CUTOFF_AT.minusMonths(1));
 
-        assertErrorCode(() -> settlementRunService.recover(completed.runId()),
+        assertErrorCode(() -> settlementRunService.recover(completed.runId(), ADMIN_ID),
             SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
-        assertErrorCode(() -> settlementRunService.recover(failed.getId()),
+        assertErrorCode(() -> settlementRunService.recover(failed.getId(), ADMIN_ID),
             SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
+        assertThat(AdminActions.of(jdbcTemplate, "RUN_RECOVER", completed.runId())).isEmpty();
+        assertThat(AdminActions.of(jdbcTemplate, "RUN_RECOVER", failed.getId())).isEmpty();
     }
 
     @Test
     @DisplayName("없는 실행을 정리하면 NOT_FOUND다")
     void recoverNotFound() {
-        assertErrorCode(() -> settlementRunService.recover(999L), CommonErrorCode.NOT_FOUND);
+        assertErrorCode(() -> settlementRunService.recover(999L, ADMIN_ID), CommonErrorCode.NOT_FOUND);
     }
 
     @Test

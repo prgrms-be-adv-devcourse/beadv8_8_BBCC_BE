@@ -2,6 +2,7 @@ package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.in.scheduler.ProductEmbeddingScheduler;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,5 +22,11 @@ class RecommendAiModelIntegrationTest {
     void noModelBeansWithoutKey() {
         assertThat(context.getBeanNamesForType(ChatModel.class)).isEmpty();
         assertThat(context.getBeanNamesForType(EmbeddingModel.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("OpenAI 키가 없는 테스트 컨텍스트에는 상품 임베딩 스케줄러 빈이 없다")
+    void noEmbeddingSchedulerWithoutKey() {
+        assertThat(context.getBeanNamesForType(ProductEmbeddingScheduler.class)).isEmpty();
     }
 }

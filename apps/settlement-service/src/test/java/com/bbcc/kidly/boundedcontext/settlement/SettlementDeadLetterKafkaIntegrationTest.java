@@ -132,6 +132,9 @@ class SettlementDeadLetterKafkaIntegrationTest {
 
         // 이미 성공한 기록은 다시 실행하지 않는다
         assertThat(deadLetterService.reprocess(id, ADMIN_ID).getReplayCount()).isEqualTo(2);
+        // 실패 · 성공한 재처리만 남고, 실행하지 않은 마지막 요청은 남지 않는다
+        assertThat(AdminActions.of(jdbcTemplate, "DEAD_LETTER_REPROCESS", id)).hasSize(2)
+            .allSatisfy(row -> assertThat(row.adminId()).isEqualTo(ADMIN_ID));
     }
 
     private PaymentPayoutCompletedEvent completed(long settlementId, long amount) {

@@ -85,7 +85,9 @@ jobs:
       contents: read
       packages: write
     # 앱 모듈(apps/ 아래 폴더)마다 따로 빌드한다. 하나라도 실패하면 배포하지 않는다
+    # 한 서비스가 실패해도 나머지 빌드는 끝까지 돌려, 실패한 서비스만 실패로 보이게 한다
     strategy:
+      fail-fast: false
       matrix:
         app: [search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service, order-service, community-service]
     steps:
@@ -100,15 +102,21 @@ jobs:
       # jar 는 Dockerfile 의 멀티스테이지 빌드가 만든다.
       # GHCR 이미지 이름은 소문자여야 하는데 github.repository 에는 대문자가 있을 수 있다
       # source 라벨로 GHCR 패키지를 이 저장소에 연결한다 (새 패키지도 GITHUB_TOKEN 으로 받을 수 있게)
+      # 빌드 시작 직후 기반 이미지를 받다 일시적으로 실패하는 일이 있어(#1101) 3번까지 다시 시도한다
       - name: 이미지 빌드 · 푸시
         env:
           APP: ${{ matrix.app }}
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           IMAGE="$IMAGE-$APP"
-          docker build --build-arg APP="$APP" \
-            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
-            -t "$IMAGE:$GITHUB_SHA" .
+          for attempt in 1 2 3; do
+            docker build --build-arg APP="$APP" \
+              --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              -t "$IMAGE:$GITHUB_SHA" . && break
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            echo "이미지 빌드 실패 ($attempt/3). $((attempt * 15))초 뒤 다시 시도한다"
+            sleep $((attempt * 15))
+          done
           docker push "$IMAGE:$GITHUB_SHA"
 
       # 태그가 docker/elasticsearch 의 트리 해시라 폴더가 그대로면 이미 있는 이미지를 쓴다

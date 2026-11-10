@@ -82,8 +82,9 @@ public final class ActivityRecordFixture {
             productId, PRODUCT_A_120_OPTION_ID, REMOVED_QTY, REMOVED_AT);
     }
 
-    public static ActivityRecord.ProductViewedInfo productViewed() {
-        return new ActivityRecord.ProductViewedInfo(VIEW_EVENT_ID, MEMBER_1_ID, PRODUCT_A_ID, VIEWED_AT);
+    public static ActivityRecord.ProductViewedInfo productViewedFor(Long childProfileId) {
+        return new ActivityRecord.ProductViewedInfo(VIEW_EVENT_ID, MEMBER_1_ID, childProfileId, PRODUCT_A_ID,
+            VIEWED_AT);
     }
 
     public static SearchPerformedEvent searchPerformedEvent() {
