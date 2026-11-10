@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.EmbeddingVectorFixture.axis;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.BrandAffinity;
@@ -104,6 +105,18 @@ class PreferenceSnapshotTest {
         PreferenceSnapshot member = affinitySnapshot(0.3, MEMBER_CALCULATED_AT);
 
         assertThat(PreferenceSnapshot.combine(child, member).calculatedAt()).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("합친 결과의 카테고리 · 브랜드 목록은 바꿀 수 없다")
+    void combinedAffinitiesAreUnmodifiable() {
+        PreferenceSnapshot combined = PreferenceSnapshot.combine(
+            affinitySnapshot(0.6, CHILD_CALCULATED_AT), affinitySnapshot(0.3, MEMBER_CALCULATED_AT));
+
+        assertThatThrownBy(() -> combined.categories().add(new CategoryAffinity(1L, 0.1)))
+            .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> combined.brands().add(new BrandAffinity("다른", 0.1)))
+            .isInstanceOf(UnsupportedOperationException.class);
     }
 
     private static PreferenceSnapshot affinitySnapshot(Double score, LocalDateTime calculatedAt) {

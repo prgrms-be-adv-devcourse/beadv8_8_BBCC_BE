@@ -1,11 +1,14 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static com.bbcc.kidly.boundedcontext.recommend.EmbeddingVectorFixture.axes;
 import static com.bbcc.kidly.boundedcontext.recommend.EmbeddingVectorFixture.axis;
 import static org.assertj.core.api.Assertions.within;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.BrandAffinity;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.CategoryAffinity;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceCalculator;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSignal;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSignalType;
@@ -90,6 +93,19 @@ class PreferenceCalculatorTest {
         PreferenceSnapshot snapshot = calculator.calculate(signals, NO_EMBEDDINGS, BASE_TIME);
 
         assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(expected, within(1e-9));
+    }
+
+    @Test
+    @DisplayName("계산한 결과의 카테고리 · 브랜드 목록은 바꿀 수 없다")
+    void calculatedAffinitiesAreUnmodifiable() {
+        PreferenceSignal signal = signal(PreferenceSignalType.SEARCH, BASE_TIME, CATEGORY_ID, BRAND, 1L);
+
+        PreferenceSnapshot snapshot = calculator.calculate(List.of(signal), NO_EMBEDDINGS, BASE_TIME);
+
+        assertThatThrownBy(() -> snapshot.categories().add(new CategoryAffinity(1L, 0.1)))
+            .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> snapshot.brands().add(new BrandAffinity("다른", 0.1)))
+            .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
