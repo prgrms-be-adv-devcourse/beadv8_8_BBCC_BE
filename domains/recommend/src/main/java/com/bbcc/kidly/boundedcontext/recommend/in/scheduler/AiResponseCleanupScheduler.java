@@ -18,7 +18,7 @@ public class AiResponseCleanupScheduler {
 
     private final AiResponseRetentionService retentionService;
 
-    // 04:30은 03:00에 시작하는 선호 Job과 겹치지 않는 시각이고, 서버 여러 대가 함께 지워도 결과가 같아 잠금을 두지 않는다.
+    // 서버 여러 대가 함께 지워도 결과가 같아 잠금을 두지 않는다.
     @Scheduled(cron = "${kidly.recommend.ai.response-cleanup-cron:0 30 4 * * *}", zone = "Asia/Seoul")
     public void deleteExpiredResponses() {
         try {
