@@ -90,9 +90,9 @@ public class ActivityRecordService {
      * 이벤트로 받은 기록이 아니므로 이벤트 ID는 서버가 새로 만든다.
      * 같은 날 같은 상품을 다시 보면 저장하지 않고 조용히 끝낸다. 새로 고칠 때마다 기록이 쌓여 한 상품이 취향 계산을 독차지하지 않게 하려는 것이다.
      */
-    public void recordProductViewed(Long memberId, Long productId) {
+    public void recordProductViewed(Long memberId, Long productId, Long childId) {
         ActivityRecord.ProductViewedInfo info = new ActivityRecord.ProductViewedInfo(
-            UUID.randomUUID(), memberId, null, productId, LocalDateTime.now(SERVICE_ZONE));
+            UUID.randomUUID(), memberId, childId, productId, LocalDateTime.now(SERVICE_ZONE));
         activityRecordRepository.saveProductViewedIfAbsent(ActivityRecord.productViewed(info));
     }
 
