@@ -59,9 +59,10 @@ public class RecommendedProductRanking {
             selector.select(child.toChildSizeInput(), products, LocalDate.now(SERVICE_ZONE));
         PreferenceSnapshot combined = PreferenceSnapshot.combine(
             snapshotStore.findChild(child.getChildProfileId()), snapshotStore.findMember(memberId));
-        // 담고 30일이 넘도록 빼지 않은 상품은 결제로 장바구니가 비워져 빼기 이벤트가 오지 않은 것으로 보고 뺄 상품으로 세지 않는다
+        // 추천은 결제로 장바구니가 비워지는 이벤트를 받지 않으므로, 30일 안에 담고 빼지 않은 상품을 장바구니에 있는 상품으로 본다.
+        // 결제 뒤 구매확정 전인 상품도 이렇게 계속 빠진다.
         Set<Long> excludedProductIds = excludedProducts.findIds(memberId, child.getChildProfileId(),
-            asOf.minusDays(PreferenceWeights.ACTIVITY_WINDOW_DAYS), asOf);
+            asOf.minusDays(PreferenceWeights.CART_PRESENCE_DAYS), asOf);
         return ranker.rank(selected, combined, readSimilarities(combined, selected), excludedProductIds, asOf);
     }
 
