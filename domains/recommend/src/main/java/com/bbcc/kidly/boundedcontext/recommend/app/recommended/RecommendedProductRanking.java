@@ -61,7 +61,7 @@ public class RecommendedProductRanking {
             snapshotStore.findChild(child.getChildProfileId()), snapshotStore.findMember(memberId));
         // 담고 30일이 넘도록 빼지 않은 상품은 결제로 장바구니가 비워져 빼기 이벤트가 오지 않은 것으로 보고 뺄 상품으로 세지 않는다
         Set<Long> excludedProductIds = excludedProducts.findIds(memberId, child.getChildProfileId(),
-            asOf.minusDays(PreferenceWeights.ACTIVITY_WINDOW_DAYS));
+            asOf.minusDays(PreferenceWeights.ACTIVITY_WINDOW_DAYS), asOf);
         return ranker.rank(selected, combined, readSimilarities(combined, selected), excludedProductIds, asOf);
     }
 
