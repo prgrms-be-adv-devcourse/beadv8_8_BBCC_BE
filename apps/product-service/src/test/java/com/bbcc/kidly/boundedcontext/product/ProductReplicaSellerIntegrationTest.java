@@ -15,6 +15,8 @@ import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -42,6 +44,23 @@ class ProductReplicaSellerIntegrationTest {
                 ProductReplicaSeller::getStatus,
                 ProductReplicaSeller::getEventOccurredAt)
             .containsExactly(SELLER_ID, "테스트상점", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
+    }
+
+    // 상태 칸은 CHECK 제약이 허용하는 값만 저장한다. 판매자 도메인이 상태를 새로 더하면
+    // 이 제약을 먼저 고쳐야 받은 메시지가 DLT로 빠지지 않으므로, 모든 상태를 저장해 본다
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(SellerStatus.class)
+    @DisplayName("판매자 복사본은 판매자의 모든 상태를 저장한다")
+    void saveEveryStatus(SellerStatus status) {
+        LocalDateTime changedAt = SELLER_CHANGED_AT.plusDays(1);
+        replicaSellerService.applySellerChanged(ProductReplicaSellerFixture.sellerApprovedEvent());
+
+        replicaSellerService.applySellerChanged(
+            ProductReplicaSellerFixture.sellerChangedEventAt("테스트상점", status, changedAt));
+
+        assertThat(replicaSellerRepository.findById(SELLER_ID)).get()
+            .extracting(ProductReplicaSeller::getStatus, ProductReplicaSeller::getEventOccurredAt)
+            .containsExactly(status, changedAt);
     }
 
     @Test
