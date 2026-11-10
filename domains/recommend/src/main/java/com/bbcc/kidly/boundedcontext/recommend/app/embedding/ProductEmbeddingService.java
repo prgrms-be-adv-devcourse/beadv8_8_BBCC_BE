@@ -34,7 +34,9 @@ public class ProductEmbeddingService {
             return;
         }
         for (ProductEmbeddingTarget target : retried) {
-            embedTogether(List.of(target));
+            if (!embedTogether(List.of(target))) {
+                return;
+            }
         }
     }
 
