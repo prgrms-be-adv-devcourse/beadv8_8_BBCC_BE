@@ -5,8 +5,6 @@ import static java.util.Objects.requireNonNull;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,9 +23,8 @@ public class PreferenceCalculator {
         requireNonNull(signals, "signals는 필수입니다");
         requireNonNull(productEmbeddings, "productEmbeddings는 필수입니다");
         requireNonNull(baseTime, "baseTime은 필수입니다");
-        // 친밀도는 1 − Π(1 − 무게)이므로 키마다 Π(1 − 무게)를 모은다
-        Map<Long, Double> categoryRemainders = new LinkedHashMap<>();
-        Map<String, Double> brandRemainders = new LinkedHashMap<>();
+        AffinityAccumulator<Long> categoryAffinities = new AffinityAccumulator<>();
+        AffinityAccumulator<String> brandAffinities = new AffinityAccumulator<>();
         TasteVectorSum tasteVectorSum = new TasteVectorSum();
         for (PreferenceSignal signal : signals) {
             double weight = weightOf(signal, baseTime);
@@ -35,10 +32,10 @@ public class PreferenceCalculator {
                 continue;
             }
             if (signal.type().countsForCategory() && signal.categoryId() != null) {
-                categoryRemainders.merge(signal.categoryId(), 1 - weight, (left, right) -> left * right);
+                categoryAffinities.add(signal.categoryId(), weight);
             }
             if (signal.brand() != null && !signal.brand().isBlank()) {
-                brandRemainders.merge(signal.brand(), 1 - weight, (left, right) -> left * right);
+                brandAffinities.add(signal.brand(), weight);
             }
             if (!signal.type().countsForTaste() || signal.productId() == null) {
                 continue;
@@ -49,15 +46,7 @@ public class PreferenceCalculator {
                 tasteVectorSum.add(productEmbedding, weight, 1);
             }
         }
-        List<CategoryAffinity> categories = new ArrayList<>();
-        for (Map.Entry<Long, Double> entry : categoryRemainders.entrySet()) {
-            categories.add(new CategoryAffinity(entry.getKey(), 1 - entry.getValue()));
-        }
-        List<BrandAffinity> brands = new ArrayList<>();
-        for (Map.Entry<String, Double> entry : brandRemainders.entrySet()) {
-            brands.add(new BrandAffinity(entry.getKey(), 1 - entry.getValue()));
-        }
-        return new PreferenceSnapshot(categories, brands, tasteVectorSum.toTasteVector(), baseTime);
+        return PreferenceSnapshot.of(categoryAffinities, brandAffinities, tasteVectorSum.toTasteVector(), baseTime);
     }
 
     private double weightOf(PreferenceSignal signal, LocalDateTime baseTime) {

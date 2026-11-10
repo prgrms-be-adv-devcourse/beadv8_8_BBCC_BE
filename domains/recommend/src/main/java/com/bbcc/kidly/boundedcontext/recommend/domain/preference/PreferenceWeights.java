@@ -17,6 +17,11 @@ public final class PreferenceWeights {
 
     public static final int PURCHASE_WINDOW_DAYS = 180;
 
+    /**
+     * 자녀를 고르지 않은 회원 활동을 자녀 점수에 넣을 때의 배율이다.
+     */
+    public static final double MEMBER_SHARE = 0.5;
+
     private PreferenceWeights() {
     }
 }
