@@ -140,6 +140,21 @@ class ProductEmbeddingStoreIntegrationTest {
     }
 
     @Test
+    @DisplayName("벡터를 저장한 뒤 늦은 이벤트로 카테고리 경로만 바뀌어도 저장된 벡터는 남고 그 상품은 다시 낡은 대상이 된다")
+    void keepVectorWhenLaterEventChangesOnlyCategoryPath() {
+        replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
+        EmbeddingVector vector = vectorOf(0.5f);
+        store.saveIfTextUnchanged(PRODUCT_1_ID, "상품명: 데일리 맨투맨", vector);
+
+        replicaProductService.applyProductChanged(productChangedEventWithCategoryPath(PRODUCT_1_ID, "데일리 맨투맨",
+            RecommendFixture.PRODUCT_CHANGED_AT.plusMinutes(1)));
+
+        assertThat(storedVector(PRODUCT_1_ID)).isEqualTo(vector);
+        assertThat(store.findStale(10)).containsExactly(new ProductEmbeddingTarget(
+            PRODUCT_1_ID, "상품명: 데일리 맨투맨\n카테고리: 상의 > 티셔츠", false));
+    }
+
+    @Test
     @DisplayName("복사본을 읽은 트랜잭션이 끝나기 전에 벡터가 저장돼도 그 트랜잭션이 끝난 뒤 벡터와 만든 글 표시가 남고 그 상품은 다시 낡은 대상이 된다")
     void keepVectorSavedWhileReplicaTransactionIsOpen() {
         replicaProductService.applyProductChanged(productChangedEvent(PRODUCT_1_ID, "데일리 맨투맨"));
@@ -249,5 +264,15 @@ class ProductEmbeddingStoreIntegrationTest {
         return new ProductChangedEvent(UUID.randomUUID(), occurredAt,
             new ProductChangedEvent.Data(productId, data.sellerId(), name, data.categoryId(), data.status(),
                 data.thumbnailUrl(), data.createdAt(), data.sizeFree(), data.options()));
+    }
+
+    private static ProductChangedEvent productChangedEventWithCategoryPath(
+        Long productId, String name, LocalDateTime occurredAt) {
+        ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+        return new ProductChangedEvent(UUID.randomUUID(), occurredAt,
+            new ProductChangedEvent.Data(productId, data.sellerId(), name, data.categoryId(), data.status(),
+                data.thumbnailUrl(), data.createdAt(), data.sizeFree(), data.options(), List.of(), null, null,
+                List.of(), List.of(new ProductChangedEvent.CategoryPathEntry(1L, "상의"),
+                    new ProductChangedEvent.CategoryPathEntry(11L, "티셔츠"))));
     }
 }

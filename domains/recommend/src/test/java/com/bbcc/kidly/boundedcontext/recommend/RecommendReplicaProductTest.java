@@ -106,6 +106,20 @@ class RecommendReplicaProductTest {
     }
 
     @Test
+    @DisplayName("카테고리 경로가 있는 상품 변경으로 임베딩 글의 상품명 다음 줄에 카테고리 경로가 들어간다")
+    void createEmbeddingTextWithCategoryPath() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(productAChangeWithTopsPath());
+
+        assertThat(replica.getEmbeddingText()).isEqualTo("""
+            상품명: 데일리 맨투맨
+            카테고리: 상의 > 티셔츠
+            브랜드: 키들리
+            material: cotton
+            season: fall, spring
+            설명: 상품 설명""");
+    }
+
+    @Test
     @DisplayName("더 늦게 일어난 상품 변경으로 설명이 바뀌면 임베딩 글도 바뀐다")
     void rewriteEmbeddingTextWithLaterChange() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
