@@ -27,17 +27,28 @@ public class PreferenceCalculator {
         requireNonNull(baseTime, "baseTime은 필수입니다");
         // 친밀도는 1 − Π(1 − 무게)이므로 키마다 Π(1 − 무게)를 모은다
         Map<Long, Double> categoryRemainders = new LinkedHashMap<>();
+        Map<String, Double> brandRemainders = new LinkedHashMap<>();
         for (PreferenceSignal signal : signals) {
             double weight = weightOf(signal, baseTime);
-            if (signal.categoryId() != null) {
+            if (weight <= 0) {
+                continue;
+            }
+            if (signal.type().countsForCategory() && signal.categoryId() != null) {
                 categoryRemainders.merge(signal.categoryId(), 1 - weight, (left, right) -> left * right);
+            }
+            if (signal.brand() != null && !signal.brand().isBlank()) {
+                brandRemainders.merge(signal.brand(), 1 - weight, (left, right) -> left * right);
             }
         }
         List<CategoryAffinity> categories = new ArrayList<>();
         for (Map.Entry<Long, Double> entry : categoryRemainders.entrySet()) {
             categories.add(new CategoryAffinity(entry.getKey(), 1 - entry.getValue()));
         }
-        return new PreferenceSnapshot(categories, List.of(), null, baseTime);
+        List<BrandAffinity> brands = new ArrayList<>();
+        for (Map.Entry<String, Double> entry : brandRemainders.entrySet()) {
+            brands.add(new BrandAffinity(entry.getKey(), 1 - entry.getValue()));
+        }
+        return new PreferenceSnapshot(categories, brands, null, baseTime);
     }
 
     private double weightOf(PreferenceSignal signal, LocalDateTime baseTime) {

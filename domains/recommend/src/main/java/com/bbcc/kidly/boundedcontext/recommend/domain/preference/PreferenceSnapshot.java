@@ -31,4 +31,16 @@ public record PreferenceSnapshot(
         }
         return 0;
     }
+
+    /**
+     * 브랜드의 친밀도다. 글자가 같은 브랜드만 일치하고, 계산한 결과에 없는 브랜드는 0이다.
+     */
+    public double brandAffinity(String brand) {
+        for (BrandAffinity affinity : brands) {
+            if (affinity.brand().equals(brand)) {
+                return affinity.score();
+            }
+        }
+        return 0;
+    }
 }

@@ -11,7 +11,11 @@ public final class PreferenceWeights {
 
     public static final double CART_ADD_INTENSITY = 0.6;
 
+    public static final double PURCHASE_CONFIRMED_INTENSITY = 0.8;
+
     public static final int ACTIVITY_WINDOW_DAYS = 30;
+
+    public static final int PURCHASE_WINDOW_DAYS = 180;
 
     private PreferenceWeights() {
     }
