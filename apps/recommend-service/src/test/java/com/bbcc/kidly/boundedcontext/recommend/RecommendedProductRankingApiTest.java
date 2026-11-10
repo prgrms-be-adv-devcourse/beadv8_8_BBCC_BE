@@ -71,7 +71,7 @@ class RecommendedProductRankingApiTest {
     }
 
     @Test
-    @DisplayName("PREF-09 asOf를 주면 응답의 asOf로 그 값을 그대로 돌려준다")
+    @DisplayName("asOf를 주면 응답의 asOf로 그 값을 그대로 돌려준다")
     void echoGivenAsOf() {
         list("&asOf=2026-11-09T10:00:00")
             .expectStatus().isOk()
@@ -80,7 +80,7 @@ class RecommendedProductRankingApiTest {
     }
 
     @Test
-    @DisplayName("PREF-09 asOf 없이 요청하면 지금 시각(한국 시간, 초 단위)을 응답의 asOf로 돌려준다")
+    @DisplayName("asOf 없이 요청하면 지금 시각(한국 시간, 초 단위)을 응답의 asOf로 돌려준다")
     void useNowWhenAsOfIsMissing() {
         LocalDateTime before = LocalDateTime.now(SERVICE_ZONE).truncatedTo(ChronoUnit.SECONDS);
 
@@ -189,6 +189,20 @@ class RecommendedProductRankingApiTest {
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content[*].productId").isEqualTo(List.of("801"));
+    }
+
+    @Test
+    @DisplayName("PREF-08 기준 시각에서 30일 넘게 지난 담기는 장바구니에 있는 상품으로 보지 않아 목록에 나온다")
+    void cartAddedLongAgoIsListed() {
+        LocalDateTime asOf = LocalDateTime.now(SERVICE_ZONE).minusMinutes(1).truncatedTo(ChronoUnit.SECONDS);
+        saveProduct(901L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        PreferenceTestData.insertActivity(jdbc, ActivityType.CART_ITEM_ADDED, MEMBER_1_ID, null,
+            asOf.minusDays(31), 901L, null, null, 10L);
+
+        list("&asOf=" + asOf)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("901"));
     }
 
     @Test
