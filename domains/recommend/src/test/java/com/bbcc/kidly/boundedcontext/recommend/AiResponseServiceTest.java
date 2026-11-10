@@ -8,6 +8,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
@@ -30,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -105,6 +109,42 @@ class AiResponseServiceTest {
         assertThat(answer).isEmpty();
         assertThat(calls).hasValue(0);
         verify(store, never()).save(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("AI 호출이 예외를 던지면 예외를 밖으로 던지지 않고 AI 결과 없음을 돌려주며, 저장하지 않고 로그에 예외 메시지를 남기지 않는다")
+    void returnNothingWhenAiCallFails() {
+        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
+        ListAppender<ILoggingEvent> logs = attachLogs();
+
+        Optional<Answer> answer;
+        try {
+            answer = service.respond(TYPE, INPUT, Answer.class, () -> {
+                throw new IllegalStateException("응답 본문 {\"secret\":1}");
+            });
+        } finally {
+            detachLogs(logs);
+        }
+
+        assertThat(answer).isEmpty();
+        verify(store, never()).save(any(), any(), any(), any());
+        assertThat(logs.list).isNotEmpty();
+        assertThat(logs.list).allSatisfy(event -> {
+            assertThat(event.getFormattedMessage()).doesNotContain("응답 본문");
+            assertThat(event.getThrowableProxy()).isNull();
+        });
+    }
+
+    private static ListAppender<ILoggingEvent> attachLogs() {
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        ((Logger) LoggerFactory.getLogger(AiResponseService.class)).addAppender(logs);
+        return logs;
+    }
+
+    private static void detachLogs(ListAppender<ILoggingEvent> logs) {
+        ((Logger) LoggerFactory.getLogger(AiResponseService.class)).detachAppender(logs);
     }
 
     private static Answer freshAnswer() {
