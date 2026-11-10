@@ -37,6 +37,9 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
                     SELECT child_profile_id FROM recommend.purchase_record
                     WHERE child_profile_id > :after AND confirmed_at >= :purchaseSince
                 ) targets
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM recommend.replica_child c
+                    WHERE c.child_profile_id = targets.child_profile_id AND c.deleted_at IS NOT NULL)
                 ORDER BY child_profile_id
                 LIMIT :limit
                 """)
