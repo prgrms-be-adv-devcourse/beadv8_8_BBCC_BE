@@ -29,6 +29,9 @@ public final class ReferenceGarmentSpec {
         if (!part.includesCategoryIn(categoryPathNames)) {
             throw new BusinessException(ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
         }
+        if (measurements == null || !part.hasAllRequired(measurements.keySet())) {
+            throw new BusinessException(ReferenceGarmentErrorCode.REQUIRED_MEASUREMENT_MISSING);
+        }
         return new ReferenceGarmentSpec(part, categoryId, Map.copyOf(measurements));
     }
 }
