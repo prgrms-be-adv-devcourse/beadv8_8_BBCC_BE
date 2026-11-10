@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnaps
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.TasteVector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductRanker;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +22,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class RecommendedProductRankerTest {
 
@@ -100,13 +103,17 @@ class RecommendedProductRankerTest {
         assertThat(score).isCloseTo(expected, within(1e-9));
     }
 
-    @Test
-    @DisplayName("PREF-14 상품 벡터가 없는 상품은 취향 유사도 자리에 카테고리 친밀도를 쓴다")
-    void missingProductVectorUsesCategoryAffinity() {
+    @ParameterizedTest(name = "상품 유사도 {0}")
+    @NullSource
+    @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
+    @DisplayName("PREF-14 상품 벡터가 없거나 유사도가 유한하지 않은 상품은 취향 유사도 자리에 카테고리 친밀도를 쓴다")
+    void missingProductVectorUsesCategoryAffinity(Double similarity) {
         PreferenceSnapshot snapshot = snapshot(0.6, 0, tasteVector());
         RecommendedProduct product = recommendedProduct(PRODUCT_ID, CATEGORY_ID, BRAND, OLD_REGISTERED_AT);
+        Map<Long, Double> similarities = new HashMap<>();
+        similarities.put(PRODUCT_ID, similarity);
 
-        double score = ranker.scoreOf(product, snapshot, NO_SIMILARITIES, BASE_TIME);
+        double score = ranker.scoreOf(product, snapshot, similarities, BASE_TIME);
 
         // 0.45 × 0.6(카테고리 친밀도로 대신) + 0.15 × 0.6
         assertThat(score).isCloseTo(0.36, within(1e-9));
