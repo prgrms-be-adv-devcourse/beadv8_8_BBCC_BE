@@ -139,7 +139,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         String brand, String description, List<SizeSpecInfo> sizeSpecs, List<ProductEmbeddingText.InfoValue> infoValues,
         LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath, LocalDateTime saleStartedAt) {
 
-        // 판매 시작 시각 칸이 없는 예전 메시지처럼 판매 시작 시각 없이 만드는 생성자다
+        // 테스트 보조 코드만 쓰는 생성자다. 판매 시작 시각이 null이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 저장된 판매 시작 시각이 지워진다
         public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
             String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
             String brand, String description, List<SizeSpecInfo> sizeSpecs,
