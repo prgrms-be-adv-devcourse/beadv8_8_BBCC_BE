@@ -88,6 +88,23 @@ class AiResponseStoreIntegrationTest {
         assertThat(otherKey).isEmpty();
     }
 
+    @Test
+    @DisplayName("기준 시각보다 먼저 만든 줄만 지우고 지운 줄 수를 돌려준다")
+    void deleteOnlyRowsCreatedBeforeCutoff() {
+        store.save(AiResponseType.HOME_PREVIEW, KEY, "{\"version\":\"old1\"}", NOW.minusDays(3));
+        store.save(AiResponseType.BOUGHT_TOGETHER, OTHER_KEY, "{\"version\":\"old2\"}", NOW.minusDays(2));
+        store.save(AiResponseType.HOME_PREVIEW, KEY, "{\"version\":\"atCutoff\"}", NOW.minusDays(1));
+        store.save(AiResponseType.HOME_PREVIEW, KEY, "{\"version\":\"recent\"}", NOW);
+
+        int deleted = store.deleteCreatedBefore(NOW.minusDays(1));
+
+        assertThat(deleted).isEqualTo(2);
+        assertThat(rowCount()).isEqualTo(2);
+        Optional<String> kept = store.findLatestSince(AiResponseType.HOME_PREVIEW, KEY, NOW.minusDays(1));
+        assertThat(kept).isPresent();
+        assertThat(jsonMapper.readTree(kept.get()).get("version").asString()).isEqualTo("recent");
+    }
+
     private int rowCount() {
         return jdbcTemplate.queryForObject("select count(*) from recommend.ai_response", Integer.class);
     }
