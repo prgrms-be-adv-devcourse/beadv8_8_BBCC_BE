@@ -66,6 +66,52 @@ class SellerTest {
         assertThat(seller.getSuspension()).isEqualTo(new SellerSuspension(REASON, ADMIN_ID, NOW));
     }
 
+    @Test
+    @DisplayName("활성 판매자가 탈퇴하면 CLOSED가 된다")
+    void closeActive() {
+        var seller = SellerFixture.activeSeller(APPLICANT_ID);
+
+        seller.close();
+
+        assertThat(seller.getStatus()).isEqualTo(SellerStatus.CLOSED);
+    }
+
+    @Test
+    @DisplayName("정지된 판매자가 탈퇴하면 CLOSED가 되고 정지 기록은 남는다")
+    void closeSuspended() {
+        var seller = SellerFixture.activeSeller(APPLICANT_ID);
+        seller.suspend(ADMIN_ID, REASON, NOW);
+
+        seller.close();
+
+        assertThat(seller.getStatus()).isEqualTo(SellerStatus.CLOSED);
+        assertThat(seller.getSuspension()).isEqualTo(new SellerSuspension(REASON, ADMIN_ID, NOW));
+    }
+
+    @Test
+    @DisplayName("이미 탈퇴한 판매자를 다시 닫아도 CLOSED 그대로다")
+    void closeClosed() {
+        var seller = SellerFixture.activeSeller(APPLICANT_ID);
+        seller.close();
+
+        seller.close();
+
+        assertThat(seller.getStatus()).isEqualTo(SellerStatus.CLOSED);
+    }
+
+    @Test
+    @DisplayName("탈퇴한 판매자는 정지할 수 없다")
+    void suspendRejectsClosed() {
+        var seller = SellerFixture.activeSeller(APPLICANT_ID);
+        seller.close();
+
+        assertThatThrownBy(() -> seller.suspend(ADMIN_ID, REASON, NOW))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(SellerErrorCode.SELLER_CLOSED));
+        assertThat(seller.getStatus()).isEqualTo(SellerStatus.CLOSED);
+        assertThat(seller.getSuspension()).isNull();
+    }
+
     private void assertStillActive(Seller seller) {
         assertThat(seller.getStatus()).isEqualTo(SellerStatus.ACTIVE);
         assertThat(seller.getSuspension()).isNull();
