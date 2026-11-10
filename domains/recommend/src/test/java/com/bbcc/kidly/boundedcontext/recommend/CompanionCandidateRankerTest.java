@@ -49,6 +49,19 @@ class CompanionCandidateRankerTest {
         assertThat(productIds(ranked)).containsExactly(3L, 2L, 1L);
     }
 
+    @Test
+    @DisplayName("PAIR-02 같은 짝 종류 안에서는 유사도가 높은 상품이 앞이고, 벡터가 없어 유사도가 없는 상품은 유사도 0으로 본다")
+    void rankSameKindBySimilarityTreatingMissingAsZero() {
+        List<CompanionCandidate> candidates = List.of(
+            candidate(1L, BOTTOM, 0.2),
+            candidate(2L, BOTTOM, null),
+            candidate(3L, BOTTOM, 0.8));
+
+        List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
+
+        assertThat(productIds(ranked)).containsExactly(3L, 1L, 2L);
+    }
+
     private static CompanionCandidate candidate(Long productId, CompanionKind kind, Double similarity) {
         return candidate(productId, kind, similarity, SALE_STARTED_AT);
     }
