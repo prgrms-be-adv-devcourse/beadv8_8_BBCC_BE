@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSna
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.CategoryAffinity;
+import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.EmbeddingVector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.TasteVector;
@@ -120,6 +121,23 @@ class RecommendedProductRankingApiTest {
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.content[*].productId").isEqualTo(List.of("401", "402"));
+    }
+
+    @Test
+    @DisplayName("PREF-08 회원의 장바구니에 있는 상품과 그 자녀가 구매확정한 상품은 목록에서 빠진다")
+    void excludeCartAndPurchasedProducts() {
+        saveProduct(501L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        saveProduct(502L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        saveProduct(503L, PRODUCT_A_CATEGORY_ID, PRODUCT_A_REGISTERED_AT);
+        LocalDateTime yesterday = LocalDateTime.now(SERVICE_ZONE).minusDays(1);
+        PreferenceTestData.insertActivity(jdbc, ActivityType.CART_ITEM_ADDED, MEMBER_1_ID, null, yesterday,
+            502L, null, null, 1L);
+        PreferenceTestData.insertPurchase(jdbc, CHILD_1_ID, 503L, yesterday);
+
+        list("")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of("501"));
     }
 
     private RestTestClient.ResponseSpec list(String query) {
