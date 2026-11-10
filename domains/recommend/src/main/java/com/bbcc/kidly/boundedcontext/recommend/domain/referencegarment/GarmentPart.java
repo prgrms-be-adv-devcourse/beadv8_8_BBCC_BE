@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -37,11 +38,6 @@ public enum GarmentPart {
      * 경로 전체를 보므로 상의를 티셔츠처럼 더 잘게 나눠도 같은 구분으로 판단한다.
      */
     boolean includesCategoryIn(List<String> categoryPathNames) {
-        for (String name : categoryPathNames) {
-            if (categoryNames.contains(name)) {
-                return true;
-            }
-        }
-        return false;
+        return !Collections.disjoint(categoryNames, categoryPathNames);
     }
 }
