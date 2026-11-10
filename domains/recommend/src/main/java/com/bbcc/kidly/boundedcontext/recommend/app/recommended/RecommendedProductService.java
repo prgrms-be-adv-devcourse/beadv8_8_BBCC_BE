@@ -57,9 +57,14 @@ public class RecommendedProductService {
     @Transactional(readOnly = true)
     public RecommendedProductPage list(Long memberId, Long childId, Long categoryId, int page, int size,
         LocalDateTime asOf) {
+        LocalDateTime now = LocalDateTime.now(SERVICE_ZONE);
+        // 요청 값만 보고 알 수 있는 오류라 자녀를 읽기 전에 거절한다
+        if (asOf != null && asOf.isAfter(now)) {
+            throw new BusinessException(RecommendErrorCode.INVALID_AS_OF);
+        }
         LocalDateTime baseTime = asOf;
         if (baseTime == null) {
-            baseTime = LocalDateTime.now(SERVICE_ZONE).truncatedTo(ChronoUnit.SECONDS);
+            baseTime = now.truncatedTo(ChronoUnit.SECONDS);
         }
         RecommendReplicaChild child = replicaChildRepository.findById(childId)
             .orElseThrow(() -> new BusinessException(RecommendErrorCode.CHILD_NOT_FOUND));
