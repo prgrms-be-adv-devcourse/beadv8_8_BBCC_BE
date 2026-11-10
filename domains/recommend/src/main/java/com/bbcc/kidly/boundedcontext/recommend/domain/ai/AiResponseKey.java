@@ -20,14 +20,18 @@ public record AiResponseKey(String value) {
         String text = "productId=" + input.productId()
             + "\nchildProfileId=" + input.childProfileId()
             + "\nageMonths=" + input.ageMonths()
-            + "\nheightCm=" + input.heightCm().toPlainString()
-            + "\nweightKg=" + input.weightKg().toPlainString()
+            + "\nheightCm=" + decimalText(input.heightCm())
+            + "\nweightKg=" + decimalText(input.weightKg())
             + "\nbodyType=" + input.bodyType().name()
             + "\npreferredFit=" + input.preferredFit().name()
             + "\ncandidateProductIds=" + joinIds(input.candidateProductIds())
             + "\ncartProductIds=" + joinIds(input.cartProductIds())
             + "\npromptVersion=" + input.promptVersion();
         return new AiResponseKey(sha256Hex(text));
+    }
+
+    private static String decimalText(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
     }
 
     private static String joinIds(List<Long> ids) {
