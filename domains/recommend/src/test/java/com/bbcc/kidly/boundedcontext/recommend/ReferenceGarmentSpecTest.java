@@ -22,7 +22,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class ReferenceGarmentSpecTest {
 
@@ -219,16 +218,24 @@ class ReferenceGarmentSpecTest {
             ReferenceGarmentErrorCode.INVALID_MEASUREMENT_VALUE);
     }
 
-    @ParameterizedTest(name = "{0}cm")
-    @ValueSource(strings = {"0.1", "1", "200", "200.0", "40.50"})
-    @DisplayName("실측 값이 0보다 크고 200 이하이며 소수 첫째 자리까지면 받는다")
-    void createdWhenMeasurementValueIsOnTheBoundary(String value) {
+    @ParameterizedTest(name = "{0}cm는 {1}cm로 보관된다")
+    @CsvSource({
+        "0.1, 0.1",
+        "1, 1.0",
+        "40, 40.0",
+        "40.0, 40.0",
+        "40.50, 40.5",
+        "200, 200.0",
+        "200.0, 200.0",
+    })
+    @DisplayName("실측 값이 0보다 크고 200 이하이며 소수 첫째 자리까지면 받아, 소수 첫째 자리 하나로 보관한다")
+    void createdWhenMeasurementValueIsOnTheBoundary(String value, String expectedStored) {
         Map<String, BigDecimal> measurements = Map.of("TOTAL_LENGTH", cm(value), "CHEST_WIDTH", cm("34.0"));
 
         ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
             GarmentPart.TOP, CATEGORY_ID, path(List.of("의류", "상의")), measurements);
 
-        assertThat(spec.measurements()).isEqualTo(measurements);
+        assertThat(spec.measurements().get("TOTAL_LENGTH")).isEqualTo(cm(expectedStored));
     }
 
     static Stream<Arguments> inputsWithSeveralProblems() {
