@@ -46,8 +46,8 @@ public class AdminSettlementController {
     // 지급 결과를 받지 못한 정산서만. 결과는 결제가 이벤트로 돌려준다
     @PostMapping("/settlements/{settlementId}/retry")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void retryPayout(@PathVariable Long settlementId) {
-        adminSettlementService.retryPayout(settlementId);
+    public void retryPayout(@LoginAdmin AuthAdmin admin, @PathVariable Long settlementId) {
+        adminSettlementService.retryPayout(settlementId, admin.id());
     }
 
     // 끝날 때까지 기다린다(시연용). 이미 정산한 기준일 · 실행 중이면 409
@@ -68,7 +68,7 @@ public class AdminSettlementController {
 
     // 서버가 정산 도중 죽어 실행 중(RUNNING)으로 남은 실행을 FAILED로 정리한다. 서버를 다시 띄운 뒤에만 쓴다
     @PostMapping("/settlement-runs/{runId}/recover")
-    public SettlementRunResponse recoverRun(@PathVariable Long runId) {
-        return SettlementRunResponse.from(settlementRunService.recover(runId));
+    public SettlementRunResponse recoverRun(@LoginAdmin AuthAdmin admin, @PathVariable Long runId) {
+        return SettlementRunResponse.from(settlementRunService.recover(runId, admin.id()));
     }
 }
