@@ -25,7 +25,7 @@ public class RecommendedProductRanker {
     // 점수가 같아도 요청마다 순서가 같아야 쪽을 넘길 때 상품이 겹치거나 빠지지 않는다
     private static final Comparator<ScoredProduct> RANK_ORDER =
             Comparator.comparingDouble(ScoredProduct::score)
-                    .thenComparing(scored -> scored.product().productRegisteredAt())
+                    .thenComparing(scored -> scored.product().saleStartedAt())
                     .thenComparing(scored -> scored.product().productId())
                     .reversed();
 
