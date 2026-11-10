@@ -58,6 +58,23 @@ class ReferenceGarmentSpecTest {
             ReferenceGarmentErrorCode.CATEGORY_PART_MISMATCH);
     }
 
+    static Stream<Arguments> unresolvedCategoryPaths() {
+        return Stream.of(
+            Arguments.of(GarmentPart.TOP, null),
+            Arguments.of(GarmentPart.TOP, List.of()),
+            Arguments.of(GarmentPart.BOTTOM, null),
+            Arguments.of(GarmentPart.BOTTOM, List.of()));
+    }
+
+    @ParameterizedTest(name = "{0} 기준 옷, 경로 {1}")
+    @MethodSource("unresolvedCategoryPaths")
+    @DisplayName("카테고리 경로를 찾지 못했으면 확인할 수 없는 세부 종류라고 거절한다")
+    void rejectedWhenCategoryPathIsNotFound(GarmentPart part, List<String> categoryPathNames) {
+        assertRejected(
+            () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, categoryPathNames, requiredMeasurements(part)),
+            ReferenceGarmentErrorCode.CATEGORY_NOT_FOUND);
+    }
+
     private static void assertRejected(ThrowingCallable creation, ReferenceGarmentErrorCode expected) {
         assertThatThrownBy(creation)
             .isInstanceOfSatisfying(BusinessException.class,
