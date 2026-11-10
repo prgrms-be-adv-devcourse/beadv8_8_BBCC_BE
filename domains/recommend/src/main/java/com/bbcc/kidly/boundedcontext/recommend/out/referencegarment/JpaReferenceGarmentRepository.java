@@ -33,8 +33,12 @@ public interface JpaReferenceGarmentRepository
     @Query("delete from ReferenceGarment g where g.childProfileId = :childProfileId")
     void deleteByChildProfileId(@Param("childProfileId") Long childProfileId);
 
+    // 자녀 복사본은 삭제 표시된 자녀도 남아 있어, 삭제된 자녀의 기준 옷까지 회원 기준으로 찾을 수 있다
     @Override
-    default void deleteAllOfMember(Long memberId) {
-        throw new UnsupportedOperationException();
-    }
+    @Modifying
+    @Query("""
+        delete from ReferenceGarment g
+        where g.childProfileId in (select c.childProfileId from RecommendReplicaChild c where c.memberId = :memberId)
+        """)
+    void deleteAllOfMember(@Param("memberId") Long memberId);
 }
