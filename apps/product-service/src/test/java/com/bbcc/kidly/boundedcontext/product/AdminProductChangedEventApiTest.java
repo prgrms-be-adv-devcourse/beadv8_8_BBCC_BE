@@ -12,6 +12,7 @@ import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -119,6 +120,22 @@ class AdminProductChangedEventApiTest {
                 assertThat(event.eventId()).isNotEqualTo(first.eventId());
                 assertThat(event.occurredAt()).isAfter(first.occurredAt());
             });
+    }
+
+    @Test
+    @DisplayName("다시 보낸 상품 정보 변경됨의 판매 시작 시각은 상품이 처음 판매중이 된 시각이다")
+    void republishCarriesSaleStartedAt() {
+        Long productId = register(ON_SALE_SELLER_ID);
+        changeSaleStatus(ON_SALE_SELLER_ID, productId, "ON_SALE");
+        LocalDateTime saleStartedAt = jdbcTemplate.queryForObject(
+            "select sale_started_at from product.product where id = ?", LocalDateTime.class, productId);
+        assertThat(saleStartedAt).isNotNull();
+        eventRecorder.clear();
+
+        republish(TestAdmins.of(ADMIN_ID)).expectStatus().isOk();
+
+        assertThat(eventRecorder.events(ProductChangedEvent.class)).singleElement()
+            .satisfies(event -> assertThat(event.data().saleStartedAt()).isEqualTo(saleStartedAt));
     }
 
     @Test
