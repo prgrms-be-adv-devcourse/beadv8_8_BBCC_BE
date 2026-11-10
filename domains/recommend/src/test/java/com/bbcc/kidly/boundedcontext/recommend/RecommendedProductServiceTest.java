@@ -22,6 +22,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSnapshotStore;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.TasteSimilarityReader;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.recommended.RecommendExcludedProducts;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductRanking;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductService;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
@@ -81,6 +83,12 @@ class RecommendedProductServiceTest {
     @Mock
     private PreferenceSnapshotStore snapshotStore;
 
+    @Mock
+    private TasteSimilarityReader tasteSimilarityReader;
+
+    @Mock
+    private RecommendExcludedProducts excludedProducts;
+
     @Captor
     private ArgumentCaptor<Iterable<Long>> sellerIdsCaptor;
 
@@ -92,8 +100,8 @@ class RecommendedProductServiceTest {
     void setUp() {
         lenient().when(snapshotStore.findChild(any())).thenReturn(PreferenceSnapshot.empty());
         lenient().when(snapshotStore.findMember(any())).thenReturn(PreferenceSnapshot.empty());
-        RecommendedProductRanking ranking = new RecommendedProductRanking(
-            replicaProductRepository, snapshotStore, RecommendFixture.growthChart());
+        RecommendedProductRanking ranking = new RecommendedProductRanking(replicaProductRepository, snapshotStore,
+            tasteSimilarityReader, RecommendFixture.growthChart(), excludedProducts);
         service = new RecommendedProductService(replicaChildRepository, replicaSellerRepository, ranking);
     }
 
