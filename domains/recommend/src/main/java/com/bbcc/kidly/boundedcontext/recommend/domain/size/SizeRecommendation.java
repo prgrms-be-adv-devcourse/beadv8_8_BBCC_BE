@@ -81,17 +81,13 @@ public class SizeRecommendation {
         if (aiFit == null) {
             return this;
         }
-        List<SizeReason> aiReasons = new ArrayList<>();
-        for (AiSizeAnswer.Reason reason : answer.reasons()) {
-            aiReasons.add(new SizeReason(SizeReasonType.valueOf(reason.type()), reason.detail(), reason.sourceId()));
-        }
         return new SizeRecommendation(
                 answer.recommendedSize(),
                 aiFit,
                 List.of(),
                 candidateSizes,
                 SizeRecommendationSource.AI,
-                List.copyOf(aiReasons)
+                usableReasons(answer.reasons())
         );
     }
 
@@ -109,6 +105,33 @@ public class SizeRecommendation {
         for (Fit fit : Fit.values()) {
             if (fit.name().equals(name)) {
                 return fit;
+            }
+        }
+        return null;
+    }
+
+    // 글 조각을 AI에 주지 않으므로 AI가 돌려준 sourceId는 믿을 수 없어 늘 null로 둔다.
+    private static List<SizeReason> usableReasons(List<AiSizeAnswer.Reason> aiReasons) {
+        List<SizeReason> reasons = new ArrayList<>();
+        if (aiReasons == null) {
+            return reasons;
+        }
+        for (AiSizeAnswer.Reason aiReason : aiReasons) {
+            if (aiReason == null || aiReason.detail() == null || aiReason.detail().isBlank()) {
+                continue;
+            }
+            SizeReasonType type = findReasonType(aiReason.type());
+            if (type != null) {
+                reasons.add(new SizeReason(type, aiReason.detail(), null));
+            }
+        }
+        return List.copyOf(reasons);
+    }
+
+    private static SizeReasonType findReasonType(String name) {
+        for (SizeReasonType type : SizeReasonType.values()) {
+            if (type.name().equals(name)) {
+                return type;
             }
         }
         return null;
