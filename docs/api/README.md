@@ -135,7 +135,7 @@
 |---|---|---|---|
 | GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거) | 🔒 |
 | GET | `/api/v1/recommendations/products` | 자녀 맞춤 상품(`childId` · `categoryId` · `page` · `size` · `asOf`) | 🔒 |
-| POST | `/api/v1/recommendations/product-views` | 상품 상세 진입 기록(`productId`. 활동 기록에 한 줄, 응답 204) | 🔒 |
+| POST | `/api/v1/recommendations/product-views` | 상품 상세 진입 기록(`productId` · 선택 `childId`. 같은 회원 · 자녀 · 상품은 같은 날(한국 시간) 한 번만 기록, 응답 204, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404) | 🔒 |
 
 ## 주문
 

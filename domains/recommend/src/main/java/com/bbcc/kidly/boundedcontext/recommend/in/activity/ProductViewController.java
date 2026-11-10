@@ -24,6 +24,6 @@ public class ProductViewController {
     @PostMapping("/api/v1/recommendations/product-views")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void record(@LoginMember AuthMember member, @Valid @RequestBody ProductViewRequest request) {
-        activityRecordService.recordProductViewed(member.id(), request.productId());
+        activityRecordService.recordProductViewed(member.id(), request.productId(), request.childId());
     }
 }
