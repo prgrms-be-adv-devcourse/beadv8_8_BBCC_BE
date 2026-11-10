@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.CompanionProductService;
@@ -97,6 +98,18 @@ class CompanionProductServiceTest {
         assertThat(result.source()).isEqualTo(CompanionSource.RULE);
         assertThat(result.products()).extracting(CompanionProductResult::productId).containsExactly(1L, 2L, 3L, 4L);
         assertThat(result.products()).extracting(CompanionProductResult::reason).containsOnlyNulls();
+    }
+
+    @Test
+    @DisplayName("PAIR-06 OpenAI 키가 없어 AI 선택 빈이 없으면 AI 공통 서비스를 부르지 않고 규칙 상위 4개를 돌려준다")
+    void useRuleTopFourWithoutCallingAiWhenPickerIsMissing() {
+        given(candidateReader.read(MEMBER_ID, VIEWED_PRODUCT_ID, CHILD_ID)).willReturn(candidates(6));
+
+        CompanionProductsResult result = service(Optional.empty()).recommend(MEMBER_ID, VIEWED_PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo(CompanionSource.RULE);
+        assertThat(result.products()).extracting(CompanionProductResult::productId).containsExactly(1L, 2L, 3L, 4L);
+        verifyNoInteractions(aiResponseService);
     }
 
     private CompanionProductService service(Optional<CompanionAiPicker> picker) {
