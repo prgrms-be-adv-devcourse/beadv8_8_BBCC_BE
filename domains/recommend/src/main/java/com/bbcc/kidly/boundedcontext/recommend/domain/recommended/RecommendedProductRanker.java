@@ -89,8 +89,8 @@ public class RecommendedProductRanker {
     private double tasteSimilarityOf(
             RecommendedProduct product, double categoryAffinity, Map<Long, Double> similarityByProductId) {
         Double similarity = similarityByProductId.get(product.productId());
-        // 임베딩 전의 새 상품을 0으로 두면 임베딩이 끝날 때까지 맨 아래로 밀린다
-        if (similarity == null) {
+        // 임베딩 전의 새 상품을 0으로 두면 임베딩이 끝날 때까지 맨 아래로 밀린다. 계산할 수 없는 유사도도 같게 다룬다
+        if (similarity == null || !Double.isFinite(similarity)) {
             return categoryAffinity;
         }
         return Math.max(0, similarity);
