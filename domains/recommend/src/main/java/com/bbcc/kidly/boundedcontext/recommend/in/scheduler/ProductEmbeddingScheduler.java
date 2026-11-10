@@ -4,12 +4,17 @@ import com.bbcc.kidly.boundedcontext.recommend.app.embedding.ProductEmbeddingSer
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingRunLock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 
 /**
  * 글이 바뀐 상품을 주기마다 임베딩한다. 서버가 여러 대여도 잠금을 잡은 한 대만 실행한다.
+ * Spring AI가 OpenAI 임베딩 모델 빈을 만드는 조건과 같을 때만 뜬다(키가 없으면 모델 빈이 없다).
  */
 @Slf4j
+@Component
+@ConditionalOnProperty(name = "spring.ai.model.embedding", havingValue = "openai", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ProductEmbeddingScheduler {
 

@@ -6,10 +6,15 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
 
 /**
  * Spring AI 임베딩 모델(OpenAI)로 상품 글을 벡터로 바꾼다.
+ * Spring AI가 OpenAI 임베딩 모델 빈을 만드는 조건과 같을 때만 뜬다(키가 없으면 모델 빈이 없다).
  */
+@Component
+@ConditionalOnProperty(name = "spring.ai.model.embedding", havingValue = "openai", matchIfMissing = true)
 @RequiredArgsConstructor
 public class OpenAiProductEmbedder implements ProductEmbedder {
 
