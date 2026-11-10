@@ -7,11 +7,13 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRole;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import java.time.LocalDateTime;
 import java.util.List;
 
 final class ProductFixture {
 
     static final long SELLER_ID = 2L;
+    static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 10, 11, 0);
 
     private static final String NAME = "상품 A";
     private static final String THUMBNAIL_URL = "https://…/a-thumbnail.jpg";

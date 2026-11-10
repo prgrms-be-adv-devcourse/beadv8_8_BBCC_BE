@@ -91,7 +91,7 @@ class ProductSaleStopTest {
         withSaleStarted();
         product.stopSale(SELLER_ID);
 
-        boolean started = product.startSale(SELLER_ID, top, clothing.type());
+        boolean started = product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
         assertThat(started).isTrue();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
@@ -150,7 +150,7 @@ class ProductSaleStopTest {
         withSaleStarted();
         product.stopSaleByAdmin();
 
-        assertRejected(() -> product.startSale(SELLER_ID, top, clothing.type()),
+        assertRejected(() -> product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW),
             ProductErrorCode.SALE_STOPPED_BY_ADMIN);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
     }
@@ -161,7 +161,7 @@ class ProductSaleStopTest {
         withSaleStarted();
         product.stopSaleByAdmin();
 
-        assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type()),
+        assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type(), ProductFixture.NOW),
             ProductErrorCode.NOT_PRODUCT_OWNER);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
     }
@@ -172,7 +172,7 @@ class ProductSaleStopTest {
     void startSaleByAdmin(Consumer<ProductSaleStopTest> given) {
         given.accept(this);
 
-        boolean started = product.startSaleByAdmin(top, clothing.type());
+        boolean started = product.startSaleByAdmin(top, clothing.type(), ProductFixture.NOW);
 
         assertThat(started).isTrue();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
@@ -184,7 +184,7 @@ class ProductSaleStopTest {
     void startSaleByAdminAgainChangesNothing() {
         withSaleStarted();
 
-        boolean started = product.startSaleByAdmin(top, clothing.type());
+        boolean started = product.startSaleByAdmin(top, clothing.type(), ProductFixture.NOW);
 
         assertThat(started).isFalse();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
@@ -196,7 +196,7 @@ class ProductSaleStopTest {
         // 옵션만 넣고 실측을 넣지 않아 판매 시작 조건을 채우지 못한다
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
 
-        assertRejected(() -> product.startSaleByAdmin(top, clothing.type()),
+        assertRejected(() -> product.startSaleByAdmin(top, clothing.type(), ProductFixture.NOW),
             ProductErrorCode.SALE_START_CONDITION_NOT_MET);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
     }
@@ -239,13 +239,13 @@ class ProductSaleStopTest {
                 test.withSaleStartedOnlyIn110();
                 test.product.stopSale(SELLER_ID);
                 test.addNavy120WithoutSizeSpec();
-                return () -> test.product.startSale(SELLER_ID, test.top, test.clothing.type());
+                return () -> test.product.startSale(SELLER_ID, test.top, test.clothing.type(), ProductFixture.NOW);
             }),
             Named.of("관리자가 판매중지한 상품을 관리자가 다시 열 때", test -> {
                 test.withSaleStartedOnlyIn110();
                 test.product.stopSaleByAdmin();
                 test.addNavy120WithoutSizeSpec();
-                return () -> test.product.startSaleByAdmin(test.top, test.clothing.type());
+                return () -> test.product.startSaleByAdmin(test.top, test.clothing.type(), ProductFixture.NOW);
             }));
     }
 
@@ -255,14 +255,14 @@ class ProductSaleStopTest {
         ProductType type = clothing.type();
         return Stream.of(
             Named.of("판매 중지의 판매자", () -> productA(clothing).stopSale(null)),
-            Named.of("관리자 판매 시작의 카테고리", () -> productA(clothing).startSaleByAdmin(null, type)),
-            Named.of("관리자 판매 시작의 상품 유형", () -> productA(clothing).startSaleByAdmin(top, null)));
+            Named.of("관리자 판매 시작의 카테고리", () -> productA(clothing).startSaleByAdmin(null, type, ProductFixture.NOW)),
+            Named.of("관리자 판매 시작의 상품 유형", () -> productA(clothing).startSaleByAdmin(top, null, ProductFixture.NOW)));
     }
 
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣고 판매를 시작한다
     private void withSaleStarted() {
         withSaleStartInputs();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
     }
 
     // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣는다. 판매 시작 조건을 채운 판매대기 상품이 된다
@@ -280,7 +280,7 @@ class ProductSaleStopTest {
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
         product.addSizeSpecs(addSizeSpecs(List.of(
             spec(clothing.size110(), 105, 115, top110Measurements()))), top, clothing.type());
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
     }
 
     // 실측을 넣지 않은 120 사이즈의 네이비 옵션을 더한다. 판매 시작 조건을 채우지 못하게 된다

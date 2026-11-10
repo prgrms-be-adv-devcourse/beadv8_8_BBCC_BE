@@ -173,7 +173,7 @@ class ProductRepositoryIntegrationTest {
             product.addSizeSpecs(
                 addSizeSpecs(List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements()))),
                 managedCategory(), managedType());
-            product.startSale(SELLER_ID, managedCategory(), managedType());
+            product.startSale(SELLER_ID, managedCategory(), managedType(), ProductFixture.NOW);
         });
         Long optionId = jdbcTemplate.queryForObject(
             "select id from product.product_option where product_id = ?", Long.class, productId);

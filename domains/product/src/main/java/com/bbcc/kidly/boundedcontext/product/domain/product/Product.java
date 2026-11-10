@@ -26,6 +26,7 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -378,10 +379,11 @@ public class Product extends BaseTimeEntity {
      * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다. 판매중지 상품도 판매 시작 조건을 다시 검사해
      * 판매중으로 바꾼다(판매 재개). 관리자가 판매중지한 상품은 판매자가 다시 열 수 없다.
      */
-    public boolean startSale(Long sellerId, Category category, ProductType productType) {
+    public boolean startSale(Long sellerId, Category category, ProductType productType, LocalDateTime now) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(now, "now는 필수입니다");
         validateOwner(sellerId);
         validateNotDelisted();
         // 관리자가 운영 정책을 어긴 상품을 판매중지하면 판매자는 다시 열 수 없다 (SALE-11)
@@ -433,9 +435,10 @@ public class Product extends BaseTimeEntity {
     }
 
     /** 관리자가 상품의 판매를 시작하거나 다시 열고, 판매 상태가 바뀌었는지 돌려준다. 관리자 판매중지 표시도 끈다. */
-    public boolean startSaleByAdmin(Category category, ProductType productType) {
+    public boolean startSaleByAdmin(Category category, ProductType productType, LocalDateTime now) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(now, "now는 필수입니다");
         validateNotDelisted();
         boolean changed = openSale(category, productType);
         stoppedByAdmin = false;

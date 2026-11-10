@@ -86,7 +86,7 @@ class StockDisplayTest {
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
         product.addSizeSpecs(addSizeSpecs(List.of(spec(clothing.size110(), 105, 115, top110Measurements()))),
             top, clothing.type());
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
         return product.getOptions().get(0);
     }
 }

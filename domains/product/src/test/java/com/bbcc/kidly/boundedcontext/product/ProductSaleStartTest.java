@@ -49,7 +49,7 @@ class ProductSaleStartTest {
     void startSaleOfReadyProduct() {
         withOptionsAndSizeSpecs110And120();
 
-        boolean started = product.startSale(SELLER_ID, top, clothing.type());
+        boolean started = product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
         assertThat(started).isTrue();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
@@ -59,9 +59,9 @@ class ProductSaleStartTest {
     @DisplayName("이미 판매중인 상품에 다시 판매를 시작하면 아무것도 바꾸지 않는다 (재시도 대비)")
     void startSaleAgainChangesNothing() {
         withOptionsAndSizeSpecs110And120();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
-        boolean started = product.startSale(SELLER_ID, top, clothing.type());
+        boolean started = product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
         assertThat(started).isFalse();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
@@ -124,7 +124,7 @@ class ProductSaleStartTest {
         product.addSizeSpecs(addSizeSpecs(List.of(
             spec(clothing.sizeFree(), null, null, top110Measurements()))), top, clothing.type());
 
-        assertThat(product.startSale(SELLER_ID, top, clothing.type())).isTrue();
+        assertThat(product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW)).isTrue();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
@@ -150,7 +150,7 @@ class ProductSaleStartTest {
         Product bottle = Product.register(ProductFixture.productAWith(container, List.of()));
         bottle.addOptions(addOptions(List.of(option(navy))), container);
 
-        assertThat(bottle.startSale(SELLER_ID, top, container)).isTrue();
+        assertThat(bottle.startSale(SELLER_ID, top, container, ProductFixture.NOW)).isTrue();
         assertThat(bottle.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
@@ -160,10 +160,10 @@ class ProductSaleStartTest {
     void rejectStartSaleFromOtherSeller(ProductStatus status) {
         withOptionsAndSizeSpecs110And120();
         if (status == ProductStatus.ON_SALE) {
-            product.startSale(SELLER_ID, top, clothing.type());
+            product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
         }
 
-        assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type()),
+        assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type(), ProductFixture.NOW),
             ProductErrorCode.NOT_PRODUCT_OWNER);
         assertThat(product.getStatus()).isEqualTo(status);
     }
@@ -214,9 +214,9 @@ class ProductSaleStartTest {
         Category top = CategoryFixture.top(CategoryFixture.clothing(), clothing.type());
         ProductType type = clothing.type();
         return Stream.of(
-            Named.of("판매 시작의 판매자", () -> productA(clothing).startSale(null, top, type)),
-            Named.of("판매 시작의 카테고리", () -> productA(clothing).startSale(SELLER_ID, null, type)),
-            Named.of("판매 시작의 상품 유형", () -> productA(clothing).startSale(SELLER_ID, top, null)),
+            Named.of("판매 시작의 판매자", () -> productA(clothing).startSale(null, top, type, ProductFixture.NOW)),
+            Named.of("판매 시작의 카테고리", () -> productA(clothing).startSale(SELLER_ID, null, type, ProductFixture.NOW)),
+            Named.of("판매 시작의 상품 유형", () -> productA(clothing).startSale(SELLER_ID, top, null, ProductFixture.NOW)),
             Named.of("입력 검사의 카테고리", () -> productA(clothing).validateSaleStartInputs(null, type)),
             Named.of("입력 검사의 상품 유형", () -> productA(clothing).validateSaleStartInputs(top, null)));
     }
@@ -240,7 +240,7 @@ class ProductSaleStartTest {
 
     // 판매 시작이 409로 거절되고 빠진 항목이 detail에 적히며, 상품은 판매대기로 남는지 확인한다
     private void assertSaleStartRejected(String detail) {
-        assertThatThrownBy(() -> product.startSale(SELLER_ID, top, clothing.type()))
+        assertThatThrownBy(() -> product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW))
             .isInstanceOfSatisfying(BusinessException.class, e -> {
                 assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.SALE_START_CONDITION_NOT_MET);
                 assertThat(e.getDetail()).isEqualTo(detail);

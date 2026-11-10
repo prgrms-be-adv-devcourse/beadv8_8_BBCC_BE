@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +31,7 @@ public class ProductSaleService {
 
         boolean changed = false;
         if (status == ProductStatus.ON_SALE) {
-            changed = product.startSale(sellerId, category, productType);
+            changed = product.startSale(sellerId, category, productType, LocalDateTime.now());
         } else if (status == ProductStatus.STOPPED) {
             changed = product.stopSale(sellerId);
         }
@@ -53,7 +54,7 @@ public class ProductSaleService {
 
         boolean changed = false;
         if (status == ProductStatus.ON_SALE) {
-            changed = product.startSaleByAdmin(category, productType);
+            changed = product.startSaleByAdmin(category, productType, LocalDateTime.now());
         } else if (status == ProductStatus.STOPPED) {
             changed = product.stopSaleByAdmin();
         }
