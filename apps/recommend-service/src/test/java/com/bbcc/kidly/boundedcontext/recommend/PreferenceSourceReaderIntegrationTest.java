@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSourceReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.RecentActivity;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
@@ -64,6 +65,33 @@ class PreferenceSourceReaderIntegrationTest {
 
         assertThat(reader.findMemberTargets(SINCE, 0, 10)).containsExactly(1L, 4L, 5L);
         assertThat(reader.findMemberTargets(SINCE, 1, 1)).containsExactly(4L);
+    }
+
+    @Test
+    @DisplayName("자녀 활동은 기간 안의 검색 · 상세 진입 · 담기만 발생 시각 순으로 읽고, 카테고리 · 브랜드는 활동 값을 먼저 쓰고 없으면 상품 복사본 값을 쓴다")
+    void readChildActivitiesWithinPeriod() {
+        LocalDateTime from = SINCE;
+        LocalDateTime to = SINCE.plusHours(3);
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", null);
+        PreferenceTestData.insertProduct(jdbc, 101L, 11L, "Other", null);
+        insert(ActivityType.CART_ITEM_ADDED, 7L, to, 101L, 20L, "Own", 1L);
+        insert(ActivityType.PRODUCT_VIEWED, 7L, from.plusHours(2), 100L, null, null, null);
+        insert(ActivityType.SEARCH, 7L, from, null, 50L, null, null);
+        insert(ActivityType.CART_ITEM_REMOVED, 7L, from.plusHours(1), 100L, null, null, 99L);
+        insert(ActivityType.PRODUCT_VIEWED, 7L, from.minusSeconds(1), 100L, null, null, null);
+        insert(ActivityType.PRODUCT_VIEWED, 7L, to.plusSeconds(1), 100L, null, null, null);
+        insert(ActivityType.PRODUCT_VIEWED, 8L, from.plusHours(1), 100L, null, null, null);
+
+        assertThat(reader.findChildActivities(7L, from, to)).containsExactly(
+            new RecentActivity(ActivityType.SEARCH, null, 50L, null, from, false),
+            new RecentActivity(ActivityType.PRODUCT_VIEWED, 100L, 10L, "Nike", from.plusHours(2), false),
+            new RecentActivity(ActivityType.CART_ITEM_ADDED, 101L, 20L, "Own", to, false));
+    }
+
+    private void insert(ActivityType type, Long childProfileId, LocalDateTime occurredAt, Long productId,
+        Long categoryId, String brand, Long cartItemId) {
+        PreferenceTestData.insertActivity(jdbc, type, 1L, childProfileId, occurredAt, productId, categoryId, brand,
+            cartItemId);
     }
 
     private void childActivity(Long childProfileId, LocalDateTime occurredAt) {
