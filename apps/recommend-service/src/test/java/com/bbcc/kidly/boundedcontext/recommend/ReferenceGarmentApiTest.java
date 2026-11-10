@@ -2,13 +2,19 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.OTHER_MEMBER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -51,6 +57,12 @@ class ReferenceGarmentApiTest {
 
     private static final String BOTTOM_BODY =
         "{\"categoryId\": 70, \"measurements\": {\"TOTAL_LENGTH\": 55.5, \"WAIST_WIDTH\": 26}}";
+
+    private static final Long OTHER_MEMBERS_CHILD_ID = 12L;
+
+    private static final Long DELETED_CHILD_ID = 13L;
+
+    private static final Long UNKNOWN_CHILD_ID = 99L;
 
     private static final ErrorText REQUIRED_MISSING = new ErrorText("필수 실측이 없습니다",
         "상의는 총장과 가슴단면, 하의는 총장과 허리단면을 입력해 주세요.");
@@ -262,6 +274,37 @@ class ReferenceGarmentApiTest {
                 garment("TOP", "7", Map.of("TOTAL_LENGTH", 42.0, "CHEST_WIDTH", 34.5))));
     }
 
+    @Test
+    @DisplayName("다른 회원의 자녀면 조회 · 저장 · 삭제 모두 403이고 그 자녀의 기준 옷은 바뀌지 않는다")
+    void rejectOtherMembersChild() {
+        applyChild(OTHER_MEMBERS_CHILD_ID, OTHER_MEMBER_ID, false);
+        put(OTHER_MEMBER_ID, OTHER_MEMBERS_CHILD_ID, "TOP", TOP_BODY).expectStatus().isOk();
+        String path = path(OTHER_MEMBERS_CHILD_ID);
+
+        expectForbidden(list(MEMBER_1_ID, OTHER_MEMBERS_CHILD_ID), path);
+        expectForbidden(put(MEMBER_1_ID, OTHER_MEMBERS_CHILD_ID, "TOP", body("8", requiredMeasurements("TOP"))),
+            path + "/TOP");
+        expectForbidden(put(MEMBER_1_ID, OTHER_MEMBERS_CHILD_ID, "BOTTOM", BOTTOM_BODY), path + "/BOTTOM");
+        expectForbidden(delete(MEMBER_1_ID, OTHER_MEMBERS_CHILD_ID, "TOP"), path + "/TOP");
+
+        list(OTHER_MEMBER_ID, OTHER_MEMBERS_CHILD_ID)
+            .expectStatus().isOk()
+            .expectBody(List.class).isEqualTo(List.of(
+                garment("TOP", "7", Map.of("TOTAL_LENGTH", 42.0, "CHEST_WIDTH", 34.5))));
+    }
+
+    @ParameterizedTest(name = "자녀 {0}")
+    @ValueSource(longs = {99L, 13L})
+    @DisplayName("없는 자녀나 삭제된 자녀면 조회 · 저장 · 삭제 모두 404다")
+    void rejectUnknownOrDeletedChild(Long childId) {
+        applyChild(DELETED_CHILD_ID, MEMBER_1_ID, true);
+        String path = path(childId);
+
+        expectChildNotFound(list(MEMBER_1_ID, childId), path);
+        expectChildNotFound(put(MEMBER_1_ID, childId, "TOP", TOP_BODY), path + "/TOP");
+        expectChildNotFound(delete(MEMBER_1_ID, childId, "TOP"), path + "/TOP");
+    }
+
     private static Map<String, Object> garment(String part, String categoryId, Map<String, Double> measurements) {
         return Map.of("part", part, "categoryId", categoryId, "measurements", measurements);
     }
@@ -289,6 +332,14 @@ class ReferenceGarmentApiTest {
             .jsonPath("$.instance").isEqualTo(instance);
     }
 
+    private static void expectForbidden(RestTestClient.ResponseSpec response, String instance) {
+        expectProblem(response, 403, "자녀에 접근할 수 없습니다", "로그인한 보호자의 자녀만 다룰 수 있습니다.", instance);
+    }
+
+    private static void expectChildNotFound(RestTestClient.ResponseSpec response, String instance) {
+        expectProblem(response, 404, "자녀를 찾을 수 없습니다", "자녀를 찾을 수 없습니다.", instance);
+    }
+
     private static String path(Long childId) {
         return "/api/v1/recommendations/children/" + childId + "/reference-garments";
     }
@@ -305,6 +356,13 @@ class ReferenceGarmentApiTest {
             .contentType(MediaType.APPLICATION_JSON)
             .body(body)
             .exchange();
+    }
+
+    private void applyChild(Long childId, Long memberId, boolean deleted) {
+        replicaChildService.applyChildChanged(new ChildChangedEvent(UUID.randomUUID(),
+            RecommendFixture.CHILD_CHANGED_AT, new ChildChangedEvent.Data(childId, memberId,
+            new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, RecommendFixture.CHILD_1_BIRTH_DATE,
+            BodyType.NORMAL, PreferredFit.LOOSE, deleted)));
     }
 
     private void applyProduct(Long productId, Long leafCategoryId, String leafCategoryName) {
