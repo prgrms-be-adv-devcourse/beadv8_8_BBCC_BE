@@ -1,11 +1,13 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -120,5 +122,18 @@ class AiResponseKeyTest {
             null, 5L, null, null, null, null, null, null, null, 1);
 
         assertThat(AiResponseKey.of(productOnly)).isNotEqualTo(AiResponseKey.of(childOnly));
+    }
+
+    @Test
+    @DisplayName("목록 안에 null이 있으면 키를 만들지 않는다")
+    void nullElementInListIsRejected() {
+        List<Long> withNull = Arrays.asList((Long) null);
+        AiResponseKey.Input nullCandidate = new AiResponseKey.Input(
+            10L, 5L, 36, null, null, null, null, withNull, List.of(), 1);
+        AiResponseKey.Input nullCart = new AiResponseKey.Input(
+            10L, 5L, 36, null, null, null, null, List.of(), withNull, 1);
+
+        assertThatThrownBy(() -> AiResponseKey.of(nullCandidate)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> AiResponseKey.of(nullCart)).isInstanceOf(NullPointerException.class);
     }
 }
