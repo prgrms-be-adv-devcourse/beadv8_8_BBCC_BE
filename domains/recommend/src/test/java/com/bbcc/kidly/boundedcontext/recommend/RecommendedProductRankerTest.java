@@ -218,6 +218,19 @@ class RecommendedProductRankerTest {
         assertThat(ranked).containsExactly(atAsOf);
     }
 
+    @Test
+    @DisplayName("PREF-09 기준 시각 전에 등록했어도 기준 시각보다 늦게 판매를 시작한 상품은 뺀다")
+    void productsSaleStartedAfterAsOfAreRemoved() {
+        RecommendedProduct saleStartedAtAsOf = recommendedProductSaleStartedAt(1L, OLD_REGISTERED_AT, BASE_TIME);
+        RecommendedProduct saleStartedAfterAsOf =
+            recommendedProductSaleStartedAt(2L, OLD_REGISTERED_AT, BASE_TIME.plusSeconds(1));
+
+        List<RecommendedProduct> ranked = ranker.rank(List.of(saleStartedAtAsOf, saleStartedAfterAsOf),
+            PreferenceSnapshot.empty(), NO_SIMILARITIES, Set.of(), BASE_TIME);
+
+        assertThat(ranked).containsExactly(saleStartedAtAsOf);
+    }
+
     private static PreferenceSnapshot snapshot(double categoryScore, double brandScore, TasteVector tasteVector) {
         return new PreferenceSnapshot(
             List.of(new CategoryAffinity(CATEGORY_ID, categoryScore)),
