@@ -82,18 +82,34 @@ public class AiResponseService {
         if (!quota.tryAcquire(now.toLocalDate(), dailyCallLimit)) {
             return Optional.empty();
         }
-        T result = callWithTimeout(call);
-        store.save(type, key, jsonMapper.writeValueAsString(result), now);
-        return Optional.of(result);
+        Optional<T> result = callWithTimeout(type, call);
+        if (result.isEmpty()) {
+            return Optional.empty();
+        }
+        store.save(type, key, jsonMapper.writeValueAsString(result.get()), now);
+        return result;
     }
 
-    private <T> T callWithTimeout(Supplier<T> call) {
+    private <T> Optional<T> callWithTimeout(AiResponseType type, Supplier<T> call) {
         FutureTask<T> task = new FutureTask<>(call::get);
         Thread.ofVirtual().start(task);
         try {
-            return task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            throw new IllegalStateException("AI 호출에 실패했습니다", e);
+            return Optional.ofNullable(task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            task.cancel(true);
+            logCallFailure(type, e);
+        } catch (TimeoutException e) {
+            task.cancel(true);
+            logCallFailure(type, e);
+        } catch (ExecutionException e) {
+            logCallFailure(type, e.getCause());
         }
+        return Optional.empty();
+    }
+
+    // 예외 메시지에 응답 본문이나 개인정보가 섞일 수 있어 클래스 이름만 남기고 스택 트레이스는 붙이지 않는다.
+    private void logCallFailure(AiResponseType type, Throwable cause) {
+        log.warn("AI 호출에 실패해 결과 없이 돌려준다. type={}, cause={}", type, cause.getClass().getSimpleName());
     }
 }
