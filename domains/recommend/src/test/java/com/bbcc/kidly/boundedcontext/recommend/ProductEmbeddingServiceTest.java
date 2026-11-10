@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
@@ -9,6 +10,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.bbcc.kidly.boundedcontext.recommend.app.embedding.ProductEmbeddingService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbedder;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.embedding.ProductEmbeddingStore;
@@ -23,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class ProductEmbeddingServiceTest {
@@ -141,6 +147,34 @@ class ProductEmbeddingServiceTest {
         verify(store).markAttempted(List.of(PRODUCT_1_ID));
         verify(store, never()).markAttempted(List.of(PRODUCT_2_ID));
         verify(embedder, never()).embed(List.of(PRODUCT_2_TEXT));
+    }
+
+    @Test
+    @DisplayName("요청이 실패하면 상품 글 · 예외 메시지 · 스택 트레이스 없이 상품 수와 예외 종류만 경고 로그로 남긴다")
+    void logOnlyCountAndExceptionTypeWhenRequestFails() {
+        given(store.findStale(anyInt())).willReturn(List.of(
+            new ProductEmbeddingTarget(PRODUCT_1_ID, PRODUCT_1_TEXT, false),
+            new ProductEmbeddingTarget(PRODUCT_2_ID, PRODUCT_2_TEXT, false)));
+        given(embedder.embed(List.of(PRODUCT_1_TEXT, PRODUCT_2_TEXT)))
+            .willThrow(new IllegalStateException("응답 본문 " + PRODUCT_1_TEXT));
+        Logger serviceLogger = (Logger) LoggerFactory.getLogger(ProductEmbeddingService.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        serviceLogger.addAppender(logs);
+
+        try {
+            service.embedStaleProducts();
+        } finally {
+            serviceLogger.detachAppender(logs);
+        }
+
+        assertThat(logs.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.WARN);
+            assertThat(event.getFormattedMessage())
+                .contains("2", "IllegalStateException")
+                .doesNotContain("응답 본문", PRODUCT_1_TEXT, PRODUCT_2_TEXT);
+            assertThat(event.getThrowableProxy()).isNull();
+        });
     }
 
     private static EmbeddingVector vectorOf(float value) {
