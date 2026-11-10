@@ -22,18 +22,10 @@ public interface JpaReferenceGarmentRepository
         """)
     List<ReferenceGarment> findAllByChildProfileId(@Param("childProfileId") Long childProfileId);
 
-    // 파생 delete는 행을 하나씩 읽어 지우므로, 한 번의 DELETE로 지우도록 쿼리를 직접 쓴다
-    @Override
-    @Modifying
-    @Query("delete from ReferenceGarment g where g.childProfileId = :childProfileId and g.part = :part")
-    void deleteByChildProfileIdAndPart(@Param("childProfileId") Long childProfileId, @Param("part") GarmentPart part);
-
-    @Override
-    @Modifying
-    @Query("delete from ReferenceGarment g where g.childProfileId = :childProfileId")
-    void deleteByChildProfileId(@Param("childProfileId") Long childProfileId);
-
-    // 자녀 복사본은 삭제 표시된 자녀도 남아 있어, 삭제된 자녀의 기준 옷까지 회원 기준으로 찾을 수 있다
+    // 구분 하나와 자녀 하나의 삭제는 UNIQUE 때문에 지울 줄이 몇 줄 안 되므로 파생 delete로 둔다.
+    // 벌크 DELETE는 영속성 컨텍스트를 거치지 않아 같은 트랜잭션에서 읽고 바꾼 엔티티와 어긋날 수 있다.
+    // 회원 단위는 자녀가 여럿이라 한 문장으로 지운다. 자녀 복사본에는 삭제 표시된 자녀도 남아 있어
+    // 삭제된 자녀의 기준 옷까지 회원 기준으로 찾을 수 있다
     @Override
     @Modifying
     @Query("""
