@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.recommend.out.ai.OpenAiCompanionAiPicker;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -21,7 +22,7 @@ class OpenAiCompanionAiPickerTest {
 
     private final FakeChatModel chatModel = new FakeChatModel();
 
-    private final OpenAiCompanionAiPicker picker = new OpenAiCompanionAiPicker(chatModel);
+    private final OpenAiCompanionAiPicker picker = new OpenAiCompanionAiPicker(ChatClient.builder(chatModel));
 
     @Test
     @DisplayName("PAIR-06 AI 답(JSON)의 상품 ID와 이유를 AI가 고른 순서대로 읽는다")

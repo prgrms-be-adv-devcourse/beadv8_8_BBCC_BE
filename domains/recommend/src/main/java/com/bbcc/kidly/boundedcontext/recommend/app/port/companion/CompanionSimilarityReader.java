@@ -5,7 +5,7 @@ import java.util.Map;
 
 /**
  * 보고 있는 상품과 각 후보 상품의 코사인 유사도(1 - 코사인 거리)를 읽는다.
- * 값은 -1 ~ 1이고 자르지 않는다(자르기는 domain이 한다).
+ * 값은 -1 ~ 1이고 자르지 않는다. 벡터가 영벡터면 NaN일 수 있다. 자르기와 NaN 처리는 domain이 한다.
  * 임베딩 벡터가 없는 후보는 결과에 담지 않고, 보고 있는 상품에 벡터가 없으면 빈 Map을 돌려준다.
  */
 public interface CompanionSimilarityReader {
