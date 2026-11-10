@@ -15,7 +15,9 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * 지난 AI 답을 다시 쓰기 위한 키다. 답에 영향을 주는 입력만 해시에 넣고, 회원 ID, 자녀 이름, 요청 시각, 장바구니 수량은 넣지 않는다.
+ * 지난 AI 답을 다시 쓰기 위한 키로, 답에 영향을 주는 입력으로만 만든 SHA-256 hex다.
+ * 같은 자녀면 보호자가 누구든 답이 같고 요청 시각과 장바구니 수량은 답에 영향을 주지 않으므로,
+ * 회원 ID, 자녀 이름, 요청 시각, 장바구니 수량은 키에 넣지 않는다.
  */
 public record AiResponseKey(String value) {
 
