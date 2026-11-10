@@ -102,7 +102,8 @@ public class PreferenceJobService {
         if (!lastActivity.isBefore(LocalDateTime.now().minus(staleAfter))) {
             return false;
         }
-        log.warn("선호 Job 실행 {}이 {} 이후 진행이 없어 FAILED로 닫습니다", execution.getId(), lastActivity);
+        log.warn("선호 Job 실행 기록이 {} 이후 진행이 없어 FAILED로 닫습니다: executionId={}", lastActivity,
+            execution.getId());
         try {
             jobOperator.recover(execution);
         } catch (OptimisticLockingFailureException e) {
