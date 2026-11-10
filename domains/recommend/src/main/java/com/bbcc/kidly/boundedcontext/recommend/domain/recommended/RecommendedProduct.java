@@ -18,20 +18,4 @@ public record RecommendedProduct(
         LocalDateTime productRegisteredAt,
         LocalDateTime saleStartedAt
 ) {
-
-    // 판매 시작 시각을 따로 알 수 없으면 등록 시각을 판매 시작 시각으로 본다
-    public RecommendedProduct(
-            Long productId,
-            Long sellerId,
-            String name,
-            String thumbnailUrl,
-            Long minPrice,
-            String recommendedSize,
-            Long categoryId,
-            String brand,
-            LocalDateTime productRegisteredAt
-    ) {
-        this(productId, sellerId, name, thumbnailUrl, minPrice, recommendedSize, categoryId, brand,
-                productRegisteredAt, productRegisteredAt);
-    }
 }
