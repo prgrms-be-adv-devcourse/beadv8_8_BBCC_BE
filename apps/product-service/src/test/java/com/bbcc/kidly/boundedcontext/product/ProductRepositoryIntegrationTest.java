@@ -21,6 +21,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -188,6 +189,24 @@ class ProductRepositoryIntegrationTest {
     }
 
     @Test
+    @DisplayName("판매를 시작한 상품을 저장하고 다시 읽으면 판매 시작 시각이 sale_started_at 칸에 남아 있다")
+    void saleStartedAtRoundTrip() {
+        Long productId = savedProductAWithOption110();
+        assertThat(storedSaleStartedAt(productId)).isNull();
+        inTransaction(() -> {
+            Product product = productRepository.findById(productId).orElseThrow();
+            product.addSizeSpecs(
+                addSizeSpecs(List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements()))),
+                managedCategory(), managedType());
+            product.startSale(SELLER_ID, managedCategory(), managedType(), ProductFixture.NOW);
+        });
+
+        assertThat(storedSaleStartedAt(productId)).isEqualTo(ProductFixture.NOW);
+        inTransaction(() -> assertThat(productRepository.findById(productId).orElseThrow().getSaleStartedAt())
+            .isEqualTo(ProductFixture.NOW));
+    }
+
+    @Test
     @DisplayName("상품이 가리키는 카테고리는 ID만 읽으면 지연 로딩 프록시를 초기화하지 않는다")
     void categoryIdWithoutInitializingProxy() {
         Long productId = savedProductA();
@@ -199,6 +218,11 @@ class ProductRepositoryIntegrationTest {
             assertThat(entityManager.getEntityManagerFactory().getPersistenceUnitUtil().isLoaded(product, "category"))
                 .isFalse();
         });
+    }
+
+    private LocalDateTime storedSaleStartedAt(Long productId) {
+        return jdbcTemplate.queryForObject(
+            "select sale_started_at from product.product where id = ?", LocalDateTime.class, productId);
     }
 
     // 상품 A를 저장하고 네이비 110 옵션을 붙인 뒤 ID를 돌려준다

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,12 @@ class ProductChangedEventJsonIntegrationTest {
          "categoryPath":[{"id":4,"name":"의류"},{"id":5,"name":"상의"}]}
         """;
 
+    private static final String DATA_WITH_SALE_STARTED_AT = """
+        {"productId":1,"sellerId":2,"name":"데일리 맨투맨","categoryId":5,"status":"ON_SALE",
+         "thumbnailUrl":null,"createdAt":"2026-10-01T09:00:00","sizeFree":false,"options":[],"infoValues":[],
+         "saleStartedAt":"2026-10-02T10:30:00"}
+        """;
+
     @Autowired
     private JsonMapper jsonMapper;
 
@@ -41,6 +48,17 @@ class ProductChangedEventJsonIntegrationTest {
         assertThat(data.description()).isNull();
         assertThat(data.sizeSpecs()).isEmpty();
         assertThat(data.categoryPath()).isEmpty();
+        assertThat(data.saleStartedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("판매 시작 시각은 한국 시간 ISO 문자열(시간대 표시 없음)로 읽고 쓴다")
+    void readAndWriteSaleStartedAt() {
+        ProductChangedEvent.Data data = jsonMapper.readValue(DATA_WITH_SALE_STARTED_AT, ProductChangedEvent.Data.class);
+
+        assertThat(data.saleStartedAt()).isEqualTo(LocalDateTime.of(2026, 10, 2, 10, 30));
+        assertThat(jsonMapper.readTree(jsonMapper.writeValueAsString(data)).get("saleStartedAt").asString())
+            .isEqualTo("2026-10-02T10:30:00");
     }
 
     @Test
