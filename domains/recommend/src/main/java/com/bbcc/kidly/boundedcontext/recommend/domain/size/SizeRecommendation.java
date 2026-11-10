@@ -70,6 +70,9 @@ public class SizeRecommendation {
      * 규칙 결과에 AI 답을 합친 최종 결과를 돌려준다. AI가 고른 사이즈는 규칙 후보 밖이어도 상품에 있으면 채택한다.
      */
     public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer) {
+        if (!isProductSize(productSizes, answer.recommendedSize())) {
+            return this;
+        }
         List<SizeReason> aiReasons = new ArrayList<>();
         for (AiSizeAnswer.Reason reason : answer.reasons()) {
             aiReasons.add(new SizeReason(SizeReasonType.valueOf(reason.type()), reason.detail(), reason.sourceId()));
@@ -82,5 +85,14 @@ public class SizeRecommendation {
                 SizeRecommendationSource.AI,
                 List.copyOf(aiReasons)
         );
+    }
+
+    private static boolean isProductSize(ProductSizes productSizes, String size) {
+        for (SizeRange range : productSizes.sizeRanges()) {
+            if (range.size().equals(size)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
