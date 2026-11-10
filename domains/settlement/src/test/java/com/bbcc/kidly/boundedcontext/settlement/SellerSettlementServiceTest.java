@@ -6,12 +6,15 @@ import static org.mockito.BDDMockito.given;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SellerSettlementService;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementBusinessCalendar;
+import com.bbcc.kidly.boundedcontext.settlement.app.dto.SellerWithdrawalBlockerResult;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementTargetResult;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementTargetQuery;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementTargetRow;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
 import java.time.LocalDate;
@@ -85,5 +88,40 @@ class SellerSettlementServiceTest {
             assertThat(target.orderItemId()).isEqualTo(10L);
             assertThat(target.expectedPayoutOn()).isNull();
         });
+    }
+
+    @Test
+    @DisplayName("미정산 항목도 미지급 정산서도 없으면 탈퇴를 막을 사유가 없다")
+    void noWithdrawalBlockers() {
+        givenWithdrawalCounts(0L, 0L);
+
+        assertThat(sellerSettlementService.getWithdrawalBlockers(7L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("PENDING 항목과 COMPLETED · FAILED 정산서를 세어 사유 순서대로 준다")
+    void withdrawalBlockers() {
+        givenWithdrawalCounts(2L, 1L);
+
+        assertThat(sellerSettlementService.getWithdrawalBlockers(7L)).containsExactly(
+            new SellerWithdrawalBlockerResult("UNSETTLED_ITEM", 2L),
+            new SellerWithdrawalBlockerResult("UNPAID_SETTLEMENT", 1L));
+    }
+
+    @Test
+    @DisplayName("0건인 사유는 빼고 준다")
+    void withdrawalBlockersWithoutZeroCount() {
+        givenWithdrawalCounts(0L, 3L);
+
+        assertThat(sellerSettlementService.getWithdrawalBlockers(7L)).containsExactly(
+            new SellerWithdrawalBlockerResult("UNPAID_SETTLEMENT", 3L));
+    }
+
+    // 엄격한 스텁이라 다른 상태(SETTLED · PAID)로 세면 테스트가 실패한다
+    private void givenWithdrawalCounts(long pendingItems, long unpaidSettlements) {
+        given(settlementItemRepository.countBySellerIdAndStatus(7L, SettlementItemStatus.PENDING))
+            .willReturn(pendingItems);
+        given(settlementRepository.countBySellerIdAndStatusIn(
+            7L, List.of(SettlementStatus.COMPLETED, SettlementStatus.FAILED))).willReturn(unpaidSettlements);
     }
 }
