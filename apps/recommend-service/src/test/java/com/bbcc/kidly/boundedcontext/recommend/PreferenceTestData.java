@@ -69,6 +69,38 @@ final class PreferenceTestData {
             """, productId, categoryId, brand, vectorText);
     }
 
+    /**
+     * 자녀 복사본 한 줄을 넣는다. deletedAt이 있으면 삭제한 자녀다.
+     */
+    static void insertReplicaChild(JdbcTemplate jdbc, Long childProfileId, LocalDateTime deletedAt) {
+        jdbc.update("""
+            INSERT INTO recommend.replica_child (child_profile_id, member_id, birth_date, height_cm, weight_kg,
+                gender, event_occurred_at, deleted_at, created_at, updated_at)
+            VALUES (?, 1, DATE '2020-01-01', 100.0, 15.0, 'MALE', now(), ?, now(), now())
+            """, childProfileId, deletedAt);
+    }
+
+    /**
+     * 자녀의 카테고리 친밀도 한 줄을 계산 시각과 함께 넣는다.
+     */
+    static void insertChildCategory(JdbcTemplate jdbc, Long childProfileId, Long categoryId,
+        LocalDateTime calculatedAt) {
+        jdbc.update("""
+            INSERT INTO recommend.child_category_affinity (child_profile_id, category_id, score, calculated_at)
+            VALUES (?, ?, 0.5, ?)
+            """, childProfileId, categoryId, calculatedAt);
+    }
+
+    /**
+     * 회원의 카테고리 친밀도 한 줄을 계산 시각과 함께 넣는다.
+     */
+    static void insertMemberCategory(JdbcTemplate jdbc, Long memberId, Long categoryId, LocalDateTime calculatedAt) {
+        jdbc.update("""
+            INSERT INTO recommend.member_category_affinity (member_id, category_id, score, calculated_at)
+            VALUES (?, ?, 0.5, ?)
+            """, memberId, categoryId, calculatedAt);
+    }
+
     private PreferenceTestData() {
     }
 }
