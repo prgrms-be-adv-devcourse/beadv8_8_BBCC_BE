@@ -111,6 +111,18 @@ class OpenAiCompanionAiPickerTest {
             .contains("40자", "해요체", "합니다체", "말줄임표", "물음표");
     }
 
+    @Test
+    @DisplayName("PAIR-06 후보마다 규칙 순서의 순위(1부터)를 함께 보내고, 보고 있는 상품에는 순위를 붙이지 않는다")
+    void sendRuleRankForEachCandidate() {
+        chatModel.answer = "{\"picks\": []}";
+
+        picker.pick(request());
+
+        assertThat(chatModel.lastPrompt.getUserMessage().getText())
+            .contains("순위 1 | 상품 ID 100", "순위 2 | 상품 ID 101")
+            .doesNotContain("순위 1 | 상품 ID 7001");
+    }
+
     private static CompanionAiRequest request() {
         CompanionAiProduct viewed = new CompanionAiProduct(7001L, "데일리 맨투맨", List.of("의류", "상의"), "키즈랩");
         List<CompanionAiProduct> candidates = List.of(
