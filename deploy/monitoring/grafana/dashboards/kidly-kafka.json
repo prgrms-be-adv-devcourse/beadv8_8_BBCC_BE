@@ -26,7 +26,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
+        "w": 5,
         "x": 0,
         "y": 0
       },
@@ -84,8 +84,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 6,
+        "w": 5,
+        "x": 5,
         "y": 0
       },
       "targets": [
@@ -123,22 +123,22 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "미처리 건수",
-      "description": "소비까지 남은 lag 합계입니다. offset 미확정 파티션이 있으면 산정 전, 지표가 없으면 데이터 없음으로 표시합니다. 업무 성공 건수는 아닙니다.",
+      "title": "확인된 미처리",
+      "description": "오프셋이 확인된 항목의 lag 합계입니다. 전체 미처리 상태는 오프셋 미확정 건수와 함께 확인하세요.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 12,
+        "w": 5,
+        "x": 10,
         "y": 0
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}) unless on() (count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} < 0) > 0)) or (-1 * (count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} < 0) > bool 0))",
+          "expr": "sum(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} >= 0) or ((0 * count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"})) - 1)",
           "instant": true,
           "datasource": {
             "type": "prometheus",
@@ -160,12 +160,61 @@
               "type": "value",
               "options": {
                 "-1": {
-                  "text": "산정 전",
+                  "text": "확정 항목 없음",
                   "color": "gray"
                 }
               }
             }
           ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "오프셋 미확정",
+      "description": "lag가 음수인 소비자 그룹·토픽·파티션 조합 수입니다. 수집이 없으면 데이터 없음으로 표시합니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 15,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} < 0) or (0 * count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"}))",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
@@ -191,8 +240,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 18,
+        "w": 4,
+        "x": 20,
         "y": 0
       },
       "targets": [
@@ -323,6 +372,49 @@
               }
             }
           ]
+        },
+        {
+          "id": 9,
+          "type": "table",
+          "title": "오프셋 미확정 그룹·토픽",
+          "description": "미확정 파티션이 있는 그룹·토픽과 해당 파티션 수입니다. 상단에서 미확정 0이면 이 표는 비어 있습니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 23,
+            "w": 24,
+            "h": 7
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "count by(consumergroup,topic) (kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} < 0)",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "consumergroup": "소비자 그룹",
+                  "topic": "토픽",
+                  "Value": "미확정 파티션 수"
+                }
+              }
+            }
+          ],
+          "options": {
+            "showHeader": true
+          }
         }
       ]
     }
