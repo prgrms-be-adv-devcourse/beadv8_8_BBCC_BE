@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GirthPart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GirthRatioTable;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityTable;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -12,6 +14,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 class GrowthTableConfigTest {
 
     private static final GrowthVelocityTable GROWTH_VELOCITY_TABLE = new GrowthTableConfig().growthVelocityTable();
+    private static final GirthRatioTable GIRTH_RATIO_TABLE = new GrowthTableConfig().girthRatioTable();
 
     @ParameterizedTest(name = "{0}, {1}개월 → {2}cm/년")
     @CsvSource({
@@ -34,5 +37,20 @@ class GrowthTableConfigTest {
     @DisplayName("GROW-02 만 15세 이상이면 마지막 구간(만 14 ~ 15세)의 1년 키 성장량을 쓴다")
     void yearlyCmOfLastAgeFromFifteen(Gender gender, long months, double expectedCmPerYear) {
         assertThat(GROWTH_VELOCITY_TABLE.yearlyCm(gender, months)).isEqualTo(expectedCmPerYear);
+    }
+
+    @ParameterizedTest(name = "{0}, {1}개월, {2} → 키 1cm당 {3}cm")
+    @CsvSource({
+        "FEMALE, 0, CHEST, 0.30",
+        "MALE, 83, WAIST, 0.23",
+        "MALE, 84, WAIST, 0.42",
+        "FEMALE, 143, HIP, 0.63",
+        "FEMALE, 144, HIP, 1.07",
+        "MALE, 144, CHEST, 0.53",
+        "MALE, 240, HIP, 0.48",
+    })
+    @DisplayName("WEAR-02 사이즈코리아 CSV에서 나이 구간(만 0 ~ 6세, 7 ~ 11세, 12세 이상) · 성별 · 부위의 키 1cm당 둘레 증가량을 읽는다")
+    void girthRatioByAgeGenderAndPart(Gender gender, long months, GirthPart part, double expectedRatio) {
+        assertThat(GIRTH_RATIO_TABLE.ratio(gender, months, part)).isEqualTo(expectedRatio);
     }
 }
