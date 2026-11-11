@@ -44,7 +44,7 @@ class OpenAiSizeChooserTest {
         AiSizeAnswer answer = new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
 
         assertThat(answer).isEqualTo(new AiSizeAnswer("110", "TIGHT",
-            List.of(new AiSizeAnswer.Reason("HEIGHT", "키 115cm는 110의 권장 키 끝이에요.", null))));
+            List.of(new AiSizeAnswer.Reason("HEIGHT", "키 115cm는 110의 권장 키 끝이에요.", null)), List.of()));
         assertThat(prompts).hasSize(1);
         Prompt sent = prompts.getFirst();
         assertThat(sent.getInstructions())
