@@ -169,7 +169,7 @@ class GrowthVelocityCalculatorTest {
 
     @ParameterizedTest(name = "{0} → {1}cm/월")
     @MethodSource("recentRecordsEnough")
-    @DisplayName("GROW-05 최근 3개월 안에 기록이 2개 이상이고 그 기록들이 달력으로 한 달 이상 떨어져 있으면 그 기록만의 최소제곱 기울기를 표와 섞지 않고 전체 속도와 같은 범위로 맞춰 최근 속도로 쓴다")
+    @DisplayName("GROW-05 최근 3개월 기록이 2개 이상이고 달력으로 한 달 이상이면 그 기록만의 기울기를 섞지 않고 같은 범위로 맞춰 쓴다")
     void recentSpeedFromRecentRecords(List<RecommendGrowthRecord> records, double expectedRecentCmPerMonth) {
         GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
@@ -244,7 +244,8 @@ class GrowthVelocityCalculatorTest {
                 new GrowthTableConfig().growthVelocityTable()).calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, null, TODAY)),
                 "records는 필수입니다"),
             Arguments.of(Named.of("오늘 날짜", (Runnable) () -> new GrowthVelocityCalculator(
-                new GrowthTableConfig().growthVelocityTable()).calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, noRecords, null)),
+                new GrowthTableConfig().growthVelocityTable())
+                .calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, noRecords, null)),
                 "today는 필수입니다")
         );
     }

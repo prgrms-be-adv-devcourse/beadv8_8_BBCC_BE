@@ -185,7 +185,8 @@ class WearablePeriodCalculatorTest {
             Arguments.of(Named.of("사이즈", new WearInfo(null, TOP_PATH, child, TODAY, velocity, null)), "sizes는 필수입니다"),
             Arguments.of(Named.of("카테고리 경로", new WearInfo(LONG_SIZES, null, child, TODAY, velocity, null)),
                 "categoryPathNames는 필수입니다"),
-            Arguments.of(Named.of("자녀", new WearInfo(LONG_SIZES, TOP_PATH, null, TODAY, velocity, null)), "child는 필수입니다"),
+            Arguments.of(Named.of("자녀", new WearInfo(LONG_SIZES, TOP_PATH, null, TODAY, velocity, null)),
+                "child는 필수입니다"),
             Arguments.of(Named.of("성별", new WearInfo(LONG_SIZES, TOP_PATH,
                 ChildSizeInput.of(HEIGHT_CM, 21.0, null, BIRTH_DATE_AGE_6, BodyType.NORMAL, PreferredFit.REGULAR),
                 TODAY, velocity, null)), "gender는 필수입니다"),
@@ -206,7 +207,8 @@ class WearablePeriodCalculatorTest {
     }
 
     private static ChildSizeInput child(double heightCm) {
-        return ChildSizeInput.of(heightCm, 21.0, Gender.FEMALE, BIRTH_DATE_AGE_6, BodyType.NORMAL, PreferredFit.REGULAR);
+        return ChildSizeInput.of(heightCm, 21.0, Gender.FEMALE, BIRTH_DATE_AGE_6, BodyType.NORMAL,
+            PreferredFit.REGULAR);
     }
 
     // 입을 수 있는 기간은 전체 성장 속도만 쓰므로 나머지 근거 칸은 아무 값이나 둔다
