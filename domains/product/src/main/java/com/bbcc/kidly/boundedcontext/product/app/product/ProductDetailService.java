@@ -123,7 +123,7 @@ public class ProductDetailService {
                 values.add(new ProductDetailResult.OptionValue(value.getId(), value.getName(), value.getColorCode()));
             }
             results.add(new ProductDetailResult.OptionAttribute(
-                attribute.getId(), attribute.getCode(), attribute.getName(), values));
+                attribute.getId(), attribute.getCode(), attribute.getName(), link.isSizeRole(), values));
         }
         return results;
     }
