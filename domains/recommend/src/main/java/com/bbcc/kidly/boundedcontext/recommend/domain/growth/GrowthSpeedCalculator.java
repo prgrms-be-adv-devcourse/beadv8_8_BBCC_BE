@@ -33,8 +33,8 @@ public class GrowthSpeedCalculator {
         double tableCmPerMonth = table.yearlyCm(gender, ageMonths) / MONTHS_PER_YEAR;
         double recordMonths = recordMonths(records);
         if (recordMonths < MIN_RECORD_MONTHS) {
-            return new GrowthSpeed(tableCmPerMonth, null, records.size(), recordMonths, 0.0, tableCmPerMonth,
-                    TABLE_SOURCE);
+            return new GrowthSpeed(tableCmPerMonth, null, null, records.size(), recordMonths, 0.0,
+                    tableCmPerMonth, TABLE_SOURCE);
         }
         double tableError = table.yearlySdCm(gender, ageMonths) / MONTHS_PER_YEAR;
         return blend(records, recordMonths, tableCmPerMonth, tableError);
@@ -69,7 +69,8 @@ public class GrowthSpeedCalculator {
         double childErrorSquare = MEASUREMENT_ERROR_CM * MEASUREMENT_ERROR_CM / timeSpread;
         double childShare = tableError * tableError / (tableError * tableError + childErrorSquare);
         double cmPerMonth = childShare * childCmPerMonth + (1 - childShare) * tableCmPerMonth;
-        return new GrowthSpeed(cmPerMonth, null, count, recordMonths, childShare, tableCmPerMonth, TABLE_SOURCE);
+        return new GrowthSpeed(cmPerMonth, null, childCmPerMonth, count, recordMonths, childShare, tableCmPerMonth,
+                TABLE_SOURCE);
     }
 
     private double recordMonths(List<RecommendGrowthRecord> records) {
