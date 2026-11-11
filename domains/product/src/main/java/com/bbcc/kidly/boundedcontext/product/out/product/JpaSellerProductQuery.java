@@ -7,10 +7,15 @@ import static com.bbcc.kidly.boundedcontext.product.domain.product.QProductOptio
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductFilter;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductQuery;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSummary;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.QInventory;
+import com.bbcc.kidly.boundedcontext.product.domain.inventory.StockDisplay;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
+import com.bbcc.kidly.boundedcontext.product.domain.product.QProductOption;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +75,22 @@ public class JpaSellerProductQuery implements SellerProductQuery {
         if (filter.status() != null) {
             where.and(product.status.eq(filter.status()));
         }
+        if (filter.lowStock()) {
+            where.and(hasLowStockOption());
+        }
         return where;
+    }
+
+    // 판매중 옵션 가운데 판매 가능 수량이 기준 이하인 것이 하나라도 있는지 본다. 재고 행이 없는 옵션은 0으로 본다
+    private BooleanExpression hasLowStockOption() {
+        QProductOption lowOption = new QProductOption("lowOption");
+        QInventory lowInventory = new QInventory("lowInventory");
+        return JPAExpressions.selectOne()
+            .from(lowOption)
+            .leftJoin(lowInventory).on(lowInventory.productOption.eq(lowOption))
+            .where(lowOption.product.eq(product)
+                .and(lowOption.saleStatus.eq(ProductOptionStatus.ON_SALE))
+                .and(lowInventory.availableQty.coalesce(0).loe(StockDisplay.LOW_STOCK_THRESHOLD)))
+            .exists();
     }
 }
