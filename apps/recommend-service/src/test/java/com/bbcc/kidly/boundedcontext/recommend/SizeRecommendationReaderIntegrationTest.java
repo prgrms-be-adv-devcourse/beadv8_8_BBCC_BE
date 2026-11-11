@@ -79,7 +79,7 @@ class SizeRecommendationReaderIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-11 지난 AI 답을 찾는 키는 상품 · 자녀 · 개월 수 · 키 · 몸무게 · 체형 · 선호 핏 · 프롬프트 판 3으로 만든다")
+    @DisplayName("FIT-11 지난 AI 답을 찾는 키는 상품 · 자녀 · 개월 수 · 키 · 몸무게 · 체형 · 선호 핏 · 프롬프트 판 4로 만든다")
     void buildAiKeyInput() {
         replicaProductRepository.save(RecommendFixture.productAReplica());
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
@@ -96,7 +96,7 @@ class SizeRecommendationReaderIntegrationTest {
         assertThat(keyInput.preferredFit()).isEqualTo(PreferredFit.LOOSE);
         assertThat(keyInput.candidateProductIds()).isNull();
         assertThat(keyInput.cartProductIds()).isNull();
-        assertThat(keyInput.promptVersion()).isEqualTo(3);
+        assertThat(keyInput.promptVersion()).isEqualTo(4);
     }
 
     @Test

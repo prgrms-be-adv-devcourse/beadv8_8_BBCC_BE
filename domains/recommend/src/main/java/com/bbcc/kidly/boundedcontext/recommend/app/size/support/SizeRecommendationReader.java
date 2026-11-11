@@ -49,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SizeRecommendationReader {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
-    private static final int PROMPT_VERSION = 3;
+    private static final int PROMPT_VERSION = 4;
     private static final int GROWTH_WINDOW_MONTHS = 12;
     private static final int CM_SCALE = 2;
     private static final int PERCENT = 100;
