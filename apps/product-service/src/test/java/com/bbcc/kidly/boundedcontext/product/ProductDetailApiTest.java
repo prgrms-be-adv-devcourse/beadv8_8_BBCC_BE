@@ -156,6 +156,19 @@ class ProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("상세는 등록한 대표 이미지를 상세 이미지 목록과 따로 담는다")
+    void thumbnailUrlIsSeparateFromImageUrls() {
+        Product product = savedProductOnSale(10, 10, 10);
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.thumbnailUrl").isEqualTo("https://…/a-thumbnail.jpg")
+            .jsonPath("$.imageUrls").isEqualTo(List.of("https://…/a-1.jpg"));
+    }
+
+    @Test
     @DisplayName("판매자 복사본이 있는 판매자의 상품은 상세에 판매자 상호명을 담는다")
     void businessNameFromReplicaSeller() {
         Product product = savedProductOnSale(10, 10, 10);
