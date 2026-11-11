@@ -126,9 +126,11 @@ class K3sManifestTests(unittest.TestCase):
         self.assertNotIn('rotated', json.dumps(after))
 
     def test_recommend_autoscales_on_cpu(self):
-        items = self.items('recommend', self.service(volumes=[], mem_limit=str(448 * 1024 * 1024)))
+        items = self.items('recommend', self.service(volumes=[], mem_limit=str(576 * 1024 * 1024)))
         hpa = items['HorizontalPodAutoscaler/recommend']['spec']
-        self.assertEqual((hpa['minReplicas'], hpa['maxReplicas']), (1, 3))
+        self.assertEqual((hpa['minReplicas'], hpa['maxReplicas']), (1, 2))
+        # JVM 이 켜지며 잠깐 쓰는 CPU 로는 늘리지 않는다(#1237)
+        self.assertEqual(hpa['behavior']['scaleUp']['stabilizationWindowSeconds'], 300)
         container = items['Deployment/recommend']['spec']['template']['spec']['containers'][0]
         self.assertEqual(container['resources']['requests']['cpu'], '200m')
 
