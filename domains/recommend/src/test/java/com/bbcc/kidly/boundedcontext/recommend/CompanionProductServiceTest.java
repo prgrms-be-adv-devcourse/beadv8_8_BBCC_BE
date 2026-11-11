@@ -80,7 +80,7 @@ class CompanionProductServiceTest {
                 "같은 색 계열이라 함께 입기 좋아요."));
         // 프롬프트에 자녀 정보를 쓰지 않으므로 재사용 키에도 자녀 정보를 넣지 않는다
         assertThat(input.getValue()).isEqualTo(new AiResponseKey.Input(VIEWED_PRODUCT_ID, null, null, null, null,
-            null, null, List.of(1L, 2L, 3L, 4L, 5L, 6L), null, 1));
+            null, null, List.of(1L, 2L, 3L, 4L, 5L, 6L), null, 2));
         call.getValue().get();
         verify(aiPicker).pick(candidates.aiRequest());
     }

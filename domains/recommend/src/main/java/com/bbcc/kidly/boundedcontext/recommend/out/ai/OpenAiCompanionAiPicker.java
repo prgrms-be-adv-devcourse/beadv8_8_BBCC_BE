@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionAiPro
 import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionAiRequest;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionWeights;
 import java.util.regex.Pattern;
+import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -22,7 +23,12 @@ public class OpenAiCompanionAiPicker implements CompanionAiPicker {
         너는 키즈 패션 쇼핑몰의 코디 도우미다.
         보고 있는 상품과 함께 사면 좋은 상품을 후보 목록에서만 %d개 고른다.
         고른 순서가 추천 순서다. 후보 목록에 없는 상품 ID는 쓰지 않는다.
-        이유는 보호자에게 보여 줄 40자 안의 한국어 한 문장으로 쓴다.
+        이유는 보호자에게 보여 줄 한국어 한 문장이다.
+        - 띄어쓰기와 문장 부호를 포함해 40자 안으로 쓴다.
+        - 해요체나 합니다체로 끝낸다. 예: "가을에 겹쳐 입기 좋아요.", "단정한 느낌을 줍니다."
+        - 마침표나 느낌표로 끝낼 수 있다. 물음표는 제안할 때만 쓴다. 예: "함께 입어 보시겠어요?"
+        - 말줄임표(…)를 쓰지 않고 문장을 끝까지 맺는다.
+        - 상품 이름을 그대로 되풀이하지 않고, 보고 있는 상품과 어울리는 까닭을 쓴다.
         """.formatted(CompanionWeights.PICK_COUNT);
 
     private static final String CATEGORY_SEPARATOR = " > ";
@@ -43,6 +49,8 @@ public class OpenAiCompanionAiPicker implements CompanionAiPicker {
         return chatClient.prompt()
             .system(SYSTEM_PROMPT)
             .user(userText(request))
+            // 답의 모양(JSON 스키마)을 OpenAI가 지키게 한다. 스키마는 CompanionAiAnswer에서 만든다
+            .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
             .call()
             .entity(CompanionAiAnswer.class);
     }
