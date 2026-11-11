@@ -14,6 +14,9 @@ import java.util.List;
  */
 public class WearablePeriodCalculator {
 
+    // 아이 옷을 2년 넘게 입는 경우는 드물고, 그 뒤의 성장은 예측하기 어렵다
+    private static final int MAX_MONTHS = 24;
+
     private final GirthRatioTable girthRatioTable;
 
     public WearablePeriodCalculator(GirthRatioTable girthRatioTable) {
@@ -34,11 +37,29 @@ public class WearablePeriodCalculator {
         requireNonNull(info.gender(), "gender는 필수입니다");
         List<WearablePeriod> periods = new ArrayList<>();
         for (SizeRange range : info.sizes().sizeRanges()) {
-            int lengthMonths = (int) Math.floor((range.maxHeightCm() - info.heightCm()) / info.cmPerMonth());
+            // 한 달 성장량이 0 이하면 나눌 수 없어 계산하지 않는다
+            if (info.cmPerMonth() <= 0) {
+                periods.add(new WearablePeriod(range.size(), null, null, null));
+                continue;
+            }
+            int lengthMonths = clampMonths((range.maxHeightCm() - info.heightCm()) / info.cmPerMonth());
             Integer widthMonths = widthMonths(info, range.size());
-            periods.add(new WearablePeriod(range.size(), lengthMonths, widthMonths, lengthMonths));
+            periods.add(new WearablePeriod(range.size(), lengthMonths, widthMonths,
+                    shorter(lengthMonths, widthMonths)));
         }
         return periods;
+    }
+
+    private static int shorter(int lengthMonths, Integer widthMonths) {
+        if (widthMonths == null) {
+            return lengthMonths;
+        }
+        return Math.min(lengthMonths, widthMonths);
+    }
+
+    // 개월 수를 내려서 정수로 만들고 0 ~ 24개월로 맞춘다
+    private static int clampMonths(double months) {
+        return Math.clamp((long) Math.floor(months), 0, MAX_MONTHS);
     }
 
     /**
@@ -60,7 +81,7 @@ public class WearablePeriodCalculator {
                     continue;
                 }
                 double ratio = girthRatioTable.ratio(info.gender(), info.ageMonths(), part);
-                int months = (int) Math.floor(diff.diffCm().doubleValue() / (info.cmPerMonth() * ratio / 2));
+                int months = clampMonths(diff.diffCm().doubleValue() / (info.cmPerMonth() * ratio / 2));
                 if (shortest == null || months < shortest) {
                     shortest = months;
                 }
