@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -145,7 +146,31 @@ public class AiResponseService {
         }
         LocalDateTime now = LocalDateTime.now(clock);
         AiResponseKey key = AiResponseKey.of(input);
-        return CompletableFuture.completedFuture(findStored(type, key, now, responseType));
+        Optional<T> stored = findStored(type, key, now, responseType);
+        if (stored.isPresent()) {
+            return CompletableFuture.completedFuture(stored);
+        }
+        if (!tryAcquireQuietly(type, now)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
+        // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
+        task.thenAccept(answer -> saveLateAnswer(type, key, answer, now));
+        return task.handle((answer, error) -> toResult(type, answer, error))
+            .completeOnTimeout(Optional.empty(), asyncWait.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    // AI 호출이 실패하면 클래스 이름만 남기고 빈 값으로 끝낸다
+    private <T> Optional<T> toResult(AiResponseType type, T answer, Throwable error) {
+        if (error == null) {
+            return Optional.ofNullable(answer);
+        }
+        Throwable cause = error;
+        if (error instanceof CompletionException && error.getCause() != null) {
+            cause = error.getCause();
+        }
+        logCallFailure(type, cause);
+        return Optional.empty();
     }
 
     private boolean tryAcquireQuietly(AiResponseType type, LocalDateTime now) {
