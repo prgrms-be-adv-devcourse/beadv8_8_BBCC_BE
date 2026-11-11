@@ -52,3 +52,26 @@ spring:
       initialize-schema: never
       # Batch 기본(SERIALIZABLE)은 이 프로젝트의 Hibernate 연결 설정이 거부한다 (application.yml 참고)
       isolation-level-for-create: default
+
+---
+# k3s CronJob의 일회 실행(SettlementDailyRunner). 웹 서버 · Kafka 수신 · 아웃박스 릴레이 · 스케줄러는 API Pod만 돌린다
+spring:
+  config:
+    activate:
+      on-profile: settlement-run-once
+  main:
+    web-application-type: none
+kidly:
+  kafka:
+    producer:
+      enabled: false
+  settlement:
+    kafka:
+      consumer:
+        enabled: false
+    run-cron: "-"
+    payout-retry-cron: "-"
+    outbox:
+      cleanup-cron: "-"
+    holiday:
+      refresh-cron: "-"
