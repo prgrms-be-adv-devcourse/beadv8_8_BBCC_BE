@@ -5,7 +5,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 | 무엇이 | 값 |
 | --- | --- |
 | 무엇이 뜨나 | `deploy/.env.<환경>` 의 `K3S_PROFILES` 에 있는 profile. 지금 dev 는 서비스 9개(1차 #1148, 2차 #1159) · `gateway` · `kafka-monitoring`(kafka-exporter). 한 profile 은 `COMPOSE_PROFILES` · `K3S_PROFILES` 중 한쪽에만 둔다 |
-| NodePort | `<PROFILE>_NODE_PORT` 가 있는 것만 이 서버의 그 포트로 닿는다. Gateway 는 30200(nginx 가 붙는 곳). 서비스 30201~30209 는 Gateway 가 compose 에 있던 때 쓰던 것으로 정리 때 지운다. 없으면 클러스터 안에서만 `<이름>:<포트>` |
+| NodePort | `<PROFILE>_NODE_PORT` 가 있는 것만 이 서버의 그 포트로 닿는다. 지금은 Gateway 30200(nginx 가 붙는 곳) 하나. 나머지는 ClusterIP 라 클러스터 안에서만 `<이름>:<포트>` |
 | namespace | `kidly-<환경>`. Deployment · Service 이름은 compose profile 이름(`search`, `member` 등) |
 | 설정 | 서버의 `docker-compose.yml` · `.env` 의 그 서비스 설정을 그대로 쓴다. 환경 변수는 Secret `<이름>-env`, jwt 키는 Secret `<이름>-jwt`, 메모리는 `mem_limit` 을 request · limit 으로, 이미지는 `image.env` 의 그 서비스 이미지 |
 | Gateway → 서비스 | `KIDLY_<서비스>_URI=http://<이름>:8080`(같은 namespace 의 Service). NodePort 는 보안 그룹에서 밖으로 열지 않는다(서비스는 `X-Member-*` 헤더를 그대로 믿는다) |
@@ -27,7 +27,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 
 ## 서비스 옮기기 · 되돌리기
 
-옮기기: `.env.<환경>` 에서 그 profile 을 `COMPOSE_PROFILES` 에서 `K3S_PROFILES` 로 옮기고, `<PROFILE>_PORT` 를 `<PROFILE>_NODE_PORT=<30000~32767>` 로 바꾸고, `KIDLY_<서비스>_URI` 를 `http://host.docker.internal:<NodePort>` 로 바꿉니다.
+옮기기: `.env.<환경>` 에서 그 profile 을 `COMPOSE_PROFILES` 에서 `K3S_PROFILES` 로 옮기고, `<PROFILE>_PORT` 줄을 지우고, `KIDLY_<서비스>_URI` 를 `http://<이름>:8080` 으로 바꿉니다. Gateway 가 compose 에 있는 환경이면 Gateway 가 붙도록 `<PROFILE>_NODE_PORT` 를 두고 `http://host.docker.internal:<NodePort>` 로 바꿉니다.
 
 처음 옮기는 배포에서는 Gateway 가 새 주소로 다시 뜰 때까지 같은 서비스가 compose 와 k3s 에 함께 떠 메모리를 두 배로 씁니다. 서버 여유(`free -m` 의 available)보다 옮길 서비스의 사용량 합이 충분히 작게 나눠 옮깁니다.
 
