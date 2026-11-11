@@ -481,8 +481,8 @@ jobs:
           out="$RUNNER_TEMP/deploy-files"
           mkdir -p "$out/jwt" "$out/k3s"
           cp -p deploy/docker-compose.yml deploy/deploy.sh deploy/environment-state.py "$out/"
-          # k3s 에 뜨는 서비스의 매니페스트를 compose 설정에서 만든다(#1142)
-          cp -p deploy/k3s/k3s.py "$out/k3s/"
+          # k3s 에 뜨는 서비스의 매니페스트를 compose 설정에서 만든다(#1142). 배포 끝에 오래된 k3s 이미지를 고르고, 그 권한 규칙을 서버에 넣을 때 쓴다(#1267)
+          cp -p deploy/k3s/k3s.py deploy/k3s/images.py deploy/k3s/deploy-crictl.sudoers "$out/k3s/"
 
           # 한 줄짜리 비밀. .env 뒤에 붙인다
           keys=(DB_PASSWORD KAKAO_CLIENT_SECRET PORTONE_API_SECRET IDENTITY_KEY_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)

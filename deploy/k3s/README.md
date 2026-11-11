@@ -26,6 +26,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 3. 서비스마다 `docker compose config --format json <서비스>` 를 `k3s.py manifest` 에 넘겨 Secret · Deployment · Service(· HPA)를 적용하고, 준비될 때까지(최대 420초) 기다린다. 안 되면 로그 · 이벤트를 남기고 멈춘다
 4. compose 를 올린다. `COMPOSE_PROFILES` 가 비면 건너뛴다
 5. k3s 로 옮겨 간 것의 옛 compose 컨테이너를 지운다
+6. k3s 에 쌓인 배포 이미지를 저장소마다 최신 3개만 남기고 지운다(`k3s/images.py`, #1267). k3s 가 쓰는 이미지와 이번 배포 이미지는 남긴다. 아래 「이미지 정리 권한」이 없으면 경고만 남기고 넘어간다
 
 ## 서비스 옮기기 · 되돌리기
 
@@ -34,6 +35,18 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 처음 옮기는 배포에서는 Gateway 가 새 주소로 다시 뜰 때까지 같은 서비스가 compose 와 k3s 에 함께 떠 메모리를 두 배로 씁니다. 서버 여유(`free -m` 의 available)보다 옮길 서비스의 사용량 합이 충분히 작게 나눠 옮깁니다.
 
 되돌리기: 위를 반대로 하고 배포한 뒤 `kubectl -n kidly-<환경> delete deploy,svc,secret,hpa,cronjob -l app=<이름>`.
+
+## 이미지 정리 권한
+
+k3s 이미지는 containerd 에 있어 `docker rmi` 로 지울 수 없고, deploy 유저는 sudo 와 containerd 소켓 권한이 없습니다. 그래서 `deploy-crictl.sudoers` 로 crictl 의 `images -q` · `inspecti -o json` · `rmi` 만 비밀번호 없이 허용합니다(#1267). k3s 의 기본 정리(kubelet image GC)는 디스크 85% 에서 시작해 80% 에서 멈춰, 서버 디스크 알림 기준(80%)보다 늦습니다.
+
+서버를 새로 만들면 한 번 넣습니다. ec2-user 로, 배포가 한 번 돌아 `/opt/app/dev/k3s` 가 있는 상태에서:
+
+```bash
+sudo visudo -cf /opt/app/dev/k3s/deploy-crictl.sudoers    # 문법 확인. 틀린 파일이 들어가면 서버의 sudo 전체가 막힌다
+sudo install -m 440 -o root -g root /opt/app/dev/k3s/deploy-crictl.sudoers /etc/sudoers.d/kidly-deploy-crictl   # 이름에 . 이 있으면 sudo 가 읽지 않는다
+sudo -u deploy sudo -n /usr/local/bin/k3s crictl images -q | wc -l   # 비밀번호를 묻지 않고 숫자가 나오면 된다
+```
 
 ## 확인
 
@@ -50,7 +63,7 @@ curl -s localhost:30200/actuator/health     # nginx 가 붙는 Gateway
 
 - **environment-operation 의 dev 끄기 · 켜기**: k3s CronJob 을 suspend · 재개하고 Deployment 를 0개 · 1개로 돌린다(추천은 다시 HPA 가 맡는다)
 - **Gateway 를 다시 띄울 때**: 옛 Pod 와 새 Pod 가 겹치는 몇 초 동안 구독 그룹 `kidly.gateway` 의 파티션을 나눠 가져, 새 Pod 가 토큰 무효화 목록을 일부만 안다. 옛 Pod 가 내려가면 모든 파티션을 31분 전부터 다시 읽는다(apps/gateway CLAUDE.md 의 무효화 목록)
-- **노드가 이미지를 지우면 다음 배포까지 다시 받지 못한다.** pull secret 의 토큰이 배포 잡이 끝나면 만료된다. `deploy/search/README.md` 의 ImagePullBackOff 와 같다
+- **노드가 이미지를 지우면 다음 배포까지 다시 받지 못한다.** pull secret 의 토큰이 배포 잡이 끝나면 만료된다. `deploy/search/README.md` 의 ImagePullBackOff 와 같다. 배포 끝의 이미지 정리는 k3s 가 쓰는 이미지를 남기므로 떠 있는 Pod 에는 닿지 않고, 지운 옛 이미지로 롤백할 때만 다음 배포가 다시 받는다
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)
 - **메모리**: request 합이 노드 할당량(약 7.6Gi)을 넘으면 새 Pod 가 Pending 이 된다. compose 컨테이너 몫은 스케줄러가 모르므로 `free -m` 으로 함께 본다
