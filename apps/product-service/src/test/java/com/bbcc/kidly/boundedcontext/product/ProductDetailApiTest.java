@@ -169,6 +169,22 @@ class ProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("대표 이미지 없이 등록한 상품은 대표 이미지 칸을 빼지 않고 null로 담는다")
+    void thumbnailUrlIsNullWhenSellerLeftItEmpty() {
+        Product product = savedProductOnSale(10, 10, 10);
+        // 상품 A 등록 정보에는 대표 이미지가 있어서, 대표 이미지 없이 등록한 상품을 만들려고 그 칸을 비운다
+        jdbcTemplate.update("update product.product set thumbnail_url = null where id = ?", product.getId());
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.thumbnailUrl").hasJsonPath()
+            .jsonPath("$.thumbnailUrl").isEqualTo(null)
+            .jsonPath("$.imageUrls").isEqualTo(List.of("https://…/a-1.jpg"));
+    }
+
+    @Test
     @DisplayName("판매자 복사본이 있는 판매자의 상품은 상세에 판매자 상호명을 담는다")
     void businessNameFromReplicaSeller() {
         Product product = savedProductOnSale(10, 10, 10);
