@@ -68,7 +68,8 @@ class SellerProductQueryIntegrationTest {
         changeStatus(onSale, "ON_SALE");
         changeStatus(stopped, "STOPPED");
 
-        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10));
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10));
 
         assertThat(page.getContent())
             .extracting(SellerProductSummary::productId, SellerProductSummary::name, SellerProductSummary::status)
@@ -86,7 +87,8 @@ class SellerProductQueryIntegrationTest {
         changeOption(product.getOptions().get(1).getId(), "STOPPED", 20_000L);
         changeOption(product.getOptions().get(2).getId(), "ARCHIVED", 15_000L);
 
-        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10));
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10));
 
         assertThat(page.getContent())
             .extracting(SellerProductSummary::optionCount, SellerProductSummary::totalAvailableQuantity,
@@ -102,7 +104,8 @@ class SellerProductQueryIntegrationTest {
         changeOption(product.getOptions().get(0).getId(), "ARCHIVED", CLOTHING_PRICE);
         changeOption(product.getOptions().get(1).getId(), "ARCHIVED", CLOTHING_PRICE);
 
-        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10));
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10));
 
         assertThat(page.getContent())
             .extracting(SellerProductSummary::optionCount, SellerProductSummary::totalAvailableQuantity,
@@ -119,7 +122,8 @@ class SellerProductQueryIntegrationTest {
         Product third = saveProduct(saved, SELLER_ID, "셋째 상품", 10);
         saveProduct(saved, OTHER_SELLER_ID, "다른 판매자 상품", 10);
 
-        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 2));
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 2));
 
         assertThat(page.getContent())
             .extracting(SellerProductSummary::productId)
