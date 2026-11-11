@@ -15,6 +15,25 @@ if [[ ! -e /etc/rancher/k3s/k3s.yaml ]]; then
     exit 1
 fi
 
+# k3s Pod CPU · 메모리(kubelet cAdvisor)를 읽는 계정과 토큰(k3s-metrics.yaml). Alloy 가 그 Secret 을 읽으므로 띄우기 전에 만든다
+# 토큰이 없으면 Alloy 가 아예 뜨지 않으므로 지금 돌고 있는 Alloy 를 건드리기 전에 멈춘다
+export KUBECONFIG="$HOME/.kube/config"
+if ! kubectl apply --server-side --force-conflicts -f k3s-metrics.yaml > /dev/null; then
+    echo "::error::k3s 에 지표 읽기 계정(k3s-metrics.yaml)을 만들지 못했습니다. ~/.kube/config 를 확인하세요(deploy/k3s/README.md)"
+    exit 1
+fi
+token=""
+for _ in $(seq 15); do
+    token=$(kubectl -n kube-system get secret kidly-metrics-reader-token -o jsonpath='{.data.token}' 2>/dev/null || true)
+    [[ -n "$token" ]] && break
+    sleep 2
+done
+if [[ -z "$token" ]]; then
+    echo "::error::k3s 가 kidly-metrics-reader-token 에 토큰을 채우지 않았습니다(30초)"
+    exit 1
+fi
+unset token
+
 compose pull -q
 # 옛 스택(prometheus · loki · grafana)과 같은 프로젝트 이름이라 --remove-orphans 가 그 컨테이너를 지운다
 compose up -d --force-recreate --remove-orphans
