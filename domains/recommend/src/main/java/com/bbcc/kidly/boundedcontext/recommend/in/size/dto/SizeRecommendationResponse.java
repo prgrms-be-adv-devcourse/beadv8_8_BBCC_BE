@@ -14,7 +14,7 @@ import java.util.List;
  * @param reasons 사이즈를 고른 근거. 없으면 빈 목록
  * @param referenceFit 기준 옷과 이 상품을 비교한 기준 핏. 기준 옷이 없거나 비교할 수 없으면 null
  * @param itemJudgements AI 답을 채택했을 때의 항목별 판단. 규칙 결과이거나 판단이 없으면 빈 목록
- * @param growthSpeed 자녀의 키 성장 속도. 숫자는 소수 둘째 자리 반올림이고, 최근 속도는 기록이 부족하면 null
+ * @param growthSpeed 자녀의 키 성장 속도이고 늘 있다. 숫자는 소수 둘째 자리 반올림이고, 최근 속도는 기록이 부족하면 null이다
  * @param wearablePeriods 사이즈별로 앞으로 입을 수 있는 개월 수(24개월 상한). 사이즈 무관 상품이나 모자 · 양말이면 빈 목록이고, 계산할 수 없는 칸은 null
  */
 public record SizeRecommendationResponse(

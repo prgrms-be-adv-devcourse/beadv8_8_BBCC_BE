@@ -19,6 +19,8 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -118,12 +120,13 @@ class SizeRecommendationApiTest {
             .jsonPath("$").value(Map.class, body -> assertThat(body).containsEntry("referenceFit", null));
     }
 
-    // 자녀 1은 키 115cm이고 성장 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 큰다
+    // 자녀 1은 키 115cm이고 성장 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 큰다. 실행하는 날과 상관없이 늘 만 7세가 되게 생일을 정한다
     @Test
     @DisplayName("GROW-01 · WEAR-03 성장 속도와 사이즈별 입을 수 있는 기간을 받고, 없는 최근 속도와 너비 기준은 칸을 빼지 않고 null로 받는다")
     void recommendSizeWithGrowthSpeedAndWearablePeriods() {
         replicaProductRepository.save(RecommendFixture.productATopReplica());
-        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEventBornOn(
+            LocalDate.now(ZoneId.of("Asia/Seoul")).minusYears(7).minusMonths(6)));
 
         recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
             .expectStatus().isOk()

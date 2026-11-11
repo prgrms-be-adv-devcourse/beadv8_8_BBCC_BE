@@ -29,13 +29,17 @@ import tools.jackson.databind.json.JsonMapper;
 class OpenAiSizeChooserTest {
 
     private static final String PROMPT_VERSION_4_SHA_256 =
-        "51d5bf0621c9a1f4f13ad02f650fa7abe894542c9e5decd980637cad77260b4b";
+        "fe150d0ab2524816bbbc7b844b184cec471c80cfb04e912d484f1a77e2f60276";
+
+    // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
+    private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
+        null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널");
 
     private static final SizeAiQuestion QUESTION = new SizeAiQuestion(
         new SizeAiQuestion.Child(82, 115.0, 20.0, BodyType.NORMAL, PreferredFit.LOOSE, BodyType.NORMAL),
         List.of(new SizeAiQuestion.SizeLine("110", 105, 115, Map.of("TOTAL_LENGTH", new BigDecimal("42")))),
         new SizeAiQuestion.RuleResult("110", "TIGHT", List.of("110"), List.of()),
-        null, null, List.of());
+        null, GROWTH, List.of());
 
     // 상의 기준 옷 가슴단면 35cm와 상품 110의 가슴단면 34cm를 비교한 기준 핏을 담은 질문이다
     private static final SizeAiQuestion QUESTION_WITH_FIT = new SizeAiQuestion(
@@ -43,7 +47,7 @@ class OpenAiSizeChooserTest {
         new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(new ReferenceFit.Item("CHEST_WIDTH",
             new BigDecimal("35.0"), List.of(new ReferenceFit.SizeDiff("110", new BigDecimal("34"),
                 new BigDecimal("-1.0")))))),
-        null, List.of());
+        GROWTH, List.of());
 
     @Test
     @DisplayName("시스템 지시와 질문 JSON을 모델에 보내고, 모델이 준 JSON을 사이즈 답으로 읽는다")

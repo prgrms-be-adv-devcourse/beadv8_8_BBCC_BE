@@ -51,14 +51,18 @@ class SizeRecommendationServiceTest {
     private static final AiResponseKey.Input KEY_INPUT = new AiResponseKey.Input(
         PRODUCT_ID, CHILD_ID, 82, null, null, null, null, null, null, 1);
 
-    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, null, List.of());
+    // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
+    private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
+        null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널");
+
+    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of());
 
     private static final ReferenceFit REFERENCE_FIT = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
         new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
             new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
 
     private static final SizeAiQuestion QUESTION_WITH_FIT =
-        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, null, List.of());
+        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, GROWTH, List.of());
 
     // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
     private static final SizeAiEvidence EVIDENCE =

@@ -22,7 +22,7 @@ class GrowthRecordSinceIntegrationTest {
 
     private static final Long OTHER_CHILD_ID = 12L;
 
-    // 12개월 전 오늘 0시다. 이 시각에 잰 기록부터 읽는다
+    // 읽기 시작하는 기준 시각이다. 이 시각에 잰 기록부터 읽는다
     private static final LocalDateTime SINCE = LocalDateTime.of(2025, 11, 12, 0, 0);
 
     @Autowired
@@ -32,7 +32,7 @@ class GrowthRecordSinceIntegrationTest {
     private TransactionTemplate transactionTemplate;
 
     @Test
-    @DisplayName("GROW-01 성장 기록은 그 자녀가 기준 시각부터 잰 기록만 읽고, 기준 시각 직전 기록과 다른 자녀의 기록은 읽지 않는다")
+    @DisplayName("GROW-03 성장 기록은 그 자녀가 기준 시각부터 잰 기록만 읽고, 기준 시각 직전 기록과 다른 자녀의 기록은 읽지 않는다")
     void readOnlyThatChildsRecordsSince() {
         save(1L, CHILD_1_ID, SINCE.minusSeconds(1));
         save(2L, CHILD_1_ID, SINCE);

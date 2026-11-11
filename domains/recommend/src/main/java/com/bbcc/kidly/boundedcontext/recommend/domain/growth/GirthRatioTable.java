@@ -37,7 +37,7 @@ public class GirthRatioTable {
      * 만 나이 이하인 구간 중 시작 나이가 가장 큰 구간의 값을 쓴다. 마지막 구간 뒤 나이도 마지막 구간 값이다.
      */
     public double ratio(Gender gender, long months, GirthPart part) {
-        int ageYears = (int) (months / MONTHS_PER_YEAR);
+        int ageYears = (int) (Math.max(0, months) / MONTHS_PER_YEAR);
         GirthRatioRow row = rowsByGender.get(gender).floorEntry(ageYears).getValue();
         return switch (part) {
             case CHEST -> row.chestCmPerHeightCm();

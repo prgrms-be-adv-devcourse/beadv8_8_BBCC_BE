@@ -54,7 +54,7 @@ public class GrowthVelocityTable {
     }
 
     private GrowthVelocityRow rowOf(Gender gender, long months) {
-        long ageYears = Math.min(months / MONTHS_PER_YEAR, lastAgeYears);
+        long ageYears = Math.min(Math.max(0, months) / MONTHS_PER_YEAR, lastAgeYears);
         return rowsByAge.get(new AgeKey(gender, ageYears));
     }
 
