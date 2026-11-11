@@ -36,8 +36,8 @@ final class ItemJudgementVerifier {
         if (aiJudgement == null || referenceFit == null || !hasValidAllowance(aiJudgement)) {
             return null;
         }
-        Fit fit = Fit.findByName(aiJudgement.fit());
-        BigDecimal givenDiff = givenDiff(referenceFit, aiJudgement.code(), size);
+        Fit fit = SizeRecommendation.findByName(Fit.class, aiJudgement.fit());
+        BigDecimal givenDiff = referenceFit.diffOf(aiJudgement.code(), size);
         if (fit == null || givenDiff == null || aiJudgement.diffCm() == null
             || aiJudgement.diffCm().compareTo(givenDiff) != 0) {
             return null;
@@ -51,20 +51,5 @@ final class ItemJudgementVerifier {
         BigDecimal min = aiJudgement.allowanceMinCm();
         BigDecimal max = aiJudgement.allowanceMaxCm();
         return min != null && max != null && min.compareTo(max) <= 0;
-    }
-
-    // 기준 핏에 그 항목이나 그 사이즈가 없으면 null이다.
-    private static BigDecimal givenDiff(ReferenceFit referenceFit, String code, String size) {
-        for (ReferenceFit.Item item : referenceFit.items()) {
-            if (!item.code().equals(code)) {
-                continue;
-            }
-            for (ReferenceFit.SizeDiff diff : item.sizes()) {
-                if (diff.size().equals(size)) {
-                    return diff.diffCm();
-                }
-            }
-        }
-        return null;
     }
 }

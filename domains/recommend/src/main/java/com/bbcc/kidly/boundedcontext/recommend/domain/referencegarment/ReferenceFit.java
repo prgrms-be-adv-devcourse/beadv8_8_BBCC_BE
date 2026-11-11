@@ -56,6 +56,23 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
         return productPart != comparedPart;
     }
 
+    /**
+     * 그 항목 · 그 사이즈의 차이(상품 − 기준 옷, cm)를 돌려준다. 비교하지 않은 항목이거나 그 사이즈가 없으면 null이다.
+     */
+    public BigDecimal diffOf(String code, String size) {
+        for (Item item : items) {
+            if (!item.code().equals(code)) {
+                continue;
+            }
+            for (SizeDiff diff : item.sizes()) {
+                if (diff.size().equals(size)) {
+                    return diff.diffCm();
+                }
+            }
+        }
+        return null;
+    }
+
     public static Optional<ReferenceFit> compare(FitProduct product, List<ReferenceGarment> garments) {
         requireNonNull(product, "product는 필수입니다");
         requireNonNull(garments, "garments는 필수입니다");

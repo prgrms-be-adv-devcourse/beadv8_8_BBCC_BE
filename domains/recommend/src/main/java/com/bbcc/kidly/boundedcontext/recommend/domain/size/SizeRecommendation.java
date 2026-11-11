@@ -80,6 +80,7 @@ public class SizeRecommendation {
      */
     public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer, SizeAiEvidence evidence) {
         requireNonNull(productSizes, "productSizes는 필수입니다");
+        requireNonNull(evidence, "evidence는 필수입니다");
         // 사이즈 무관 상품도 사이즈 이름(FREE 등)을 가질 수 있어, 상품 사이즈 검사보다 먼저 거른다
         if (productSizes.isSizeFree()) {
             return this;
@@ -87,7 +88,7 @@ public class SizeRecommendation {
         if (answer == null || !productSizes.hasSize(answer.recommendedSize())) {
             return this;
         }
-        Fit aiFit = Fit.findByName(answer.fit());
+        Fit aiFit = findByName(Fit.class, answer.fit());
         if (aiFit == null) {
             return this;
         }
@@ -130,7 +131,7 @@ public class SizeRecommendation {
     }
 
     // 모델이 준 문자열이 모르는 값일 수 있어, valueOf의 예외 대신 이름이 정확히 같은지 비교하고 없으면 null을 돌려준다.
-    private static <E extends Enum<E>> E findByName(Class<E> type, String name) {
+    static <E extends Enum<E>> E findByName(Class<E> type, String name) {
         for (E constant : type.getEnumConstants()) {
             if (constant.name().equals(name)) {
                 return constant;

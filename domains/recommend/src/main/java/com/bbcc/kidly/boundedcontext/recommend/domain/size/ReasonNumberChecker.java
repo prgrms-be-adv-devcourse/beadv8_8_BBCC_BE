@@ -33,7 +33,8 @@ final class ReasonNumberChecker {
 
     private static boolean isGiven(BigDecimal number, Set<BigDecimal> givenNumbers, List<ItemJudgement> judgements) {
         for (BigDecimal given : givenNumbers) {
-            if (number.compareTo(given) == 0 || number.compareTo(given.abs()) == 0) {
+            // 뽑은 숫자는 늘 0 이상이라, 부호를 뺀 값과만 비교하면 양수 · 음수를 모두 덮는다
+            if (number.compareTo(given.abs()) == 0) {
                 return true;
             }
         }
