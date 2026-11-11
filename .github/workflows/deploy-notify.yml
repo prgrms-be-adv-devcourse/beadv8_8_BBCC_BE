@@ -100,6 +100,13 @@ jobs:
             fi
           fi
 
+          # 앞서 줄 서 있던 배포는 이 배포에 포함된다고 보고 건너뛰었다(#1169). 이 배포가 실패하면 그 커밋들도 아직 서버에 없다
+          # 이미지 빌드 중 외부 다운로드 오류(11-09 Gradle 504 등)처럼 일시적인 실패면 다시 돌리면 된다
+          if [ "$WORKFLOW" = "deploy" ] && [ "$RUN_EVENT" = "push" ] && [ "$CONCLUSION" = "failure" ]; then
+            SKIPPED_NOTE="앞서 건너뛴 배포가 있었다면 그 커밋들도 아직 배포되지 않았어요. 일시적인 오류면 실행 링크에서 Re-run failed jobs 로 다시 돌리세요."
+            if [ -n "$HINT" ]; then HINT="$HINT"$'\n'"$SKIPPED_NOTE"; else HINT="$SKIPPED_NOTE"; fi
+          fi
+
           # 제목은 배포한 커밋이다. PR 머지 커밋의 첫 줄은 "Merge pull request #N from 브랜치"라서 PR 알림처럼 "#N PR 제목"을 쓴다
           TITLE=$(printf '%s' "$COMMIT_MSG" | head -n1)
           if [[ "$TITLE" =~ ^Merge\ pull\ request\ \#([0-9]+)\  ]]; then
