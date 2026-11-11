@@ -16,6 +16,9 @@ public class GrowthSpeedCalculator {
     private static final int MONTHS_PER_YEAR = 12;
     // 한 해 365.25일을 12로 나눈 한 달의 평균 일수다
     private static final double DAYS_PER_MONTH = 30.4375;
+    private static final double MIN_RECORD_MONTHS = 1.0;
+    // 집에서 잰 키의 오차를 0.5 ~ 1cm로 보고 그 가운데 값을 쓴다
+    private static final double MEASUREMENT_ERROR_CM = 0.75;
     private static final String TABLE_SOURCE = "한국아동패널";
 
     private final GrowthVelocityTable table;
@@ -29,8 +32,44 @@ public class GrowthSpeedCalculator {
         long ageMonths = Period.between(birthDate, today).toTotalMonths();
         double tableCmPerMonth = table.yearlyCm(gender, ageMonths) / MONTHS_PER_YEAR;
         double recordMonths = recordMonths(records);
-        return new GrowthSpeed(tableCmPerMonth, null, records.size(), recordMonths, 0.0, tableCmPerMonth,
-                TABLE_SOURCE);
+        if (recordMonths < MIN_RECORD_MONTHS) {
+            return new GrowthSpeed(tableCmPerMonth, null, records.size(), recordMonths, 0.0, tableCmPerMonth,
+                    TABLE_SOURCE);
+        }
+        double tableError = table.yearlySdCm(gender, ageMonths) / MONTHS_PER_YEAR;
+        return blend(records, recordMonths, tableCmPerMonth, tableError);
+    }
+
+    /**
+     * 아이 기록의 최소제곱 기울기와 표 값을, 오차가 작은 쪽에 비중을 두어 섞는다.
+     */
+    private GrowthSpeed blend(List<RecommendGrowthRecord> records, double recordMonths, double tableCmPerMonth,
+            double tableError) {
+        int count = records.size();
+        double[] times = new double[count];
+        double[] heights = new double[count];
+        double timeSum = 0;
+        double heightSum = 0;
+        for (int i = 0; i < count; i++) {
+            RecommendGrowthRecord record = records.get(i);
+            times[i] = record.getRecordedAt().toLocalDate().toEpochDay() / DAYS_PER_MONTH;
+            heights[i] = record.getHeightCm().doubleValue();
+            timeSum += times[i];
+            heightSum += heights[i];
+        }
+        double timeMean = timeSum / count;
+        double heightMean = heightSum / count;
+        double timeSpread = 0;
+        double covariance = 0;
+        for (int i = 0; i < count; i++) {
+            timeSpread += (times[i] - timeMean) * (times[i] - timeMean);
+            covariance += (times[i] - timeMean) * (heights[i] - heightMean);
+        }
+        double childCmPerMonth = covariance / timeSpread;
+        double childErrorSquare = MEASUREMENT_ERROR_CM * MEASUREMENT_ERROR_CM / timeSpread;
+        double childShare = tableError * tableError / (tableError * tableError + childErrorSquare);
+        double cmPerMonth = childShare * childCmPerMonth + (1 - childShare) * tableCmPerMonth;
+        return new GrowthSpeed(cmPerMonth, null, count, recordMonths, childShare, tableCmPerMonth, TABLE_SOURCE);
     }
 
     private double recordMonths(List<RecommendGrowthRecord> records) {
