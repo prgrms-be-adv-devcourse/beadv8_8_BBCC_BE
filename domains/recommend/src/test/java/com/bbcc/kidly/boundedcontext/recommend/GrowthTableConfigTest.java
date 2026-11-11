@@ -101,4 +101,13 @@ class GrowthTableConfigTest {
         assertThat(row.arm()).isEqualTo(arm);
         assertThat(row.elbow()).isEqualTo(elbow);
     }
+
+    // 성장량 표 · 둘레 비율 표와 같은 기준으로, 잘못 들어온 생일에서도 계산이 멈추지 않게 한다
+    @ParameterizedTest
+    @ValueSource(longs = {-1, -11, -13, -30})
+    @DisplayName("PRV-01 생일이 오늘보다 뒤라 개월 수가 음수면 신체 높이 비율 표도 0세 값을 쓴다")
+    void bodyHeightRatioUsesAgeZeroForNegativeMonths(long months) {
+        assertThat(BODY_HEIGHT_RATIO_TABLE.ratios(Gender.FEMALE, months))
+            .isEqualTo(BODY_HEIGHT_RATIO_TABLE.ratios(Gender.FEMALE, 0));
+    }
 }
