@@ -20,6 +20,7 @@ public class GrowthSpeedCalculator {
     // 집에서 잰 키의 오차를 0.5 ~ 1cm로 보고 그 가운데 값을 쓴다
     private static final double MEASUREMENT_ERROR_CM = 0.75;
     private static final String TABLE_SOURCE = "한국아동패널";
+    private static final double MAX_TABLE_MULTIPLE = 2.0;
 
     private final GrowthVelocityTable table;
 
@@ -68,7 +69,9 @@ public class GrowthSpeedCalculator {
         double childCmPerMonth = covariance / timeSpread;
         double childErrorSquare = MEASUREMENT_ERROR_CM * MEASUREMENT_ERROR_CM / timeSpread;
         double childShare = tableError * tableError / (tableError * tableError + childErrorSquare);
-        double cmPerMonth = childShare * childCmPerMonth + (1 - childShare) * tableCmPerMonth;
+        double blended = childShare * childCmPerMonth + (1 - childShare) * tableCmPerMonth;
+        // 집에서 잰 키의 오차로 기울기가 크게 흔들릴 수 있어 0 ~ 표 값의 2배 안으로 맞춘다
+        double cmPerMonth = Math.clamp(blended, 0, MAX_TABLE_MULTIPLE * tableCmPerMonth);
         return new GrowthSpeed(cmPerMonth, null, childCmPerMonth, count, recordMonths, childShare, tableCmPerMonth,
                 TABLE_SOURCE);
     }
