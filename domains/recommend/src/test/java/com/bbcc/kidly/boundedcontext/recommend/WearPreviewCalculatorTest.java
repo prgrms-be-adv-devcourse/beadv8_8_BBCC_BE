@@ -158,6 +158,17 @@ class WearPreviewCalculatorTest {
         assertThat(preview.sizes()).extracting(WearPreview.SizeWear::hemAt).containsExactly(HemPosition.ANKLE);
     }
 
+    @Test
+    @DisplayName("PRV-02 바지 총장이 허리높이보다 길면 밑단 높이는 0cm이고 위치는 FLOOR다")
+    void hemHeightIsZeroWhenLongerThanWaistHeight() {
+        // 허리 71.88cm − 총장 80cm = −8.12cm
+        WearPreview preview = calculator.preview(product(List.of("의류", "바지"), size("130", "80.0", null)),
+            GIRL_120, TODAY).orElseThrow();
+
+        assertThat(preview.sizes()).extracting(WearPreview.SizeWear::hemCm, WearPreview.SizeWear::hemAt)
+            .containsExactly(tuple(0.0, HemPosition.FLOOR));
+    }
+
     static Stream<Arguments> notPreviewedProducts() {
         return Stream.of(
             Arguments.of(Named.of("사이즈 무관 상의",
