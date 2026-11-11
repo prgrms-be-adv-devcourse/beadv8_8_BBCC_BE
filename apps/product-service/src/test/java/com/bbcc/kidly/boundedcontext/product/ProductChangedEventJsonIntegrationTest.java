@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -27,6 +28,12 @@ class ProductChangedEventJsonIntegrationTest {
         {"productId":1,"sellerId":2,"name":"데일리 맨투맨","categoryId":5,"status":"ON_SALE",
          "thumbnailUrl":null,"createdAt":"2026-10-01T09:00:00","sizeFree":false,"options":[],"infoValues":[],
          "categoryPath":[{"id":4,"name":"의류"},{"id":5,"name":"상의"}]}
+        """;
+
+    private static final String DATA_WITH_VISIBLE_GENDER = """
+        {"productId":1,"sellerId":2,"name":"레이스 원피스","categoryId":6,"status":"ON_SALE",
+         "thumbnailUrl":null,"createdAt":"2026-10-01T09:00:00","sizeFree":false,"options":[],"infoValues":[],
+         "categoryPath":[{"id":4,"name":"의류","visibleGender":"ALL"},{"id":6,"name":"원피스","visibleGender":"GIRL"}]}
         """;
 
     private static final String DATA_WITH_SALE_STARTED_AT = """
@@ -69,5 +76,20 @@ class ProductChangedEventJsonIntegrationTest {
         assertThat(data.categoryPath()).containsExactly(
             new ProductChangedEvent.CategoryPathEntry(4L, "의류"),
             new ProductChangedEvent.CategoryPathEntry(5L, "상의"));
+    }
+
+    @Test
+    @DisplayName("VIS-01 카테고리 경로의 보일 성별은 문자열로 쓰고 읽으며, 보일 성별 칸이 없는 예전 본문은 ALL로 읽는다")
+    void readAndWriteCategoryVisibleGender() {
+        ProductChangedEvent.Data oldData =
+            jsonMapper.readValue(DATA_WITH_CATEGORY_PATH, ProductChangedEvent.Data.class);
+        ProductChangedEvent.Data data = jsonMapper.readValue(DATA_WITH_VISIBLE_GENDER, ProductChangedEvent.Data.class);
+
+        assertThat(oldData.categoryPath()).extracting(ProductChangedEvent.CategoryPathEntry::visibleGender)
+            .containsExactly(CategoryVisibleGender.ALL, CategoryVisibleGender.ALL);
+        assertThat(data.categoryPath()).extracting(ProductChangedEvent.CategoryPathEntry::visibleGender)
+            .containsExactly(CategoryVisibleGender.ALL, CategoryVisibleGender.GIRL);
+        assertThat(jsonMapper.readTree(jsonMapper.writeValueAsString(data)).get("categoryPath").get(1)
+            .get("visibleGender").asString()).isEqualTo("GIRL");
     }
 }
