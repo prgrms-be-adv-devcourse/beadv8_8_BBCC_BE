@@ -53,7 +53,7 @@
 | `apps/member-service` | 회원 서비스. 회원 · 인증 · 판매자 도메인은 이 서비스에만 있다. |
 | `apps/recommend-service` | 추천 서비스(#704). 추천 도메인은 이 서비스에만 있다 |
 | `apps/payment-service` | 결제 서비스(#525). 결제 도메인은 이 서비스에만 있다. 결제 마이그레이션은 서비스 `baseline-version`(`202611021930`, 고정)보다 뒤 버전으로 더한다 |
-| `apps/settlement-service` | 정산 서비스(#729). 정산 도메인은 이 서비스에만 있다. 구매확정 · 지급 결과는 Kafka로만 받으므로 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다. 평일 09:05~17:05 매시간 자동 정산하고(`SETTLEMENT_RUN_CRON`, 공휴일은 공공데이터 API `HOLIDAY_API_SERVICE_KEY`로 건너뛴다), 지급 요청은 아웃박스에 남긴 뒤 `kidly.settlement.events`로 보낸다. 받기 실패 메시지는 DB에 보관해 관리자가 재처리한다 |
+| `apps/settlement-service` | 정산 서비스(#729). 정산 도메인은 이 서비스에만 있다. 구매확정 · 지급 결과는 Kafka로만 받으므로 수신 스위치(`SETTLEMENT_KAFKA_CONSUMER_ENABLED`)를 끄면 이벤트를 받지 못한다. k3s CronJob `settlement-daily-run`이 매일 10시에 한 번 자동 정산하고(공휴일은 공공데이터 API `HOLIDAY_API_SERVICE_KEY`로 받아 저장한 목록으로 건너뛴다), API 서버가 영업일 12:30에 그날 끝난 실행이 없으면 ERROR를 남긴다(`SETTLEMENT_RUN_CHECK_CRON`). 지급 요청은 아웃박스에 남긴 뒤 `kidly.settlement.events`로 보낸다. 받기 실패 메시지는 DB에 보관해 관리자가 재처리한다 |
 | `apps/product-service` | 상품 서비스(#791). 상품 도메인은 이 서비스에만 있다. 상품 마이그레이션(`domains/product`의 `db/migration/product`)은 이 서비스만 적용한다. 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다 |
 | `apps/order-service` | 주문 서비스(주문 · 장바구니 · 배송 · 조르기, #826). 주문 도메인은 이 서비스에만 있다. 주문 마이그레이션은 이 서비스만 적용한다. 주문 표가 이미 있는 DB는 baseline(`202611031100`, 고정)으로 건너뛰고, 빠진 표는 보강 마이그레이션이 만든다 |
 | `apps/community-service` | 커뮤니티 서비스(리뷰 · 찜, #827). 커뮤니티 도메인은 이 서비스에만 있다. 마이그레이션은 도메인 모듈에만 있고 이 서비스만 적용한다. 이미 테이블이 있는 DB는 baseline(`202611031200`, 고정)으로 건너뛴다 |

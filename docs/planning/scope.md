@@ -80,7 +80,7 @@
 | ⑦ | 정산 기간 표시 | 종료일 = 종료 기준일 − 1일(실행일 전날), 시작일 = 포함된 대상 중 가장 이른 구매확정일. 실행 한 번에 판매자당 정산서 1장, 대상이 없으면 만들지 않음 (판매자 · 종료일 유니크) |
 | ⑦ | 수수료 | 판매자별 정산서 amount 합계 × 수수료율(설정값, 지금 10%), 원 미만 버림 · 지급액 = 합계 − 수수료 · 적용 율은 정산서에 저장, 바뀐 율은 다음 정산부터 · 주문상품별 수수료는 계산하지 않음 · 수수료율은 0 이상 1 이하, 소수 넷째 자리까지 |
 | ⑦ | 지급 요청 / 지급 완료 구분 | 정산서를 만들면 `COMPLETED`(계산 완료 = 지급 요청)이고 같은 트랜잭션에서 `settlement.payout-requested`를 아웃박스에 저장하고 Kafka(`kidly.settlement.events`)로 보냄. 결제가 적립하고 `payment.payout-completed`(→ `PAID`, paidAt 저장) 또는 `payment.payout-failed`(→ `FAILED`, reasonCode 저장)를 Kafka(`kidly.payment.events`)로 보냄. 같은 settlementId면 추가 적립 없음, 이미 처리한 요청이 다시 오면 결제가 저장된 결과를 재발행. 정산은 settlementId · sellerId · amount를 대조하고 같은 결과는 한 번만 반영 · 0원 정산서도 요청 (결제가 입금 없이 완료, ledgerId null) |
-| ⑦ | 정산 실행 방식 | Spring Batch 작업 `settlementJob` 하나를 자동(cron 설정값, 지금 영업일 09:05~17:05 매시간 시도, 그날 이미 정산했으면 건너뜀) · 수동(관리자 API)이 같이 씀. 판매자 1명 단위로 처리, 실패한 판매자만 건너뜀 (실행 상태 `PARTIAL_FAILED`) · 실행 기록은 Spring Batch 메타데이터 (⑦ 상세 6) |
+| ⑦ | 정산 실행 방식 | Spring Batch 작업 `settlementJob` 하나를 자동(k3s CronJob 매일 10시 한 번 실행, 영업일 아니면 건너뜀, 그날 이미 정산했으면 건너뜀, 12:30 결과 확인) · 수동(관리자 API)이 같이 씀. 판매자 1명 단위로 처리, 실패한 판매자만 건너뜀 (실행 상태 `PARTIAL_FAILED`) · 실행 기록은 Spring Batch 메타데이터 (⑦ 상세 6) |
 | ⑦ | 중복 · 동시 실행 | 같은 주문상품은 한 번만 정산 대상 · 실행 중인 정산이 있으면 새 실행 409 · 같은 종료 기준일 재실행 409 · 정산 대상 · 정산서는 `@Version`으로 동시 변경 차단 |
 | ⑦ | 실패 정산 재처리 (보완) | 결과를 못 받은 `COMPLETED` 정산서에 같은 settlementId로 지급 요청 재발행 (결과 유실 복구). 자동: 결과를 30분 넘게 못 받으면 7일까지 10분마다 재요청, 그 뒤는 관리자 API · 결제는 정산서당 한 번만 입금. `FAILED`는 결제가 다시 시도하지 않으므로 대상 아님 (원인은 운영자 처리) |
 | ⑦ | Spring Batch 의존성 | 정산 담당이 `build.gradle.kts`에 `spring-boot-starter-batch-jdbc` 추가 · 메타데이터 테이블(`settlement.BATCH_*`)은 배포 전 DDL · 의존성이 늦으면 도메인 코드 먼저, Job 조립은 뒤 |

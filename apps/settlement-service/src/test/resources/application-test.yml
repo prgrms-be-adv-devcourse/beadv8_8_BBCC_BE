@@ -17,9 +17,8 @@ kidly:
   kafka:
     producer:
       enabled: false
-  # 자동 정산 · 지급 재요청 스케줄러는 끈다. 정산 테스트는 SettlementRunService를 직접 부른다
+  # 정산 실행 확인 · 지급 재요청 스케줄러는 끈다. 정산 테스트는 SettlementRunService를 직접 부른다
   settlement:
-    run-cron: "-"
     run-check-cron: "-"
     payout-retry-cron: "-"
     # 아웃박스 릴레이는 테스트 중 다른 스레드에서 저절로 돌지 않게 주기를 아주 길게 두고, 정리는 끈다.
