@@ -27,7 +27,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -155,7 +154,7 @@ class HomePreviewServiceTest {
         store.save(AiResponseType.HOME_PREVIEW, AiResponseKey.of(new AiResponseKey.Input(null, CHILD_ID,
                 CHILD.ageMonths(), CHILD.heightCm(), CHILD.weightKg(), CHILD.bodyType(), CHILD.preferredFit(),
                 List.of(1L, 2L, 3L, 4L, 5L, 6L), null, 1)),
-            "{\"picks\":[{\"productId\":5,\"reason\":\"추천 사이즈가 110인 상품이에요.\"}]}", BASE_TIME);
+            "{\"picks\":[{\"productId\":5,\"reason\":\"추천 사이즈가 110인 상품이에요.\"}]}", Duration.ofHours(24));
         RecordingPicker picker = new RecordingPicker(answer(5L, "포근한 겨울 상의로 추천."));
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
 
@@ -260,25 +259,20 @@ class HomePreviewServiceTest {
     }
 
     /**
-     * 같은 종류 · 키의 가장 최근 응답만 기억하는 메모리 저장소다.
+     * 같은 종류 · 키의 가장 최근 응답만 기억하는 메모리 저장소다. 보관 기간은 따지지 않는다.
      */
     private static final class MemoryAiResponseStore implements AiResponseStore {
 
         private final Map<String, String> responses = new HashMap<>();
 
         @Override
-        public Optional<String> findLatestSince(AiResponseType type, AiResponseKey key, LocalDateTime since) {
+        public Optional<String> find(AiResponseType type, AiResponseKey key) {
             return Optional.ofNullable(responses.get(type + ":" + key.value()));
         }
 
         @Override
-        public void save(AiResponseType type, AiResponseKey key, String responseJson, LocalDateTime createdAt) {
+        public void save(AiResponseType type, AiResponseKey key, String responseJson, Duration timeToLive) {
             responses.put(type + ":" + key.value(), responseJson);
-        }
-
-        @Override
-        public int deleteCreatedBefore(LocalDateTime cutoff) {
-            return 0;
         }
     }
 

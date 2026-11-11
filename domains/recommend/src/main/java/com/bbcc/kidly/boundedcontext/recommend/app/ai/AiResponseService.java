@@ -116,18 +116,18 @@ public class AiResponseService {
         }
         LocalDateTime now = LocalDateTime.now(clock);
         AiResponseKey key = AiResponseKey.of(input);
-        Optional<T> stored = findStored(type, key, now, responseType);
+        Optional<T> stored = findStored(type, key, responseType);
         if (stored.isPresent()) {
             return stored;
         }
         if (!tryAcquireQuietly(type, now)) {
             return Optional.empty();
         }
-        Optional<T> result = callWithTimeout(type, key, now, call);
+        Optional<T> result = callWithTimeout(type, key, call);
         if (result.isEmpty()) {
             return Optional.empty();
         }
-        saveQuietly(type, key, result.get(), now);
+        saveQuietly(type, key, result.get());
         return result;
     }
 
@@ -146,7 +146,7 @@ public class AiResponseService {
         }
         LocalDateTime now = LocalDateTime.now(clock);
         AiResponseKey key = AiResponseKey.of(input);
-        Optional<T> stored = findStored(type, key, now, responseType);
+        Optional<T> stored = findStored(type, key, responseType);
         if (stored.isPresent()) {
             return CompletableFuture.completedFuture(stored);
         }
@@ -155,7 +155,7 @@ public class AiResponseService {
         }
         CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
         // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
-        task.thenAccept(answer -> saveLateAnswer(type, key, answer, now));
+        task.thenAccept(answer -> saveLateAnswer(type, key, answer));
         return task.handle((answer, error) -> toResult(type, answer, error))
             .completeOnTimeout(Optional.empty(), asyncWait.toMillis(), TimeUnit.MILLISECONDS);
     }
@@ -186,11 +186,10 @@ public class AiResponseService {
     private <T> Optional<T> findStored(
         AiResponseType type,
         AiResponseKey key,
-        LocalDateTime now,
         Class<T> responseType
     ) {
         try {
-            Optional<String> json = store.findLatestSince(type, key, now.minus(reusePeriod));
+            Optional<String> json = store.find(type, key);
             if (json.isEmpty()) {
                 return Optional.empty();
             }
@@ -202,17 +201,16 @@ public class AiResponseService {
         }
     }
 
-    private <T> void saveQuietly(AiResponseType type, AiResponseKey key, T response, LocalDateTime now) {
+    private <T> void saveQuietly(AiResponseType type, AiResponseKey key, T response) {
         try {
-            store.save(type, key, jsonMapper.writeValueAsString(response), now);
+            store.save(type, key, jsonMapper.writeValueAsString(response), reusePeriod);
         } catch (RuntimeException e) {
             log.warn("AI 응답을 저장하지 못했지만 받은 결과는 돌려줍니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
         }
     }
 
-    private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, LocalDateTime now,
-        Supplier<T> call) {
+    private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, Supplier<T> call) {
         Duration callTimeout = requireNonNull(callTimeouts.get(type), "종류별 제한 시간이 없습니다");
         CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
         try {
@@ -223,7 +221,7 @@ public class AiResponseService {
             logCallFailure(type, e);
         } catch (TimeoutException e) {
             // 화면에는 규칙 결과가 나가지만, 늦게 온 답은 받는 대로 저장해 같은 입력의 다음 요청이 쓰게 한다
-            task.thenAccept(lateAnswer -> saveLateAnswer(type, key, lateAnswer, now));
+            task.thenAccept(lateAnswer -> saveLateAnswer(type, key, lateAnswer));
             logCallFailure(type, e);
         } catch (ExecutionException e) {
             logCallFailure(type, e.getCause());
@@ -231,9 +229,9 @@ public class AiResponseService {
         return Optional.empty();
     }
 
-    private <T> void saveLateAnswer(AiResponseType type, AiResponseKey key, T lateAnswer, LocalDateTime now) {
+    private <T> void saveLateAnswer(AiResponseType type, AiResponseKey key, T lateAnswer) {
         if (lateAnswer != null) {
-            saveQuietly(type, key, lateAnswer, now);
+            saveQuietly(type, key, lateAnswer);
         }
     }
 

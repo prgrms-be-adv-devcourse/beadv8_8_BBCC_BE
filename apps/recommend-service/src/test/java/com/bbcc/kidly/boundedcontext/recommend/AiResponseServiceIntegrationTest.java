@@ -21,8 +21,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
@@ -67,20 +65,6 @@ class AiResponseServiceIntegrationTest {
         assertThat(second).contains(answer());
         assertThat(calls).hasValue(1);
         assertThat(callCountOn(NOW.toLocalDate())).isEqualTo(1);
-    }
-
-    @ParameterizedTest
-    @CsvSource({"0, 0, 저장한 답", "1, 1, 새로 부른 답"})
-    @DisplayName("재사용 기간(24시간) 경계: 정확히 24시간 전에 저장한 답은 다시 쓰고, 24시간 1초 전에 저장한 답은 다시 쓰지 않고 AI를 부른다")
-    void reuseBoundary(long secondsBeyondReusePeriod, int expectedCalls, String expectedReason) {
-        store.save(TYPE, AiResponseKey.of(INPUT), "{\"productIds\":[1,2],\"reason\":\"저장한 답\"}",
-            NOW.minusHours(24).minusSeconds(secondsBeyondReusePeriod));
-        AtomicInteger calls = new AtomicInteger();
-
-        Optional<Answer> answer = fixedClockService().respond(TYPE, INPUT, Answer.class, countingCall(calls));
-
-        assertThat(calls).hasValue(expectedCalls);
-        assertThat(answer).contains(new Answer(List.of(1L, 2L), expectedReason));
     }
 
     private AiResponseService fixedClockService() {

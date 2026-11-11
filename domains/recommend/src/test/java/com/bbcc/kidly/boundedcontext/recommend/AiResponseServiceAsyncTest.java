@@ -70,7 +70,7 @@ class AiResponseServiceAsyncTest {
     @Test
     @DisplayName("저장한 답이 있으면 이미 끝난 결과로 돌려주고, AI를 부르지 않고 횟수도 세지 않는다")
     void returnCompletedResultWhenStored() {
-        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.of("{\"reason\":\"저장한 답\"}"));
+        given(store.find(any(), any())).willReturn(Optional.of("{\"reason\":\"저장한 답\"}"));
         AtomicInteger calls = new AtomicInteger();
 
         CompletableFuture<Optional<Answer>> result = service.respondAsync(TYPE, INPUT, Answer.class, () -> {
@@ -86,7 +86,7 @@ class AiResponseServiceAsyncTest {
     @Test
     @DisplayName("저장한 답이 없으면 AI를 기다리지 않고 바로 돌려주고, AI 답이 오면 저장한 뒤 그 답으로 끝난다")
     void returnBeforeAiAnswersAndCompleteWithAnswer() {
-        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(store.find(any(), any())).willReturn(Optional.empty());
         given(quota.tryAcquire(any(), anyInt())).willReturn(true);
         CountDownLatch release = new CountDownLatch(1);
 
@@ -98,13 +98,13 @@ class AiResponseServiceAsyncTest {
         assertThat(result).isNotDone();
         release.countDown();
         assertThat(result.join()).contains(new Answer("새 답"));
-        verify(store, timeout(1_000)).save(TYPE, AiResponseKey.of(INPUT), "{\"reason\":\"새 답\"}", NOW);
+        verify(store, timeout(1_000)).save(TYPE, AiResponseKey.of(INPUT), "{\"reason\":\"새 답\"}", REUSE_PERIOD);
     }
 
     @Test
     @DisplayName("하루 상한에 닿았으면 AI를 부르지 않고 빈 값으로 끝난 결과를 돌려준다")
     void returnEmptyWhenDailyLimitReached() {
-        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(store.find(any(), any())).willReturn(Optional.empty());
         given(quota.tryAcquire(any(), anyInt())).willReturn(false);
         AtomicInteger calls = new AtomicInteger();
 
@@ -120,7 +120,7 @@ class AiResponseServiceAsyncTest {
     @Test
     @DisplayName("AI 호출이 실패하거나 null을 돌려주면 빈 값으로 끝나고 저장하지 않는다")
     void completeEmptyWhenAiFailsOrReturnsNull() {
-        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(store.find(any(), any())).willReturn(Optional.empty());
         given(quota.tryAcquire(any(), anyInt())).willReturn(true);
 
         CompletableFuture<Optional<Answer>> failed = service.respondAsync(TYPE, INPUT, Answer.class, () -> {
@@ -136,7 +136,7 @@ class AiResponseServiceAsyncTest {
     @Test
     @DisplayName("최대 시간 안에 AI 답이 오지 않으면 빈 값으로 끝나고, 그 뒤에 온 답은 저장해 다음 요청이 쓴다")
     void completeEmptyAfterAsyncWaitAndSaveLateAnswer() {
-        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(store.find(any(), any())).willReturn(Optional.empty());
         given(quota.tryAcquire(any(), anyInt())).willReturn(true);
         CountDownLatch release = new CountDownLatch(1);
 
@@ -147,7 +147,7 @@ class AiResponseServiceAsyncTest {
 
         assertThat(result.join()).isEmpty();
         release.countDown();
-        verify(store, timeout(1_000)).save(TYPE, AiResponseKey.of(INPUT), "{\"reason\":\"늦은 답\"}", NOW);
+        verify(store, timeout(1_000)).save(TYPE, AiResponseKey.of(INPUT), "{\"reason\":\"늦은 답\"}", REUSE_PERIOD);
     }
 
     private static void await(CountDownLatch latch) {
