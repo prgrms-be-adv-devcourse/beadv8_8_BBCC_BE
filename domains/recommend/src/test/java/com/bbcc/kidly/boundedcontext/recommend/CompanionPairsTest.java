@@ -1,9 +1,10 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.ACCESSORY;
-import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.BOTTOM;
 import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.ONE_PIECE;
 import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.OUTER;
+import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.PANTS;
+import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.SKIRT;
 import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.TOP;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,11 +22,12 @@ class CompanionPairsTest {
 
     static Stream<Arguments> pairTable() {
         return Stream.of(
-            Arguments.of(TOP, List.of(BOTTOM, OUTER, ACCESSORY)),
-            Arguments.of(BOTTOM, List.of(TOP, ONE_PIECE, OUTER, ACCESSORY)),
-            Arguments.of(ONE_PIECE, List.of(BOTTOM, OUTER, ACCESSORY)),
-            Arguments.of(OUTER, List.of(BOTTOM, TOP, ONE_PIECE, ACCESSORY)),
-            Arguments.of(ACCESSORY, List.of(TOP, BOTTOM, ONE_PIECE, OUTER)));
+            Arguments.of(TOP, List.of(PANTS, SKIRT, OUTER, ACCESSORY)),
+            Arguments.of(PANTS, List.of(TOP, ONE_PIECE, OUTER, ACCESSORY)),
+            Arguments.of(SKIRT, List.of(TOP, OUTER, ACCESSORY)),
+            Arguments.of(ONE_PIECE, List.of(PANTS, OUTER, ACCESSORY)),
+            Arguments.of(OUTER, List.of(PANTS, SKIRT, TOP, ONE_PIECE, ACCESSORY)),
+            Arguments.of(ACCESSORY, List.of(TOP, PANTS, SKIRT, ONE_PIECE, OUTER)));
     }
 
     @ParameterizedTest
@@ -36,13 +38,15 @@ class CompanionPairsTest {
     }
 
     @Test
-    @DisplayName("PAIR-01 어떤 종류도 자기 자신과 짝이 아니고, 상의와 원피스는 서로 짝이 아니다")
-    void sameKindAndTopWithOnePieceAreNotPairs() {
+    @DisplayName("PAIR-01 어떤 종류도 자기 자신과 짝이 아니고, 상의와 원피스 · 바지와 치마 · 원피스와 치마는 서로 짝이 아니다")
+    void sameKindAndNonPairKindsAreNotPairs() {
         for (CompanionKind kind : CompanionKind.values()) {
             assertThat(CompanionPairs.of(kind)).doesNotContain(kind);
         }
         assertThat(CompanionPairs.of(TOP)).doesNotContain(ONE_PIECE);
-        assertThat(CompanionPairs.of(ONE_PIECE)).doesNotContain(TOP);
+        assertThat(CompanionPairs.of(ONE_PIECE)).doesNotContain(TOP, SKIRT);
+        assertThat(CompanionPairs.of(PANTS)).doesNotContain(SKIRT);
+        assertThat(CompanionPairs.of(SKIRT)).doesNotContain(PANTS, ONE_PIECE);
     }
 
     @Test
@@ -54,7 +58,7 @@ class CompanionPairsTest {
                     .contains(a);
             }
         }
-        assertThat(CompanionPairs.of(OUTER)).containsExactlyInAnyOrder(TOP, BOTTOM, ONE_PIECE, ACCESSORY);
-        assertThat(CompanionPairs.of(ACCESSORY)).containsExactlyInAnyOrder(TOP, BOTTOM, ONE_PIECE, OUTER);
+        assertThat(CompanionPairs.of(OUTER)).containsExactlyInAnyOrder(TOP, PANTS, SKIRT, ONE_PIECE, ACCESSORY);
+        assertThat(CompanionPairs.of(ACCESSORY)).containsExactlyInAnyOrder(TOP, PANTS, SKIRT, ONE_PIECE, OUTER);
     }
 }
