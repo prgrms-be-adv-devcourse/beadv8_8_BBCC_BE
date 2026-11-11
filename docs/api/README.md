@@ -93,7 +93,7 @@
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
 | GET | `/api/v1/products/{productId}` | 상품 상세(판매자 상호명 포함) | 🌐 |
-| GET | `/api/v1/categories` | 카테고리 트리 | 🌐 |
+| GET | `/api/v1/categories` | 카테고리 트리. 선택 파라미터 `gender`(`MALE` · `FEMALE`, 고른 자녀의 성별): `MALE`이면 여아에게만 보여 줄 카테고리(원피스 · 치마 등)와 그 아래 카테고리를 빼고, `FEMALE`이거나 없으면 모두 준다. 그 밖의 값은 400 | 🌐 |
 | GET | `/api/v1/categories/{categoryId}/attributes` | 상품 등록 때 입력할 항목(옵션 항목 · 정보 항목 · 필수 실측) | 🌐 |
 | POST | `/api/v1/seller/products` | 상품 등록(판매대기로 생김. 카테고리 · 정보 항목 · 옵션 · 가격 · 실측 · 이미지) | 🏪 |
 | GET | `/api/v1/seller/products` | 내 상품 목록 | 🏪 |
@@ -106,9 +106,9 @@
 | PUT | `/api/v1/admin/products/{productId}/sale-status` | 관리자 판매 중지 · 재개 | 🛠 |
 | DELETE | `/api/v1/admin/products/{productId}/delisting` | 등록 취소한 상품을 판매중지로 되돌림(등록 취소한 상품이 아니면 409) | 🛠 |
 | POST | `/api/v1/admin/products/changed-events` | 판매를 시작했거나 등록 취소한 상품 전체의 `product.changed` 재발행 | 🛠 |
-| GET | `/api/v1/admin/categories` | 카테고리 목록(평면 배열 + `parentId`) | 🛠 |
-| POST | `/api/v1/admin/categories` | 카테고리 만들기 | 🛠 |
-| PUT | `/api/v1/admin/categories/{categoryId}` | 카테고리 수정 | 🛠 |
+| GET | `/api/v1/admin/categories` | 카테고리 목록(평면 배열 + `parentId`, 보일 성별 `visibleGender`) | 🛠 |
+| POST | `/api/v1/admin/categories` | 카테고리 만들기(선택 칸 `visibleGender` `ALL` · `GIRL`, 보내지 않으면 `ALL`) | 🛠 |
+| PUT | `/api/v1/admin/categories/{categoryId}` | 카테고리 수정(선택 칸 `visibleGender`, 보내지 않으면 `ALL`. 상품이 있는 카테고리도 바꿀 수 있음) | 🛠 |
 | DELETE | `/api/v1/admin/categories/{categoryId}` | 카테고리 삭제(논리 삭제) | 🛠 |
 | GET | `/api/v1/admin/product-types` | 상품 유형 목록 | 🛠 |
 | POST | `/api/v1/admin/product-types` | 상품 유형 만들기 | 🛠 |
