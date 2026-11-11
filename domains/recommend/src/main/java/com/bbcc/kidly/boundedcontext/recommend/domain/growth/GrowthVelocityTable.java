@@ -14,20 +14,29 @@ public class GrowthVelocityTable {
 
     private final Map<AgeKey, GrowthVelocityRow> rowsByAge;
     private final long lastAgeYears;
+    private final String source;
 
-    private GrowthVelocityTable(Map<AgeKey, GrowthVelocityRow> rowsByAge, long lastAgeYears) {
+    private GrowthVelocityTable(Map<AgeKey, GrowthVelocityRow> rowsByAge, long lastAgeYears, String source) {
         this.rowsByAge = rowsByAge;
         this.lastAgeYears = lastAgeYears;
+        this.source = source;
     }
 
-    public static GrowthVelocityTable of(List<GrowthVelocityRow> rows) {
+    /**
+     * @param source 표 출처다. 성장 속도의 근거로 AI에 함께 넘긴다
+     */
+    public static GrowthVelocityTable of(List<GrowthVelocityRow> rows, String source) {
         Map<AgeKey, GrowthVelocityRow> byAge = new HashMap<>();
         long lastAgeYears = 0;
         for (GrowthVelocityRow row : rows) {
             byAge.put(new AgeKey(row.gender(), row.ageYears()), row);
             lastAgeYears = Math.max(lastAgeYears, row.ageYears());
         }
-        return new GrowthVelocityTable(Map.copyOf(byAge), lastAgeYears);
+        return new GrowthVelocityTable(Map.copyOf(byAge), lastAgeYears, source);
+    }
+
+    public String source() {
+        return source;
     }
 
     /**

@@ -21,6 +21,7 @@ import org.springframework.core.io.ClassPathResource;
 public class GrowthTableConfig {
 
     private static final String GROWTH_VELOCITY_PATH = "data/recommend/growth_velocity.csv";
+    private static final String GROWTH_VELOCITY_SOURCE = "한국아동패널";
     private static final String GIRTH_RATIO_PATH = "data/recommend/girth_ratio.csv";
     private static final String COMMENT_PREFIX = "#";
     private static final String HEADER_PREFIX = "gender";
@@ -32,7 +33,7 @@ public class GrowthTableConfig {
             rows.add(new GrowthVelocityRow(Gender.valueOf(columns[0]), Integer.parseInt(columns[1]),
                     Double.parseDouble(columns[2]), Double.parseDouble(columns[3])));
         }
-        return GrowthVelocityTable.of(rows);
+        return GrowthVelocityTable.of(rows, GROWTH_VELOCITY_SOURCE);
     }
 
     @Bean
