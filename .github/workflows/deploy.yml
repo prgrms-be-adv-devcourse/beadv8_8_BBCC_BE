@@ -571,14 +571,15 @@ jobs:
           GHCR_USER: ${{ github.actor }}
         run: |
           # 토큰은 명령줄이 아니라 stdin 으로 넘긴다. 자격증명은 이 세션만의 임시 디렉터리에 두고 끝나면 지운다
-          # (dev · prod 가 같은 서버를 쓸 때 공유 ~/.docker/config.json 을 서로 지우지 않도록)
+          # docker login 은 데몬이 있어야 해서 쓰지 않고 config.json 을 직접 쓴다(#1210). docker manifest inspect 와 k3s pull secret(k3s.py)이 이 파일을 읽는다
           # 기동 실패 원인을 다음 단계에서 뽑도록 출력을 파일에도 남긴다
           set -o pipefail
           # 이미지는 앞 step 이 digest 로 정했다(SHA 롤백이면 그 커밋 태그의 digest)
           printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
             export DOCKER_CONFIG=\$(mktemp -d)
             trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
-            docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
+            umask 077
+            printf '{\"auths\":{\"ghcr.io\":{\"auth\":\"%s\"}}}' \"\$(printf '%s:%s' '$GHCR_USER' \"\$(cat)\" | base64 -w0)\" > \"\$DOCKER_CONFIG/config.json\" || exit 1
             APP_ENV=$APP_ENV SEARCH_IMAGE=${{ steps.images.outputs.search }} \
               GATEWAY_IMAGE=${{ steps.images.outputs.gateway }} \
               RECOMMEND_IMAGE=${{ steps.images.outputs.recommend }} SETTLEMENT_IMAGE=${{ steps.images.outputs.settlement }} \

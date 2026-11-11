@@ -27,6 +27,9 @@ mkdir -p logs
 printf 'SEARCH_IMAGE=%s\nGATEWAY_IMAGE=%s\nRECOMMEND_IMAGE=%s\nSETTLEMENT_IMAGE=%s\nMEMBER_IMAGE=%s\nPAYMENT_IMAGE=%s\nPRODUCT_IMAGE=%s\nNOTIFICATION_IMAGE=%s\nORDER_IMAGE=%s\nCOMMUNITY_IMAGE=%s\n' \
   "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE" > image.env
 compose() { docker compose -p "$APP_ENV" --env-file .env --env-file image.env "$@"; }
+# docker 데몬이 도는지. 모든 서비스가 k3s 에 뜨는 서버는 데몬 없이 docker CLI 만 쓴다(#1210): compose config 로 매니페스트를 만들고 manifest inspect 로 이미지를 확인한다
+# 데몬이 있어야 하는 일(compose pull · up · rm, 이미지 정리)은 데몬이 있을 때만 한다
+docker_on() { docker info > /dev/null 2>&1; }
 # 검색이 켜진 환경인지. 꺼진 환경에서는 search-service 가 목록에 없다
 search_on=false
 services=$(compose config --services)
@@ -78,7 +81,9 @@ community_on=false
 if grep -qx community-service <<< "$services"; then
   community_on=true
 fi
-compose pull
+if [[ -n "$services" ]]; then
+  compose pull
+fi
 
 # k3s 서비스. 환경 변수 · 이미지 · 메모리 상한은 compose 설정(.env · image.env)에서 그대로 뽑는다(k3s/k3s.py)
 # 서비스 하나씩 새 Pod 가 준비된 뒤 옛 Pod 를 내린다. 한꺼번에 뜨는 기동 경합(#840)과 배포 중 503 을 줄인다
@@ -107,7 +112,7 @@ if (( ${#k3s_services[@]} > 0 )); then
   done
   for line in "${ordered[@]}"; do
     read -r service profile name node_port job <<< "$line"
-    if python3 k3s/k3s.py single-instance "$APP_ENV" "$name"; then
+    if python3 k3s/k3s.py single-instance "$APP_ENV" "$name" && docker_on; then
       compose --profile "$profile" rm --stop --force "$service"
     fi
     # 받을 수 없는 이미지면 Pod 가 ImagePullBackOff 로 남는다. 바꾸기 전에 멈춘다
@@ -195,10 +200,12 @@ if [[ -n "$services" ]] && ! compose up -d --wait --remove-orphans; then
 fi
 # k3s 로 옮겨 간 서비스의 옛 compose 컨테이너를 지운다. --remove-orphans 는 꺼진 profile 의 컨테이너를 남긴다
 # 위에서 k3s 의 새 Pod 가 준비됐고 Gateway 도 새 주소로 다시 떴으므로 끊기지 않는다. Gateway 를 옮길 때는 nginx 가 새 NodePort 를 먼저 찾는다(deploy/nginx). 없으면 아무것도 하지 않는다
-for line in "${k3s_services[@]}"; do
-  read -r service profile _ <<< "$line"
-  compose --profile "$profile" rm --stop --force "$service"
-done
+if docker_on; then
+  for line in "${k3s_services[@]}"; do
+    read -r service profile _ <<< "$line"
+    compose --profile "$profile" rm --stop --force "$service"
+  done
+fi
 # 추천만 따로 띄우던 옛 namespace(#1028). 같은 서비스가 kidly-<환경> 에 떴으므로 지운다. 없으면 아무것도 하지 않는다
 if (( ${#k3s_services[@]} > 0 )); then
   kubectl delete namespace "recommend-$APP_ENV" --ignore-not-found --wait=false
@@ -208,15 +215,17 @@ python3 environment-state.py targets "$APP_ENV"
 # 배포마다 이미지가 쌓여 디스크가 차므로 저장소마다 최신 3개만 남기고 지운다
 # 다른 환경 컨테이너가 쓰는 이미지는 docker 가 삭제를 거부해서 남는다 (-f 를 쓰지 않는다)
 # 지운 이미지로 롤백할 때는 GHCR 에서 다시 받는다
-removed=0
-# 이미지는 <저장소>@sha256:… (digest, #1169) 또는 <저장소>:<태그> 로 온다. 저장소 이름만 남긴다
-for image in "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE"; do
-  repo=${image%%@*}
-  repo=${repo%:*}
-  for old in $(docker images -a "$repo" --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}' | tail -n +4); do
-    if docker rmi "$old" > /dev/null 2>&1; then
-      removed=$((removed + 1))
-    fi
+if docker_on; then
+  removed=0
+  # 이미지는 <저장소>@sha256:… (digest, #1169) 또는 <저장소>:<태그> 로 온다. 저장소 이름만 남긴다
+  for image in "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE"; do
+    repo=${image%%@*}
+    repo=${repo%:*}
+    for old in $(docker images -a "$repo" --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}' | tail -n +4); do
+      if docker rmi "$old" > /dev/null 2>&1; then
+        removed=$((removed + 1))
+      fi
+    done
   done
-done
-echo "오래된 이미지 ${removed}개 정리"
+  echo "오래된 이미지 ${removed}개 정리"
+fi
