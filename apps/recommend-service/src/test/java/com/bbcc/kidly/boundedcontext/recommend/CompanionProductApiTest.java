@@ -141,6 +141,54 @@ class CompanionProductApiTest {
             .jsonPath("$.detail").isEqualTo("자녀를 찾을 수 없습니다.");
     }
 
+    @Test
+    @DisplayName("PAIR-06 스트림(text/event-stream)으로 부르면 규칙 결과를 rule 이벤트로 보내고, AI 결과가 없으면 그대로 닫는다")
+    void streamRuleEventWithoutAi() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        saveProduct(BOTTOM_PRODUCT_ID, BOTTOM);
+
+        String body = companionsStream(VIEWED_PRODUCT_ID)
+            .expectStatus().isOk()
+            .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+            .expectHeader().valueEquals("X-Accel-Buffering", "no")
+            .expectBody(String.class).returnResult().getResponseBody();
+
+        assertThat(body).contains("event:rule", "\"source\":\"RULE\"", "\"productId\":\"101\"")
+            .doesNotContain("event:ai");
+    }
+
+    @Test
+    @DisplayName("스트림으로 불러도 보고 있는 상품이 없으면 스트림을 열기 전에 404 ProblemDetail로 받는다")
+    void rejectUnknownProductBeforeStream() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        expectProblem(companionsStream(999L), HttpStatus.NOT_FOUND)
+            .jsonPath("$.title").isEqualTo("상품을 찾을 수 없습니다");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"*/*", "application/json, text/plain, */*"})
+    @DisplayName("Accept가 */*거나 JSON을 먼저 바라면 스트림이 아니라 지금처럼 JSON으로 받는다")
+    void returnJsonForWildcardOrJsonFirstAccept(String accept) {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        client.get().uri(PATH + "?productId={productId}&childId={childId}", VIEWED_PRODUCT_ID, CHILD_1_ID)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .header("Accept", accept)
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+            .expectBody()
+            .jsonPath("$.source").isEqualTo("RULE");
+    }
+
+    private RestTestClient.ResponseSpec companionsStream(Long productId) {
+        return client.get().uri(PATH + "?productId={productId}&childId={childId}", productId, CHILD_1_ID)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .accept(MediaType.TEXT_EVENT_STREAM)
+            .exchange();
+    }
+
     private RestTestClient.ResponseSpec companions(Long productId) {
         return client.get().uri(PATH + "?productId={productId}&childId={childId}", productId, CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
