@@ -209,7 +209,10 @@ python3 environment-state.py targets "$APP_ENV"
 # 다른 환경 컨테이너가 쓰는 이미지는 docker 가 삭제를 거부해서 남는다 (-f 를 쓰지 않는다)
 # 지운 이미지로 롤백할 때는 GHCR 에서 다시 받는다
 removed=0
-for repo in "${SEARCH_IMAGE%:*}" "${GATEWAY_IMAGE%:*}" "${RECOMMEND_IMAGE%:*}" "${SETTLEMENT_IMAGE%:*}" "${MEMBER_IMAGE%:*}" "${PAYMENT_IMAGE%:*}" "${PRODUCT_IMAGE%:*}" "${NOTIFICATION_IMAGE%:*}" "${ORDER_IMAGE%:*}" "${COMMUNITY_IMAGE%:*}"; do
+# 이미지는 <저장소>@sha256:… (digest, #1169) 또는 <저장소>:<태그> 로 온다. 저장소 이름만 남긴다
+for image in "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE"; do
+  repo=${image%%@*}
+  repo=${repo%:*}
   for old in $(docker images -a "$repo" --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}' | tail -n +4); do
     if docker rmi "$old" > /dev/null 2>&1; then
       removed=$((removed + 1))
