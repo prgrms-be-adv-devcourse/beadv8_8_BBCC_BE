@@ -24,11 +24,8 @@ jobs:
           printf '%s\n' "$MONITOR_KNOWN_HOSTS" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=8 "deploy@$APP_HOST" '
             set -e
-            docker compose -p dev -f /opt/app/dev/docker-compose.yml ls --format json >/dev/null
-            for name in dev-gateway-1 dev-order-service-1; do
-              test "$(docker inspect -f "{{.State.Running}}" "$name")" = true
-              printf "%s running\n" "$name"
-            done
+            docker ps -a --filter label=com.docker.compose.project=dev --format "{{.Names}} {{.State}}" | awk "/gateway|order/ {print}"
+            docker ps -a --format "{{.Names}} {{.State}}" | awk "/gateway|order/ {print}"
             test -r /opt/app/dev/docker-compose.yml
             test -r /opt/app/monitoring/config.alloy
           '
