@@ -60,8 +60,8 @@ class HomePreviewServiceAiLaterTest {
     void returnRuleNowAndAiLater() {
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
         HomePreviewAiAnswer answer = new HomePreviewAiAnswer(List.of(
-            new HomePreviewAiAnswer.Pick(5L, "이유 5"), new HomePreviewAiAnswer.Pick(2L, "이유 2"),
-            new HomePreviewAiAnswer.Pick(6L, "이유 6"), new HomePreviewAiAnswer.Pick(1L, "이유 1")));
+            new HomePreviewAiAnswer.Pick(5L, "이유 5이에요."), new HomePreviewAiAnswer.Pick(2L, "이유 2이에요."),
+            new HomePreviewAiAnswer.Pick(6L, "이유 6이에요."), new HomePreviewAiAnswer.Pick(1L, "이유 1이에요.")));
         given(aiResponseService.respondAsync(eq(AiResponseType.HOME_PREVIEW), any(), eq(HomePreviewAiAnswer.class),
             any())).willReturn(CompletableFuture.completedFuture(Optional.of(answer)));
 
@@ -74,7 +74,7 @@ class HomePreviewServiceAiLaterTest {
         assertThat(ai.source()).isEqualTo("AI");
         assertThat(ai.items()).extracting(item -> item.product().productId()).containsExactly(5L, 2L, 6L, 1L);
         assertThat(ai.items()).extracting(HomePreviewResult.Item::reason)
-            .containsExactly("이유 5", "이유 2", "이유 6", "이유 1");
+            .containsExactly("이유 5이에요.", "이유 2이에요.", "이유 6이에요.", "이유 1이에요.");
     }
 
     @Test
