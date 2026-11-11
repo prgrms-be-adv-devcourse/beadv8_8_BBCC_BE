@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * 자녀의 기준 옷 한 벌이다. ID는 다른 응답처럼 문자열로 보낸다.
  *
- * @param part TOP 또는 BOTTOM
+ * @param part TOP · BOTTOM · OUTER · DRESS · SKIRT 중 하나
  * @param categoryId 세부 종류인 상품 말단 카테고리의 ID
  * @param measurements 실측 항목 코드별 cm. 소수 첫째 자리까지 보내고, 입력하지 않은 선택 항목은 없다
  */
