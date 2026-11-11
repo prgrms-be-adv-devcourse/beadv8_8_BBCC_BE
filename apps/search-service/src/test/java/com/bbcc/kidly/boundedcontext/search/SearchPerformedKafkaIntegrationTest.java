@@ -70,7 +70,7 @@ class SearchPerformedKafkaIntegrationTest {
         indexes.refresh();
 
         productListService.list(
-            new ProductListRequest(3L, " 원피스 ", List.of("COLOR:3"), null, null, null), memberId);
+            new ProductListRequest(3L, " 원피스 ", List.of("COLOR:3"), null, null, null, 11L), memberId);
 
         AsyncWait.until(TIMEOUT, () -> !records().isEmpty());
         ConsumerRecord<String, String> record = records().getFirst();
@@ -93,14 +93,15 @@ class SearchPerformedKafkaIntegrationTest {
         assertThat(data.get("categoryId").asLong()).isEqualTo(3L);
         assertThat(data.get("attributeValueIds").get("COLOR").get(0).asLong()).isEqualTo(3L);
         assertThat(data.get("resultCount").asLong()).isEqualTo(1L);
+        assertThat(data.get("childId").asLong()).isEqualTo(11L);
     }
 
     @Test
     @DisplayName("비로그인 검색은 보내지 않는다")
     void anonymousDoesNotSend() {
-        productListService.list(new ProductListRequest(null, "원피스", null, null, null, null), null);
+        productListService.list(new ProductListRequest(null, "원피스", null, null, null, null, null), null);
         // 비교용으로 같은 회원 키의 로그인 검색을 뒤에 보낸다. 이것이 도착했을 때 앞선 메시지가 없으면 보내지 않은 것이다
-        productListService.list(new ProductListRequest(null, "바지", null, null, null, null), memberId);
+        productListService.list(new ProductListRequest(null, "바지", null, null, null, null, null), memberId);
 
         AsyncWait.until(TIMEOUT, () -> !records().isEmpty());
         assertThat(records()).singleElement()
@@ -110,8 +111,8 @@ class SearchPerformedKafkaIntegrationTest {
     @Test
     @DisplayName("검색 결과 클릭은 검색과 같은 회원 키로 search.result-clicked를 보낸다")
     void sendsSearchResultClicked() {
-        productListService.list(new ProductListRequest(null, "원피스", null, "RELEVANCE", null, null), memberId);
-        searchClickService.record(new SearchClickRequest(" 원피스 ", 31L, 3, "RELEVANCE"), memberId);
+        productListService.list(new ProductListRequest(null, "원피스", null, "RELEVANCE", null, null, null), memberId);
+        searchClickService.record(new SearchClickRequest(" 원피스 ", 31L, 3, "RELEVANCE", null), memberId);
 
         AsyncWait.until(TIMEOUT, () -> records().size() == 2);
         List<ConsumerRecord<String, String>> records = records();

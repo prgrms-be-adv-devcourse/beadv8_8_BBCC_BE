@@ -206,7 +206,7 @@ class ReferenceGarmentCleanupIntegrationTest {
 
     private static ActivityRecord search(Long memberId) {
         return ActivityRecord.searched(new ActivityRecord.SearchInfo(UUID.randomUUID(), memberId, "맨투맨", 52L,
-            Map.of("COLOR", List.of(3L, 5L)), 12L, CHILD_CHANGED_AT));
+            Map.of("COLOR", List.of(3L, 5L)), 12L, CHILD_CHANGED_AT, null));
     }
 
     private void save(ReferenceGarment garment) {

@@ -52,7 +52,7 @@ public class ProductListService {
             keywordVector(keyword));
         Page<ProductSearchItem> result = search(condition, request);
         if (isNewSearchByMember(memberId, condition, request)) {
-            searchEventSender.send(searchPerformed(memberId, condition, result.getTotalElements()));
+            searchEventSender.send(searchPerformed(memberId, condition, result.getTotalElements(), request.childId()));
         }
         return result;
     }
@@ -84,9 +84,11 @@ public class ProductListService {
             && request.pageOrDefault() == 0;
     }
 
-    private SearchPerformedEvent searchPerformed(Long memberId, ProductSearchCondition condition, long resultCount) {
+    private SearchPerformedEvent searchPerformed(Long memberId, ProductSearchCondition condition, long resultCount,
+        Long childId) {
         return new SearchPerformedEvent(UUID.randomUUID(), LocalDateTime.now(), new SearchPerformedEvent.Data(
-            memberId, condition.keyword(), condition.categoryId(), condition.attributeValueIds(), resultCount));
+            memberId, condition.keyword(), condition.categoryId(), condition.attributeValueIds(), resultCount,
+            childId));
     }
 
     // 앞뒤 공백까지 검색어로 넘기지 않는다. 공백뿐이면 빈 문자열이 되어 거르지 않는다

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -58,7 +59,7 @@ class ProductListServiceTest {
     void defaults() {
         givenEmptyResult();
 
-        productListService.list(new ProductListRequest(null, null, null, null, null, null), null);
+        productListService.list(new ProductListRequest(null, null, null, null, null, null, null), null);
 
         ProductSearchCondition condition = capturedCondition();
         assertThat(condition.categoryId()).isNull();
@@ -74,7 +75,7 @@ class ProductListServiceTest {
         givenEmptyResult();
 
         productListService.list(new ProductListRequest(3L, "  원피스 여아용 ",
-            List.of("COLOR:3", "SIZE:11", "COLOR:5", "COLOR:3"), "PRICE_ASC", 2, 10), null);
+            List.of("COLOR:3", "SIZE:11", "COLOR:5", "COLOR:3"), "PRICE_ASC", 2, 10, null), null);
 
         ProductSearchCondition condition = capturedCondition();
         assertThat(condition.categoryId()).isEqualTo(3L);
@@ -91,7 +92,7 @@ class ProductListServiceTest {
         givenEmptyResult();
         given(textEmbedder.embedKeyword("여름 물놀이 옷")).willReturn(Optional.of(List.of(0.1f, 0.2f)));
 
-        productListService.list(new ProductListRequest(null, " 여름 물놀이 옷 ", null, "RELEVANCE", null, null), null);
+        productListService.list(new ProductListRequest(null, " 여름 물놀이 옷 ", null, "RELEVANCE", null, null, null), null);
 
         ProductSearchCondition condition = capturedCondition();
         assertThat(condition.sort()).isEqualTo(ProductSearchSort.RELEVANCE);
@@ -104,7 +105,7 @@ class ProductListServiceTest {
         givenEmptyResult();
         given(textEmbedder.embedKeyword(anyString())).willReturn(Optional.empty());
 
-        productListService.list(new ProductListRequest(null, "원피스", null, "RELEVANCE", null, null), null);
+        productListService.list(new ProductListRequest(null, "원피스", null, "RELEVANCE", null, null, null), null);
 
         assertThat(capturedCondition().keywordVector()).isNull();
     }
@@ -115,7 +116,7 @@ class ProductListServiceTest {
         givenEmptyResult();
         given(textEmbedder.embedKeyword("물놀이 옷")).willReturn(Optional.of(List.of(0.1f, 0.2f)));
 
-        productListService.list(new ProductListRequest(null, "물놀이 옷", null, null, null, null), null);
+        productListService.list(new ProductListRequest(null, "물놀이 옷", null, null, null, null, null), null);
 
         ProductSearchCondition condition = capturedCondition();
         assertThat(condition.sort()).isEqualTo(ProductSearchSort.NEWEST);
@@ -127,8 +128,8 @@ class ProductListServiceTest {
     void noKeywordDoesNotEmbed() {
         givenEmptyResult();
 
-        productListService.list(new ProductListRequest(null, null, null, "NEWEST", null, null), null);
-        productListService.list(new ProductListRequest(null, "  ", null, "RELEVANCE", null, null), null);
+        productListService.list(new ProductListRequest(null, null, null, "NEWEST", null, null, null), null);
+        productListService.list(new ProductListRequest(null, "  ", null, "RELEVANCE", null, null, null), null);
 
         verifyNoInteractions(textEmbedder);
     }
@@ -140,7 +141,7 @@ class ProductListServiceTest {
             new ProductSearchItem(10L, "여아 원피스", null, "키들리 상점", 15_000L, false, true)), PageRequest.of(0, 20), 1);
         given(productSearch.search(any(), any())).willReturn(result);
 
-        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null), null))
+        assertThat(productListService.list(new ProductListRequest(null, null, null, null, null, null, null), null))
             .isSameAs(result);
     }
 
@@ -152,7 +153,7 @@ class ProductListServiceTest {
                 new IllegalStateException("원피스 여아용 검색 중 오류")));
 
         assertThatThrownBy(() -> productListService.list(
-            new ProductListRequest(null, "원피스 여아용", null, null, null, null), 7L))
+            new ProductListRequest(null, "원피스 여아용", null, null, null, null, null), 7L))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(SearchErrorCode.SEARCH_UNAVAILABLE));
         assertThat(output.getOut()).contains("index=local-products").contains("IllegalStateException")
@@ -166,7 +167,7 @@ class ProductListServiceTest {
         given(productSearch.search(any(), any())).willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 35));
 
         productListService.list(new ProductListRequest(3L, "  원피스 여아용 ",
-            List.of("COLOR:3", "SIZE:11", "COLOR:5"), "PRICE_ASC", 0, 20), 7L);
+            List.of("COLOR:3", "SIZE:11", "COLOR:5"), "PRICE_ASC", 0, 20, null), 7L);
 
         ArgumentCaptor<SearchPerformedEvent> captor = ArgumentCaptor.forClass(SearchPerformedEvent.class);
         verify(searchEventSender).send(captor.capture());
@@ -182,11 +183,28 @@ class ProductListServiceTest {
     }
 
     @Test
+    @DisplayName("자녀를 골랐으면 검색 이벤트에 그 자녀 ID를 담고, 고르지 않았으면 null이다. 결과 조건은 같다(#1089)")
+    void sendsChildId() {
+        givenEmptyResult();
+
+        productListService.list(new ProductListRequest(null, "원피스", null, null, null, null, 11L), 7L);
+        productListService.list(new ProductListRequest(null, "원피스", null, null, null, null, null), 7L);
+
+        ArgumentCaptor<SearchPerformedEvent> captor = ArgumentCaptor.forClass(SearchPerformedEvent.class);
+        verify(searchEventSender, times(2)).send(captor.capture());
+        assertThat(captor.getAllValues().get(0).data().childId()).isEqualTo(11L);
+        assertThat(captor.getAllValues().get(1).data().childId()).isNull();
+        ArgumentCaptor<ProductSearchCondition> conditions = ArgumentCaptor.forClass(ProductSearchCondition.class);
+        verify(productSearch, times(2)).search(conditions.capture(), any());
+        assertThat(conditions.getAllValues().get(0)).isEqualTo(conditions.getAllValues().get(1));
+    }
+
+    @Test
     @DisplayName("결과가 0건이어도 검색 이벤트를 보낸다")
     void sendsWhenNoResult() {
         givenEmptyResult();
 
-        productListService.list(new ProductListRequest(null, "없는상품", null, null, null, null), 7L);
+        productListService.list(new ProductListRequest(null, "없는상품", null, null, null, null, null), 7L);
 
         ArgumentCaptor<SearchPerformedEvent> captor = ArgumentCaptor.forClass(SearchPerformedEvent.class);
         verify(searchEventSender).send(captor.capture());
@@ -199,7 +217,7 @@ class ProductListServiceTest {
     void anonymousDoesNotSend() {
         givenEmptyResult();
 
-        productListService.list(new ProductListRequest(null, "원피스", null, null, null, null), null);
+        productListService.list(new ProductListRequest(null, "원피스", null, null, null, null, null), null);
 
         verify(searchEventSender, never()).send(any());
     }
@@ -209,8 +227,8 @@ class ProductListServiceTest {
     void withoutKeywordDoesNotSend() {
         givenEmptyResult();
 
-        productListService.list(new ProductListRequest(3L, null, null, null, null, null), 7L);
-        productListService.list(new ProductListRequest(3L, "   ", null, null, null, null), 7L);
+        productListService.list(new ProductListRequest(3L, null, null, null, null, null, null), 7L);
+        productListService.list(new ProductListRequest(3L, "   ", null, null, null, null, null), 7L);
 
         verify(searchEventSender, never()).send(any());
     }
@@ -220,7 +238,7 @@ class ProductListServiceTest {
     void nextPageDoesNotSend() {
         givenEmptyResult();
 
-        productListService.list(new ProductListRequest(null, "원피스", null, null, 1, null), 7L);
+        productListService.list(new ProductListRequest(null, "원피스", null, null, 1, null, null), 7L);
 
         verify(searchEventSender, never()).send(any());
     }

@@ -206,6 +206,6 @@ class ActivityRecordIntegrationTest {
 
     private static ActivityRecord otherMemberSearch() {
         return ActivityRecord.searched(new ActivityRecord.SearchInfo(UUID.randomUUID(), OTHER_MEMBER_ID, KEYWORD,
-            PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT));
+            PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT, null));
     }
 }

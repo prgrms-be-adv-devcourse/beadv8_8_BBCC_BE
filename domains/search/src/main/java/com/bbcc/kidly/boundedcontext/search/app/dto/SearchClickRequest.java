@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Size;
  *
  * @param rank 보여 준 목록에서 누른 상품의 위치. 첫 페이지 첫 상품이 1이다
  * @param sort 그 목록의 정렬. 보내지 않으면 상품 목록 API의 기본값(NEWEST)이다
+ * @param childId 보호자가 고른 자녀 프로필 ID. 보내지 않으면 자녀 없이 기록한다(#1089)
  */
 public record SearchClickRequest(
     @NotBlank(message = "검색어를 입력해 주세요.")
@@ -28,7 +29,9 @@ public record SearchClickRequest(
     Integer rank,
     @Pattern(regexp = "NEWEST|PRICE_ASC|PRICE_DESC|RELEVANCE",
         message = "정렬은 NEWEST, PRICE_ASC, PRICE_DESC, RELEVANCE 중 하나여야 합니다.")
-    String sort) {
+    String sort,
+    @Positive(message = "자녀 ID는 양수여야 합니다.")
+    Long childId) {
 
     private static final String DEFAULT_SORT = "NEWEST";
 

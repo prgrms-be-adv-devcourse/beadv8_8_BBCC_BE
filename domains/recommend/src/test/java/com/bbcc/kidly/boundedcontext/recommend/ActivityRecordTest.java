@@ -60,7 +60,7 @@ class ActivityRecordTest {
     @DisplayName("카테고리와 항목 값을 고르지 않은 검색도 활동 기록을 만든다")
     void createSearchWithoutFilters() {
         ActivityRecord record = ActivityRecord.searched(new ActivityRecord.SearchInfo(SEARCH_EVENT_ID, MEMBER_1_ID,
-            KEYWORD, null, null, RESULT_COUNT, SEARCHED_AT));
+            KEYWORD, null, null, RESULT_COUNT, SEARCHED_AT, null));
 
         assertThat(record.getCategoryId()).isNull();
         assertThat(record.getAttributeValueIds()).isNull();
@@ -80,16 +80,17 @@ class ActivityRecordTest {
         return Stream.of(
             Named.of("검색 값", () -> ActivityRecord.searched(null)),
             Named.of("이벤트 ID", () -> ActivityRecord.searched(new ActivityRecord.SearchInfo(
-                null, MEMBER_1_ID, KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT))),
+                null, MEMBER_1_ID, KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT,
+                null))),
             Named.of("회원 ID", () -> ActivityRecord.searched(new ActivityRecord.SearchInfo(
                 SEARCH_EVENT_ID, null, KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT,
-                SEARCHED_AT))),
+                SEARCHED_AT, null))),
             Named.of("검색어", () -> ActivityRecord.searched(new ActivityRecord.SearchInfo(
                 SEARCH_EVENT_ID, MEMBER_1_ID, null, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT,
-                SEARCHED_AT))),
+                SEARCHED_AT, null))),
             Named.of("검색 시각", () -> ActivityRecord.searched(new ActivityRecord.SearchInfo(
                 SEARCH_EVENT_ID, MEMBER_1_ID, KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT,
-                null))));
+                null, null))));
     }
 
     // 자녀를 고르지 않은 담기도 회원의 활동이라 남긴다

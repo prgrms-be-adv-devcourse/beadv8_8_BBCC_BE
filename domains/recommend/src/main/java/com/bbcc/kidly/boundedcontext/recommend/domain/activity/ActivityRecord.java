@@ -46,7 +46,7 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    // 검색은 늘 null이고, 장바구니 담기 · 빼기 · 상세 진입은 자녀를 고른 경우만 값이 있다
+    // 검색 · 장바구니 담기 · 빼기 · 상세 진입은 자녀를 고른 경우만 값이 있다
     @Column(name = "child_profile_id")
     private Long childProfileId;
 
@@ -94,7 +94,7 @@ public class ActivityRecord extends BaseTimeEntity {
     private Integer cartQty;
 
     public record SearchInfo(UUID eventId, Long memberId, String keyword, Long categoryId,
-        Map<String, List<Long>> attributeValueIds, long resultCount, LocalDateTime occurredAt) {
+        Map<String, List<Long>> attributeValueIds, long resultCount, LocalDateTime occurredAt, Long childProfileId) {
     }
 
     public static ActivityRecord searched(SearchInfo info) {
@@ -108,6 +108,7 @@ public class ActivityRecord extends BaseTimeEntity {
         record.categoryId = info.categoryId();
         record.attributeValueIds = info.attributeValueIds();
         record.resultCount = info.resultCount();
+        record.childProfileId = info.childProfileId();
         return record;
     }
 
