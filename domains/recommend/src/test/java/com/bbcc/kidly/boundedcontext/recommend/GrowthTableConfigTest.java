@@ -39,6 +39,18 @@ class GrowthTableConfigTest {
         assertThat(GROWTH_VELOCITY_TABLE.yearlyCm(gender, months)).isEqualTo(expectedCmPerYear);
     }
 
+    @ParameterizedTest(name = "{0}, {1}개월 → 표준편차 {2}cm/년")
+    @CsvSource({
+        "MALE, 0, 7.44",
+        "FEMALE, 72, 2.36",
+        "MALE, 179, 2.77",
+        "FEMALE, 216, 1.83",
+    })
+    @DisplayName("GROW-03 한국아동패널 CSV에서 만 나이 · 성별의 1년 키 성장량 표준편차를 읽고, 만 15세 이상이면 마지막 구간 값을 쓴다")
+    void yearlySdCmByAgeAndGender(Gender gender, long months, double expectedSdCmPerYear) {
+        assertThat(GROWTH_VELOCITY_TABLE.yearlySdCm(gender, months)).isEqualTo(expectedSdCmPerYear);
+    }
+
     @ParameterizedTest(name = "{0}, {1}개월, {2} → 키 1cm당 {3}cm")
     @CsvSource({
         "FEMALE, 0, CHEST, 0.30",
