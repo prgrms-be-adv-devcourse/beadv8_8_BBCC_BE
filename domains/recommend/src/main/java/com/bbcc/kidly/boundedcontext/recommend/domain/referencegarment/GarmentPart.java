@@ -41,6 +41,18 @@ public enum GarmentPart {
         throw new BusinessException(ReferenceGarmentErrorCode.UNKNOWN_PART);
     }
 
+    /**
+     * 상품 카테고리 경로에 맞는 칸을 찾는다. 모자 · 양말처럼 어느 칸에도 맞지 않으면 null이다.
+     */
+    static GarmentPart of(List<String> categoryPathNames) {
+        for (GarmentPart part : values()) {
+            if (part.includesCategoryIn(categoryPathNames)) {
+                return part;
+            }
+        }
+        return null;
+    }
+
     boolean acceptsCode(String measurementCode) {
         return requiredCodes.contains(measurementCode) || optionalCodes.contains(measurementCode);
     }

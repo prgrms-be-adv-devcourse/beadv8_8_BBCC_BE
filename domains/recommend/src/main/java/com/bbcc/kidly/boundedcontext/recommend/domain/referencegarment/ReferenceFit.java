@@ -16,6 +16,9 @@ public record ReferenceFit(GarmentPart part, boolean substituted, List<Item> ite
     private static final List<String> ITEM_ORDER = List.of("TOTAL_LENGTH", "CHEST_WIDTH", "SHOULDER_WIDTH",
         "SLEEVE_LENGTH", "WAIST_WIDTH", "HIP_WIDTH", "RISE");
 
+    // 길이 항목은 같은 세부 종류끼리만 견줄 수 있어서, 기준 옷과 상품의 카테고리가 다르면 비교에서 뺀다.
+    private static final Set<String> LENGTH_CODES = Set.of("TOTAL_LENGTH", "SLEEVE_LENGTH", "RISE");
+
     /**
      * 실측 항목 하나의 기준 옷 값과, 그 값에 대한 사이즈별 차이다.
      */
@@ -28,19 +31,21 @@ public record ReferenceFit(GarmentPart part, boolean substituted, List<Item> ite
     public record SizeDiff(String size, BigDecimal productCm, BigDecimal diffCm) {
     }
 
-    // 길이 항목은 같은 세부 종류끼리만 견줄 수 있어서, 기준 옷과 상품의 카테고리가 다르면 비교에서 뺀다.
-    private static final Set<String> LENGTH_CODES = Set.of("TOTAL_LENGTH", "SLEEVE_LENGTH", "RISE");
-
     public static Optional<ReferenceFit> compare(FitProduct product, List<ReferenceGarment> garments) {
         // 사이즈 무관 상품은 고를 사이즈가 없어서 비교하지 않는다
         if (product.sizeFree()) {
             return Optional.empty();
         }
-        GarmentPart part = partOf(product);
+        GarmentPart part = GarmentPart.of(product.categoryPathNames());
+        // 모자 · 양말처럼 기준 옷 칸이 없는 종류는 비교하지 않는다
+        if (part == null) {
+            return Optional.empty();
+        }
         ReferenceGarment garment = garmentOf(part, garments);
         boolean substituted = false;
-        if (garment == null && part != null && part.substitute() != null) {
-            part = part.substitute();
+        GarmentPart substitute = part.substitute();
+        if (garment == null && substitute != null) {
+            part = substitute;
             garment = garmentOf(part, garments);
             substituted = true;
         }
@@ -64,15 +69,6 @@ public record ReferenceFit(GarmentPart part, boolean substituted, List<Item> ite
             return Optional.empty();
         }
         return Optional.of(new ReferenceFit(part, substituted, items));
-    }
-
-    private static GarmentPart partOf(FitProduct product) {
-        for (GarmentPart part : GarmentPart.values()) {
-            if (part.includesCategoryIn(product.categoryPathNames())) {
-                return part;
-            }
-        }
-        return null;
     }
 
     private static ReferenceGarment garmentOf(GarmentPart part, List<ReferenceGarment> garments) {
