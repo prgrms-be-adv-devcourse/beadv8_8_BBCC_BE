@@ -59,6 +59,20 @@ class AiResultStreamTest {
         assertThat(emitter.completed).isTrue();
     }
 
+    @Test
+    @DisplayName("제한 시간으로 연결이 먼저 닫혀 ai 이벤트를 보내지 못해도 예외 없이 닫기를 마친다")
+    void completeEvenWhenSendFailsAfterClosed() {
+        RecordingEmitter emitter = new RecordingEmitter();
+        CompletableFuture<Optional<String>> ai = new CompletableFuture<>();
+        stream.send(emitter, "규칙", ai);
+
+        emitter.closed = true;
+        ai.complete(Optional.of("AI"));
+
+        assertThat(emitter.events).containsExactly("rule=규칙");
+        assertThat(emitter.completed).isTrue();
+    }
+
     /**
      * 보낸 이벤트를 「이름=본문」으로 남기는 가짜 SseEmitter다.
      */
@@ -68,8 +82,14 @@ class AiResultStreamTest {
 
         private boolean completed;
 
+        // true면 이미 닫힌 연결처럼 보내기에서 IllegalStateException을 던진다
+        private boolean closed;
+
         @Override
         public void send(SseEventBuilder builder) throws IOException {
+            if (closed) {
+                throw new IllegalStateException("이미 닫힌 연결입니다");
+            }
             String name = null;
             Object data = null;
             // 이벤트 이름 줄(event:)은 text/plain 조각에 들어 있고, 본문은 미디어 타입이 없는 조각이다
