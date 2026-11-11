@@ -120,7 +120,7 @@ class RecommendMigrationIntegrationTest {
     }
 
     @Test
-    @DisplayName("FIT-01 상의 칸의 원피스 · 아우터와 바지 칸의 치마 기준 옷은 원피스 · 아우터 · 치마 칸으로 옮기고, "
+    @DisplayName("상의 칸의 원피스 · 아우터와 바지 칸의 치마 기준 옷은 원피스 · 아우터 · 치마 칸으로 옮기고, "
         + "세부 종류와 실측은 그대로 둔다. 같은 종류 칸의 것과 카테고리 경로를 모르는 것은 옮기지 않는다")
     void moveReferenceGarmentsToTheirOwnParts() {
         try (var postgres = new PostgreSQLContainer(
