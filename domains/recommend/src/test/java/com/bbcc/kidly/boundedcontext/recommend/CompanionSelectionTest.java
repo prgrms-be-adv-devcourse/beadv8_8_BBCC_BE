@@ -102,12 +102,14 @@ class CompanionSelectionTest {
     }
 
     static Stream<String> displayableReasons() {
-        return Stream.of("좋아요.", "좋아요", "단정한 느낌을 줍니다.", "단정한 느낌을 줍니다", "가".repeat(38) + "요.");
+        return Stream.of("좋아요.", "좋아요", "좋아요!", "단정한 느낌을 줍니다.", "단정한 느낌을 줍니다", "단정한 느낌을 줍니다!",
+            "함께 입어 보는 건 어떨까요?", "같이 입으면 어때요?", "겹쳐 입어 보시면 어떠세요?", "맞춰 입어 보시겠어요?",
+            "가".repeat(38) + "요.");
     }
 
     @ParameterizedTest
     @MethodSource("displayableReasons")
-    @DisplayName("PAIR-08 40자 안에서 「요」나 「니다」로 끝나는 이유는 마침표가 있든 없든 그대로 쓴다")
+    @DisplayName("PAIR-08 40자 안에서 「요」 · 「니다」로 끝나거나 그 뒤에 마침표 · 느낌표가 붙거나, 제안하는 물음으로 끝나는 이유는 그대로 쓴다")
     void keepPoliteReasonWithinFortyCharacters(String reason) {
         CompanionSelection selection =
             CompanionSelection.of(List.of(new CompanionAiPick(4L, reason)), rankedCandidates(6));
@@ -129,8 +131,8 @@ class CompanionSelectionTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"같은 색이라 함께 입기 좋다.", "겹쳐 입기 좋아…", "편안한 코디 완성"})
-    @DisplayName("PAIR-08 「요」나 「니다」로 끝나지 않는 이유는 상품은 쓰고 이유만 없는 것으로 본다")
+    @ValueSource(strings = {"같은 색이라 함께 입기 좋다.", "겹쳐 입기 좋아…", "편안한 코디 완성", "좋다!", "좋다?", "좋아요?", "좋습니다?"})
+    @DisplayName("PAIR-08 경어체로 끝나지 않거나 제안이 아닌 물음으로 끝나는 이유는 상품은 쓰고 이유만 없는 것으로 본다")
     void dropReasonNotEndingPolitely(String reason) {
         CompanionSelection selection =
             CompanionSelection.of(List.of(new CompanionAiPick(4L, reason)), rankedCandidates(6));
