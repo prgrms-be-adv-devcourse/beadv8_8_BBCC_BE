@@ -20,6 +20,7 @@ class CompanionCandidateRankerTest {
     private static final List<String> TOP = List.of("의류", "상의");
     private static final List<String> BOTTOM = List.of("의류", "하의");
     private static final List<String> ONE_PIECE = List.of("의류", "원피스");
+    private static final List<String> SKIRT = List.of("의류", "치마");
     private static final List<String> OUTER = List.of("의류", "아우터");
     private static final List<String> ACCESSORY = List.of("잡화", "모자");
     private static final List<String> UNKNOWN = List.of("의류", "내의");
@@ -63,13 +64,13 @@ class CompanionCandidateRankerTest {
     }
 
     @Test
-    @DisplayName("PAIR-02 후보는 0.3 × 유사도 + 0.7 × 짝 우선순위 점수 순이라, 유사도가 높은 아우터가 유사도 0인 하의보다 앞설 수 있다")
+    @DisplayName("PAIR-02 후보는 0.3 × 유사도 + 0.7 × 짝 우선순위 점수 순이라, 유사도가 높은 치마가 유사도 0인 바지보다 앞설 수 있다")
     void rankByWeightedSumOfSimilarityAndPairPriority() {
-        // 상의의 짝은 하의(1), 아우터(2/3), 잡화(1/3) 순이다
+        // 상의의 짝은 바지(1), 치마(3/4), 아우터(2/4), 잡화(1/4) 순이다
         List<CompanionCandidate> candidates = List.of(
             candidate(1L, ACCESSORY, 0.5),
             candidate(2L, BOTTOM, 0.0),
-            candidate(3L, OUTER, 1.0));
+            candidate(3L, SKIRT, 1.0));
 
         List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
 
@@ -77,13 +78,13 @@ class CompanionCandidateRankerTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"0.77, 1", "0.78, 2"})
+    @CsvSource({"0.58, 1", "0.59, 2"})
     @DisplayName("PAIR-05 짝 종류가 n개일 때 i번째(0부터) 종류의 짝 우선순위 점수는 (n - i) / n이다")
-    void pairPriorityScoreIsRemainingShareOfPairKinds(double outerSimilarity, long expectedFirstProductId) {
-        // 상의의 짝 3개 중 하의는 1, 아우터는 2/3이라, 아우터 유사도가 7/9(0.777…)를 넘어야 유사도 0인 하의를 앞선다
+    void pairPriorityScoreIsRemainingShareOfPairKinds(double skirtSimilarity, long expectedFirstProductId) {
+        // 상의의 짝 4개 중 바지는 1, 치마는 3/4이라, 치마 유사도가 7/12(0.583…)를 넘어야 유사도 0인 바지를 앞선다
         List<CompanionCandidate> candidates = List.of(
             candidate(1L, BOTTOM, 0.0),
-            candidate(2L, OUTER, outerSimilarity));
+            candidate(2L, SKIRT, skirtSimilarity));
 
         List<CompanionCandidate> ranked = ranker.rank(TOP, candidates);
 
@@ -118,7 +119,7 @@ class CompanionCandidateRankerTest {
     @Test
     @DisplayName("PAIR-05 유사도가 0 ~ 1 밖이면 가까운 끝값으로 본다")
     void clampSimilarityToZeroToOne() {
-        // 잡화(1/3)의 유사도 5.0을 1로 보면 0.53점이라 유사도 0인 하의(0.7점)보다 뒤다
+        // 잡화(1/4)의 유사도 5.0을 1로 보면 0.475점이라 유사도 0인 바지(0.7점)보다 뒤다
         List<CompanionCandidate> overOne = List.of(
             candidate(1L, ACCESSORY, 5.0),
             candidate(2L, BOTTOM, 0.0));

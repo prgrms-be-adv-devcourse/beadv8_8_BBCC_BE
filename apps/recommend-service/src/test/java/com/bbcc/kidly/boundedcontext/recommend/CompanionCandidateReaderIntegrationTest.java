@@ -79,7 +79,7 @@ class CompanionCandidateReaderIntegrationTest {
     @DisplayName("PAIR-05 판매 중이고 사이즈가 맞는 짝 종류 상품에서 장바구니 · 구매확정 상품을 빼고, 유사도와 짝 우선순위 점수 순으로 정한다")
     void readPairCandidatesInRuleOrder() {
         saveProduct(VIEWED_PRODUCT_ID, TOP, FITTING_OPTIONS, "키즈랩");
-        // 상의의 짝은 하의(1), 아우터(2/3), 잡화(1/3) 순이다. 점수는 101 1.0, 103 0.77, 102 0.7이다
+        // 상의의 짝은 바지(1), 치마(3/4), 아우터(2/4), 잡화(1/4) 순이다. 점수는 101 1.0, 102 0.7, 103 0.65다
         saveProduct(101L, BOTTOM, FITTING_OPTIONS, "데님하우스");
         saveProduct(102L, BOTTOM, FITTING_OPTIONS, null);
         saveProduct(103L, OUTER, FITTING_OPTIONS, null);
@@ -99,16 +99,16 @@ class CompanionCandidateReaderIntegrationTest {
         CompanionCandidates candidates = reader.read(MEMBER_1_ID, VIEWED_PRODUCT_ID, CHILD_1_ID);
 
         assertThat(candidates.ranked()).extracting(candidate -> candidate.product().productId())
-            .containsExactly(101L, 103L, 102L);
+            .containsExactly(101L, 102L, 103L);
         assertThat(candidates.ranked()).extracting(CompanionCandidate::categoryPathNames)
-            .containsExactly(List.of("의류", "하의"), List.of("의류", "아우터"), List.of("의류", "하의"));
+            .containsExactly(List.of("의류", "하의"), List.of("의류", "하의"), List.of("의류", "아우터"));
         assertThat(candidates.businessNames()).isEqualTo(Map.of(PRODUCT_A_SELLER_ID, BUSINESS_NAME));
         assertThat(candidates.aiRequest().viewed()).isEqualTo(
             new CompanionAiProduct(VIEWED_PRODUCT_ID, "상품 7001", List.of("의류", "상의"), "키즈랩"));
         assertThat(candidates.aiRequest().candidates()).containsExactly(
             new CompanionAiProduct(101L, "상품 101", List.of("의류", "하의"), "데님하우스"),
-            new CompanionAiProduct(103L, "상품 103", List.of("의류", "아우터"), null),
-            new CompanionAiProduct(102L, "상품 102", List.of("의류", "하의"), null));
+            new CompanionAiProduct(102L, "상품 102", List.of("의류", "하의"), null),
+            new CompanionAiProduct(103L, "상품 103", List.of("의류", "아우터"), null));
     }
 
     // 판매자는 판매자 복사본이 있는 상품 A의 판매자로 두고, 판매 시작 시각은 모두 같게 둔다
