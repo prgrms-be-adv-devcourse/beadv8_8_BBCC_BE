@@ -65,7 +65,8 @@ public class WearPreviewCalculator {
             // 밑단을 잴 기준 높이다. 윗옷은 목뒤에서, 아래옷은 허리에서 내려온다. 반올림하기 전 값이다
             double baseCm = heightCm * (bottomWear ? ratios.waist() : ratios.neck());
             double rawHemCm = baseCm - totalLength.doubleValue();
-            hemCm = roundToTenth(rawHemCm);
+            // 바닥보다 아래로 내려오는 밑단은 바닥에 닿는다고 보고 0cm로 둔다. 위치는 FLOOR가 알려 준다
+            hemCm = roundToTenth(Math.max(0, rawHemCm));
             hemAt = hemPositionOf(rawHemCm, heightCm, ratios);
         }
         Double sleeveCm = null;
