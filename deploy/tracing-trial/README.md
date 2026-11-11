@@ -4,9 +4,9 @@ Gateway·주문을 운영하는 kidly-dev와 별도의 폐기 가능한 시험 �
 
 ## 준비
 
-- 시험 클러스터의 kidly-tracing-trial 네임스페이스에 Gateway·주문 Deployment와 ClusterIP Service를 준비한다. 운영과 같은 앱 이미지와 JVM 옵션을 사용하고 DB·Kafka·인증은 시험 전용으로 구성한다. 합성 구매자와 주문을 준비한다.
+- 시험 클러스터의 kidly-tracing-trial 네임스페이스에 Gateway·주문 Deployment와 ClusterIP Service를 준비한다. Pod 템플릿에는 각각 app=gateway, app=order 라벨을 붙인다. 운영과 같은 앱 이미지와 JVM 옵션을 사용하고 DB·Kafka·인증은 시험 전용으로 구성한다. 합성 구매자와 주문을 준비한다.
 - Alloy와 Tempo를 설치하기 전에 네트워크 정책이 강제되는지 확인한다. 이 구성은 Gateway·주문 Pod에서 Alloy로, Alloy에서 Tempo 수집 포트로, 시험 Grafana에서 Tempo 조회 포트로 연결한다. 시험 Grafana는 같은 네임스페이스에 app=grafana 라벨을 사용하고 grafana-datasource.yml을 읽는다.
-- 시험 노드에 Java Agent v2.33.1 공식 JAR을 설치한다. SHA-256은 e43a270df53c6f423e0ab157be9c27ccc01d5dc3232e162fe54777573db2f149다. 검증한 파일을 /opt/kidly-tracing/opentelemetry-javaagent.jar에 두고 앱 UID가 읽을 수 있게 한다.
+- 시험 노드에 Java Agent v2.33.1 공식 JAR을 설치한다. SHA-256은 e43a270df53c6f423e0ab157be9c27ccc01d5dc3232e162fe54777573db2f149다. 검증한 파일을 /opt/kidly-tracing/opentelemetry-javaagent.jar에 두고 앱 UID가 읽을 수 있게 한다. 여러 노드에서 시험하면 두 앱이 배치될 수 있는 모든 노드에 같은 파일을 설치한다.
 - 시험 컨텍스트와 API 서버 주소를 먼저 대조한다. 네임스페이스의 앱 Deployment 이름 및 컨테이너 이름은 gateway, order다. 두 앱의 기존 JAVA_TOOL_OPTIONS가 -Xmx256m인지 확인한다.
 
 ## 실행 및 원복
