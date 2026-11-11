@@ -1,9 +1,10 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.ACCESSORY;
-import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.BOTTOM;
 import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.ONE_PIECE;
 import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.OUTER;
+import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.PANTS;
+import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.SKIRT;
 import static com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionKind.TOP;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,7 +21,7 @@ class CompanionKindTest {
     static Stream<Arguments> kindsByCategoryPath() {
         return Stream.of(
             Arguments.of(List.of("의류", "상의"), TOP),
-            Arguments.of(List.of("의류", "하의"), BOTTOM),
+            Arguments.of(List.of("의류", "치마"), SKIRT),
             Arguments.of(List.of("의류", "원피스"), ONE_PIECE),
             Arguments.of(List.of("의류", "아우터"), OUTER),
             Arguments.of(List.of("잡화", "모자"), ACCESSORY),
@@ -30,14 +31,15 @@ class CompanionKindTest {
 
     static Stream<Arguments> kindsByVariantCategoryNames() {
         return Stream.of(
-            Arguments.of(List.of("의류", "바지"), BOTTOM),
+            Arguments.of(List.of("의류", "바지"), PANTS),
+            Arguments.of(List.of("의류", "하의"), PANTS),
             Arguments.of(List.of("의류", " 상의 "), TOP),
             Arguments.of(List.of(" 잡화", "모자"), ACCESSORY));
     }
 
     @ParameterizedTest
     @MethodSource("kindsByVariantCategoryNames")
-    @DisplayName("PAIR-07 하의는 카테고리 이름이 바지여도 하의이고, 카테고리 이름 앞뒤의 공백은 무시한다")
+    @DisplayName("PAIR-07 하의와 바지는 같은 종류(바지)이고, 카테고리 이름 앞뒤의 공백은 무시한다")
     void kindFromVariantCategoryNames(List<String> categoryPathNames, CompanionKind expected) {
         assertThat(CompanionKind.of(categoryPathNames)).contains(expected);
     }
