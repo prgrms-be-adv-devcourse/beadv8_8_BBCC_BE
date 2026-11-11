@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.referencegarment;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.referencegarment.GarmentCategoryPaths;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.purchase.PurchasedGarments;
+import com.bbcc.kidly.boundedcontext.recommend.app.referencegarment.dto.PurchasedGarmentResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.referencegarment.dto.ReferenceGarmentResult;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarment;
@@ -16,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,12 +33,21 @@ public class ReferenceGarmentService {
 
     private final RecommendReplicaChildRepository replicaChildRepository;
 
+    private final PurchasedGarments purchasedGarments;
+
     @Transactional(readOnly = true)
     public List<ReferenceGarmentResult> list(Long memberId, Long childId) {
         requireChildOf(memberId, childId);
         return referenceGarmentRepository.findAllByChildProfileId(childId).stream()
             .map(ReferenceGarmentResult::from)
             .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PurchasedGarmentResult> listPurchasedGarments(Long memberId, Long childId, int page, int size) {
+        requireChildOf(memberId, childId);
+        return purchasedGarments.findByChild(childId, PageRequest.of(page, size))
+            .map(PurchasedGarmentResult::from);
     }
 
     @Transactional
