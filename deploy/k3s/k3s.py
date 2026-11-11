@@ -51,7 +51,8 @@ def mebibytes(mem_limit):
 
 
 def container_port(service):
-    targets = [int(item['target']) for item in service.get('ports') or []]
+    # 호스트에 여는 ports 가 없으면 컨테이너끼리만 쓰는 expose 를 본다(redis)
+    targets = [int(item['target']) for item in service.get('ports') or []] + [int(port) for port in service.get('expose') or []]
     return targets[0] if targets else DEFAULT_PORT
 
 

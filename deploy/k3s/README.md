@@ -4,7 +4,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 
 | 무엇이 | 값 |
 | --- | --- |
-| 무엇이 뜨나 | `deploy/.env.<환경>` 의 `K3S_PROFILES` 에 있는 profile. 지금 dev 는 서비스 9개(1차 #1148, 2차 #1159) · `gateway` · `kafka-monitoring`(kafka-exporter). 한 profile 은 `COMPOSE_PROFILES` · `K3S_PROFILES` 중 한쪽에만 둔다 |
+| 무엇이 뜨나 | `deploy/.env.<환경>` 의 `K3S_PROFILES` 에 있는 profile. 지금 dev 는 서비스 9개(1차 #1148, 2차 #1159) · `gateway` · `kafka-monitoring`(kafka-exporter) · `redis`(캐시, #690). 한 profile 은 `COMPOSE_PROFILES` · `K3S_PROFILES` 중 한쪽에만 둔다 |
 | NodePort | `<PROFILE>_NODE_PORT` 가 있는 것만 이 서버의 그 포트로 닿는다. 지금은 Gateway 30200(nginx 가 붙는 곳) 하나. 나머지는 ClusterIP 라 클러스터 안에서만 `<이름>:<포트>` |
 | namespace | `kidly-<환경>`. Deployment · Service 이름은 compose profile 이름(`search`, `member` 등) |
 | 설정 | 서버의 `docker-compose.yml` · `.env` 의 그 서비스 설정을 그대로 쓴다. 환경 변수는 Secret `<이름>-env`, jwt 키는 Secret `<이름>-jwt`, 메모리는 `mem_limit` 을 request · limit 으로, 이미지는 `image.env` 의 그 서비스 이미지 |
@@ -12,6 +12,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 | nginx → Gateway | `127.0.0.1:30200`(`deploy/nginx`). nginx 는 앱 배포로 바뀌지 않는다 |
 | 배포 | 하나씩 차례로. 새 Pod 가 준비된 뒤 옛 Pod 를 내린다. 순서는 롤링 서비스 → 상품 · 알림(스케줄러가 두 번 돌면 안 돼서 옛 Pod 를 먼저 내림, `SINGLE_INSTANCE`) → Gateway(다른 서비스가 다 뜬 뒤, `EDGE`) |
 | 자동 확장 | 추천만 HPA(CPU 70%, 1~3개). 나머지는 1개 |
+| Redis | 캐시용(#690). 같은 namespace 에서 `redis:6379`, 비밀번호 없음(ClusterIP 라 밖에서 닿지 않는다). 영속성 없음(Pod 가 다시 뜨면 비어 있다), `maxmemory 64mb` · `allkeys-lru`, 메모리 128Mi. 지표는 긁지 않고 로그만 모은다 |
 | 지표 · 로그 | monitoring-agent Alloy 가 k3s API 로 Pod 를 찾는다. Pod 라벨 `kidly/job` 을 job · `service_name` 으로 쓴다(compose 때와 같은 `kidly-<이름>`, exporter 는 `kidly-kafka`). `instance` 는 Pod 이름 |
 | Spring 이 아닌 것 | kafka-exporter 처럼 `/actuator` 가 없으면 포트 연결로 확인하고, compose 의 `command` · 포트 · `user` · `read_only` · `cap_drop` 을 그대로 옮긴다 |
 
@@ -51,4 +52,4 @@ curl -s localhost:30200/actuator/health     # nginx 가 붙는 Gateway
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)
 - **메모리**: request 합이 노드 할당량(약 7.6Gi)을 넘으면 새 Pod 가 Pending 이 된다. compose 컨테이너 몫은 스케줄러가 모르므로 `free -m` 으로 함께 본다
-  - dev 의 request 합은 5,952Mi(서비스 9개 5,312 · Gateway 512 · kafka-exporter 128)다. 추천이 3개로 늘면 6,848Mi. 여기에 k3s 자체가 더해진다
+  - dev 의 request 합은 6,080Mi(서비스 9개 5,312 · Gateway 512 · kafka-exporter 128 · Redis 128)다. 추천이 3개로 늘면 6,976Mi. 여기에 k3s 자체가 더해진다

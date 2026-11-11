@@ -44,6 +44,40 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # 캐시용 Redis(#690). 영속성을 끄고(RDB · AOF 없음) 64MB 를 넘으면 가장 오래 안 쓴 키부터 지운다. 원본은 DB 에 둔다
+  # 포트를 밖에 열지 않고 같은 namespace 의 서비스만 redis:6379 로 붙는다(k3s ClusterIP). 그래서 비밀번호 없이 protected-mode 를 끈다
+  # dev 는 K3S_PROFILES 의 redis 로 k3s 에 뜬다(deploy/k3s). 쓰는 앱은 용도별 이슈에서 붙인다
+  redis:
+    image: redis:7.4.12-alpine@sha256:7b1753b4c5ad8458906c272a8132b8c15f5557b000379eb115fb239706a384b7
+    profiles: [redis]
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --protected-mode
+      - "no"
+    expose:
+      - "6379"
+    user: "999:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    mem_limit: 128m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
   # 검색 서비스(apps/search-service). 상품 목록 검색 API 와 상품 · 판매자 이벤트 수신(구독 그룹 kidly.search)
   # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   # /actuator/health 가 Elasticsearch 연결을 본다. ES 는 t3.medium k3s(deploy/search), 앱 배포 전에 deploy 워크플로가 먼저 올린다

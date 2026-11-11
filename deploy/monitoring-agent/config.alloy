@@ -285,12 +285,13 @@ loki.source.kubernetes "kidly_pods" {
 }
 
 // 앱 서비스 Pod. kafka-exporter(kidly-kafka)는 아래 kidly_kafka 가 지표를 걸러 긁는다
+// Redis(kidly-redis)는 /actuator/prometheus 가 없어 지표를 긁지 않는다. 로그는 위 kidly_pod_logs 가 모은다
 discovery.relabel "kidly_app_pods" {
 	targets = discovery.relabel.kidly_pod_metrics.output
 
 	rule {
 		source_labels = ["job"]
-		regex         = "kidly-kafka"
+		regex         = "kidly-kafka|kidly-redis"
 		action        = "drop"
 	}
 }
