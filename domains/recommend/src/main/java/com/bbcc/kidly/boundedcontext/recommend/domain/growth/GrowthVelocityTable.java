@@ -13,21 +13,29 @@ public class GrowthVelocityTable {
     private static final int MONTHS_PER_YEAR = 12;
 
     private final Map<AgeKey, Double> medianCmPerYear;
+    private final long lastAgeYears;
 
-    private GrowthVelocityTable(Map<AgeKey, Double> medianCmPerYear) {
+    private GrowthVelocityTable(Map<AgeKey, Double> medianCmPerYear, long lastAgeYears) {
         this.medianCmPerYear = medianCmPerYear;
+        this.lastAgeYears = lastAgeYears;
     }
 
     public static GrowthVelocityTable of(List<GrowthVelocityRow> rows) {
         Map<AgeKey, Double> byAge = new HashMap<>();
+        long lastAgeYears = 0;
         for (GrowthVelocityRow row : rows) {
             byAge.put(new AgeKey(row.gender(), row.ageYears()), row.medianCmPerYear());
+            lastAgeYears = Math.max(lastAgeYears, row.ageYears());
         }
-        return new GrowthVelocityTable(Map.copyOf(byAge));
+        return new GrowthVelocityTable(Map.copyOf(byAge), lastAgeYears);
     }
 
+    /**
+     * 표의 마지막 나이보다 많으면 마지막 구간 값을 쓴다.
+     */
     public double yearlyCm(Gender gender, long months) {
-        return medianCmPerYear.get(new AgeKey(gender, months / MONTHS_PER_YEAR));
+        long ageYears = Math.min(months / MONTHS_PER_YEAR, lastAgeYears);
+        return medianCmPerYear.get(new AgeKey(gender, ageYears));
     }
 
     private record AgeKey(Gender gender, long ageYears) {
