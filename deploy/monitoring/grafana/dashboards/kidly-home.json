@@ -99,7 +99,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"kidly-ai-notes\",env=~\"dev|prod\"} | json | __error__=\"\" | line_format \"{{.report}}\" | regexp `(?m)^AI analysis .* observed (?P<observed_at>[^\\r\\n]+)` | regexp `(?m)^1\\. (?P<next_check>[^\\r\\n]+)` | regexp `(?m)^대응 제안: (?P<advice>[^\\r\\n]+)` | advice!=\"\" | label_format detected_level=\"info\",level=\"info\" | line_format `{{.env}} · 관측 {{.observed_at}}{{if .next_check}}{{\"\\n\"}}먼저 확인: {{.next_check}}{{end}}{{\"\\n\"}}대응 제안: {{.advice}}`",
+          "expr": "{job=\"kidly-ai-notes\",env=~\"dev|prod\"} | json | __error__=\"\" | line_format \"{{.report}}\" | regexp `(?m)^AI analysis .* observed (?P<observed_at>[^\\r\\n]+)` | regexp `(?m)^1\\. (?P<next_check>[^\\r\\n]+)` | regexp `(?m)^대응 제안: (?P<advice>[^\\r\\n]+)` | advice!=\"\" | label_format detected_level=\"info\",level=\"info\" | line_format `{{if eq .env \"dev\"}}운영{{else}}{{.env}}{{end}} · 관측 {{.observed_at}}{{if .next_check}}{{\"\\n\"}}먼저 확인: {{.next_check}}{{end}}{{\"\\n\"}}대응 제안: {{.advice}}`",
           "queryType": "range",
           "maxLines": 1
         }
