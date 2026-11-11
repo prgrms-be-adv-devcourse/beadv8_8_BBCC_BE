@@ -174,6 +174,32 @@ class GrowthSpeedCalculatorTest {
         assertThat(speed.recentCmPerMonth()).isNull();
     }
 
+    static Stream<Arguments> recordsAroundTwelveMonths() {
+        return Stream.of(
+            Arguments.of(Named.of("12개월 전 날짜(작년 11월 12일) 기록은 넣음", List.of(
+                record(TODAY.minusMonths(12), "115.0"),
+                record(TODAY.minusDays(182), "118.0"),
+                record(TODAY, "121.0"))), 3, 0.831763, 0.500284),
+            Arguments.of(Named.of("12개월 전 날짜 하루 전 기록은 뺌", List.of(
+                record(TODAY.minusMonths(12).minusDays(1), "105.0"),
+                record(TODAY.minusDays(182), "115.0"),
+                record(TODAY, "121.0"))), 2, 0.551415, 0.777601)
+        );
+    }
+
+    // 사춘기 앞뒤로 성장 속도가 해마다 크게 바뀌어, 몇 년 치 기록으로 그은 직선은 지금 속도와 다르다
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("recordsAroundTwelveMonths")
+    @DisplayName("GROW-03 성장 속도는 오늘부터 12개월 안의 기록만으로 계산한다")
+    void useRecordsWithinTwelveMonths(List<RecommendGrowthRecord> records, int expectedRecordCount,
+        double expectedChildShare, double expectedCmPerMonth) {
+        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+
+        assertThat(speed.recordCount()).isEqualTo(expectedRecordCount);
+        assertThat(speed.childShare()).isCloseTo(expectedChildShare, within(0.000001));
+        assertThat(speed.cmPerMonth()).isCloseTo(expectedCmPerMonth, within(0.000001));
+    }
+
     private static RecommendGrowthRecord record(LocalDate recordedOn, String heightCm) {
         return RecommendGrowthRecord.create(new RecommendGrowthRecord.RecordInfo(
             RECORD_ID.getAndIncrement(), CHILD_1_ID, new BigDecimal(heightCm), null, recordedOn.atTime(9, 0)));
