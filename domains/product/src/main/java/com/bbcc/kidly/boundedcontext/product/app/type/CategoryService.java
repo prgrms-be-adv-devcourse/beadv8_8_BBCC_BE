@@ -66,8 +66,11 @@ public class CategoryService {
         ProductType productType = productTypeRepository.getByIdForShare(request.productTypeId());
         List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
         category.change(productType, measurementItems, productRepository.existsByCategory(category));
-        // 보일 성별은 상품을 깨지 않는 값이므로 상품이 있어도 바꿀 수 있다
-        category.changeVisibleGender(request.visibleGender());
+        // 보일 성별은 상품을 깨지 않는 값이므로 상품이 있어도 바꿀 수 있다.
+        // 이 칸을 모르는 관리자 화면이 실측만 고칠 때 GIRL이 풀리지 않도록, 보내지 않으면 지금 값을 그대로 둔다
+        if (request.visibleGender() != null) {
+            category.changeVisibleGender(request.visibleGender());
+        }
         return toResult(category);
     }
 

@@ -120,7 +120,7 @@ class AdminCategoryChangeApiTest {
     }
 
     @Test
-    @DisplayName("VIS-01 상품이 있는 카테고리도 보일 성별을 GIRL로 바꾸면 200이고, 다시 보내지 않으면 ALL이 된다")
+    @DisplayName("VIS-01 상품이 있는 카테고리도 보일 성별을 GIRL로 바꾸면 200이고, 다음 수정에서 보내지 않으면 GIRL을 그대로 둔다")
     void changeVisibleGenderWithProducts() {
         Category top = savedProductCategory();
         Map<String, Object> toGirl = categoryChange(clothing.type().getId(), List.of());
@@ -133,7 +133,7 @@ class AdminCategoryChangeApiTest {
         put(categoryPath(top), categoryChange(clothing.type().getId(), List.of()))
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.visibleGender").isEqualTo("ALL");
+            .jsonPath("$.visibleGender").isEqualTo("GIRL");
     }
 
     @Test

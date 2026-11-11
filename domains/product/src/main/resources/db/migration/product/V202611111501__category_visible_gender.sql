@@ -4,11 +4,6 @@ ALTER TABLE product.category ADD COLUMN IF NOT EXISTS visible_gender character v
 ALTER TABLE product.category DROP CONSTRAINT IF EXISTS category_visible_gender_check;
 ALTER TABLE product.category ADD CONSTRAINT category_visible_gender_check CHECK (visible_gender IN ('ALL', 'GIRL'));
 
--- 원피스는 여아 자녀에게만 보여 준다
-UPDATE product.category SET visible_gender = 'GIRL'
-WHERE name = '원피스' AND deleted_at IS NULL AND visible_gender <> 'GIRL'
-  AND parent_id IN (SELECT id FROM product.category WHERE name = '의류' AND parent_id IS NULL AND deleted_at IS NULL);
-
 -- 치마를 하의와 구분하려고 하의의 이름을 바지로 바꾼다. 같은 의류 아래에 바지가 이미 있으면 바꾸지 않는다
 UPDATE product.category c SET name = '바지', updated_at = now()
 WHERE c.name = '하의' AND c.deleted_at IS NULL
@@ -39,3 +34,8 @@ JOIN (VALUES ('TOTAL_LENGTH', 1), ('WAIST_WIDTH', 2)) AS v(code, sort_order) ON 
 JOIN product.measurement_item m ON m.code = v.code AND m.deleted_at IS NULL
 WHERE c.name = '치마' AND c.deleted_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM product.category_measurement_item l WHERE l.category_id = c.id);
+
+-- 원피스 · 치마는 여아 자녀에게만 보여 준다. 관리자가 미리 만든 치마도 함께 바꾸도록 치마를 넣은 뒤에 바꾼다
+UPDATE product.category SET visible_gender = 'GIRL', updated_at = now()
+WHERE name IN ('원피스', '치마') AND deleted_at IS NULL AND visible_gender <> 'GIRL'
+  AND parent_id IN (SELECT id FROM product.category WHERE name = '의류' AND parent_id IS NULL AND deleted_at IS NULL);

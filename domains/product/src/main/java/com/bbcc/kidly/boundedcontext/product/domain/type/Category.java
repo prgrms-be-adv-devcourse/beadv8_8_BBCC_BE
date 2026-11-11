@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
 
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -110,7 +111,7 @@ public class Category extends BaseSoftDeleteEntity {
 
     // 보일 성별을 바꾼다. null이면 ALL이다
     public void changeVisibleGender(CategoryVisibleGender visibleGender) {
-        this.visibleGender = visibleGender == null ? CategoryVisibleGender.ALL : visibleGender;
+        this.visibleGender = requireNonNullElse(visibleGender, CategoryVisibleGender.ALL);
     }
 
     // 자녀 성별로 이 카테고리를 보여 줄지 본다. 남아에게만 GIRL 카테고리를 숨기고, 성별을 모르면(null) 모두 보여 준다
