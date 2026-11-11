@@ -145,6 +145,26 @@ class HomePreviewSelectorTest {
             .containsExactly(tuple(2L, "이유 2이에요."), tuple(1L, null));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"함께 입기 좋아요.", "함께 입기 좋아요", "산뜻하게 입기 좋아요!", "단정한 느낌을 줍니다.",
+        "함께 입어 보시겠어요?", "가을 나들이룩으로 추천", "가을 나들이룩으로 추천.", "등원룩으로 활용"})
+    @DisplayName("HOME-06 경어체이거나 「~로 추천」 · 「~로 활용」으로 끝나는 이유는 그대로 쓴다")
+    void keepPoliteOrRecommendEndingReason(String reason) {
+        HomePreview preview = selector.select(productsWithIds(4), List.of(new HomePreviewPick(2L, reason)));
+
+        assertThat(preview.items().getFirst().reason()).isEqualTo(reason);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"함께 입기 좋다.", "코디 완성", "등원룩으로 추천해", "함께 입기 좋아요?"})
+    @DisplayName("HOME-06 경어체도 「~로 추천」 · 「~로 활용」도 아닌 이유는 상품은 쓰고 이유만 null로 둔다")
+    void hideReasonWithOtherEnding(String reason) {
+        HomePreview preview = selector.select(productsWithIds(4), List.of(new HomePreviewPick(2L, reason)));
+
+        assertThat(preview.items().getFirst().product().productId()).isEqualTo(2L);
+        assertThat(preview.items().getFirst().reason()).isNull();
+    }
+
     // 상품 ID를 1부터 차례로 붙인 상품 목록이다. 목록 순서가 선호 점수 순서다
     private static List<RecommendedProduct> productsWithIds(int count) {
         List<RecommendedProduct> products = new ArrayList<>();
