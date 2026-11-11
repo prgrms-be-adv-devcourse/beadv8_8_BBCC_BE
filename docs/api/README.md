@@ -142,6 +142,7 @@
 | GET | `/api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(상의, 하의 순서이고 없으면 `[]`. 칸 `part`(`TOP` · `BOTTOM`) · `categoryId` · `measurements`(실측 항목 코드별 cm)). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
 | PUT | `/api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(`{part}`는 `TOP` · `BOTTOM`. 본문 `categoryId`(상품 말단 카테고리, 구분에 맞아야 함) · `measurements`(상의 필수 `TOTAL_LENGTH` · `CHEST_WIDTH`, 선택 `SHOULDER_WIDTH` · `SLEEVE_LENGTH` / 하의 필수 `TOTAL_LENGTH` · `WAIST_WIDTH`, 선택 `RISE`. 0cm 초과 200cm 이하, 소수 첫째 자리까지). 같은 구분을 다시 저장하면 교체하고 응답 200에 저장한 값. 값이 틀리거나 알 수 없는 구분이면 400, 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
 | DELETE | `/api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 삭제(응답 204, 이미 없어도 204. 알 수 없는 구분이면 400, 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404) | 🔒 |
+| GET | `/api/v1/recommendations/children/{childId}/purchases?page=&size=` | 자녀에게 산 옷 목록(기준 옷 「산 옷에서 고르기」용, #1109). 구매확정된 주문상품만 구매확정이 늦은 순서로, 팀 목록 형식. 칸 `orderItemId` · `productId` · `productName` · `categoryId` · `size`(주문 당시 사이즈) · `measurements`(그 사이즈의 실측, 실측 항목 코드별 cm) · `confirmedAt`. 상품 정보가 없으면 `productName` · `categoryId` · `measurements`가 null, 그 사이즈의 실측이 없으면 `measurements`만 null. `size`(쪽 크기)는 1 ~ 100(기본 20). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
 
 ## 주문
 
