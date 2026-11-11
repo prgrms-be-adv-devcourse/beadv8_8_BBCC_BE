@@ -29,13 +29,21 @@ public class WearPreviewCalculator {
     }
 
     public Optional<WearPreview> preview(FitProduct product, ChildSizeInput child, LocalDate today) {
+        requireNonNull(product, "product는 필수입니다");
+        requireNonNull(child, "child는 필수입니다");
+        requireNonNull(today, "today는 필수입니다");
+        requireNonNull(child.gender(), "gender는 필수입니다");
+        requireNonNull(child.birthDate(), "birthDate는 필수입니다");
+        // 기준 옷 비교와 같은 기준으로 고른다. 사이즈 무관 상품과 맞는 칸이 없는 상품(모자 · 양말)은 만들지 않는다
+        GarmentPart garment = GarmentPart.ofCategoryPath(product.categoryPathNames());
+        if (product.sizeFree() || garment == null) {
+            return Optional.empty();
+        }
         long months = Period.between(child.birthDate(), today).toTotalMonths();
         BodyHeightRow ratios = table.ratios(child.gender(), months);
-        GarmentPart garment = GarmentPart.ofCategoryPath(product.categoryPathNames());
-        double hemBaseCm = hemBaseHeightCm(garment, child.heightCm(), ratios);
         List<WearPreview.SizeWear> sizes = new ArrayList<>();
         for (FitProduct.SizeMeasurements measurements : product.sizes()) {
-            sizes.add(sizeWear(measurements, hemBaseCm, child.heightCm(), ratios));
+            sizes.add(sizeWear(measurements, garment, child.heightCm(), ratios));
         }
         return Optional.of(new WearPreview(garment, bodyOf(child.heightCm(), ratios), sizes));
     }
@@ -44,27 +52,42 @@ public class WearPreviewCalculator {
      * 밑단 높이를 잴 기준 높이다. 윗옷은 목뒤에서, 아래옷은 허리에서 내려온다. 반올림하기 전 값이다.
      */
     private static double hemBaseHeightCm(GarmentPart garment, double heightCm, BodyHeightRow ratios) {
-        if (garment == GarmentPart.BOTTOM || garment == GarmentPart.SKIRT) {
+        if (isBottomWear(garment)) {
             return heightCm * ratios.waist();
         }
         return heightCm * ratios.neck();
     }
 
-    private static WearPreview.SizeWear sizeWear(FitProduct.SizeMeasurements measurements, double hemBaseCm,
-                                                 double heightCm, BodyHeightRow ratios) {
-        double totalLengthCm = measurements.measurements().get(TOTAL_LENGTH).doubleValue();
-        double hemCm = hemBaseCm - totalLengthCm;
-        BigDecimal sleeve = measurements.measurements().get(SLEEVE_LENGTH);
-        if (sleeve == null) {
-            return new WearPreview.SizeWear(measurements.size(), roundToTenth(hemCm),
-                    hemPositionOf(hemCm, heightCm, ratios), null, null);
-        }
-        double sleeveCm = sleeve.doubleValue();
-        return new WearPreview.SizeWear(measurements.size(), roundToTenth(hemCm),
-                hemPositionOf(hemCm, heightCm, ratios), roundToTenth(sleeveCm),
-                sleevePositionOf(sleeveCm, heightCm * ratios.arm()));
+    private static boolean isBottomWear(GarmentPart garment) {
+        return garment == GarmentPart.BOTTOM || garment == GarmentPart.SKIRT;
     }
 
+    /**
+     * 총장이 없는 사이즈는 밑단 칸이, 소매길이가 없는 사이즈와 소매가 없는 바지 · 치마는 소매 칸이 null이다.
+     */
+    private static WearPreview.SizeWear sizeWear(FitProduct.SizeMeasurements measurements, GarmentPart garment,
+                                                 double heightCm, BodyHeightRow ratios) {
+        Double hemCm = null;
+        HemPosition hemAt = null;
+        BigDecimal totalLength = measurements.measurements().get(TOTAL_LENGTH);
+        if (totalLength != null) {
+            double rawHemCm = hemBaseHeightCm(garment, heightCm, ratios) - totalLength.doubleValue();
+            hemCm = roundToTenth(rawHemCm);
+            hemAt = hemPositionOf(rawHemCm, heightCm, ratios);
+        }
+        Double sleeveCm = null;
+        SleevePosition sleeveAt = null;
+        BigDecimal sleeve = measurements.measurements().get(SLEEVE_LENGTH);
+        if (sleeve != null && !isBottomWear(garment)) {
+            sleeveCm = roundToTenth(sleeve.doubleValue());
+            sleeveAt = sleevePositionOf(sleeve.doubleValue(), heightCm * ratios.arm());
+        }
+        return new WearPreview.SizeWear(measurements.size(), hemCm, hemAt, sleeveCm, sleeveAt);
+    }
+
+    /**
+     * 밑단 높이가 몸의 어느 높이 사이에 있는지 위에서부터 차례로 본다. 반올림하기 전 값으로 판정한다.
+     */
     /**
      * 소매길이가 팔길이의 절반 이하면 팔꿈치, 팔길이 언저리면 손목, 그보다 길면 손에 닿는다고 본다.
      */
