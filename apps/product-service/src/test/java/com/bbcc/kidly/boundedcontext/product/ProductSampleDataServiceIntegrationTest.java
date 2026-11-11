@@ -126,7 +126,7 @@ class ProductSampleDataServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("기준 데이터에 상의 · 하의가 없으면 샘플 상품을 넣지 않고 앱 시작을 막지 않는다")
+    @DisplayName("기준 데이터에 상의 · 바지가 없으면 샘플 상품을 넣지 않고 앱 시작을 막지 않는다")
     void skipWhenReferenceDataMissing() {
         saveSellerReplica();
 
@@ -170,7 +170,7 @@ class ProductSampleDataServiceIntegrationTest {
         replicaSellerRepository.save(ProductReplicaSeller.create(ProductReplicaSellerFixture.sellerApproved()));
     }
 
-    // 의류 > 상의 · 하의는 있지만 색상 값에 네이비가 없는 기준 데이터다
+    // 의류 > 상의 · 바지는 있지만 색상 값에 네이비가 없는 기준 데이터다
     private void saveReferenceDataWithoutNavy() {
         Attribute color = attributeRepository.save(ProductTypeFixture.color());
         Attribute size = attributeRepository.save(ProductTypeFixture.size());
@@ -187,7 +187,7 @@ class ProductSampleDataServiceIntegrationTest {
         categoryRepository.save(Category.createLeaf(
             new Category.LeafInfo("상의", clothingCategory, clothingType, List.of())));
         categoryRepository.save(Category.createLeaf(
-            new Category.LeafInfo("하의", clothingCategory, clothingType, List.of())));
+            new Category.LeafInfo("바지", clothingCategory, clothingType, List.of())));
     }
 
     private List<Integer> availableQuantities(Long productId) {

@@ -6,11 +6,14 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.product.app.type.CategoryService;
 import com.bbcc.kidly.boundedcontext.product.app.type.ProductReferenceDataService;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryInputsResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
+import com.bbcc.kidly.boundedcontext.product.app.type.dto.MeasurementItemResult;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
 import java.util.stream.Stream;
@@ -45,7 +48,7 @@ class ProductReferenceDataServiceIntegrationTest {
         assertThat(tree).extracting(CategoryTreeResult::name).containsExactly("의류", "잡화");
         List<CategoryTreeResult> clothes = tree.get(0).children();
         List<CategoryTreeResult> goods = tree.get(1).children();
-        assertThat(clothes).extracting(CategoryTreeResult::name).containsExactly("상의", "하의", "아우터", "원피스");
+        assertThat(clothes).extracting(CategoryTreeResult::name).containsExactly("상의", "바지", "아우터", "원피스", "치마");
         assertThat(goods).extracting(CategoryTreeResult::name).containsExactly("모자", "양말");
 
         CategoryInputsResult top = categoryService.findInputs(clothes.get(0).categoryId());
@@ -85,6 +88,22 @@ class ProductReferenceDataServiceIntegrationTest {
         assertThat(measurementCodes(clothes.get(3))).containsExactly("TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH");
         assertThat(measurementCodes(goods.get(0))).containsExactly("HEAD_CIRCUMFERENCE");
         assertThat(measurementCodes(goods.get(1))).containsExactly("FOOT_LENGTH");
+    }
+
+    @Test
+    @DisplayName("VIS-01 기준 데이터는 원피스 · 치마를 GIRL로, 나머지 카테고리를 ALL로 두고, 치마의 필수 실측은 총장 · 허리단면이다")
+    void loadCategoryVisibleGenders() {
+        productReferenceDataService.load();
+
+        List<CategoryResult> categories = categoryService.findAll();
+        assertThat(categories)
+            .filteredOn(category -> category.visibleGender() == CategoryVisibleGender.GIRL)
+            .extracting(CategoryResult::name).containsExactly("원피스", "치마");
+        assertThat(categories)
+            .filteredOn(category -> category.name().equals("치마"))
+            .singleElement()
+            .satisfies(skirt -> assertThat(skirt.measurementItems()).extracting(MeasurementItemResult::code)
+                .containsExactly("TOTAL_LENGTH", "WAIST_WIDTH"));
     }
 
     @ParameterizedTest(name = "{0}")
