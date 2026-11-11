@@ -50,14 +50,14 @@ class SizeRecommendationServiceTest {
     private static final AiResponseKey.Input KEY_INPUT = new AiResponseKey.Input(
         PRODUCT_ID, CHILD_ID, 82, null, null, null, null, null, null, 1);
 
-    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, null);
+    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, null, List.of());
 
     private static final ReferenceFit REFERENCE_FIT = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
         new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
             new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
 
     private static final SizeAiQuestion QUESTION_WITH_FIT =
-        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, null);
+        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, null, List.of());
 
     // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
     private static final SizeAiEvidence EVIDENCE =

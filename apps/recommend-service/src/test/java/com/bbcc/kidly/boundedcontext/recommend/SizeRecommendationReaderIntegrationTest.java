@@ -10,6 +10,9 @@ import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChild
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecord;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecordRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
@@ -20,6 +23,7 @@ import com.bbcc.kidly.support.IntegrationTest;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -49,6 +53,9 @@ class SizeRecommendationReaderIntegrationTest {
 
     @Autowired
     private ReferenceGarmentRepository referenceGarmentRepository;
+
+    @Autowired
+    private RecommendGrowthRecordRepository growthRecordRepository;
 
     @Test
     @DisplayName("AI 입력에 자녀 개월 수 · 키 · 몸무게 · 체형 · 선호 핏 · 판정 체형, 사이즈별 권장 키와 실측, 규칙 결과를 담는다")
@@ -165,6 +172,50 @@ class SizeRecommendationReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("GROW-03 최근 12개월 안 성장 기록이 둘 이상이고 한 달 넘게 떨어져 있으면 아이 기록을 표 값과 섞고, 12개월보다 오래된 기록은 쓰지 않는다")
+    void growthSpeedBlendsChildRecords() {
+        replicaProductRepository.save(RecommendFixture.productAReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        LocalDateTime now = LocalDate.now(ZoneId.of("Asia/Seoul")).atTime(9, 0);
+        // 6개월에 4cm(약 0.66cm/월)라 표 값 0.50cm/월과 다르다
+        saveGrowthRecord(1L, "108.0", now.minusDays(400));
+        saveGrowthRecord(2L, "111.0", now.minusDays(182));
+        saveGrowthRecord(3L, "115.0", now.minusDays(1));
+
+        SizeAiQuestion.GrowthSpeed growthSpeed = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .aiQuestion().growthSpeed();
+
+        assertThat(growthSpeed.recordCount()).isEqualTo(2);
+        assertThat(growthSpeed.childSharePercent()).isBetween(1, 99);
+        assertThat(growthSpeed.cmPerMonth()).isNotEqualByComparingTo(growthSpeed.tableCmPerMonth());
+    }
+
+    // 자녀 1은 키 115cm이고 기록이 없어 표 값 0.50cm/월로 큰다. 기준 옷이 없어 너비 기준은 계산하지 않는다
+    @Test
+    @DisplayName("WEAR-01 · WEAR-03 사이즈마다 권장 키 상한까지 크는 개월 수를 입을 수 있는 기간으로 AI 입력에 담는다")
+    void buildWearablePeriods() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        assertThat(draft.aiQuestion().wearablePeriods()).containsExactly(
+            new WearablePeriod("110", 0, null, 0),
+            new WearablePeriod("120", 20, null, 20));
+    }
+
+    @Test
+    @DisplayName("WEAR-04 사이즈 무관 상품은 입을 수 있는 기간을 계산하지 않아 빈 목록이다")
+    void noWearablePeriodsForSizeFreeProduct() {
+        replicaProductRepository.save(RecommendFixture.productASizeFreeReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        assertThat(draft.aiQuestion().wearablePeriods()).isEmpty();
+    }
+
+    @Test
     @DisplayName("AI 입력에는 자녀 이름 · 생년월일 · 회원 ID를 담는 칸이 없다")
     void aiQuestionHasNoPersonalFields() {
         List<String> names = new ArrayList<>();
@@ -175,6 +226,11 @@ class SizeRecommendationReaderIntegrationTest {
         }
 
         assertThat(names).doesNotContain("name", "birthDate", "memberId", "childProfileId");
+    }
+
+    private void saveGrowthRecord(Long growthRecordId, String heightCm, LocalDateTime recordedAt) {
+        growthRecordRepository.save(RecommendGrowthRecord.create(new RecommendGrowthRecord.RecordInfo(
+            growthRecordId, CHILD_1_ID, new BigDecimal(heightCm), null, recordedAt)));
     }
 
     // 1.5와 1.50처럼 소수 자리만 다른 값은 같은 cm로 본다

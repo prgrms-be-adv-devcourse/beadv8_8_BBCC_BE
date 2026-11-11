@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.port.size;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -15,13 +16,15 @@ import java.util.Map;
  * @param ruleResult 규칙으로 계산한 결과
  * @param referenceFit 자녀의 기준 옷과 이 상품의 사이즈별 실측을 비교한 기준 핏이고, 기준 옷이 없으면 null이다
  * @param growthSpeed 자녀의 키 성장 속도다
+ * @param wearablePeriods 사이즈별로 앞으로 몇 개월 입을 수 있는지다. 사이즈 무관 상품이나 모자 · 양말처럼 계산하지 않는 상품은 빈 목록이다
  */
 public record SizeAiQuestion(
     Child child,
     List<SizeLine> sizes,
     RuleResult ruleResult,
     ReferenceFit referenceFit,
-    GrowthSpeed growthSpeed) {
+    GrowthSpeed growthSpeed,
+    List<WearablePeriod> wearablePeriods) {
 
     /**
      * 숫자는 소수 둘째 자리까지 반올림한 값이다.
