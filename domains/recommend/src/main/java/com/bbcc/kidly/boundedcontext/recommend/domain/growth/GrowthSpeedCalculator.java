@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import java.time.LocalDate;
 import java.time.Period;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,27 +36,26 @@ public class GrowthSpeedCalculator {
         List<RecommendGrowthRecord> records = recordsWithin(allRecords, WINDOW_MONTHS, today);
         long ageMonths = Period.between(birthDate, today).toTotalMonths();
         double tableCmPerMonth = table.yearlyCm(gender, ageMonths) / MONTHS_PER_YEAR;
-        double recordMonths = recordMonths(records);
+        Slope slope = leastSquaresSlope(records);
         Double recentCmPerMonth = recentCmPerMonth(records, today, tableCmPerMonth);
-        if (recordMonths < MIN_RECORD_MONTHS) {
-            return new GrowthSpeed(tableCmPerMonth, recentCmPerMonth, null, records.size(), recordMonths, 0.0,
+        if (slope.months() < MIN_RECORD_MONTHS) {
+            return new GrowthSpeed(tableCmPerMonth, recentCmPerMonth, null, records.size(), slope.months(), 0.0,
                     tableCmPerMonth, TABLE_SOURCE);
         }
         double tableError = table.yearlySdCm(gender, ageMonths) / MONTHS_PER_YEAR;
-        return blend(records, recordMonths, recentCmPerMonth, tableCmPerMonth, tableError);
+        return blend(records.size(), slope, recentCmPerMonth, tableCmPerMonth, tableError);
     }
 
     /**
      * 아이 기록의 최소제곱 기울기와 표 값을, 오차가 작은 쪽에 비중을 두어 섞는다.
      */
-    private GrowthSpeed blend(List<RecommendGrowthRecord> records, double recordMonths, Double recentCmPerMonth,
-            double tableCmPerMonth, double tableError) {
-        Slope slope = leastSquaresSlope(records);
+    private GrowthSpeed blend(int recordCount, Slope slope, Double recentCmPerMonth, double tableCmPerMonth,
+            double tableError) {
         double childErrorSquare = MEASUREMENT_ERROR_CM * MEASUREMENT_ERROR_CM / slope.timeSpread();
         double childShare = tableError * tableError / (tableError * tableError + childErrorSquare);
         double blended = childShare * slope.cmPerMonth() + (1 - childShare) * tableCmPerMonth;
         double cmPerMonth = limitByTable(blended, tableCmPerMonth);
-        return new GrowthSpeed(cmPerMonth, recentCmPerMonth, slope.cmPerMonth(), records.size(), recordMonths,
+        return new GrowthSpeed(cmPerMonth, recentCmPerMonth, slope.cmPerMonth(), recordCount, slope.months(),
                 childShare, tableCmPerMonth, TABLE_SOURCE);
     }
 
@@ -66,10 +64,11 @@ public class GrowthSpeedCalculator {
      */
     private Double recentCmPerMonth(List<RecommendGrowthRecord> records, LocalDate today, double tableCmPerMonth) {
         List<RecommendGrowthRecord> recentRecords = recordsWithin(records, RECENT_MONTHS, today);
-        if (recordMonths(recentRecords) < MIN_RECORD_MONTHS) {
+        Slope recentSlope = leastSquaresSlope(recentRecords);
+        if (recentSlope.months() < MIN_RECORD_MONTHS) {
             return null;
         }
-        return limitByTable(leastSquaresSlope(recentRecords).cmPerMonth(), tableCmPerMonth);
+        return limitByTable(recentSlope.cmPerMonth(), tableCmPerMonth);
     }
 
     /**
@@ -93,15 +92,26 @@ public class GrowthSpeedCalculator {
         return Math.clamp(cmPerMonth, 0, MAX_TABLE_MULTIPLE * tableCmPerMonth);
     }
 
+    /**
+     * 기록이 1개 이하면 기울기를 계산하지 않고 기간 0을 돌려준다.
+     */
     private Slope leastSquaresSlope(List<RecommendGrowthRecord> records) {
         int count = records.size();
+        if (count <= 1) {
+            return new Slope(0, 0, 0);
+        }
         double[] times = new double[count];
         double[] heights = new double[count];
         double timeSum = 0;
         double heightSum = 0;
+        long firstDay = Long.MAX_VALUE;
+        long lastDay = Long.MIN_VALUE;
         for (int i = 0; i < count; i++) {
             RecommendGrowthRecord record = records.get(i);
-            times[i] = record.getRecordedAt().toLocalDate().toEpochDay() / DAYS_PER_MONTH;
+            long epochDay = record.getRecordedAt().toLocalDate().toEpochDay();
+            firstDay = Math.min(firstDay, epochDay);
+            lastDay = Math.max(lastDay, epochDay);
+            times[i] = epochDay / DAYS_PER_MONTH;
             heights[i] = record.getHeightCm().doubleValue();
             timeSum += times[i];
             heightSum += heights[i];
@@ -114,30 +124,12 @@ public class GrowthSpeedCalculator {
             timeSpread += (times[i] - timeMean) * (times[i] - timeMean);
             covariance += (times[i] - timeMean) * (heights[i] - heightMean);
         }
-        return new Slope(covariance / timeSpread, timeSpread);
-    }
-
-    private double recordMonths(List<RecommendGrowthRecord> records) {
-        if (records.size() <= 1) {
-            return 0;
-        }
-        LocalDate first = records.get(0).getRecordedAt().toLocalDate();
-        LocalDate last = first;
-        for (RecommendGrowthRecord record : records) {
-            LocalDate recordedOn = record.getRecordedAt().toLocalDate();
-            if (recordedOn.isBefore(first)) {
-                first = recordedOn;
-            }
-            if (recordedOn.isAfter(last)) {
-                last = recordedOn;
-            }
-        }
-        return ChronoUnit.DAYS.between(first, last) / DAYS_PER_MONTH;
+        return new Slope(covariance / timeSpread, timeSpread, (lastDay - firstDay) / DAYS_PER_MONTH);
     }
 
     /**
-     * 최소제곱 기울기(cm/월)와 기록 시점(개월)의 평균에서 벌어진 정도의 제곱합이다.
+     * 최소제곱 기울기(cm/월), 기록 시점(개월)의 평균에서 벌어진 정도의 제곱합, 첫 기록과 마지막 기록 사이 개월 수다.
      */
-    private record Slope(double cmPerMonth, double timeSpread) {
+    private record Slope(double cmPerMonth, double timeSpread, double months) {
     }
 }

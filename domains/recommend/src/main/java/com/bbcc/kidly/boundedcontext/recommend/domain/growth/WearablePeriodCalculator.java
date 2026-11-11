@@ -45,12 +45,14 @@ public class WearablePeriodCalculator {
             return List.of();
         }
         List<WearablePeriod> periods = new ArrayList<>();
-        for (SizeRange range : info.sizes().sizeRanges()) {
-            // 한 달 성장량이 0 이하면 나눌 수 없어 계산하지 않는다
-            if (info.cmPerMonth() <= 0) {
+        // 한 달 성장량이 0 이하면 나눌 수 없어 계산하지 않는다
+        if (info.cmPerMonth() <= 0) {
+            for (SizeRange range : info.sizes().sizeRanges()) {
                 periods.add(new WearablePeriod(range.size(), null, null, null));
-                continue;
             }
+            return periods;
+        }
+        for (SizeRange range : info.sizes().sizeRanges()) {
             int lengthMonths = clampMonths((range.maxHeightCm() - info.heightCm()) / info.cmPerMonth());
             Integer widthMonths = widthMonths(info, range.size());
             periods.add(new WearablePeriod(range.size(), lengthMonths, widthMonths,
