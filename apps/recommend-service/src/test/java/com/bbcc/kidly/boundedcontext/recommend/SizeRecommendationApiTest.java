@@ -145,6 +145,45 @@ class SizeRecommendationApiTest {
                 period -> assertThat(period).containsEntry("widthMonths", null));
     }
 
+    // 자녀 1은 만 7세 남아, 키 115cm다. 만 7세 남 비율로 목뒤 95.1 · 허리 68.1cm이고, 상품 A 상의 총장 42 · 45cm라 밑단은
+    // 53.1cm(엉덩이 56.1 ~ 샅 51.6cm 사이) · 50.1cm(샅 아래, 샅과 무릎의 가운데 40.8cm 위)다. AI 모델이 없는 규칙 결과에서도 받는다
+    @Test
+    @DisplayName("PRV-01 · PRV-03 착용 미리보기로 몸 높이와 사이즈별 밑단 위치를 받고, 소매길이가 없는 사이즈의 소매 칸은 null로 받는다")
+    void recommendSizeWithWearPreview() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEventBornOn(
+            LocalDate.now(ZoneId.of("Asia/Seoul")).minusYears(7).minusMonths(6)));
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.source").isEqualTo("RULE")
+            .jsonPath("$.wearPreview.garment").isEqualTo("TOP")
+            .jsonPath("$.wearPreview.body.neckCm").isEqualTo(95.1)
+            .jsonPath("$.wearPreview.body.waistCm").isEqualTo(68.1)
+            .jsonPath("$.wearPreview.body.armCm").isEqualTo(38.0)
+            .jsonPath("$.wearPreview.sizes.length()").isEqualTo(2)
+            .jsonPath("$.wearPreview.sizes[0].size").isEqualTo("110")
+            .jsonPath("$.wearPreview.sizes[0].hemCm").isEqualTo(53.1)
+            .jsonPath("$.wearPreview.sizes[0].hemAt").isEqualTo("HIP")
+            .jsonPath("$.wearPreview.sizes[1].hemCm").isEqualTo(50.1)
+            .jsonPath("$.wearPreview.sizes[1].hemAt").isEqualTo("THIGH")
+            .jsonPath("$.wearPreview.sizes[1]").value(Map.class,
+                size -> assertThat(size).containsEntry("sleeveCm", null).containsEntry("sleeveAt", null));
+    }
+
+    @Test
+    @DisplayName("PRV-05 사이즈 무관 상품은 착용 미리보기 칸을 빼지 않고 null로 받는다")
+    void recommendSizeFreeProductWithoutWearPreview() {
+        replicaProductRepository.save(RecommendFixture.productASizeFreeReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$").value(Map.class, body -> assertThat(body).containsEntry("wearPreview", null));
+    }
+
     @Test
     @DisplayName("WEAR-04 사이즈 무관 상품은 입을 수 있는 기간을 null이 아닌 빈 목록으로 받는다")
     void recommendSizeFreeProductWithoutWearablePeriods() {
