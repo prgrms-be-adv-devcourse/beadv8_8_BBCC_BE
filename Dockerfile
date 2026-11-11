@@ -17,10 +17,9 @@ RUN test -n "${APP}" \
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 
-# compose healthcheck 용. JRE 이미지에는 curl이 없다
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+# 이미지에 curl 을 넣지 않는다. 빌드할 때마다 Ubuntu 패키지 서버에서 받아야 해서, 그 서버가 안 되면 배포가 막힌다(#1257)
+# k3s 는 컨테이너 밖에서 /actuator/health 를 직접 호출하므로 curl 이 필요 없다
+# deploy/docker-compose.yml 의 healthcheck 는 curl 을 실행하므로, 이 이미지를 compose 로 직접 띄우면 healthcheck 가 실패한다
 
 # 호스트의 deploy 유저(UID/GID 1001)와 맞춰 볼륨 마운트된 파일을 읽을 수 있게 한다
 RUN groupadd -g 1001 app \
