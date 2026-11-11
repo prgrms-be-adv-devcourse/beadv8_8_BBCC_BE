@@ -38,7 +38,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: '{{ $labels.env }} 보내지 못한 알림이 {{ with $values.A }}{{ humanizeDuration .Value }}{{ end }} 동안 남아 있습니다'
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 보내지 못한 알림이 {{ with $values.A }}{{ humanizeDuration .Value }}{{ end }} 동안 남아 있습니다'
       description: 알림 서비스의 발송이 멈췄거나 메일 · 푸시 발송이 계속 실패하고 있습니다. 알림 서비스 로그에서 발송 실패 원인과
         kidly_notification_sends_total(채널 · 결과별)을 확인하세요. 모두 보내면 해제됩니다.
     isPaused: false
