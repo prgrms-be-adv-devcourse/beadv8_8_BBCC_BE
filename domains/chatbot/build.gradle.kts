@@ -3,7 +3,8 @@ plugins {
     id("kidly.domain")
 }
 
-// 아직 단위 테스트가 없다(계층 규칙은 archTest가 돈다). 첫 단위 테스트를 더하면 이 설정을 지운다
-tasks.test {
-    filter.isFailOnNoMatchingTests = false
+dependencies {
+    // OpenAI 호출(chat · 임베딩). 버전은 Spring AI BOM이 맞춘다
+    implementation(platform(libs.spring.ai.bom))
+    implementation("org.springframework.ai:spring-ai-starter-model-openai")
 }

@@ -1,0 +1,9 @@
+# 챗봇 도메인 설정. application.yml이 가져온다
+
+kidly:
+  chatbot:
+    # 답변 근거 찾기. 질문과 코사인 유사도가 min-score 이상인 조각을 점수 순으로 top-k개까지 답에 넣는다
+    # 넘는 조각이 없으면 AI를 부르지 않고 정해진 "모르는 질문" 답을 준다
+    retrieval:
+      top-k: 4
+      min-score: 0.3

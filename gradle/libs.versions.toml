@@ -11,7 +11,7 @@ aws-sdk = "2.55.16"
 firebase-admin = "9.11.0"
 # Gateway(apps/gateway)만 쓴다. Boot 4.0.x · 4.1.x와 호환되는 release train
 spring-cloud = "2025.1.4"
-# 추천(domains/recommend)만 쓴다
+# 추천(domains/recommend) · 챗봇(domains/chatbot)만 쓴다
 spring-ai = "2.0.2"
 
 [libraries]

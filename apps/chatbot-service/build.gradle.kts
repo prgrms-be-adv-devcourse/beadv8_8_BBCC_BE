@@ -29,6 +29,9 @@ dependencies {
     // Test
     // 기능 테스트의 로그인 헤더(TestMembers)
     testImplementation(testFixtures(project(":common")))
+    // 테스트용 가짜 chat · 임베딩 모델 빈(support.FakeChatbotAiConfiguration)이 ChatModel · EmbeddingModel 타입을 쓴다
+    testImplementation(platform(libs.spring.ai.bom))
+    testImplementation("org.springframework.ai:spring-ai-model")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")

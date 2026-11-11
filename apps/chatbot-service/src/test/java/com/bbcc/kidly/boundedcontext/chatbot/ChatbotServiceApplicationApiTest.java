@@ -62,6 +62,6 @@ class ChatbotServiceApplicationApiTest {
             """, String.class);
 
         assertThat(schemas).containsExactly("chatbot");
-        assertThat(tables).containsExactly("flyway_schema_history_chatbot", "knowledge_document");
+        assertThat(tables).containsExactly("flyway_schema_history_chatbot", "knowledge_chunk", "knowledge_document");
     }
 }
