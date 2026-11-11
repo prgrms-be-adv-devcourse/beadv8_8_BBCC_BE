@@ -16,8 +16,13 @@ import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class WearablePeriodCalculatorTest {
 
@@ -25,8 +30,8 @@ class WearablePeriodCalculatorTest {
     private static final long AGE_6_MONTHS = 78;
     private static final double HEIGHT_CM = 120.0;
     private static final double CM_PER_MONTH = 0.5;
-    private static final List<String> TOP_PATH = List.of("키즈", "상의");
-    private static final List<String> SKIRT_PATH = List.of("키즈", "치마");
+    private static final List<String> TOP_PATH = List.of("의류", "상의");
+    private static final List<String> SKIRT_PATH = List.of("의류", "치마");
     // 권장 키 상한이 넉넉해 길이 기준은 40개월이다
     private static final ProductSizes LONG_SIZES = ProductSizes.of(false, List.of(
         SizeRange.of("120", 115, 140),
@@ -132,6 +137,24 @@ class WearablePeriodCalculatorTest {
         assertThat(periods).containsExactly(
             new WearablePeriod("120", null, null, null),
             new WearablePeriod("130", null, null, null));
+    }
+
+    static Stream<Arguments> notCalculatedProducts() {
+        return Stream.of(
+            Arguments.of(Named.of("사이즈 무관 상의", ProductSizes.of(true, List.of())), List.of("의류", "상의")),
+            Arguments.of(Named.of("모자", LONG_SIZES), List.of("잡화", "모자")),
+            Arguments.of(Named.of("양말", LONG_SIZES), List.of("잡화", "양말"))
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notCalculatedProducts")
+    @DisplayName("WEAR-04 사이즈 무관 상품 · 모자 · 양말은 입을 수 있는 기간을 계산하지 않는다")
+    void noPeriodsForSizeFreeHatAndSocks(ProductSizes sizes, List<String> categoryPathNames) {
+        List<WearablePeriod> periods = calculator.calculate(
+            new WearInfo(sizes, categoryPathNames, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, CM_PER_MONTH, null));
+
+        assertThat(periods).isEmpty();
     }
 
     // 120 사이즈 하나의 차이만 담은 항목이다
