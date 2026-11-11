@@ -21,8 +21,7 @@ public interface SettlementRepository {
     List<Settlement> findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(
         SettlementStatus status, LocalDateTime from, LocalDateTime to, Long afterId, Limit limit);
 
-    // 기준 시각 이전에 완료됐지만 아직 지급되지 않은 정산서 수
-    long countByStatusAndCompletedAtBefore(SettlementStatus status, LocalDateTime before);
+    Optional<LocalDateTime> findOldestCompletedAt(SettlementStatus status);
 
     long countBySellerIdAndStatusIn(Long sellerId, Collection<SettlementStatus> statuses);
 

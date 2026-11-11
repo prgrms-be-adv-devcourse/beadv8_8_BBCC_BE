@@ -149,7 +149,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # 정산 서비스(apps/settlement-service, #729). 정산 API · 정산 실행 확인 · 결제 · 주문 이벤트 수신(구독 그룹 kidly.settlement), 정산 이벤트 발행(아웃박스)
+  # 정산 서비스(apps/settlement-service, #729). 정산 API · 결제 · 주문 이벤트 수신(구독 그룹 kidly.settlement), 정산 이벤트 발행(아웃박스)
   # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   settlement-service:
     image: ${SETTLEMENT_IMAGE}

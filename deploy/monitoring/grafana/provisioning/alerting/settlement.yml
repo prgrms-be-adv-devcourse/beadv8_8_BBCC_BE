@@ -1,0 +1,112 @@
+---
+# 정산 '결과 없음' 알림(#1223). 앱이 수집 때마다 DB 상태로 계산한 지표(SettlementMetrics)를 본다
+# 라벨에는 env만 둔다(판매자 · 정산서 ID를 넣지 않는다)
+apiVersion: 1
+groups:
+- orgId: 1
+  name: kidly-settlement
+  folder: Kidly
+  interval: 1m
+  rules:
+  - uid: kidly-settlement-run-overdue
+    title: 정산 실행 지연
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: max by(env) (settlement_run_overdue{job="kidly-settlement"})
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: critical
+    annotations:
+      summary: "{{ $labels.env }} 오늘 정산 실행이 마감 시각(기본 12:30)까지 끝나지 않았습니다"
+      description: CronJob settlement-daily-run 실행 기록을 확인하세요. 실행이 STARTED로 남았으면 관리자 복구(recover) 뒤
+        다시 실행합니다. 그해 공휴일 목록이 없어 영업일을 판단하지 못해도 울립니다(공휴일 갱신 로그 확인). 그날 실행이 끝나거나 자정이 지나면 해제됩니다(남은 대상은 다음 영업일 실행이 정산합니다).
+    isPaused: false
+  - uid: kidly-settlement-payout-failed
+    title: 정산 지급 실패
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: sum by(env) (increase(settlement_payout_failed_total{job="kidly-settlement"}[10m]))
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: critical
+    annotations:
+      summary: "{{ $labels.env }} 정산 지급이 실패한 정산서가 생겼습니다"
+      description: 결제가 지급 실패(payment.payout-failed)를 보냈습니다. 실패한 정산서는 자동으로 다시 요청하지 않으니 정산서의
+        실패 사유를 보고 판매자 지급을 직접 처리하세요. 최근 10분 동안 새 실패가 없으면 해제됩니다.
+    isPaused: false
+  - uid: kidly-settlement-payout-unpaid
+    title: 정산 지급 결과 없음
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: max by(env) (settlement_payout_oldest_unpaid_age_seconds{job="kidly-settlement"})
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 7200
+    labels:
+      severity: critical
+    annotations:
+      summary: '{{ $labels.env }} 지급을 요청한 정산서가 {{ with $values.A }}{{ humanizeDuration .Value }}{{ end }} 동안 지급 결과를 받지 못했습니다'
+      description: 30분 넘게 결과가 없는 정산서는 10분마다 다시 요청하는데도 2시간 넘게 결과가 없어 판매자에게 돈이 나가지 않았습니다.
+        정산 아웃박스(settlement_outbox_unsent) · 결제 서비스 · Kafka를 확인하세요. 7일이 지나면 자동 재요청이 멈추므로 관리자가 재요청합니다.
+    isPaused: false
