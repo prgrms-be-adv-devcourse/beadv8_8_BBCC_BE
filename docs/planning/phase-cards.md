@@ -110,13 +110,13 @@ v1.1: 단계 연결이 끝나 v1.0의 「혼자 시작하기」 칸과 7.1 「�
 | `GET /api/v1/recommendations/products?childId=&categoryId=&page=&size=&asOf=` | 자녀 맞춤 상품 목록(기존 6칸 + `reason` + `source`). 홈 맛보기 4개는 AI, 더보기는 선호 점수 순 |
 | `GET /api/v1/recommendations/companions?productId=&childId=` | 함께 사면 좋은 상품 4개(새 API) |
 | `POST /api/v1/recommendations/product-views` | 상품 상세 진입 기록(화면이 호출, 본문: productId와 선택 칸 childId(고른 자녀). 같은 회원 · 자녀 · 상품 · 날짜는 한 번만 기록) |
-| `GET /api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(2순위). 상의, 하의 순서이고 없으면 `[]` |
-| `PUT /api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(2순위). `{part}`는 `TOP` · `BOTTOM`, 본문: `categoryId`(상품 말단 카테고리)와 `measurements`(실측 항목 코드별 cm). 같은 구분을 다시 저장하면 교체 |
+| `GET /api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(2순위). 상의, 바지, 아우터, 원피스, 치마 순서이고 없으면 `[]` |
+| `PUT /api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(2순위). `{part}`는 `TOP` · `BOTTOM` · `OUTER` · `DRESS` · `SKIRT`, 본문: `categoryId`(상품 말단 카테고리)와 `measurements`(실측 항목 코드별 cm). 같은 구분을 다시 저장하면 교체 |
 | `DELETE /api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 삭제(2순위). 이미 없어도 204 |
 
 - **완료 기준** 자녀를 고르면 상품 상세에 추천 사이즈 · 적합도 · 근거가 나오고 아래에 함께 사면 좋은 상품 4개가 나온다. 홈 자녀 맞춤 상품 4개는 장바구니 · 최근 활동이 반영된 AI 선택과 이유로 나오고, 더보기 목록은 활동 선호 순서로 나오며 넘기는 동안 순서가 바뀌지 않는다. 추천 서비스를 멈춰도 상품 상세 · 장바구니 담기 · 주문이 된다. 기준 옷이 있으면 기준 옷과의 cm 차이가 함께 나온다(2순위).
 - **응답** 사이즈 추천: 추천 사이즈 · 적합도 · 안내(code · message) · 후보 사이즈 목록 · 지난번 산 사이즈 · 근거 목록(`reasons`) · 출처(`source`). 상품 추천 한 줄: productId · name · thumbnailUrl · businessName · minPrice · recommendedSize · 이유(`reason`) · 출처(`source`). 맞춤 목록 1쪽 응답에 기준 시각(`asOf`).
-- **최종(2순위) 기준 옷** 추천이 자녀별 기준 옷을 직접 저장한다(자녀 프로필은 저장하지 않고 이벤트도 보내지 않는다). 상의는 총장 · 가슴단면(선택: 어깨너비 · 소매길이), 하의는 총장 · 허리단면(선택: 밑위)을 cm로 받고, 로그인한 보호자의 자녀만 다룬다(남의 자녀 403, 없는 · 삭제된 자녀 404). 완료 기준: 자녀마다 상의 · 하의 기준 옷을 등록하고 고칠 수 있다.
+- **최종(2순위) 기준 옷** 추천이 자녀별 기준 옷을 직접 저장한다(자녀 프로필은 저장하지 않고 이벤트도 보내지 않는다). 칸은 상의 · 바지 · 아우터 · 원피스 · 치마 5개이고, 상의 · 아우터는 총장 · 가슴단면(선택: 어깨너비 · 소매길이), 원피스는 총장 · 가슴단면(선택: 어깨너비), 바지는 총장 · 허리단면(선택: 밑위), 치마는 총장 · 허리단면(선택: 엉덩이단면)을 cm로 받고, 로그인한 보호자의 자녀만 다룬다(남의 자녀 403, 없는 · 삭제된 자녀 404). 완료 기준: 자녀마다 칸별 기준 옷을 등록하고 고칠 수 있다.
 
 ## ④ 주문과 결제
 
