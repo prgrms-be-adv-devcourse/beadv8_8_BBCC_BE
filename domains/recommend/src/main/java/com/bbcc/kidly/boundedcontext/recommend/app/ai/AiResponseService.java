@@ -55,7 +55,7 @@ public class AiResponseService {
         @Value("${kidly.recommend.ai.call-timeout.home-preview:PT3S}") Duration homePreviewTimeout,
         @Value("${kidly.recommend.ai.call-timeout.bought-together:PT4S}") Duration boughtTogetherTimeout,
         @Value("${kidly.recommend.ai.call-timeout.size-recommendation:PT3.5S}") Duration sizeRecommendationTimeout,
-        // 기다리지 않는 호출(SSE)이 AI 답을 받아 화면에 보낼 수 있는 최대 시간이다. 한 번 4초, 재시도 1번보다 길게 둔다
+        // 기다리지 않는 호출(SSE)이 AI 답을 받아 화면에 보낼 수 있는 최대 시간이다. 넘겨서 온 답도 저장해 다음 요청이 쓴다
         @Value("${kidly.recommend.ai.async-wait:PT10S}") Duration asyncWait,
         @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod
     ) {

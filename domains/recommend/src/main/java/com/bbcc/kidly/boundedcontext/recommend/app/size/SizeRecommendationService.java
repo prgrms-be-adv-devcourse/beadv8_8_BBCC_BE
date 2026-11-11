@@ -103,9 +103,6 @@ public class SizeRecommendationService {
     }
 
     private SizeRecommendationResult.GrowthSpeed growthSpeedOf(SizeAiQuestion.GrowthSpeed growthSpeed) {
-        if (growthSpeed == null) {
-            return null;
-        }
         return new SizeRecommendationResult.GrowthSpeed(growthSpeed.cmPerMonth(), growthSpeed.recentCmPerMonth(),
             growthSpeed.recordCount(), growthSpeed.recordMonths(), growthSpeed.childSharePercent(),
             growthSpeed.tableCmPerMonth(), growthSpeed.tableSource());
