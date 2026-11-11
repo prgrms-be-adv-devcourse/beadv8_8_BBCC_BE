@@ -201,7 +201,8 @@ def manifest(env, name, node_port, job, service, project_dir):
                       'spec': {'schedule': schedule, 'timeZone': 'Asia/Seoul', 'concurrencyPolicy': 'Forbid',
                                'startingDeadlineSeconds': 25200, 'successfulJobsHistoryLimit': 3,
                                'failedJobsHistoryLimit': 3,
-                               'jobTemplate': {'spec': {'backoffLimit': 2, 'activeDeadlineSeconds': 7200,
+                               'jobTemplate': {'spec': {'backoffLimit': 2, 'podReplacementPolicy': 'Failed',
+                                                        'activeDeadlineSeconds': 7200,
                                                         'template': template}}}})
     if name in AUTOSCALE:
         low, high, cpu = AUTOSCALE[name]
