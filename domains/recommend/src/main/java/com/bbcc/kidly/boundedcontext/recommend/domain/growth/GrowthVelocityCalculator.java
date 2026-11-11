@@ -32,6 +32,10 @@ public class GrowthVelocityCalculator {
 
     public GrowthVelocity calculate(Gender gender, LocalDate birthDate, List<RecommendGrowthRecord> allRecords,
             LocalDate today) {
+        requireNonNull(gender, "gender는 필수입니다");
+        requireNonNull(birthDate, "birthDate는 필수입니다");
+        requireNonNull(allRecords, "records는 필수입니다");
+        requireNonNull(today, "today는 필수입니다");
         List<RecommendGrowthRecord> records = recordsWithin(allRecords, WINDOW_MONTHS, today);
         long ageMonths = Period.between(birthDate, today).toTotalMonths();
         double tableCmPerMonth = table.yearlyCm(gender, ageMonths) / MONTHS_PER_YEAR;
