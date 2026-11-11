@@ -27,13 +27,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -140,6 +139,8 @@ class HomePreviewServiceTest {
         RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
         service(picker).preview(MEMBER_ID, CHILD_ID);
+        // AI 답은 다른 스레드에서 저장하므로 저장될 때까지 기다린다
+        store.waitUntilSaved();
         givenCandidates(6L, 5L, 4L, 3L, 2L, 1L);
 
         HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
@@ -155,7 +156,7 @@ class HomePreviewServiceTest {
         store.save(AiResponseType.HOME_PREVIEW, AiResponseKey.of(new AiResponseKey.Input(null, CHILD_ID,
                 CHILD.ageMonths(), CHILD.heightCm(), CHILD.weightKg(), CHILD.bodyType(), CHILD.preferredFit(),
                 List.of(1L, 2L, 3L, 4L, 5L, 6L), null, 1)),
-            "{\"picks\":[{\"productId\":5,\"reason\":\"추천 사이즈가 110인 상품이에요.\"}]}", BASE_TIME);
+            "{\"picks\":[{\"productId\":5,\"reason\":\"추천 사이즈가 110인 상품이에요.\"}]}", Duration.ofHours(24));
         RecordingPicker picker = new RecordingPicker(answer(5L, "포근한 겨울 상의로 추천."));
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
 
@@ -260,25 +261,30 @@ class HomePreviewServiceTest {
     }
 
     /**
-     * 같은 종류 · 키의 가장 최근 응답만 기억하는 메모리 저장소다.
+     * 같은 종류 · 키의 가장 최근 응답만 기억하는 메모리 저장소다. 보관 기간은 따지지 않는다.
      */
     private static final class MemoryAiResponseStore implements AiResponseStore {
 
-        private final Map<String, String> responses = new HashMap<>();
+        private final Map<String, String> responses = new ConcurrentHashMap<>();
 
         @Override
-        public Optional<String> findLatestSince(AiResponseType type, AiResponseKey key, LocalDateTime since) {
+        public Optional<String> find(AiResponseType type, AiResponseKey key) {
             return Optional.ofNullable(responses.get(type + ":" + key.value()));
         }
 
         @Override
-        public void save(AiResponseType type, AiResponseKey key, String responseJson, LocalDateTime createdAt) {
+        public void save(AiResponseType type, AiResponseKey key, String responseJson, Duration timeToLive) {
             responses.put(type + ":" + key.value(), responseJson);
         }
 
-        @Override
-        public int deleteCreatedBefore(LocalDateTime cutoff) {
-            return 0;
+        void waitUntilSaved() {
+            long deadline = System.nanoTime() + Duration.ofSeconds(1).toNanos();
+            while (responses.isEmpty()) {
+                if (System.nanoTime() > deadline) {
+                    throw new AssertionError("1초 안에 AI 답이 저장되지 않았습니다");
+                }
+                Thread.onSpinWait();
+            }
         }
     }
 
