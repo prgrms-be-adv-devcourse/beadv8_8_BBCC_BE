@@ -38,7 +38,7 @@ public class SizeRecommendationService {
     public SizeRecommendationResult recommend(Long memberId, Long productId, Long childId) {
         SizeRecommendationDraft draft = reader.read(memberId, productId, childId);
         AiSizeAnswer answer = askAi(draft);
-        SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer);
+        SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer, draft.aiEvidence());
         return toResult(draft.productId(), draft.childId(), recommendation);
     }
 

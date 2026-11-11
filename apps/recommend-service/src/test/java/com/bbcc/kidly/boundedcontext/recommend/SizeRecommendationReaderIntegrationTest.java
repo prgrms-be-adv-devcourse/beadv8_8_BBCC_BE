@@ -10,6 +10,9 @@ import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChild
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -22,6 +25,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +46,9 @@ class SizeRecommendationReaderIntegrationTest {
 
     @Autowired
     private RecommendReplicaChildService replicaChildService;
+
+    @Autowired
+    private ReferenceGarmentRepository referenceGarmentRepository;
 
     @Test
     @DisplayName("AI 입력에 자녀 개월 수 · 키 · 몸무게 · 체형 · 선호 핏 · 판정 체형, 사이즈별 권장 키와 실측, 규칙 결과를 담는다")
@@ -87,6 +94,29 @@ class SizeRecommendationReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("FIT-01 · FIT-06 자녀의 기준 옷이 있으면 사려는 상품과 비교한 기준 핏을 AI 입력과 답 검증 값에 담는다")
+    void buildReferenceFit() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        // 상의 기준 옷: 총장 40.5cm, 가슴단면 42.0cm
+        referenceGarmentRepository.save(ReferenceGarmentFixture.top(CHILD_1_ID));
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        ReferenceFit expected = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
+            new ReferenceFit.Item("TOTAL_LENGTH", new BigDecimal("40.5"), List.of(
+                new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("1.5")),
+                new ReferenceFit.SizeDiff("120", new BigDecimal("45"), new BigDecimal("4.5")))),
+            new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("42.0"), List.of(
+                new ReferenceFit.SizeDiff("110", new BigDecimal("34"), new BigDecimal("-8.0")),
+                new ReferenceFit.SizeDiff("120", new BigDecimal("36"), new BigDecimal("-6.0"))))));
+        assertThat(draft.aiQuestion().referenceFit())
+            .usingRecursiveComparison(cmComparison()).isEqualTo(expected);
+        assertThat(draft.aiEvidence().referenceFit())
+            .usingRecursiveComparison(cmComparison()).isEqualTo(expected);
+    }
+
+    @Test
     @DisplayName("AI 입력에는 자녀 이름 · 생년월일 · 회원 ID를 담는 칸이 없다")
     void aiQuestionHasNoPersonalFields() {
         List<String> names = new ArrayList<>();
@@ -97,6 +127,13 @@ class SizeRecommendationReaderIntegrationTest {
         }
 
         assertThat(names).doesNotContain("name", "birthDate", "memberId", "childProfileId");
+    }
+
+    // 1.5와 1.50처럼 소수 자리만 다른 값은 같은 cm로 본다
+    private static RecursiveComparisonConfiguration cmComparison() {
+        return RecursiveComparisonConfiguration.builder()
+            .withComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+            .build();
     }
 
     private static int ageMonthsToday() {

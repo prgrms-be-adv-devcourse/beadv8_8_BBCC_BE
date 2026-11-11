@@ -18,11 +18,14 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +48,10 @@ class SizeRecommendationServiceTest {
 
     private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, null);
 
+    // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
+    private static final SizeAiEvidence EVIDENCE =
+        new SizeAiEvidence(null, Set.of(new BigDecimal("114"), new BigDecimal("110")));
+
     @Mock
     private SizeRecommendationReader reader;
 
@@ -59,7 +66,7 @@ class SizeRecommendationServiceTest {
     void answerWithAiChoice() {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftOf(RULE_120));
         AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT",
-            List.of(new AiSizeAnswer.Reason("HEIGHT", "키 114cm는 110의 권장 키 안이에요.", null)));
+            List.of(new AiSizeAnswer.Reason("HEIGHT", "키 114cm는 110의 권장 키 안이에요.", null)), List.of());
         given(aiSizeChooser.choose(QUESTION)).willReturn(answer);
         givenAiResponseServiceCallsChooser();
 
@@ -106,7 +113,7 @@ class SizeRecommendationServiceTest {
     void answerSizeFreeWithoutAi() {
         ProductSizes sizeFreeProduct = ProductSizes.of(true, List.of(SizeRange.of("FREE", 90, 130)));
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION));
+            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION, EVIDENCE));
 
         SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
@@ -132,7 +139,7 @@ class SizeRecommendationServiceTest {
 
     private static SizeRecommendationDraft draftOf(SizeRecommendation rule) {
         return new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), rule, KEY_INPUT, QUESTION);
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), rule, KEY_INPUT, QUESTION, EVIDENCE);
     }
 
     // AI 응답 서비스가 저장된 답 없이 넘겨받은 호출을 그대로 실행한 것처럼 한다

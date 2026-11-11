@@ -2,7 +2,11 @@ package com.bbcc.kidly.boundedcontext.recommend.app.size.support;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategoryPathEntry;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
@@ -11,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSi
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
@@ -20,6 +25,7 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,14 +41,17 @@ public class SizeRecommendationReader {
 
     private final RecommendReplicaProductRepository replicaProductRepository;
     private final RecommendReplicaChildRepository replicaChildRepository;
+    private final ReferenceGarmentRepository referenceGarmentRepository;
     private final SizeRecommender sizeRecommender;
 
     public SizeRecommendationReader(
         RecommendReplicaProductRepository replicaProductRepository,
         RecommendReplicaChildRepository replicaChildRepository,
+        ReferenceGarmentRepository referenceGarmentRepository,
         GrowthChart growthChart) {
         this.replicaProductRepository = replicaProductRepository;
         this.replicaChildRepository = replicaChildRepository;
+        this.referenceGarmentRepository = referenceGarmentRepository;
         this.sizeRecommender = new SizeRecommender(growthChart);
     }
 
@@ -62,10 +71,30 @@ public class SizeRecommendationReader {
         ProductSizes productSizes = product.toProductSizes();
         SizeRecommendation rule = sizeRecommender.recommend(childInput, productSizes, today);
         int ageMonths = (int) Period.between(child.getBirthDate(), today).toTotalMonths();
+        List<SizeAiQuestion.SizeLine> sizeLines = sizeLinesOf(product, productSizes);
+        ReferenceFit referenceFit = referenceFitOf(product, productSizes, sizeLines, childId);
         return new SizeRecommendationDraft(
             productId, childId, productSizes, rule,
             keyInputOf(productId, childId, child, ageMonths),
-            questionOf(product, productSizes, child, childInput, rule, ageMonths, today));
+            questionOf(sizeLines, referenceFit, child, childInput, rule, ageMonths, today),
+            new SizeAiEvidence(referenceFit, Set.of()));
+    }
+
+    // 기준 옷이 없거나 상품과 비교할 수 없으면 null이다. 비교는 AI에 보내는 사이즈 줄과 같은 줄로 한다.
+    private ReferenceFit referenceFitOf(RecommendReplicaProduct product, ProductSizes productSizes,
+        List<SizeAiQuestion.SizeLine> sizeLines, Long childId) {
+        List<String> categoryPathNames = new ArrayList<>();
+        for (RecommendReplicaCategoryPathEntry entry : product.getCategoryPath()) {
+            categoryPathNames.add(entry.getCategoryName());
+        }
+        List<FitProduct.SizeMeasurements> sizes = new ArrayList<>();
+        for (SizeAiQuestion.SizeLine line : sizeLines) {
+            sizes.add(new FitProduct.SizeMeasurements(line.size(), line.measurements()));
+        }
+        FitProduct fitProduct = new FitProduct(
+            product.getCategoryId(), categoryPathNames, productSizes.isSizeFree(), sizes);
+        return ReferenceFit.compare(fitProduct, referenceGarmentRepository.findAllByChildProfileId(childId))
+            .orElse(null);
     }
 
     private AiResponseKey.Input keyInputOf(Long productId, Long childId, RecommendReplicaChild child, int ageMonths) {
@@ -75,12 +104,12 @@ public class SizeRecommendationReader {
     }
 
     private SizeAiQuestion questionOf(
-        RecommendReplicaProduct product, ProductSizes productSizes, RecommendReplicaChild child,
+        List<SizeAiQuestion.SizeLine> sizeLines, ReferenceFit referenceFit, RecommendReplicaChild child,
         ChildSizeInput childInput, SizeRecommendation rule, int ageMonths, LocalDate today) {
         SizeAiQuestion.Child questionChild = new SizeAiQuestion.Child(
             ageMonths, childInput.heightCm(), childInput.weightKg(), child.getBodyType(),
             child.getPreferredFit(), sizeRecommender.decidedBodyType(childInput, today));
-        return new SizeAiQuestion(questionChild, sizeLinesOf(product, productSizes), ruleResultOf(rule), null, null);
+        return new SizeAiQuestion(questionChild, sizeLines, ruleResultOf(rule), referenceFit, null);
     }
 
     private List<SizeAiQuestion.SizeLine> sizeLinesOf(RecommendReplicaProduct product, ProductSizes productSizes) {
