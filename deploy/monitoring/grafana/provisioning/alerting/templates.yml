@@ -31,10 +31,20 @@ templates:
       {{ end -}}
       {{ end -}}
       {{ with index .Alerts.Firing 0 }}<{{ .GeneratorURL }}|규칙 보기> · <{{ .SilenceURL }}|일시정지>
-      {{- with .Annotations.logs_url }} · <{{ . }}|로그 보기>{{ end }}{{ end }}
+      {{- with .Annotations.logs_url }} · <{{ . }}|로그 보기>{{ end }}
+      {{- with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
       {{- else -}}
+      {{ with index .Alerts.Resolved 0 -}}
+      {{ if .Annotations.recovery_summary -}}
+      {{ range .Alerts.Resolved -}}
+      {{ with .Annotations.recovery_summary }}{{ . }}
+      {{ end -}}
+      {{ end -}}
+      {{ else -}}
       정상으로 돌아왔습니다
-      {{ with index .Alerts 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ end }}
+      {{ end -}}
+      <{{ .GeneratorURL }}|규칙 보기>{{ with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}
+      {{ end -}}
       {{- end }}
       {{- end }}
 
