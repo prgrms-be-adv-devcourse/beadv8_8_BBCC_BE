@@ -116,6 +116,19 @@ class OpenAiHomePreviewPickerTest {
     }
 
     @Test
+    @DisplayName("HOME-07 시스템 지시에 근거 · 계절 · 색상 · 상품 정보 중 상품에 맞는 것만 골라 섞고, 추천 사이즈 · 상품 이름을 되풀이하지 않고, 경어체나 「~로 추천」 · 「~로 활용」으로 끝내라는 말을 넣는다")
+    void systemInstructionAsksMixedEvidence() {
+        given(chatModel.call(any(Prompt.class))).willReturn(response("{\"picks\":[]}"));
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+
+        new OpenAiHomePreviewPicker(chatModel).pick(REQUEST);
+
+        verify(chatModel).call(prompt.capture());
+        assertThat(prompt.getValue().getSystemMessage().getText())
+            .contains("계절", "골라 섞어", "추천 사이즈와 상품 이름은 되풀이하지", "로 추천", "로 활용", "지어내지");
+    }
+
+    @Test
     @DisplayName("판매자가 입력한 상품 이름 · 브랜드의 줄바꿈과 구분 기호 |는 공백으로 바꿔 한 줄에 넣는다")
     void flattenSellerText() {
         given(chatModel.call(any(Prompt.class))).willReturn(response("{\"picks\":[]}"));
