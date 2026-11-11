@@ -6,6 +6,7 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -21,6 +22,7 @@ public class GrowthSpeedCalculator {
     private static final double MEASUREMENT_ERROR_CM = 0.75;
     private static final String TABLE_SOURCE = "한국아동패널";
     private static final double MAX_TABLE_MULTIPLE = 2.0;
+    private static final int RECENT_MONTHS = 3;
 
     private final GrowthVelocityTable table;
 
@@ -33,19 +35,53 @@ public class GrowthSpeedCalculator {
         long ageMonths = Period.between(birthDate, today).toTotalMonths();
         double tableCmPerMonth = table.yearlyCm(gender, ageMonths) / MONTHS_PER_YEAR;
         double recordMonths = recordMonths(records);
+        Double recentCmPerMonth = recentCmPerMonth(records, today, tableCmPerMonth);
         if (recordMonths < MIN_RECORD_MONTHS) {
-            return new GrowthSpeed(tableCmPerMonth, null, null, records.size(), recordMonths, 0.0,
+            return new GrowthSpeed(tableCmPerMonth, recentCmPerMonth, null, records.size(), recordMonths, 0.0,
                     tableCmPerMonth, TABLE_SOURCE);
         }
         double tableError = table.yearlySdCm(gender, ageMonths) / MONTHS_PER_YEAR;
-        return blend(records, recordMonths, tableCmPerMonth, tableError);
+        return blend(records, recordMonths, recentCmPerMonth, tableCmPerMonth, tableError);
     }
 
     /**
      * 아이 기록의 최소제곱 기울기와 표 값을, 오차가 작은 쪽에 비중을 두어 섞는다.
      */
-    private GrowthSpeed blend(List<RecommendGrowthRecord> records, double recordMonths, double tableCmPerMonth,
-            double tableError) {
+    private GrowthSpeed blend(List<RecommendGrowthRecord> records, double recordMonths, Double recentCmPerMonth,
+            double tableCmPerMonth, double tableError) {
+        Slope slope = leastSquaresSlope(records);
+        double childErrorSquare = MEASUREMENT_ERROR_CM * MEASUREMENT_ERROR_CM / slope.timeSpread();
+        double childShare = tableError * tableError / (tableError * tableError + childErrorSquare);
+        double blended = childShare * slope.cmPerMonth() + (1 - childShare) * tableCmPerMonth;
+        double cmPerMonth = limitByTable(blended, tableCmPerMonth);
+        return new GrowthSpeed(cmPerMonth, recentCmPerMonth, slope.cmPerMonth(), records.size(), recordMonths,
+                childShare, tableCmPerMonth, TABLE_SOURCE);
+    }
+
+    /**
+     * 오늘부터 3개월 안 기록만으로 구한 속도다. 표와 섞지 않으며, 기록이 부족하면 null이다.
+     */
+    private Double recentCmPerMonth(List<RecommendGrowthRecord> records, LocalDate today, double tableCmPerMonth) {
+        LocalDate from = today.minusMonths(RECENT_MONTHS);
+        List<RecommendGrowthRecord> recentRecords = new ArrayList<>();
+        for (RecommendGrowthRecord record : records) {
+            LocalDate recordedOn = record.getRecordedAt().toLocalDate();
+            if (!recordedOn.isBefore(from) && !recordedOn.isAfter(today)) {
+                recentRecords.add(record);
+            }
+        }
+        if (recordMonths(recentRecords) < MIN_RECORD_MONTHS) {
+            return null;
+        }
+        return limitByTable(leastSquaresSlope(recentRecords).cmPerMonth(), tableCmPerMonth);
+    }
+
+    // 집에서 잰 키의 오차로 기울기가 크게 흔들릴 수 있어 0 ~ 표 값의 2배 안으로 맞춘다
+    private double limitByTable(double cmPerMonth, double tableCmPerMonth) {
+        return Math.clamp(cmPerMonth, 0, MAX_TABLE_MULTIPLE * tableCmPerMonth);
+    }
+
+    private Slope leastSquaresSlope(List<RecommendGrowthRecord> records) {
         int count = records.size();
         double[] times = new double[count];
         double[] heights = new double[count];
@@ -66,14 +102,7 @@ public class GrowthSpeedCalculator {
             timeSpread += (times[i] - timeMean) * (times[i] - timeMean);
             covariance += (times[i] - timeMean) * (heights[i] - heightMean);
         }
-        double childCmPerMonth = covariance / timeSpread;
-        double childErrorSquare = MEASUREMENT_ERROR_CM * MEASUREMENT_ERROR_CM / timeSpread;
-        double childShare = tableError * tableError / (tableError * tableError + childErrorSquare);
-        double blended = childShare * childCmPerMonth + (1 - childShare) * tableCmPerMonth;
-        // 집에서 잰 키의 오차로 기울기가 크게 흔들릴 수 있어 0 ~ 표 값의 2배 안으로 맞춘다
-        double cmPerMonth = Math.clamp(blended, 0, MAX_TABLE_MULTIPLE * tableCmPerMonth);
-        return new GrowthSpeed(cmPerMonth, null, childCmPerMonth, count, recordMonths, childShare, tableCmPerMonth,
-                TABLE_SOURCE);
+        return new Slope(covariance / timeSpread, timeSpread);
     }
 
     private double recordMonths(List<RecommendGrowthRecord> records) {
@@ -92,5 +121,11 @@ public class GrowthSpeedCalculator {
             }
         }
         return ChronoUnit.DAYS.between(first, last) / DAYS_PER_MONTH;
+    }
+
+    /**
+     * 최소제곱 기울기(cm/월)와 기록 시점(개월)의 평균에서 벌어진 정도의 제곱합이다.
+     */
+    private record Slope(double cmPerMonth, double timeSpread) {
     }
 }
