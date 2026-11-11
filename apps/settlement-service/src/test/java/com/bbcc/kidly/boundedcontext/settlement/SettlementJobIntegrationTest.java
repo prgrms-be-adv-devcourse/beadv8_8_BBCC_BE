@@ -325,6 +325,38 @@ class SettlementJobIntegrationTest {
         assertThat(runCount()).isEqualTo(2);
     }
 
+    // 서버가 정산 도중 강제 종료(kill -9)되면 판매자 10의 묶음은 커밋됐고(정산서 · 항목 · 지급 요청이 한 트랜잭션)
+    // 판매자 11은 아직이며 실행 기록은 STARTED로 남는다. 다음 자동 실행이 stale-run-after 뒤 닫고 남은 판매자만 정산한다
+    @Test
+    @DisplayName("정산 도중 서버가 죽어 STARTED로 남으면 30분 뒤 자동 실행이 닫고 남은 판매자만 정산하며, 판매자마다 정산서는 1건이다")
+    void crashMidRunThenScheduledRunSettlesRest() {
+        var today = LocalDate.of(2026, 11, 2);
+        var period = LocalDate.of(2026, 11, 1);
+        var done = settlementRepository.save(Settlement.create(
+            new SettlementCreateInfo(10L, period, period, 10_000L, FEE_RATE), LocalDateTime.now()));
+        var settled = SettlementFixture.item(201L, 10L, 10_000L, period.atTime(10, 0));
+        settled.settle(done.getId());
+        settlementItemRepository.save(settled);
+        var rest = save(202L, 11L, 5_000L, period.atTime(11, 0));
+        var crashed = startExecution(today.atStartOfDay());
+        var longAgo = LocalDateTime.now().minusMinutes(31);
+        jdbcTemplate.update("UPDATE settlement.BATCH_STEP_EXECUTION SET last_updated = ?, start_time = ? "
+            + "WHERE job_execution_id = ?", longAgo, longAgo, crashed.getId());
+        jdbcTemplate.update("UPDATE settlement.BATCH_JOB_EXECUTION SET last_updated = ?, start_time = ? "
+            + "WHERE job_execution_id = ?", longAgo, longAgo, crashed.getId());
+
+        var result = settlementRunService.runScheduled(today);
+
+        assertThat(settlementRunService.getRun(crashed.getId()).status()).isEqualTo("FAILED");
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        assertThat(result.successCount()).isEqualTo(1);
+        assertThat(reload(settled).getSettlementId()).isEqualTo(done.getId());
+        assertThat(settlementOf(rest).getSellerId()).isEqualTo(11L);
+        assertThat(settlementCount()).isEqualTo(2);
+        assertThat(payoutSellerIds()).containsExactly(11L);
+        assertErrorCode(() -> settlementRunService.runScheduled(today), SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
+    }
+
     @Test
     @DisplayName("끝난 실행은 정리할 수 없다. SETTLEMENT_RUN_NOT_RECOVERABLE이고 관리자 행위도 남지 않는다")
     void recoverNotRunning() {
