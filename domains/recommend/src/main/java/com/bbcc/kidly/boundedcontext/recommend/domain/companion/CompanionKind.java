@@ -9,18 +9,21 @@ import java.util.Optional;
 /** 함께 사면 좋은 상품을 고를 때 쓰는 상품 종류. */
 public enum CompanionKind {
     TOP,
-    BOTTOM,
+    PANTS,
+    SKIRT,
     ONE_PIECE,
     OUTER,
     ACCESSORY;
 
     private static final String ACCESSORY_ROOT_NAME = "잡화";
 
-    // 카테고리에 코드 칸이 없어 말단 카테고리 이름으로 종류를 맞춘다. 하의는 바지로 이름이 바뀌어도 하의로 본다
+    // 카테고리에 코드 칸이 없어 말단 카테고리 이름으로 종류를 맞춘다.
+    // 상품 쪽에서 하의 이름이 바지로 바뀌기 전과 뒤 모두 짝을 찾도록 하의와 바지를 같은 종류로 본다
     private static final Map<String, CompanionKind> CLOTHING_LEAF_NAMES = Map.of(
         "상의", TOP,
-        "하의", BOTTOM,
-        "바지", BOTTOM,
+        "하의", PANTS,
+        "바지", PANTS,
+        "치마", SKIRT,
         "원피스", ONE_PIECE,
         "아우터", OUTER);
 
