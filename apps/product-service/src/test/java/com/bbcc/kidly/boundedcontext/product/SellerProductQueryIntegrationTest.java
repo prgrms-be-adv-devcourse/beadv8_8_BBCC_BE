@@ -221,6 +221,32 @@ class SellerProductQueryIntegrationTest {
             .containsExactly(product.getId());
     }
 
+    @Test
+    @DisplayName("status와 lowStock을 함께 주면 둘 다 만족하는 상품만 돌려주고, 전체 건수는 페이지 크기와 상관없이 그 수다")
+    void findBySellerCombinesStatusAndLowStock() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Product stoppedLowFirst = saveProduct(saved, SELLER_ID, "판매중지 재고 적음 1", 100, 2);
+        Product stoppedLowSecond = saveProduct(saved, SELLER_ID, "판매중지 재고 적음 2", 0);
+        Product stoppedLowThird = saveProduct(saved, SELLER_ID, "판매중지 재고 적음 3", 5);
+        Product stoppedPlenty = saveProduct(saved, SELLER_ID, "판매중지 재고 넉넉함", 100);
+        Product onSaleLow = saveProduct(saved, SELLER_ID, "판매중 재고 적음", 1);
+        Product otherSellerStoppedLow = saveProduct(saved, OTHER_SELLER_ID, "다른 판매자 판매중지 재고 적음", 1);
+        for (Product product : List.of(stoppedLowFirst, stoppedLowSecond, stoppedLowThird, stoppedPlenty,
+            otherSellerStoppedLow)) {
+            changeStatus(product, "STOPPED");
+        }
+        changeStatus(onSaleLow, "ON_SALE");
+
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, new SellerProductFilter(ProductStatus.STOPPED, true), PageRequest.of(0, 2));
+
+        assertThat(page.getContent())
+            .extracting(SellerProductSummary::productId)
+            .containsExactly(stoppedLowThird.getId(), stoppedLowSecond.getId());
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.hasNext()).isTrue();
+    }
+
     // 판매자의 판매대기 상품 하나를 저장하고 옵션마다 재고를 연다.
     // 옵션은 네이비 110 · 네이비 120 · 오트밀 110 · 오트밀 120 순서로 재고 수만큼 만들고, 판매가는 모두 25,000원이다
     private Product saveProduct(SavedClothingTop saved, long sellerId, String name, int... stocks) {
