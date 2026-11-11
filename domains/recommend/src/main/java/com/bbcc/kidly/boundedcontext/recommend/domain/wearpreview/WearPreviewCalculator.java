@@ -74,16 +74,16 @@ public class WearPreviewCalculator {
         if (sleeve != null && !bottomWear) {
             double rawSleeveCm = sleeve.doubleValue();
             sleeveCm = roundToTenth(rawSleeveCm);
-            sleeveAt = sleevePositionOf(rawSleeveCm, heightCm * ratios.arm());
+            sleeveAt = sleevePositionOf(rawSleeveCm, heightCm * ratios.elbow(), heightCm * ratios.arm());
         }
         return new WearPreview.SizeWear(measurements.size(), hemCm, hemAt, sleeveCm, sleeveAt);
     }
 
     /**
-     * 소매길이가 팔길이의 절반 이하면 팔꿈치, 팔길이 언저리면 손목, 그보다 길면 손에 닿는다고 본다.
+     * 소매길이가 위팔길이 이하면 팔꿈치(팔꿈치까지 또는 그 위), 팔길이 언저리면 손목, 그보다 길면 손에 닿는다고 본다.
      */
-    private static SleevePosition sleevePositionOf(double sleeveCm, double armCm) {
-        if (sleeveCm <= armCm / 2) {
+    private static SleevePosition sleevePositionOf(double sleeveCm, double elbowCm, double armCm) {
+        if (sleeveCm <= elbowCm) {
             return SleevePosition.ELBOW;
         }
         if (sleeveCm < armCm - JOINT_RANGE_CM) {

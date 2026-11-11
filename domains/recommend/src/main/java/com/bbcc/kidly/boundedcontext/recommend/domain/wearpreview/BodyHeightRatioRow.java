@@ -13,6 +13,7 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
  * @param knee 무릎높이
  * @param ankle 가쪽복사높이
  * @param arm 팔길이
+ * @param elbow 위팔길이, 어깨에서 팔꿈치까지
  */
 public record BodyHeightRatioRow(
         Gender gender,
@@ -24,6 +25,7 @@ public record BodyHeightRatioRow(
         double crotch,
         double knee,
         double ankle,
-        double arm
+        double arm,
+        double elbow
 ) {
 }

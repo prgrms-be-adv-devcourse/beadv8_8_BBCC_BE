@@ -57,7 +57,8 @@ public class GrowthTableConfig {
             rows.add(new BodyHeightRatioRow(Gender.valueOf(columns[0]), Integer.parseInt(columns[1]),
                     Double.parseDouble(columns[2]), Double.parseDouble(columns[3]), Double.parseDouble(columns[4]),
                     Double.parseDouble(columns[5]), Double.parseDouble(columns[6]), Double.parseDouble(columns[7]),
-                    Double.parseDouble(columns[8]), Double.parseDouble(columns[9])));
+                    Double.parseDouble(columns[8]), Double.parseDouble(columns[9]),
+                    Double.parseDouble(columns[10])));
         }
         return BodyHeightRatioTable.of(rows);
     }

@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import java.util.List;
 
@@ -13,7 +15,9 @@ import java.util.List;
 public record WearPreview(GarmentPart garment, Body body, List<SizeWear> sizes) {
 
     public WearPreview {
-        sizes = List.copyOf(sizes);
+        requireNonNull(garment, "garment는 필수입니다");
+        requireNonNull(body, "body는 필수입니다");
+        sizes = List.copyOf(requireNonNull(sizes, "sizes는 필수입니다"));
     }
 
     /**
