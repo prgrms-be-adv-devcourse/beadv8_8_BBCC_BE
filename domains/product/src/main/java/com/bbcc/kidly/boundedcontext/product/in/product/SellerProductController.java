@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.in.product;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductFilter;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductRegistrationService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductSaleService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductUpdateService;
@@ -48,8 +49,9 @@ public class SellerProductController {
     @GetMapping
     public PageResponse<SellerProductSummaryResponse> list(
         @LoginMember AuthMember member, @PageableDefault Pageable pageable) {
-        return PageResponse.from(
-            sellerProductService.findMyProducts(member.id(), pageable).map(SellerProductSummaryResponse::from));
+        return PageResponse.from(sellerProductService
+            .findMyProducts(member.id(), SellerProductFilter.all(), pageable)
+            .map(SellerProductSummaryResponse::from));
     }
 
     // 판매자 본인의 상품 하나의 상세를 돌려준다

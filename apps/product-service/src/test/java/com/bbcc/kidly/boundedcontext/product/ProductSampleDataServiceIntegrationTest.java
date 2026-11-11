@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductFilter;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSummary;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductDetailService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductSampleDataService;
@@ -158,7 +159,9 @@ class ProductSampleDataServiceIntegrationTest {
 
     // 판매자 2가 등록한 상품(판매 상태와 상관없이)
     private List<SellerProductSummary> sampleProducts() {
-        return sellerProductService.findMyProducts(SELLER_ID, PageRequest.of(0, 10)).getContent();
+        return sellerProductService
+            .findMyProducts(SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10))
+            .getContent();
     }
 
     private static Long productId(List<SellerProductSummary> items, String name) {

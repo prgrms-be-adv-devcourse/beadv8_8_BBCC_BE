@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.app.product;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductFilter;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductQuery;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSummary;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.SellerProductDetailResult;
@@ -39,8 +40,9 @@ public class SellerProductService {
 
     // 정렬은 등록 최신순으로 고정이라 pageable의 sort는 무시된다
     @Transactional(readOnly = true)
-    public Page<SellerProductSummary> findMyProducts(Long sellerId, Pageable pageable) {
-        return sellerProductQuery.findBySeller(sellerId, pageable);
+    public Page<SellerProductSummary> findMyProducts(
+        Long sellerId, SellerProductFilter filter, Pageable pageable) {
+        return sellerProductQuery.findBySeller(sellerId, filter, pageable);
     }
 
     // 내 상품 상세를 돌려준다. 엔티티는 트랜잭션 안에서 읽어 결과로 모두 바꾼다

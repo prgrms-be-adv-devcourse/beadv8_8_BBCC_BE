@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.product.domain.inventory.QInventory.
 import static com.bbcc.kidly.boundedcontext.product.domain.product.QProduct.product;
 import static com.bbcc.kidly.boundedcontext.product.domain.product.QProductOption.productOption;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductFilter;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductQuery;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSummary;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
@@ -26,7 +27,7 @@ public class JpaSellerProductQuery implements SellerProductQuery {
 
     // 정렬은 등록 최신순(id 내림차순)으로 고정한다. 보관 옵션은 조인에서 빼서 옵션 수 · 재고 합계 · 최저가에 들어가지 않는다
     @Override
-    public Page<SellerProductSummary> findBySeller(Long sellerId, Pageable pageable) {
+    public Page<SellerProductSummary> findBySeller(Long sellerId, SellerProductFilter filter, Pageable pageable) {
         NumberExpression<Long> optionCount = productOption.id.count();
         NumberExpression<Long> availableQuantity = inventory.availableQty.sumLong().coalesce(0L);
         NumberExpression<Long> minPrice = productOption.price.min();
