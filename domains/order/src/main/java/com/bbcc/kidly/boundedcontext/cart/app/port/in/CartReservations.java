@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.cart.app.port.in;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -48,6 +49,21 @@ public interface CartReservations {
      * 결제 정리가 이 예약의 칸을 정리한 적이 있는지(#999). 칸이 남는 일부 수량 결제도 포함한다. 없는 예약(풀린 예약 포함)이면 false.
      */
     boolean hasPurchase(String reservationId);
+
+    /**
+     * 그 예약의 행을 쓰기 잠금으로 잡고 결제 정리 표시가 있는지 돌려준다(#1207). 잠금은 부르는 쪽 트랜잭션이 끝날 때까지 유지되므로, 예약한
+     * 쪽은 이 결과로 판단한 뒤 같은 트랜잭션에서 풀기 · 상태 변경을 해도 결제 정리와 겹치지 않는다. 예약 칸을 다루는 경로는 모두 예약
+     * 행 → (예약한 쪽 자기 행) → 칸 순서로 잠근다. 없는 예약(풀린 예약 포함)이면 잠글 행이 없고 false.
+     *
+     * @return 결제 정리 표시가 있으면 true
+     */
+    boolean lock(String reservationId);
+
+    /**
+     * 여러 예약의 행을 한 번에 같은 전체 순서((예약 ID, id))로 쓰기 잠금한다(#1207). 여러 예약을 다루는 쪽이 하나씩 잠그면 순서가 어긋날 수
+     * 있으므로 이것을 쓴다. 없는 예약은 건너뛴다.
+     */
+    void lockAll(Collection<String> reservationIds);
 
     /**
      * 예약을 푼다(칸은 남는다). 없는 예약이면 아무것도 하지 않는다.
