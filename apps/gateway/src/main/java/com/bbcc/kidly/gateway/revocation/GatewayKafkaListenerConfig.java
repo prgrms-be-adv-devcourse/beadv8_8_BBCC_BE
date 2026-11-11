@@ -26,6 +26,7 @@ import org.springframework.util.backoff.FixedBackOff;
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고, 한 건씩 처리 완료를 표시한다.
  * 메모리에 넣기만 해서 잠깐 실패할 일이 없으므로 재시도하지 않는다: 어떤 예외든 바로 DLT로 보낸다.
  * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate에 영향이 없다.
+ * 더 읽을 메시지가 없으면 idle 이벤트를 낸다. RevocationReplay 가 이것으로 무효화 목록을 다 읽었는지 안다(#1176).
  */
 @Slf4j
 @Configuration
@@ -34,6 +35,8 @@ class GatewayKafkaListenerConfig {
     static final String AUTH_EVENTS = "kidly.auth.events";
     static final String GROUP = "kidly.gateway";
     private static final String DLT_SUFFIX = ".gateway.dlt";
+    // 이 간격(첫 메시지 전에는 기본 배수 5를 곱한 5초) 동안 받은 메시지가 없으면 idle 이벤트를 낸다
+    private static final long IDLE_EVENT_INTERVAL_MS = 1000L;
 
     @Bean
     NewTopic gatewayAuthEventsDeadLetterTopic() {
@@ -48,6 +51,7 @@ class GatewayKafkaListenerConfig {
         var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
         configurer.configure(factory, consumerFactory);
         factory.getContainerProperties().setAckMode(AckMode.RECORD);
+        factory.getContainerProperties().setIdleEventInterval(IDLE_EVENT_INTERVAL_MS);
         factory.setCommonErrorHandler(errorHandler(producerFactory));
         return factory;
     }
