@@ -58,8 +58,11 @@ public class OpenAiCompanionAiPicker implements CompanionAiPicker {
     private String userText(CompanionAiRequest request) {
         StringBuilder text = new StringBuilder();
         text.append("보고 있는 상품\n").append(line(request.viewed())).append("\n\n후보 상품\n");
+        // 후보는 규칙 순서로 온다. 순위만 보내고 점수 값은 보내지 않는다
+        int rank = 1;
         for (CompanionAiProduct candidate : request.candidates()) {
-            text.append(line(candidate)).append('\n');
+            text.append("순위 ").append(rank).append(FIELD_SEPARATOR).append(line(candidate)).append('\n');
+            rank++;
         }
         return text.toString();
     }
