@@ -24,8 +24,9 @@ public record WearPreview(GarmentPart garment, Body body, List<SizeWear> sizes) 
     }
 
     /**
-     * 사이즈 하나의 착용 결과다. 다음 사이클에서 채운다.
+     * 사이즈 하나의 착용 결과다. 밑단 · 소매 높이(cm)와 그 위치다. 해당하는 실측이 없으면 null이다.
      */
-    public record SizeWear(String size) {
+    public record SizeWear(String size, Double hemCm, HemPosition hemAt, Double sleeveCm,
+                           SleevePosition sleeveAt) {
     }
 }
