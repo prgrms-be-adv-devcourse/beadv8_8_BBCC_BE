@@ -74,7 +74,8 @@ public class SizeRecommendation {
     /**
      * 규칙 결과에 AI 답을 합친 최종 결과를 돌려준다. AI가 고른 사이즈는 규칙 후보 밖이어도 상품에 있으면 채택한다.
      * 사이즈 무관 상품이거나, AI 답이 없거나, 상품에 없는 사이즈이거나, 적합도가 모르는 값이거나,
-     * 항목별 판단이 넘긴 기준 핏과 맞지 않으면 규칙 결과를 그대로 돌려준다.
+     * 항목별 판단이 넘긴 기준 핏과 맞지 않거나
+     * 근거 문장에 AI에게 주지 않은 숫자가 있으면 규칙 결과를 그대로 돌려준다.
      * AI 답을 채택하면 후보는 규칙 후보를 그대로 두고, 규칙 계산을 설명하는 안내는 비우고, 쓸 수 있는 근거만 남긴다.
      */
     public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer, SizeAiEvidence evidence) {
@@ -95,13 +96,17 @@ public class SizeRecommendation {
         if (judgements.isEmpty()) {
             return this;
         }
+        List<SizeReason> reasons = usableReasons(answer.reasons());
+        if (!ReasonNumberChecker.allNumbersGiven(reasons, evidence.givenNumbers(), judgements.get())) {
+            return this;
+        }
         return new SizeRecommendation(
                 answer.recommendedSize(),
                 aiFit,
                 List.of(),
                 candidateSizes,
                 SizeRecommendationSource.AI,
-                usableReasons(answer.reasons()),
+                reasons,
                 judgements.get()
         );
     }

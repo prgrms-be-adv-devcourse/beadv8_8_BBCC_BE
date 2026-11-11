@@ -39,8 +39,17 @@ public record AiResponseKey(String value) {
             + "\npreferredFit=" + enumName(input.preferredFit())
             + "\ncandidateProductIds=" + joinIds(input.candidateProductIds())
             + "\ncartProductIds=" + joinIds(input.cartProductIds())
-            + "\npromptVersion=" + input.promptVersion();
+            + "\npromptVersion=" + input.promptVersion()
+            + extraInputLine(input.extraInputText());
         return new AiResponseKey(sha256Hex(text));
+    }
+
+    // 값이 없는 기능의 키 글이 바뀌지 않도록, 값이 있을 때만 줄을 더한다.
+    private static String extraInputLine(String extraInputText) {
+        if (extraInputText == null) {
+            return "";
+        }
+        return "\nextraInput=" + extraInputText;
     }
 
     private static String blankIfNull(Object value) {
@@ -92,6 +101,9 @@ public record AiResponseKey(String value) {
         }
     }
 
+    /**
+     * @param extraInputText 위 칸에 없지만 답에 영향을 주는 입력을 늘 같은 글로 만든 것이고, 없으면 null이다.
+     */
     public record Input(
         Long productId,
         Long childProfileId,
@@ -102,7 +114,15 @@ public record AiResponseKey(String value) {
         PreferredFit preferredFit,
         List<Long> candidateProductIds,
         List<Long> cartProductIds,
-        int promptVersion
+        int promptVersion,
+        String extraInputText
     ) {
+
+        public Input(Long productId, Long childProfileId, Integer ageMonths, BigDecimal heightCm,
+            BigDecimal weightKg, BodyType bodyType, PreferredFit preferredFit, List<Long> candidateProductIds,
+            List<Long> cartProductIds, int promptVersion) {
+            this(productId, childProfileId, ageMonths, heightCm, weightKg, bodyType, preferredFit,
+                candidateProductIds, cartProductIds, promptVersion, null);
+        }
     }
 }

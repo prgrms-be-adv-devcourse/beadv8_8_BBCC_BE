@@ -117,6 +117,41 @@ class SizeRecommendationReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("FIT-10 답 검증 값에는 AI 입력에 들어간 자녀 · 사이즈 · 실측 · 기준 핏의 숫자를 모은다")
+    void collectGivenNumbers() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        referenceGarmentRepository.save(ReferenceGarmentFixture.top(CHILD_1_ID));
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        List<String> given = new ArrayList<>();
+        for (BigDecimal number : draft.aiEvidence().givenNumbers()) {
+            given.add(number.stripTrailingZeros().toPlainString());
+        }
+        assertThat(given).contains(
+            String.valueOf(ageMonthsToday()), "115", "20",
+            "110", "120", "105", "125",
+            "42", "34", "45", "36",
+            "40.5", "1.5", "4.5", "-8", "-6");
+    }
+
+    @Test
+    @DisplayName("기준 핏이 달라지면 지난 AI 답을 찾는 키도 달라져, 기준 옷을 바꾼 뒤 예전 답을 다시 쓰지 않는다")
+    void aiKeyChangesWithReferenceFit() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        AiResponseKey withoutGarment =
+            AiResponseKey.of(reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiKeyInput());
+
+        referenceGarmentRepository.save(ReferenceGarmentFixture.top(CHILD_1_ID));
+        AiResponseKey withGarment =
+            AiResponseKey.of(reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiKeyInput());
+
+        assertThat(withGarment).isNotEqualTo(withoutGarment);
+    }
+
+    @Test
     @DisplayName("AI 입력에는 자녀 이름 · 생년월일 · 회원 ID를 담는 칸이 없다")
     void aiQuestionHasNoPersonalFields() {
         List<String> names = new ArrayList<>();
