@@ -125,6 +125,29 @@ class SellerProductQueryIntegrationTest {
         assertThat(page.hasNext()).isTrue();
     }
 
+    @Test
+    @DisplayName("status를 주면 그 상태의 상품만 돌려주고, 전체 건수도 그 수로 센다")
+    void findBySellerFiltersByStatus() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        saveProduct(saved, SELLER_ID, "판매대기 상품", 10);
+        Product onSale = saveProduct(saved, SELLER_ID, "판매중 상품", 10);
+        Product stoppedOlder = saveProduct(saved, SELLER_ID, "먼저 만든 판매중지 상품", 10);
+        Product stoppedNewer = saveProduct(saved, SELLER_ID, "나중에 만든 판매중지 상품", 10);
+        Product otherSellerStopped = saveProduct(saved, OTHER_SELLER_ID, "다른 판매자 판매중지 상품", 10);
+        changeStatus(onSale, "ON_SALE");
+        changeStatus(stoppedOlder, "STOPPED");
+        changeStatus(stoppedNewer, "STOPPED");
+        changeStatus(otherSellerStopped, "STOPPED");
+
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, new SellerProductFilter(ProductStatus.STOPPED, false), PageRequest.of(0, 10));
+
+        assertThat(page.getContent())
+            .extracting(SellerProductSummary::productId)
+            .containsExactly(stoppedNewer.getId(), stoppedOlder.getId());
+        assertThat(page.getTotalElements()).isEqualTo(2);
+    }
+
     // 판매자의 판매대기 상품 하나를 저장하고 옵션마다 재고를 연다.
     // 옵션은 네이비 110 · 네이비 120 · 오트밀 110 · 오트밀 120 순서로 재고 수만큼 만들고, 판매가는 모두 25,000원이다
     private Product saveProduct(SavedClothingTop saved, long sellerId, String name, int... stocks) {
