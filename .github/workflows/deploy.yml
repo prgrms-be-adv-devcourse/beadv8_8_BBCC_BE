@@ -56,7 +56,35 @@ concurrency:
   queue: max
 
 jobs:
+  # 이 배포 뒤에 같은 브랜치의 더 새 배포(push)가 줄 서 있으면 건너뛴다(#1169). 배포는 매번 그 커밋의 전체 코드를 올리므로 새 배포가 이 커밋까지 포함한다
+  # "브랜치 최신 커밋인가"로 보지 않는다. 문서만 바꾼 커밋은 배포를 띄우지 않아(paths-ignore) 그게 최신이면 아무것도 배포되지 않는다
+  # 수동 실행(롤백 등)은 건너뛰지 않는다. 대기열(concurrency)은 그대로라 서버 동시 변경 · 끄기 · 켜기 요청 취소는 계속 막는다
+  superseded:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != push ]]; then echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # 조회가 실패하면 건너뛰지 않고 배포한다(대기만 길어질 뿐 배포가 빠지지는 않게)
+          newer=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?branch=$GITHUB_REF_NAME&event=push&per_page=30" \
+            --jq "[.workflow_runs[] | select(.run_number > $GITHUB_RUN_NUMBER and (.status | IN(\"queued\", \"pending\", \"waiting\", \"requested\", \"in_progress\")))] | length") || newer=0
+          if (( newer > 0 )); then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=배포 건너뜀::뒤에 더 새 배포가 ${newer}건 줄 서 있어 건너뜁니다. 이 커밋은 다음 배포에 포함됩니다"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   monitoring-location:
+    needs: superseded
+    if: needs.superseded.outputs.skip != 'true'
     runs-on: ubuntu-latest
     environment: dev
     outputs:
@@ -73,14 +101,16 @@ jobs:
           echo "known_hosts=$(printf '%s' "$MONITORING_KNOWN_HOSTS" | base64 -w0)" >> "$GITHUB_OUTPUT"
   # PR 때 돈 CI 는 그때의 develop 기준이라, 머지된 커밋을 다시 검사한다. 롤백이면 이미 배포됐던 커밋이라 생략한다
   ci:
-    if: inputs.sha == ''
+    needs: superseded
+    if: inputs.sha == '' && needs.superseded.outputs.skip != 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml
 
   build:
-    # 롤백이면 이미지가 이미 있으므로 빌드를 생략한다
-    if: inputs.sha == ''
+    needs: superseded
+    # 롤백이면 이미지가 이미 있으므로 빌드를 생략한다. 뒤에 더 새 배포가 있으면 건너뛴다
+    if: inputs.sha == '' && needs.superseded.outputs.skip != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
