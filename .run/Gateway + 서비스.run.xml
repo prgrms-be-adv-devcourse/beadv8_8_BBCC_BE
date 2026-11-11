@@ -6,6 +6,7 @@
     <toRun type="SpringBootApplicationConfigurationType" name="OrderServiceApplication" />
     <toRun type="SpringBootApplicationConfigurationType" name="PaymentServiceApplication" />
     <toRun type="SpringBootApplicationConfigurationType" name="CommunityServiceApplication" />
+    <toRun type="SpringBootApplicationConfigurationType" name="ChatbotServiceApplication" />
     <toRun type="SpringBootApplicationConfigurationType" name="NotificationServiceApplication" />
     <toRun type="SpringBootApplicationConfigurationType" name="RecommendServiceApplication" />
   </configuration>

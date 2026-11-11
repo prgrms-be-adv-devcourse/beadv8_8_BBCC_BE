@@ -1,0 +1,3 @@
+# 테스트는 PC마다 결과가 같아야 하므로 각자의 .env를 읽지 않는다
+springdotenv:
+  enabled: false
