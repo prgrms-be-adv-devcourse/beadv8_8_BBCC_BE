@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.Clock;
 import java.time.Duration;
@@ -26,7 +27,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * AI 응답 서비스가 실제 PostgreSQL의 응답 표와 하루 횟수 표로 지난 답을 다시 쓰고 호출 횟수를 세는지 확인한다.
+ * AI 응답 서비스가 실제 Redis의 응답 저장소와 PostgreSQL의 하루 횟수 표로 지난 답을 다시 쓰고 호출 횟수를 세는지 확인한다.
  */
 @IntegrationTest
 class AiResponseServiceIntegrationTest {
@@ -59,6 +60,8 @@ class AiResponseServiceIntegrationTest {
         AiResponseService service = fixedClockService();
 
         Optional<Answer> first = service.respond(TYPE, INPUT, Answer.class, countingCall(calls));
+        // 답은 다른 스레드에서 저장하므로 저장될 때까지 기다린다
+        AsyncWait.until(() -> store.find(TYPE, AiResponseKey.of(INPUT)).isPresent());
         Optional<Answer> second = service.respond(TYPE, INPUT, Answer.class, countingCall(calls));
 
         assertThat(first).contains(answer());

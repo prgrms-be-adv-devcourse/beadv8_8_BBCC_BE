@@ -108,7 +108,7 @@ class AiResponseServiceTest {
         assertThat(answer).contains(freshAnswer());
         assertThat(calls).hasValue(1);
         ArgumentCaptor<String> savedJson = ArgumentCaptor.forClass(String.class);
-        verify(store).save(eq(TYPE), eq(KEY), savedJson.capture(), eq(REUSE_PERIOD));
+        verify(store, timeout(1_000)).save(eq(TYPE), eq(KEY), savedJson.capture(), eq(REUSE_PERIOD));
         assertThat(jsonMapper.readValue(savedJson.getValue(), Answer.class)).isEqualTo(freshAnswer());
     }
 
@@ -194,6 +194,8 @@ class AiResponseServiceTest {
         Optional<Answer> answer;
         try {
             answer = service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+            // 저장은 다른 스레드에서 하므로 저장 실패 로그가 남을 때까지 기다린다
+            waitUntilLogged(logs);
         } finally {
             detachLogs(logs);
         }
@@ -215,7 +217,7 @@ class AiResponseServiceTest {
         Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
 
         assertThat(answer).contains(freshAnswer());
-        verify(store).save(eq(TYPE), eq(KEY), any(), eq(REUSE_PERIOD));
+        verify(store, timeout(1_000)).save(eq(TYPE), eq(KEY), any(), eq(REUSE_PERIOD));
     }
 
     @Test
@@ -271,6 +273,13 @@ class AiResponseServiceTest {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
+        }
+    }
+
+    private static void waitUntilLogged(ListAppender<ILoggingEvent> logs) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(1).toNanos();
+        while (logs.list.isEmpty() && System.nanoTime() < deadline) {
+            sleep(Duration.ofMillis(10));
         }
     }
 

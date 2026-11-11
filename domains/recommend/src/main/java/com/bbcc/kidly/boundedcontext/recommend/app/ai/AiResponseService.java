@@ -87,7 +87,8 @@ public class AiResponseService {
     }
 
     /**
-     * 같은 종류 · 같은 입력의 저장된 답이 있으면 그것을 돌려주고, 없으면 {@code call}로 AI를 불러 답을 저장한 뒤 돌려준다.
+     * 같은 종류 · 같은 입력의 저장된 답이 있으면 그것을 돌려주고, 없으면 {@code call}로 AI를 불러 답을 돌려준다.
+     * 받은 답은 다른 스레드에서 저장하므로, 돌려받은 직후에는 아직 저장되지 않았을 수 있다.
      * <ul>
      *   <li>빈 값은 AI 결과가 없다는 뜻이다. 부른 쪽이 규칙 결과로 대신한다.
      *       호출이 실패하거나 제한 시간을 넘기거나 null을 돌려줘도, 하루 상한에 닿아도 빈 값이다.</li>
@@ -127,7 +128,9 @@ public class AiResponseService {
         if (result.isEmpty()) {
             return Optional.empty();
         }
-        saveQuietly(type, key, result.get());
+        // 저장소가 느려도 화면 응답이 늦어지지 않게 저장은 기다리지 않는다
+        T answer = result.get();
+        CompletableFuture.runAsync(() -> saveQuietly(type, key, answer), VIRTUAL_THREAD);
         return result;
     }
 
