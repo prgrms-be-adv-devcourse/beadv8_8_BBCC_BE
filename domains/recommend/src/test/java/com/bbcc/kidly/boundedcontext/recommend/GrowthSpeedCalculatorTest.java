@@ -150,6 +150,30 @@ class GrowthSpeedCalculatorTest {
         assertThat(speed.recentCmPerMonth()).isCloseTo(expectedRecentCmPerMonth, within(0.000001));
     }
 
+    static Stream<Arguments> recentRecordsNotEnough() {
+        return Stream.of(
+            Arguments.of(Named.of("최근 3개월 안 기록 1개", List.of(
+                record(TODAY.minusDays(200), "113.0"),
+                record(TODAY.minusDays(30), "116.0")))),
+            Arguments.of(Named.of("최근 3개월 안 기록 2개, 기간 20일", List.of(
+                record(TODAY.minusDays(200), "113.0"),
+                record(TODAY.minusDays(20), "116.0"),
+                record(TODAY, "116.5")))),
+            Arguments.of(Named.of("3개월 전 날짜 하루 전(8월 11일) 기록은 뺌", List.of(
+                record(TODAY.minusMonths(3).minusDays(1), "115.0"),
+                record(TODAY, "117.0"))))
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("recentRecordsNotEnough")
+    @DisplayName("GROW-05 최근 3개월 안 기록이 1개 이하이거나 그 기간이 1개월 미만이면 최근 속도를 표로 메우지 않고 null로 둔다")
+    void noRecentSpeedWhenRecentRecordsNotEnough(List<RecommendGrowthRecord> records) {
+        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+
+        assertThat(speed.recentCmPerMonth()).isNull();
+    }
+
     private static RecommendGrowthRecord record(LocalDate recordedOn, String heightCm) {
         return RecommendGrowthRecord.create(new RecommendGrowthRecord.RecordInfo(
             RECORD_ID.getAndIncrement(), CHILD_1_ID, new BigDecimal(heightCm), null, recordedOn.atTime(9, 0)));
