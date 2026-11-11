@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReason;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSource;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -99,13 +100,32 @@ public class SizeRecommendationService {
             notices, recommendation.getCandidateSizes(), null,
             recommendation.getSource().name(), reasons,
             referenceFitOf(draft.aiQuestion().referenceFit()), itemJudgementsOf(recommendation),
-            growthSpeedOf(draft.aiQuestion().growthSpeed()), wearablePeriodsOf(draft.aiQuestion().wearablePeriods()));
+            growthSpeedOf(draft.aiQuestion().growthSpeed()), wearablePeriodsOf(draft.aiQuestion().wearablePeriods()),
+            wearPreviewOf(draft.wearPreview()));
     }
 
     private SizeRecommendationResult.GrowthSpeed growthSpeedOf(SizeAiQuestion.GrowthSpeed growthSpeed) {
         return new SizeRecommendationResult.GrowthSpeed(growthSpeed.cmPerMonth(), growthSpeed.recentCmPerMonth(),
             growthSpeed.recordCount(), growthSpeed.recordMonths(), growthSpeed.childSharePercent(),
             growthSpeed.tableCmPerMonth(), growthSpeed.tableSource());
+    }
+
+    private SizeRecommendationResult.WearPreview wearPreviewOf(WearPreview preview) {
+        if (preview == null) {
+            return null;
+        }
+        WearPreview.Body body = preview.body();
+        List<SizeRecommendationResult.SizeWear> sizes = new ArrayList<>();
+        for (WearPreview.SizeWear wear : preview.sizes()) {
+            String hemAt = wear.hemAt() == null ? null : wear.hemAt().name();
+            String sleeveAt = wear.sleeveAt() == null ? null : wear.sleeveAt().name();
+            sizes.add(new SizeRecommendationResult.SizeWear(
+                wear.size(), wear.hemCm(), hemAt, wear.sleeveCm(), sleeveAt));
+        }
+        return new SizeRecommendationResult.WearPreview(preview.garment().name(),
+            new SizeRecommendationResult.Body(body.neckCm(), body.shoulderCm(), body.waistCm(), body.hipCm(),
+                body.crotchCm(), body.kneeCm(), body.ankleCm(), body.armCm()),
+            sizes);
     }
 
     private List<SizeRecommendationResult.WearablePeriod> wearablePeriodsOf(List<WearablePeriod> periods) {

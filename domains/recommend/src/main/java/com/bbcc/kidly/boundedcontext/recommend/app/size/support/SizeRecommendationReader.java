@@ -101,7 +101,7 @@ public class SizeRecommendationReader {
         return new SizeRecommendationDraft(
             productId, childId, productSizes, rule,
             keyInputOf(productId, childId, child, ageMonths, question), question,
-            new SizeAiEvidence(referenceFit, question.givenNumbers()));
+            new SizeAiEvidence(referenceFit, question.givenNumbers()), null);
     }
 
     // 기준 옷이 없거나 상품과 비교할 수 없으면 null이다. 사이즈 무관 상품은 비교하지 않으므로 기준 옷을 읽지 않는다.
