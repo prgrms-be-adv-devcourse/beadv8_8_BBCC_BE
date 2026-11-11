@@ -147,23 +147,6 @@ class AiResponseServiceTest {
     }
 
     @Test
-    @DisplayName("AI 호출이 제한 시간을 넘기면 끝나기를 기다리지 않고 AI 결과 없음을 돌려주며 저장하지 않는다")
-    void returnNothingWhenAiCallTimesOut() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
-        given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
-        long startedAt = System.nanoTime();
-
-        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, () -> {
-            sleep(Duration.ofSeconds(3));
-            return freshAnswer();
-        });
-
-        assertThat(answer).isEmpty();
-        assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(Duration.ofMillis(1_500));
-        verify(store, never()).save(any(), any(), any(), any());
-    }
-
-    @Test
     @DisplayName("AI가 null을 돌려주면 AI 결과 없음을 돌려주고 저장하지 않는다")
     void returnNothingWhenAiReturnsNull() {
         given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());

@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
@@ -13,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +35,7 @@ import tools.jackson.databind.json.JsonMapper;
 class AiResponseServiceCallTimeoutTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-10T15:30:00Z"), ZoneId.of("Asia/Seoul"));
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 11, 0, 30);
     private static final int DAILY_LIMIT = 2_000;
     private static final Duration REUSE_PERIOD = Duration.ofHours(24);
     private static final AiResponseKey.Input INPUT = new AiResponseKey.Input(
@@ -68,6 +72,22 @@ class AiResponseServiceCallTimeoutTest {
 
         assertThat(homePreview).isEmpty();
         assertThat(boughtTogether).contains(new Answer("늦은 답"));
+    }
+
+    @Test
+    @DisplayName("AI 답이 제한 시간을 넘기면 기다리지 않고 AI 결과 없음을 돌려주고, 늦게 온 답은 받는 대로 저장해 다음 요청에서 쓴다")
+    void saveLateAnswerAfterTimeout() {
+        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        long startedAt = System.nanoTime();
+
+        Optional<Answer> answer = service.respond(AiResponseType.HOME_PREVIEW, INPUT, Answer.class,
+            () -> answerAfter(Duration.ofMillis(600)));
+
+        assertThat(answer).isEmpty();
+        assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(Duration.ofMillis(500));
+        verify(store, timeout(3_000)).save(AiResponseType.HOME_PREVIEW, AiResponseKey.of(INPUT),
+            "{\"reason\":\"늦은 답\"}", NOW);
     }
 
     private static Answer answerAfter(Duration duration) {
