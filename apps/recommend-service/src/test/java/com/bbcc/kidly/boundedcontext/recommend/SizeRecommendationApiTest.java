@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -52,6 +54,12 @@ class SizeRecommendationApiTest {
     @Autowired
     private RecommendReplicaChildService replicaChildService;
 
+    @Autowired
+    private RecommendReplicaProductRepository replicaProductRepository;
+
+    @Autowired
+    private ReferenceGarmentRepository referenceGarmentRepository;
+
     @Test
     @DisplayName("자녀 1이 상품 A의 사이즈 추천을 받으면 120 · 여유 있음과 후보 110 · 120을 받고, 안내는 빈 목록이고 지난 구매 사이즈는 null이다")
     void recommendSize() {
@@ -71,6 +79,43 @@ class SizeRecommendationApiTest {
                 .containsEntry("productId", String.valueOf(PRODUCT_A_ID))
                 .containsEntry("childId", String.valueOf(CHILD_1_ID))
                 .containsEntry("lastPurchasedSize", null));
+    }
+
+    @Test
+    @DisplayName("FIT-06 기준 옷이 있으면 사이즈마다 상품 실측과 기준 옷 실측의 차이를 기준 핏으로 받고, 규칙 결과라 항목별 판단은 빈 목록이다")
+    void recommendSizeWithReferenceFit() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        // 상의 기준 옷: 총장 40.5cm, 가슴단면 42.0cm. 상품 A 110은 총장 42cm · 가슴단면 34cm다
+        referenceGarmentRepository.save(ReferenceGarmentFixture.top(CHILD_1_ID));
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.referenceFit.productPart").isEqualTo("TOP")
+            .jsonPath("$.referenceFit.comparedPart").isEqualTo("TOP")
+            .jsonPath("$.referenceFit.items[0].code").isEqualTo("TOTAL_LENGTH")
+            .jsonPath("$.referenceFit.items[0].garmentCm").isEqualTo(40.5)
+            .jsonPath("$.referenceFit.items[0].sizes[0].size").isEqualTo("110")
+            .jsonPath("$.referenceFit.items[0].sizes[0].productCm").isEqualTo(42)
+            .jsonPath("$.referenceFit.items[0].sizes[0].diffCm").isEqualTo(1.5)
+            .jsonPath("$.referenceFit.items[1].code").isEqualTo("CHEST_WIDTH")
+            .jsonPath("$.referenceFit.items[1].sizes[0].diffCm").isEqualTo(-8.0)
+            .jsonPath("$.source").isEqualTo("RULE")
+            .jsonPath("$.itemJudgements.length()").isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("기준 옷이 없으면 기준 핏은 칸을 빼지 않고 null로, 항목별 판단은 빈 목록으로 받는다")
+    void recommendSizeWithoutReferenceFit() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.itemJudgements.length()").isEqualTo(0)
+            .jsonPath("$").value(Map.class, body -> assertThat(body).containsEntry("referenceFit", null));
     }
 
     @Test
