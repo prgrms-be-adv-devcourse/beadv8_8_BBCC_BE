@@ -101,6 +101,26 @@ class GrowthSpeedCalculatorTest {
         );
     }
 
+    static Stream<Arguments> blendedOutOfRange() {
+        return Stream.of(
+            Arguments.of(Named.of("182일에 15cm 큼, 섞은 값 1.607564", List.of(
+                record(TODAY.minusDays(182), "115.0"),
+                record(TODAY, "130.0"))), 1.0),
+            Arguments.of(Named.of("182일에 4cm 줄어듦, 섞은 값 -0.144580", List.of(
+                record(TODAY.minusDays(182), "120.0"),
+                record(TODAY, "116.0"))), 0.0)
+        );
+    }
+
+    @ParameterizedTest(name = "{0} → {1}cm/월")
+    @MethodSource("blendedOutOfRange")
+    @DisplayName("GROW-04 섞은 결과가 0 미만이면 0, 표 값의 2배를 넘으면 2배로 맞춘다")
+    void clampBlendedSpeed(List<RecommendGrowthRecord> records, double expectedCmPerMonth) {
+        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+
+        assertThat(speed.cmPerMonth()).isEqualTo(expectedCmPerMonth);
+    }
+
     private static RecommendGrowthRecord record(LocalDate recordedOn, String heightCm) {
         return RecommendGrowthRecord.create(new RecommendGrowthRecord.RecordInfo(
             RECORD_ID.getAndIncrement(), CHILD_1_ID, new BigDecimal(heightCm), null, recordedOn.atTime(9, 0)));
