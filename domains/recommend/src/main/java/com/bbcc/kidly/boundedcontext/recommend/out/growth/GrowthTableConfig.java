@@ -30,7 +30,7 @@ public class GrowthTableConfig {
         List<GrowthVelocityRow> rows = new ArrayList<>();
         for (String[] columns : readDataRows(GROWTH_VELOCITY_PATH)) {
             rows.add(new GrowthVelocityRow(Gender.valueOf(columns[0]), Integer.parseInt(columns[1]),
-                    Double.parseDouble(columns[2])));
+                    Double.parseDouble(columns[2]), Double.parseDouble(columns[3])));
         }
         return GrowthVelocityTable.of(rows);
     }

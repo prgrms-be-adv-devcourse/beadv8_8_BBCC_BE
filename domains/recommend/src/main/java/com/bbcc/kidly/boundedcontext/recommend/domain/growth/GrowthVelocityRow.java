@@ -5,6 +5,7 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 public record GrowthVelocityRow(
         Gender gender,
         int ageYears,
-        double medianCmPerYear
+        double medianCmPerYear,
+        double sdCmPerYear
 ) {
 }
