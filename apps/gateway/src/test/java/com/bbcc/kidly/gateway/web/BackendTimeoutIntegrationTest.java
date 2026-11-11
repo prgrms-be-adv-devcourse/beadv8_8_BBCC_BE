@@ -81,10 +81,10 @@ class BackendTimeoutIntegrationTest extends GatewayTestSupport {
     }
 
     // 스트림(SSE)은 규칙 결과를 먼저 보내고 AI 결과를 최대 10초 뒤에 보낸다. Gateway는 응답 조각 사이 간격으로 제한 시간을 재므로
-    // 스트림 요청은 AI 대기보다 길게(15초) 기다려야 연결이 끊기지 않는다
+    // 스트림 요청은 AI 대기보다 길게(15초) 기다려야 연결이 끊기지 않는다. 지연은 일반 요청의 제한 시간보다 길고 테스트 클라이언트의 5초보다 짧게 둔다
     @ParameterizedTest
     @CsvSource({
-        "/api/v1/recommendations/companions?productId=31&childId=11, 5000",
+        "/api/v1/recommendations/companions?productId=31&childId=11, 4700",
         "/api/v1/recommendations/products/preview?childId=11, 4000"
     })
     @DisplayName("AI 추천 스트림(text/event-stream) 요청은 일반 요청의 제한 시간보다 늦은 응답도 그대로 넘긴다")
