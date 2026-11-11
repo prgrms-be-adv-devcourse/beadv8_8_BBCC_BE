@@ -90,6 +90,59 @@ groups:
       description: 최근 10분 미처리가 남아 있고 증가 추세가 5분 지속됐습니다. 그룹·토픽별 소비 진행·도메인 처리 실패를 확인하세요.
         임의 offset 변경·재처리는 하지 마세요. 그룹별 허용 대기시간 합의 전에는 이 규칙을 활성화하지 않습니다.
     isPaused: true
+  - uid: kidly-kafka-consumer-stalled
+    title: Kafka 소비 진행 정지
+    condition: B
+    for: 5m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: >-
+          max by(env,consumergroup,topic) (
+            (kafka_consumergroup_lag{job="kidly-kafka"} > 0)
+            and (time() - timestamp(kafka_consumergroup_lag{job="kidly-kafka"}) < 60)
+            and (min_over_time(kafka_consumergroup_lag{job="kidly-kafka"}[10m]) > 0)
+            and (count_over_time(kafka_consumergroup_lag{job="kidly-kafka"}[10m]) >= 18)
+            and on(env,instance,consumergroup,topic,partition)
+            (
+              (kafka_consumergroup_current_offset{job="kidly-kafka"} >= 0)
+              and (time() - timestamp(kafka_consumergroup_current_offset{job="kidly-kafka"}) < 60)
+              and (min_over_time(kafka_consumergroup_current_offset{job="kidly-kafka"}[10m]) >= 0)
+              and (changes(kafka_consumergroup_current_offset{job="kidly-kafka"}[10m]) == 0)
+              and (count_over_time(kafka_consumergroup_current_offset{job="kidly-kafka"}[10m]) >= 18)
+            )
+            and on(env,instance) (
+              (up{job="kidly-kafka"} == 1)
+              and (time() - timestamp(up{job="kidly-kafka"}) < 60)
+              and on(env,instance) (kafka_brokers{job="kidly-kafka"} >= 1)
+            )
+            and on(env) max by(env) (kidly_kafka_exporter_expected == 1)
+          )
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.env }} {{ $labels.consumergroup }} 소비 진행이 멈췄습니다"
+      description: "{{ $labels.topic }}의 파티션에 미처리가 남고 커밋 오프셋이 전진하지 않습니다. 그룹과 파티션 상태 및 소비자 오류를 확인하세요."
+    isPaused: true
   - uid: kidly-member-dlt-arrived
     title: 회원 서비스 처리 실패 메시지 도착
     condition: B

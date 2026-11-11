@@ -143,3 +143,59 @@ tests:
   - eval_time: 10m
     alertname: kidly-member-dlt-arrived
     exp_alerts: []
+- name: stalled partition is detected even when another partition advances
+  interval: 30s
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x40
+  - series: up{job="kidly-kafka",env="dev",instance="exporter"}
+    values: 1+0x40
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="exporter"}
+    values: 1+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
+    values: 3+0x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
+    values: 10+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="1"}
+    values: 3+0x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="1"}
+    values: 10+1x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="idle",topic="orders",partition="0"}
+    values: 0+0x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="idle",topic="orders",partition="0"}
+    values: 10+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="missing-offset",topic="orders",partition="0"}
+    values: 3+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="reset",topic="orders",partition="0"}
+    values: 3+0x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="reset",topic="orders",partition="0"}
+    values: 10+0x19 1+0x20
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="unknown-lag",topic="orders",partition="0"}
+    values: "-1+0x40"
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="unknown-lag",topic="orders",partition="0"}
+    values: 10+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="unknown-offset",topic="orders",partition="0"}
+    values: 3+0x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="unknown-offset",topic="orders",partition="0"}
+    values: "-1+0x40"
+  - series: kidly_kafka_exporter_expected{env="disabled"}
+    values: 0+0x40
+  - series: up{job="kidly-kafka",env="disabled",instance="exporter"}
+    values: 1+0x40
+  - series: kafka_brokers{job="kidly-kafka",env="disabled",instance="exporter"}
+    values: 1+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="disabled",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
+    values: 3+0x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="disabled",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
+    values: 10+0x40
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: kidly-kafka-consumer-stalled
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: kidly-kafka-consumer-stalled
+    exp_alerts:
+    - exp_labels:
+        env: dev
+        consumergroup: stalled
+        topic: orders
