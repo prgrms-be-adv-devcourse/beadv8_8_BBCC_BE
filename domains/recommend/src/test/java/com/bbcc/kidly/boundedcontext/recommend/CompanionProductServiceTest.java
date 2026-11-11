@@ -61,8 +61,8 @@ class CompanionProductServiceTest {
         CompanionCandidates candidates = candidates(6);
         given(candidateReader.read(MEMBER_ID, VIEWED_PRODUCT_ID, CHILD_ID)).willReturn(candidates);
         CompanionAiAnswer answer = new CompanionAiAnswer(List.of(
-            new CompanionAiPick(5L, "같은 색 계열이라 함께 입기 좋다"),
-            new CompanionAiPick(2L, "가을에 겹쳐 입기 좋다")));
+            new CompanionAiPick(5L, "같은 색 계열이라 함께 입기 좋아요."),
+            new CompanionAiPick(2L, "가을에 겹쳐 입기 좋아요.")));
         ArgumentCaptor<AiResponseKey.Input> input = ArgumentCaptor.forClass(AiResponseKey.Input.class);
         ArgumentCaptor<Supplier<CompanionAiAnswer>> call = supplierCaptor();
         given(aiResponseService.respond(eq(AiResponseType.BOUGHT_TOGETHER), input.capture(),
@@ -74,10 +74,10 @@ class CompanionProductServiceTest {
         assertThat(result.source()).isEqualTo(CompanionSource.AI);
         assertThat(result.products()).extracting(CompanionProductResult::productId).containsExactly(5L, 2L, 1L, 3L);
         assertThat(result.products()).extracting(CompanionProductResult::reason)
-            .containsExactly("같은 색 계열이라 함께 입기 좋다", "가을에 겹쳐 입기 좋다", null, null);
+            .containsExactly("같은 색 계열이라 함께 입기 좋아요.", "가을에 겹쳐 입기 좋아요.", null, null);
         assertThat(result.products().getFirst()).isEqualTo(
             new CompanionProductResult(5L, "상품 5", "https://img/5.jpg", BUSINESS_NAME, 10_000L, "110",
-                "같은 색 계열이라 함께 입기 좋다"));
+                "같은 색 계열이라 함께 입기 좋아요."));
         // 프롬프트에 자녀 정보를 쓰지 않으므로 재사용 키에도 자녀 정보를 넣지 않는다
         assertThat(input.getValue()).isEqualTo(new AiResponseKey.Input(VIEWED_PRODUCT_ID, null, null, null, null,
             null, null, List.of(1L, 2L, 3L, 4L, 5L, 6L), null, 1));

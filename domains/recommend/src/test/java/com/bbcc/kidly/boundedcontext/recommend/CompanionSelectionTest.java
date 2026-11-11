@@ -28,10 +28,10 @@ class CompanionSelectionTest {
     void useAiPicksInOrderWithReasons() {
         List<CompanionCandidate> ranked = rankedCandidates(6);
         List<CompanionAiPick> aiPicks = List.of(
-            new CompanionAiPick(5L, "같은 색 계열이라 함께 입기 좋다"),
-            new CompanionAiPick(2L, "가을에 겹쳐 입기 좋다"),
-            new CompanionAiPick(6L, "활동하기 편한 핏이다"),
-            new CompanionAiPick(1L, "기본 아이템이라 어디에나 어울린다"));
+            new CompanionAiPick(5L, "같은 색 계열이라 함께 입기 좋아요."),
+            new CompanionAiPick(2L, "가을에 겹쳐 입기 좋아요."),
+            new CompanionAiPick(6L, "활동하기 편한 핏이에요."),
+            new CompanionAiPick(1L, "기본 아이템이라 어디에나 어울립니다."));
 
         CompanionSelection selection = CompanionSelection.of(aiPicks, ranked);
 
@@ -39,8 +39,8 @@ class CompanionSelectionTest {
         assertThat(selection.picks()).extracting(pick -> pick.product().productId())
             .containsExactly(5L, 2L, 6L, 1L);
         assertThat(selection.picks()).extracting(CompanionPick::reason)
-            .containsExactly("같은 색 계열이라 함께 입기 좋다", "가을에 겹쳐 입기 좋다", "활동하기 편한 핏이다",
-                "기본 아이템이라 어디에나 어울린다");
+            .containsExactly("같은 색 계열이라 함께 입기 좋아요.", "가을에 겹쳐 입기 좋아요.", "활동하기 편한 핏이에요.",
+                "기본 아이템이라 어디에나 어울립니다.");
     }
 
     @Test
@@ -49,7 +49,7 @@ class CompanionSelectionTest {
         List<CompanionCandidate> ranked = rankedCandidates(6);
         List<CompanionAiPick> aiPicks = List.of(
             new CompanionAiPick(99L, "후보에 없는 상품"),
-            new CompanionAiPick(3L, "색이 잘 어울린다"),
+            new CompanionAiPick(3L, "색이 잘 어울려요."),
             new CompanionAiPick(3L, "중복"));
 
         CompanionSelection selection = CompanionSelection.of(aiPicks, ranked);
@@ -58,7 +58,7 @@ class CompanionSelectionTest {
         assertThat(selection.picks()).extracting(pick -> pick.product().productId())
             .containsExactly(3L, 1L, 2L, 4L);
         assertThat(selection.picks()).extracting(CompanionPick::reason)
-            .containsExactly("색이 잘 어울린다", null, null, null);
+            .containsExactly("색이 잘 어울려요.", null, null, null);
     }
 
     @Test
@@ -67,7 +67,7 @@ class CompanionSelectionTest {
         List<CompanionCandidate> ranked = rankedCandidates(6);
         List<CompanionAiPick> aiPicks = new ArrayList<>();
         aiPicks.add(null);
-        aiPicks.add(new CompanionAiPick(4L, "색이 잘 어울린다"));
+        aiPicks.add(new CompanionAiPick(4L, "색이 잘 어울려요."));
 
         CompanionSelection selection = CompanionSelection.of(aiPicks, ranked);
 
