@@ -26,7 +26,7 @@ otelcol.processor.filter "tracing_trial" {
     span = [
       `resource.attributes["deployment.environment.name"] != "tracing-trial"`,
       `resource.attributes["service.name"] != "kidly-gateway" and resource.attributes["service.name"] != "kidly-order"`,
-      `attributes["http.request.method"] == nil and attributes["http.method"] == nil and instrumentation_scope.name != "io.opentelemetry.jdbc"`,
+      `attributes["http.request.method"] == nil and attributes["http.method"] == nil and instrumentation_scope.name != "io.opentelemetry.jdbc" and instrumentation_scope.name != "io.opentelemetry.hibernate-6.0" and instrumentation_scope.name != "io.opentelemetry.spring-data-1.8"`,
     ]
     spanevent = ["true"]
   }
@@ -48,6 +48,8 @@ otelcol.processor.transform "tracing_trial" {
     statements = [
       `set(name, "HTTP")`,
       `set(name, "JDBC") where instrumentation_scope.name == "io.opentelemetry.jdbc"`,
+      `set(name, "Hibernate") where instrumentation_scope.name == "io.opentelemetry.hibernate-6.0"`,
+      `set(name, "Spring Data") where instrumentation_scope.name == "io.opentelemetry.spring-data-1.8"`,
       `set(status.message, "")`,
       `keep_keys(attributes, ["http.response.status_code", "http.status_code"])`,
     ]
