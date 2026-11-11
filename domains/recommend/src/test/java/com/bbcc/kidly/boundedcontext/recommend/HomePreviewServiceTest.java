@@ -82,14 +82,16 @@ class HomePreviewServiceTest {
     @DisplayName("HOME-03 AI가 고른 상품을 AI 답 순서와 이유 그대로 돌려준다")
     void aiPicksWithReasons() {
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5", 2L, "이유 2", 6L, "이유 6", 1L, "이유 1"));
+        RecordingPicker picker = new RecordingPicker(
+            answer(5L, "이유 5이에요.", 2L, "이유 2이에요.", 6L, "이유 6이에요.", 1L, "이유 1이에요."));
 
         HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
 
         assertThat(result.source()).isEqualTo("AI");
         assertThat(result.items())
             .extracting(item -> item.product().productId(), HomePreviewResult.Item::reason)
-            .containsExactly(tuple(5L, "이유 5"), tuple(2L, "이유 2"), tuple(6L, "이유 6"), tuple(1L, "이유 1"));
+            .containsExactly(tuple(5L, "이유 5이에요."), tuple(2L, "이유 2이에요."), tuple(6L, "이유 6이에요."),
+                tuple(1L, "이유 1이에요."));
     }
 
     @Test
@@ -108,7 +110,7 @@ class HomePreviewServiceTest {
     @DisplayName("HOME-02 후보가 없으면 AI를 부르지 않고 하루 호출 횟수도 세지 않는다")
     void skipAiWithoutCandidates() {
         givenCandidates();
-        RecordingPicker picker = new RecordingPicker(answer(1L, "이유 1"));
+        RecordingPicker picker = new RecordingPicker(answer(1L, "이유 1이에요."));
 
         HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
 
@@ -135,7 +137,7 @@ class HomePreviewServiceTest {
     @Test
     @DisplayName("자녀 값과 후보 구성이 같으면 후보 순서만 바뀌어도 저장한 AI 답을 다시 쓰고 AI를 다시 부르지 않는다")
     void reuseStoredAnswerWhenOnlyOrderChanges() {
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
         service(picker).preview(MEMBER_ID, CHILD_ID);
         givenCandidates(6L, 5L, 4L, 3L, 2L, 1L);
@@ -144,13 +146,13 @@ class HomePreviewServiceTest {
 
         assertThat(picker.requests).hasSize(1);
         assertThat(result.source()).isEqualTo("AI");
-        assertThat(result.items().getFirst().reason()).isEqualTo("이유 5");
+        assertThat(result.items().getFirst().reason()).isEqualTo("이유 5이에요.");
     }
 
     @Test
     @DisplayName("후보 구성이 바뀌면 저장한 답을 쓰지 않고 AI를 다시 부른다")
     void callAiAgainWhenCandidatesChange() {
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
         service(picker).preview(MEMBER_ID, CHILD_ID);
         givenCandidates(1L, 2L, 3L, 4L, 5L, 7L);
@@ -164,7 +166,7 @@ class HomePreviewServiceTest {
     @MethodSource("changedChildren")
     @DisplayName("자녀의 개월 수 · 키 · 몸무게 · 체형 · 선호 핏 중 하나가 바뀌면 저장한 답을 쓰지 않고 AI를 다시 부른다")
     void callAiAgainWhenChildChanges(HomePreviewAiRequest.Child changedChild) {
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
         givenCandidates(CHILD, 1L, 2L, 3L, 4L, 5L, 6L);
         service(picker).preview(MEMBER_ID, CHILD_ID);
         givenCandidates(changedChild, 1L, 2L, 3L, 4L, 5L, 6L);
