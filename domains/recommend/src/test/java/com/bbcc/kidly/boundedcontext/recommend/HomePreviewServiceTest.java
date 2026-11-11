@@ -29,10 +29,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -139,6 +139,8 @@ class HomePreviewServiceTest {
         RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
         service(picker).preview(MEMBER_ID, CHILD_ID);
+        // AI 답은 다른 스레드에서 저장하므로 저장될 때까지 기다린다
+        store.waitUntilSaved();
         givenCandidates(6L, 5L, 4L, 3L, 2L, 1L);
 
         HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
@@ -263,7 +265,7 @@ class HomePreviewServiceTest {
      */
     private static final class MemoryAiResponseStore implements AiResponseStore {
 
-        private final Map<String, String> responses = new HashMap<>();
+        private final Map<String, String> responses = new ConcurrentHashMap<>();
 
         @Override
         public Optional<String> find(AiResponseType type, AiResponseKey key) {
@@ -273,6 +275,16 @@ class HomePreviewServiceTest {
         @Override
         public void save(AiResponseType type, AiResponseKey key, String responseJson, Duration timeToLive) {
             responses.put(type + ":" + key.value(), responseJson);
+        }
+
+        void waitUntilSaved() {
+            long deadline = System.nanoTime() + Duration.ofSeconds(1).toNanos();
+            while (responses.isEmpty()) {
+                if (System.nanoTime() > deadline) {
+                    throw new AssertionError("1초 안에 AI 답이 저장되지 않았습니다");
+                }
+                Thread.onSpinWait();
+            }
         }
     }
 
