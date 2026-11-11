@@ -156,6 +156,20 @@ class ProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("상세의 옵션 항목은 상품 유형에서 사이즈 역할로 연결한 항목만 사이즈 역할로 담는다")
+    void optionAttributeCarriesSizeRole() {
+        Product product = savedProductOnSale(10, 10, 10);
+
+        // 의류 유형은 색상을 일반 옵션 항목으로, 사이즈를 사이즈 역할 옵션 항목으로 연결했다
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.optionAttributes[*].code").isEqualTo(List.of("COLOR", "SIZE"))
+            .jsonPath("$.optionAttributes[*].sizeRole").isEqualTo(List.of(false, true));
+    }
+
+    @Test
     @DisplayName("상세는 등록한 대표 이미지를 상세 이미지 목록과 따로 담는다")
     void thumbnailUrlIsSeparateFromImageUrls() {
         Product product = savedProductOnSale(10, 10, 10);

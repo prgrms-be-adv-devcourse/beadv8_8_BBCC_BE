@@ -92,7 +92,7 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/v1/products/{productId}` | 상품 상세(판매자 상호명 포함). 대표 이미지 `thumbnailUrl`(없으면 `null`)은 상품 목록의 대표 이미지와 같은 값이고, 상세 이미지 `imageUrls`와 따로 준다 | 🌐 |
+| GET | `/api/v1/products/{productId}` | 상품 상세(판매자 상호명 포함). 대표 이미지 `thumbnailUrl`(없으면 `null`)은 상품 목록의 대표 이미지와 같은 값이고, 상세 이미지 `imageUrls`와 따로 준다. 옵션 항목 `optionAttributes[].sizeRole`은 상품 유형에서 사이즈 역할로 연결한 항목만 `true`다 | 🌐 |
 | GET | `/api/v1/categories` | 카테고리 트리. 선택 파라미터 `gender`(`MALE` · `FEMALE`, 고른 자녀의 성별): `MALE`이면 여아에게만 보여 줄 카테고리(원피스 · 치마 등)와 그 아래 카테고리를 빼고, `FEMALE`이거나 없으면 모두 준다. 그 밖의 값은 400 | 🌐 |
 | GET | `/api/v1/categories/{categoryId}/attributes` | 상품 등록 때 입력할 항목(옵션 항목 · 정보 항목 · 필수 실측) | 🌐 |
 | POST | `/api/v1/seller/products` | 상품 등록(판매대기로 생김. 카테고리 · 정보 항목 · 옵션 · 가격 · 실측 · 이미지) | 🏪 |

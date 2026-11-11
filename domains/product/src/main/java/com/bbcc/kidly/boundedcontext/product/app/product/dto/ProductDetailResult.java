@@ -37,9 +37,11 @@ public record ProductDetailResult(
     List<Measurement> measurementItems) {
 
     /**
+     * @param sizeRole 상품 유형에서 사이즈 역할로 연결한 항목이면 true다
      * @param values 옵션에 실제로 쓴 값만 값 ID 순서로 담는다
      */
-    public record OptionAttribute(Long attributeId, String code, String name, List<OptionValue> values) {
+    public record OptionAttribute(
+        Long attributeId, String code, String name, boolean sizeRole, List<OptionValue> values) {
     }
 
     /**

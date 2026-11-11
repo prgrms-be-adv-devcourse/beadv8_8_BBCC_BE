@@ -34,16 +34,19 @@ public record ProductDetailResponse(
     List<Measurement> measurementItems) {
 
     /**
+     * @param sizeRole 상품 유형에서 사이즈 역할로 연결한 항목이면 true
      * @param values 옵션에 실제로 쓴 값만 값 ID 순서로 담는다
      */
-    public record OptionAttribute(String attributeId, String code, String name, List<OptionValue> values) {
+    public record OptionAttribute(
+        String attributeId, String code, String name, boolean sizeRole, List<OptionValue> values) {
 
         static OptionAttribute from(ProductDetailResult.OptionAttribute result) {
             List<OptionValue> values = new ArrayList<>();
             for (ProductDetailResult.OptionValue value : result.values()) {
                 values.add(new OptionValue(String.valueOf(value.valueId()), value.value(), value.colorCode()));
             }
-            return new OptionAttribute(String.valueOf(result.attributeId()), result.code(), result.name(), values);
+            return new OptionAttribute(
+                String.valueOf(result.attributeId()), result.code(), result.name(), result.sizeRole(), values);
         }
     }
 
