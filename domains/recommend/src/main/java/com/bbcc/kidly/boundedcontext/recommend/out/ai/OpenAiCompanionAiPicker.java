@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionAiPro
 import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionAiRequest;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionWeights;
 import java.util.regex.Pattern;
+import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -43,6 +44,8 @@ public class OpenAiCompanionAiPicker implements CompanionAiPicker {
         return chatClient.prompt()
             .system(SYSTEM_PROMPT)
             .user(userText(request))
+            // 답의 모양(JSON 스키마)을 OpenAI가 지키게 한다. 스키마는 CompanionAiAnswer에서 만든다
+            .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
             .call()
             .entity(CompanionAiAnswer.class);
     }

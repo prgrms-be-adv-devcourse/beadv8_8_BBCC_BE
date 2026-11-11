@@ -117,7 +117,7 @@ class OpenAiCompanionAiPickerTest {
 
         // 실제 OpenAI 모델처럼 JSON 스키마를 받을 수 있는 옵션을 기본으로 둔다
         @Override
-        public ChatOptions getDefaultOptions() {
+        public ChatOptions getOptions() {
             return StructuredOutputChatOptions.builder().build();
         }
 
