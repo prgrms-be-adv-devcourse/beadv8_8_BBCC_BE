@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend.app.companion;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductsResult;
+import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductsWithAi;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.support.CompanionCandidateReader;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.support.CompanionCandidates;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionAiAnswer;
@@ -13,10 +14,12 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionAiPick;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionCandidate;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionPick;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionSelection;
+import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionSource;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import org.springframework.stereotype.Service;
 
 /**
@@ -48,7 +51,39 @@ public class CompanionProductService {
 
     public CompanionProductsResult recommend(Long memberId, Long productId, Long childId) {
         CompanionCandidates candidates = candidateReader.read(memberId, productId, childId);
-        CompanionSelection selection = CompanionSelection.of(askAi(productId, candidates), candidates.ranked());
+        return toResults(CompanionSelection.of(askAi(productId, candidates), candidates.ranked()), candidates);
+    }
+
+    /**
+     * AI 답을 기다리지 않는다. 규칙 결과를 바로 담고, AI 결과는 AI 답이 오면 AI가 고른 결과로, 얻지 못하면 빈 값으로 끝난다.
+     */
+    public CompanionProductsWithAi recommendWithAiLater(Long memberId, Long productId, Long childId) {
+        CompanionCandidates candidates = candidateReader.read(memberId, productId, childId);
+        CompanionProductsResult rule = toResults(CompanionSelection.of(null, candidates.ranked()), candidates);
+        if (aiPicker.isEmpty() || candidates.ranked().isEmpty()) {
+            return new CompanionProductsWithAi(rule, CompletableFuture.completedFuture(Optional.empty()));
+        }
+        CompanionAiPicker picker = aiPicker.get();
+        CompletableFuture<Optional<CompanionAiAnswer>> answer = aiResponseService.respondAsync(
+            AiResponseType.BOUGHT_TOGETHER, aiInput(productId, candidates), CompanionAiAnswer.class,
+            () -> picker.pick(candidates.aiRequest()));
+        return new CompanionProductsWithAi(rule, answer.thenApply(found -> toAiResults(found, candidates)));
+    }
+
+    // AI가 고른 상품이 모두 후보 밖이면 규칙 결과와 같으므로 AI 결과가 없는 것으로 본다
+    private Optional<CompanionProductsResult> toAiResults(Optional<CompanionAiAnswer> answer,
+        CompanionCandidates candidates) {
+        if (answer.isEmpty()) {
+            return Optional.empty();
+        }
+        CompanionSelection selection = CompanionSelection.of(answer.get().picks(), candidates.ranked());
+        if (selection.source() != CompanionSource.AI) {
+            return Optional.empty();
+        }
+        return Optional.of(toResults(selection, candidates));
+    }
+
+    private CompanionProductsResult toResults(CompanionSelection selection, CompanionCandidates candidates) {
         List<CompanionProductResult> products = new ArrayList<>();
         for (CompanionPick pick : selection.picks()) {
             products.add(toResult(pick, candidates));
@@ -63,19 +98,22 @@ public class CompanionProductService {
             return null;
         }
         CompanionAiPicker picker = aiPicker.get();
-        List<Long> candidateProductIds = new ArrayList<>();
-        for (CompanionCandidate candidate : candidates.ranked()) {
-            candidateProductIds.add(candidate.product().productId());
-        }
-        AiResponseKey.Input input = new AiResponseKey.Input(productId, null, null, null, null, null, null,
-            candidateProductIds, null, PROMPT_VERSION);
         // BOUGHT_TOGETHER는 함께 사면 좋은 상품 답을 뜻한다.
-        Optional<CompanionAiAnswer> answer = aiResponseService.respond(AiResponseType.BOUGHT_TOGETHER, input,
-            CompanionAiAnswer.class, () -> picker.pick(candidates.aiRequest()));
+        Optional<CompanionAiAnswer> answer = aiResponseService.respond(AiResponseType.BOUGHT_TOGETHER,
+            aiInput(productId, candidates), CompanionAiAnswer.class, () -> picker.pick(candidates.aiRequest()));
         if (answer.isEmpty()) {
             return null;
         }
         return answer.get().picks();
+    }
+
+    private AiResponseKey.Input aiInput(Long productId, CompanionCandidates candidates) {
+        List<Long> candidateProductIds = new ArrayList<>();
+        for (CompanionCandidate candidate : candidates.ranked()) {
+            candidateProductIds.add(candidate.product().productId());
+        }
+        return new AiResponseKey.Input(productId, null, null, null, null, null, null, candidateProductIds, null,
+            PROMPT_VERSION);
     }
 
     private CompanionProductResult toResult(CompanionPick pick, CompanionCandidates candidates) {

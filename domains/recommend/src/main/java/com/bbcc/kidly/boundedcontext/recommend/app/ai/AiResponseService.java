@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +42,7 @@ public class AiResponseService {
     private final Clock clock;
     private final int dailyCallLimit;
     private final Map<AiResponseType, Duration> callTimeouts;
+    private final Duration asyncWait;
     private final Duration reusePeriod;
 
     @Autowired
@@ -53,13 +55,15 @@ public class AiResponseService {
         @Value("${kidly.recommend.ai.call-timeout.home-preview:PT3S}") Duration homePreviewTimeout,
         @Value("${kidly.recommend.ai.call-timeout.bought-together:PT4S}") Duration boughtTogetherTimeout,
         @Value("${kidly.recommend.ai.call-timeout.size-recommendation:PT3.5S}") Duration sizeRecommendationTimeout,
+        // 기다리지 않는 호출(SSE)이 AI 답을 받아 화면에 보낼 수 있는 최대 시간이다. 한 번 4초, 재시도 1번보다 길게 둔다
+        @Value("${kidly.recommend.ai.async-wait:PT10S}") Duration asyncWait,
         @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod
     ) {
         this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit,
             Map.of(AiResponseType.HOME_PREVIEW, homePreviewTimeout,
                 AiResponseType.BOUGHT_TOGETHER, boughtTogetherTimeout,
                 AiResponseType.SIZE_RECOMMENDATION, sizeRecommendationTimeout),
-            reusePeriod);
+            asyncWait, reusePeriod);
     }
 
     public AiResponseService(
@@ -69,6 +73,7 @@ public class AiResponseService {
         Clock clock,
         int dailyCallLimit,
         Map<AiResponseType, Duration> callTimeouts,
+        Duration asyncWait,
         Duration reusePeriod
     ) {
         this.store = store;
@@ -77,6 +82,7 @@ public class AiResponseService {
         this.clock = clock;
         this.dailyCallLimit = dailyCallLimit;
         this.callTimeouts = Map.copyOf(callTimeouts);
+        this.asyncWait = asyncWait;
         this.reusePeriod = reusePeriod;
     }
 
@@ -123,6 +129,48 @@ public class AiResponseService {
         }
         saveQuietly(type, key, result.get(), now);
         return result;
+    }
+
+    /**
+     * AI 답을 기다리지 않고 바로 돌려준다. 돌려준 결과는 AI 답이 오면 그 답으로, 답을 얻지 못하면 빈 값으로 나중에 끝난다.
+     * 저장한 답이 있으면 이미 끝난 결과다. 그 밖의 규칙(트랜잭션 밖에서 부르기, 하루 상한, 저장)은 {@link #respond}와 같다.
+     */
+    public <T> CompletableFuture<Optional<T>> respondAsync(
+        AiResponseType type,
+        AiResponseKey.Input input,
+        Class<T> responseType,
+        Supplier<T> call
+    ) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("AI 응답 서비스는 트랜잭션 밖에서 불러야 합니다.");
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        AiResponseKey key = AiResponseKey.of(input);
+        Optional<T> stored = findStored(type, key, now, responseType);
+        if (stored.isPresent()) {
+            return CompletableFuture.completedFuture(stored);
+        }
+        if (!tryAcquireQuietly(type, now)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
+        // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
+        task.thenAccept(answer -> saveLateAnswer(type, key, answer, now));
+        return task.handle((answer, error) -> toResult(type, answer, error))
+            .completeOnTimeout(Optional.empty(), asyncWait.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    // AI 호출이 실패하면 클래스 이름만 남기고 빈 값으로 끝낸다
+    private <T> Optional<T> toResult(AiResponseType type, T answer, Throwable error) {
+        if (error == null) {
+            return Optional.ofNullable(answer);
+        }
+        Throwable cause = error;
+        if (error instanceof CompletionException && error.getCause() != null) {
+            cause = error.getCause();
+        }
+        logCallFailure(type, cause);
+        return Optional.empty();
     }
 
     private boolean tryAcquireQuietly(AiResponseType type, LocalDateTime now) {
