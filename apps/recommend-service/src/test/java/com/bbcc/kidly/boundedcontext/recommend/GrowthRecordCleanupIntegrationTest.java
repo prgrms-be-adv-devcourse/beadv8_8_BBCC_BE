@@ -5,8 +5,10 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_CHA
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.OTHER_MEMBER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.growth.GrowthRecordService;
+import com.bbcc.kidly.boundedcontext.recommend.app.member.RecommendMemberWithdrawalService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -43,6 +45,9 @@ class GrowthRecordCleanupIntegrationTest {
     private GrowthRecordService growthRecordService;
 
     @Autowired
+    private RecommendMemberWithdrawalService memberWithdrawalService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
@@ -57,21 +62,37 @@ class GrowthRecordCleanupIntegrationTest {
         assertThat(count(OTHER_MEMBER_CHILD_ID)).isEqualTo(1);
     }
 
-    // 회원 1의 자녀 1(기록 둘)과 형제(기록 하나), 회원 2의 자녀(기록 하나)를 둔다
+    @Test
+    @DisplayName("회원 탈퇴를 두 번 받아도 예외 없이 삭제된 자녀를 포함한 그 회원 자녀의 성장 기록만 지운다")
+    void deleteGrowthRecordsOfWithdrawnMember() {
+        givenTwoMembersWithGrowthRecords();
+        var withdrawn = ActivityRecordFixture.memberWithdrawnEvent(MEMBER_1_ID);
+
+        memberWithdrawalService.deleteDataOfWithdrawnMember(withdrawn);
+        assertThatCode(() -> memberWithdrawalService.deleteDataOfWithdrawnMember(withdrawn))
+            .doesNotThrowAnyException();
+
+        assertThat(count(CHILD_1_ID)).isZero();
+        assertThat(count(SIBLING_ID)).isZero();
+        assertThat(count(OTHER_MEMBER_CHILD_ID)).isEqualTo(1);
+    }
+
+    // 회원 1의 자녀 1(기록 둘)과 삭제된 형제(기록 하나), 회원 2의 자녀(기록 하나)를 둔다.
+    // 형제의 기록은 삭제 표시 뒤에 저장해, 회원 탈퇴가 삭제된 자녀의 기록까지 찾는지 본다
     private void givenTwoMembersWithGrowthRecords() {
-        replicaChildService.applyChildChanged(childChanged(CHILD_1_ID, MEMBER_1_ID));
-        replicaChildService.applyChildChanged(childChanged(SIBLING_ID, MEMBER_1_ID));
-        replicaChildService.applyChildChanged(childChanged(OTHER_MEMBER_CHILD_ID, OTHER_MEMBER_ID));
+        replicaChildService.applyChildChanged(childChanged(CHILD_1_ID, MEMBER_1_ID, false));
+        replicaChildService.applyChildChanged(childChanged(SIBLING_ID, MEMBER_1_ID, true));
+        replicaChildService.applyChildChanged(childChanged(OTHER_MEMBER_CHILD_ID, OTHER_MEMBER_ID, false));
         growthRecordService.recordGrowth(growthRecorded(501L, CHILD_1_ID));
         growthRecordService.recordGrowth(growthRecorded(502L, CHILD_1_ID));
         growthRecordService.recordGrowth(growthRecorded(503L, SIBLING_ID));
         growthRecordService.recordGrowth(growthRecorded(504L, OTHER_MEMBER_CHILD_ID));
     }
 
-    private static ChildChangedEvent childChanged(Long childId, Long memberId) {
+    private static ChildChangedEvent childChanged(Long childId, Long memberId, boolean deleted) {
         return new ChildChangedEvent(UUID.randomUUID(), CHILD_CHANGED_AT,
             new ChildChangedEvent.Data(childId, memberId, new BigDecimal("115.0"), new BigDecimal("20.0"),
-                Gender.MALE, RecommendFixture.CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, false));
+                Gender.MALE, RecommendFixture.CHILD_1_BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, deleted));
     }
 
     private static ChildGrowthRecordedEvent growthRecorded(Long growthRecordId, Long childId) {

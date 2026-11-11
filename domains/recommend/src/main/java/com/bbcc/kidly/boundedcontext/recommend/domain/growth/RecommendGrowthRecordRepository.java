@@ -7,4 +7,6 @@ public interface RecommendGrowthRecordRepository {
     boolean existsById(Long growthRecordId);
 
     void deleteByChildProfileId(Long childProfileId);
+
+    void deleteAllOfMember(Long memberId);
 }
