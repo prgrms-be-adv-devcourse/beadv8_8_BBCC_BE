@@ -31,10 +31,10 @@ public class BodyHeightRatioTable {
     }
 
     /**
-     * 표의 마지막 나이보다 많으면 마지막 나이의 값을 쓴다.
+     * 표의 마지막 나이보다 많으면 마지막 나이의 값을, 개월 수가 음수면 0세 값을 쓴다.
      */
     public BodyHeightRatioRow ratios(Gender gender, long months) {
-        long ageYears = Math.min(months / MONTHS_PER_YEAR, lastAgeYears);
+        long ageYears = Math.min(Math.max(0, months) / MONTHS_PER_YEAR, lastAgeYears);
         return rowsByAge.get(new AgeKey(gender, ageYears));
     }
 
