@@ -11,7 +11,7 @@ import org.springframework.validation.annotation.Validated;
  * 답변 근거 찾기 설정(kidly.chatbot.retrieval.*). 틀리면 기동에 실패한다.
  *
  * @param topK 답에 넣을 조각 수 상한. 1 ~ 20
- * @param minScore 근거로 쓸 최소 코사인 유사도. 넘는 조각이 없으면 AI를 부르지 않고 모른다고 답한다
+ * @param minScore 근거로 쓸 최소 코사인 유사도. 넘는 조각이 없으면 참고 문서 없이 답한다
  */
 @Validated
 @ConfigurationProperties("kidly.chatbot.retrieval")
