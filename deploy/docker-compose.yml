@@ -129,6 +129,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       # 비어 있으면 OpenAI 모델 빈 없이 뜬다
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # AI 답 저장소. 같은 k3s namespace 의 redis 서비스(K3S_PROFILES 의 redis)에 붙는다
+      SPRING_DATA_REDIS_HOST: redis
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
