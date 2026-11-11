@@ -1,8 +1,10 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct.SizeMeasurements;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
@@ -18,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class WearPreviewCalculatorTest {
 
@@ -39,6 +43,27 @@ class WearPreviewCalculatorTest {
             .orElseThrow();
 
         assertThat(preview.body()).isEqualTo(new WearPreview.Body(99.4, 93.0, 72.6, 57.7, 52.4, 30.6, 5.2, 39.1));
+    }
+
+    // 목뒤 99.36cm · 허리 72.6cm에서 총장을 뺀다
+    @ParameterizedTest(name = "{0} 총장 {1}cm → {2}, 밑단 {3}cm")
+    @CsvSource({
+        "상의, 45.0, TOP, 54.4",
+        "아우터, 50.0, OUTER, 49.4",
+        "원피스, 60.0, DRESS, 39.4",
+        "바지, 70.0, BOTTOM, 2.6",
+        "치마, 30.0, SKIRT, 42.6",
+    })
+    @DisplayName("PRV-02 밑단 높이는 상의 · 아우터 · 원피스면 목뒤높이 − 총장, 바지 · 치마면 허리높이 − 총장이다")
+    void hemHeightByGarment(String leafCategory, String totalLengthCm, GarmentPart expectedGarment,
+        double expectedHemCm) {
+        FitProduct product = product(List.of("의류", leafCategory), size("120", totalLengthCm, null));
+
+        WearPreview preview = calculator.preview(product, GIRL_120, TODAY).orElseThrow();
+
+        assertThat(preview.garment()).isEqualTo(expectedGarment);
+        assertThat(preview.sizes()).extracting(WearPreview.SizeWear::size, WearPreview.SizeWear::hemCm)
+            .containsExactly(tuple("120", expectedHemCm));
     }
 
     private static FitProduct product(List<String> categoryPathNames, SizeMeasurements... sizes) {
