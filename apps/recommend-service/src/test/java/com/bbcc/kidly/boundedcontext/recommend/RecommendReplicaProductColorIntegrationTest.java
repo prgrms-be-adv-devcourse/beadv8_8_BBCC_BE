@@ -33,7 +33,7 @@ class RecommendReplicaProductColorIntegrationTest {
     private TransactionTemplate transactionTemplate;
 
     @Test
-    @DisplayName("옵션 값 중 색상(COLOR)을 중복 없이 복사본에 남기고, 다시 읽어도 이름 순서로 같다")
+    @DisplayName("HOME-07 판매 중인 옵션 값 중 색상(COLOR)을 중복 없이 복사본에 남기고, 다시 읽어도 이름 순서로 같다")
     void saveDistinctOptionColors() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEventAt(List.of(
             optionWithColor(1L, "110", "네이비"),
@@ -46,16 +46,30 @@ class RecommendReplicaProductColorIntegrationTest {
     }
 
     @Test
-    @DisplayName("옵션 값이 없는 예전 상품 정보 변경됨을 받으면 색상은 빈 목록이다")
-    void saveNoColorsForOldEventWithoutOptionValues() {
+    @DisplayName("HOME-07 판매 중지 · 품절 옵션의 색상은 남기지 않는다(화면에서 살 수 없는 색상을 AI가 이유에 쓰지 않게)")
+    void skipColorsOfStoppedOrSoldOutOptions() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEventAt(List.of(
-            productOption(1L, "110", 105, 115)), PRODUCT_CHANGED_AT));
+            optionWithColor(1L, "110", "네이비"),
+            withSale(optionWithColor(2L, "120", "레드"), false, OptionSaleStatus.STOPPED),
+            withSale(optionWithColor(3L, "130", "그린"), true, OptionSaleStatus.ON_SALE)), PRODUCT_CHANGED_AT));
+
+        assertThat(readColors()).containsExactly("네이비");
+    }
+
+    @Test
+    @DisplayName("HOME-07 옵션 값 칸이 없는 예전 상품 정보 변경됨(values가 null)을 받아도 실패하지 않고 색상은 빈 목록이다")
+    void saveNoColorsForOldEventWithoutOptionValues() {
+        ProductChangedEvent.Option option = productOption(1L, "110", 105, 115);
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEventAt(List.of(
+            new ProductChangedEvent.Option(option.optionId(), option.optionName(), option.size(), option.price(),
+                option.minHeightCm(), option.maxHeightCm(), option.soldOut(), option.saleStatus(), null)),
+            PRODUCT_CHANGED_AT));
 
         assertThat(readColors()).isEmpty();
     }
 
     @Test
-    @DisplayName("더 늦게 일어난 이벤트를 받으면 색상이 새 옵션의 색상으로 바뀐다")
+    @DisplayName("HOME-07 더 늦게 일어난 이벤트를 받으면 색상이 새 옵션의 색상으로 바뀐다")
     void replaceColorsWithLaterEvent() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEventAt(List.of(
             optionWithColor(1L, "110", "네이비")), PRODUCT_CHANGED_AT));
@@ -69,6 +83,12 @@ class RecommendReplicaProductColorIntegrationTest {
     private List<String> readColors() {
         return transactionTemplate.execute(status -> List.copyOf(
             replicaProductRepository.findById(PRODUCT_A_ID).orElseThrow().getColors()));
+    }
+
+    private static ProductChangedEvent.Option withSale(ProductChangedEvent.Option option, boolean soldOut,
+        OptionSaleStatus saleStatus) {
+        return new ProductChangedEvent.Option(option.optionId(), option.optionName(), option.size(), option.price(),
+            option.minHeightCm(), option.maxHeightCm(), soldOut, saleStatus, option.values());
     }
 
     private static ProductChangedEvent.Option optionWithColor(Long optionId, String size, String color) {
