@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GirthPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GirthRatioTable;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityTable;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightRow;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightTable;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +18,7 @@ class GrowthTableConfigTest {
 
     private static final GrowthVelocityTable GROWTH_VELOCITY_TABLE = new GrowthTableConfig().growthVelocityTable();
     private static final GirthRatioTable GIRTH_RATIO_TABLE = new GrowthTableConfig().girthRatioTable();
+    private static final BodyHeightTable BODY_HEIGHT_TABLE = new GrowthTableConfig().bodyHeightTable();
 
     @ParameterizedTest(name = "{0}, {1}개월 → {2}cm/년")
     @CsvSource({
@@ -76,5 +79,24 @@ class GrowthTableConfigTest {
             .isEqualTo(GROWTH_VELOCITY_TABLE.yearlyCm(Gender.MALE, 0));
         assertThat(GIRTH_RATIO_TABLE.ratio(Gender.MALE, months, GirthPart.CHEST))
             .isEqualTo(GIRTH_RATIO_TABLE.ratio(Gender.MALE, 0, GirthPart.CHEST));
+    }
+
+    @ParameterizedTest(name = "{0}, {1}개월 → 목뒤 {2} · 허리 {3} · 엉덩이 {4} · 팔길이 {5}")
+    @CsvSource({
+        "FEMALE, 72, 0.828, 0.605, 0.481, 0.326",
+        "FEMALE, 12, 0.828, 0.605, 0.430, 0.297",
+        "MALE, 36, 0.824, 0.604, 0.443, 0.315",
+        "MALE, 131, 0.841, 0.606, 0.506, 0.337",
+        "MALE, 132, 0.846, 0.610, 0.511, 0.339",
+        "FEMALE, 240, 0.847, 0.615, 0.501, 0.341",
+    })
+    @DisplayName("PRV-01 사이즈코리아 CSV에서 만 나이 · 성별의 키 대비 높이 비율을 읽고, 만 15세 이상이면 마지막 구간 값을 쓴다")
+    void bodyHeightRatioByAgeAndGender(Gender gender, long months, double neck, double waist, double hip, double arm) {
+        BodyHeightRow row = BODY_HEIGHT_TABLE.ratios(gender, months);
+
+        assertThat(row.neck()).isEqualTo(neck);
+        assertThat(row.waist()).isEqualTo(waist);
+        assertThat(row.hip()).isEqualTo(hip);
+        assertThat(row.arm()).isEqualTo(arm);
     }
 }
