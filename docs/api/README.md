@@ -292,6 +292,7 @@
 | GET | `/api/v1/seller/settlements` | 내 정산서 목록 | 🏪 |
 | GET | `/api/v1/seller/settlements/{settlementId}` | 정산서 상세 | 🏪 |
 | GET | `/api/v1/seller/settlement-targets` | 정산 대상 조회 | 🏪 |
+| GET | `/api/v1/seller/settlement-targets/summary` | 미정산 합계(정산 대상 전체 판매금액, 수수료 전) | 🏪 |
 | POST | `/api/v1/admin/settlements/run` | 정산 수동 실행 | 🛠 |
 | GET | `/api/v1/admin/settlements` | 판매자별 정산 조회 | 🛠 |
 | POST | `/api/v1/admin/settlements/{settlementId}/retry` | 결과를 못 받은 `COMPLETED` 정산서의 지급 요청 재발행 | 🛠 |
