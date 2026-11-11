@@ -2,7 +2,9 @@ package com.bbcc.kidly.boundedcontext.seller.app;
 
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerResult;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
+import com.bbcc.kidly.boundedcontext.seller.domain.Seller;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -37,5 +39,19 @@ public class SellerService {
             new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
         log.info("판매자 정지: sellerId={} adminId={}", sellerId, adminId);
         return SellerResult.from(seller);
+    }
+
+    @Transactional
+    public void closeIfOpen(Long sellerId) {
+        sellerRepository.findById(sellerId)
+            .filter(seller -> seller.getStatus() != SellerStatus.CLOSED)
+            .ifPresent(this::closeAndPublish);
+    }
+
+    private void closeAndPublish(Seller seller) {
+        seller.close();
+        eventPublisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+        log.info("판매자 탈퇴로 닫음: sellerId={}", seller.getId());
     }
 }

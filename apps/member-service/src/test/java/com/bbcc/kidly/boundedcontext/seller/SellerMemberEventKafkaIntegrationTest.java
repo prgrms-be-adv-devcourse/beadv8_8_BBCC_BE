@@ -5,9 +5,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
+import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
@@ -46,8 +48,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * member.changed가 커밋되면 kidly.member.events를 거쳐 그 회원의 판매자 신청 닉네임을 바꾼다(#568).
- * member.withdrawn이면 그 회원의 신청에서 개인정보(대표자명 · 사업자등록번호 · 신청자 닉네임)를 비운다(#1093).
  * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
  * 회원 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 신청 · 키로 걸러 본다.
  */
@@ -58,6 +58,7 @@ class SellerMemberEventKafkaIntegrationTest {
     private static final String TOPIC = "kidly.member.events";
     private static final String GROUP = "kidly.seller";
     private static final String DLT = "kidly.member.events.seller.dlt";
+    private static final String SELLER_TOPIC = "kidly.seller.events";
     private static final String LISTENER_ID = "sellerMemberEventListener";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
@@ -72,6 +73,9 @@ class SellerMemberEventKafkaIntegrationTest {
 
     @Autowired
     private SellerApplicationRepository sellerApplicationRepository;
+
+    @Autowired
+    private SellerRepository sellerRepository;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -166,9 +170,23 @@ class SellerMemberEventKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("승인된 판매자의 탈퇴로 신청 개인정보를 비우고 판매자를 닫는다")
+    void closeSellerOnWithdrawal() throws Exception {
+        var application = sellerApplicationRepository.save(SellerFixture.approvedApplication(memberId)).getId();
+        sellerRepository.save(SellerFixture.activeSeller(memberId));
+
+        var sent = sendWithdrawn(memberWithdrawn(NOW));
+
+        awaitProcessed(sent);
+        assertCleared(application, SellerApplicationStatus.APPROVED);
+        assertThat(sellerRepository.getById(memberId).getStatus()).isEqualTo(SellerStatus.CLOSED);
+    }
+
+    @Test
     @DisplayName("같은 탈퇴 이벤트를 두 번 받아도 결과는 한 번 받은 것과 같고 DLT로 보내지 않는다")
     void duplicateWithdrawal() throws Exception {
         var application = sellerApplicationRepository.save(SellerFixture.approvedApplication(memberId)).getId();
+        sellerRepository.save(SellerFixture.activeSeller(memberId));
         var event = memberWithdrawn(NOW);
 
         sendWithdrawn(event);
@@ -176,8 +194,12 @@ class SellerMemberEventKafkaIntegrationTest {
 
         awaitProcessed(second);
         assertCleared(application, SellerApplicationStatus.APPROVED);
+        assertThat(sellerRepository.getById(memberId).getStatus()).isEqualTo(SellerStatus.CLOSED);
         assertThat(sellerApplicationRepository.getById(application).getApplicantWithdrawnAt()).isEqualTo(NOW);
         assertThat(deadLetters()).isEmpty();
+        AsyncWait.until(TIMEOUT, () -> !sellerChanged().isEmpty());
+        assertThat(sellerChanged()).singleElement().satisfies(record ->
+            assertThat(jsonMapper.readTree(record.value()).get("data").get("status").asString()).isEqualTo("CLOSED"));
     }
 
     @Test
@@ -294,18 +316,33 @@ class SellerMemberEventKafkaIntegrationTest {
         }
     }
 
-    // DLT를 처음부터 지금 끝까지 읽어 이 테스트의 키만 돌려준다. 다른 테스트가 넣은 DLT 메시지도 있다
     private List<ConsumerRecord<String, String>> deadLetters() {
-        var partition = new TopicPartition(DLT, 0);
+        return memberRecords(DLT);
+    }
+
+    private List<ConsumerRecord<String, String>> sellerChanged() {
+        return memberRecords(SELLER_TOPIC).stream()
+            .filter(record -> "seller.changed".equals(eventType(record)))
+            .toList();
+    }
+
+    private static String eventType(ConsumerRecord<String, String> record) {
+        return new String(record.headers().lastHeader("eventType").value(), UTF_8);
+    }
+
+    private List<ConsumerRecord<String, String>> memberRecords(String topic) {
         try (var consumer = new KafkaConsumer<String, String>(Map.of(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            consumer.assign(List.of(partition));
-            consumer.seekToBeginning(List.of(partition));
-            var end = consumer.endOffsets(List.of(partition)).get(partition);
+            var partitions = consumer.partitionsFor(topic).stream()
+                .map(info -> new TopicPartition(topic, info.partition()))
+                .toList();
+            consumer.assign(partitions);
+            consumer.seekToBeginning(partitions);
+            var end = consumer.endOffsets(partitions);
             var records = new ArrayList<ConsumerRecord<String, String>>();
-            while (consumer.position(partition) < end) {
+            while (partitions.stream().anyMatch(partition -> consumer.position(partition) < end.get(partition))) {
                 consumer.poll(Duration.ofMillis(200)).forEach(records::add);
             }
             return records.stream().filter(record -> String.valueOf(memberId).equals(record.key())).toList();
