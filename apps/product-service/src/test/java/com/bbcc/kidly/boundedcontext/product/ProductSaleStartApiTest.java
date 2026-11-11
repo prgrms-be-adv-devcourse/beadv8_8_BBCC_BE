@@ -192,7 +192,8 @@ class ProductSaleStartApiTest {
         assertThat(published.saleStartedAt()).isEqualTo(stored);
         JsonNode payloadData = jsonMapper.readTree(
             jdbcTemplate.queryForObject("select payload from product.product_outbox", String.class)).get("data");
-        assertThat(payloadData.get("saleStartedAt").asString()).isEqualTo(stored.toString());
+        // 본문은 Jackson 기본 형식이라 소수점 끝의 0 을 지운다(...59.90598). toString()(...59.905980)과 문자열로 비교하지 않고 시각으로 비교한다
+        assertThat(LocalDateTime.parse(payloadData.get("saleStartedAt").asString())).isEqualTo(stored);
     }
 
     @Test
