@@ -138,7 +138,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} >= 0)",
+          "expr": "sum(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"} >= 0) or ((0 * count(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\"})) - 1)",
           "instant": true,
           "datasource": {
             "type": "prometheus",
@@ -154,7 +154,18 @@
             "fixedColor": "blue"
           },
           "unit": "short",
-          "decimals": 0
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "확정 항목 없음",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
