@@ -34,7 +34,12 @@ public class SettlementPayoutResultService {
 
     @Transactional
     public void markPaymentFailed(PaymentPayoutFailedEvent.Data data) {
-        getMatching(data.settlementId(), data.sellerId(), data.amount()).markPaymentFailed(data.reasonCode().name());
+        var settlement = getMatching(data.settlementId(), data.sellerId(), data.amount());
+        boolean alreadyFailed = settlement.getStatus() == SettlementStatus.FAILED;
+        settlement.markPaymentFailed(data.reasonCode().name());
+        if (!alreadyFailed) {
+            metrics.countPayoutFailed();
+        }
     }
 
     private Settlement getMatching(Long settlementId, Long sellerId, long amount) {
