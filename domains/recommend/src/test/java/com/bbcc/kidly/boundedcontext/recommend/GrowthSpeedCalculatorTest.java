@@ -121,6 +121,35 @@ class GrowthSpeedCalculatorTest {
         assertThat(speed.cmPerMonth()).isEqualTo(expectedCmPerMonth);
     }
 
+    static Stream<Arguments> recentRecordsEnough() {
+        return Stream.of(
+            Arguments.of(Named.of("최근 3개월 안 기록 2개(60일 · 오늘), 300일 전 기록은 뺌", List.of(
+                record(TODAY.minusDays(300), "113.0"),
+                record(TODAY.minusDays(60), "116.0"),
+                record(TODAY, "117.8"))), 0.913125),
+            Arguments.of(Named.of("최근 3개월 안 기록 3개, 최소제곱", List.of(
+                record(TODAY.minusDays(200), "113.0"),
+                record(TODAY.minusDays(80), "115.0"),
+                record(TODAY.minusDays(40), "115.6"),
+                record(TODAY, "116.4"))), 0.532656),
+            Arguments.of(Named.of("3개월 전 날짜(8월 12일) 기록은 넣음", List.of(
+                record(TODAY.minusMonths(3), "115.0"),
+                record(TODAY, "117.0"))), 0.661685),
+            Arguments.of(Named.of("45일에 3cm 큼, 2.029167 → 표 값 2배", List.of(
+                record(TODAY.minusDays(45), "110.0"),
+                record(TODAY, "113.0"))), 1.0)
+        );
+    }
+
+    @ParameterizedTest(name = "{0} → {1}cm/월")
+    @MethodSource("recentRecordsEnough")
+    @DisplayName("GROW-05 최근 3개월 안에 기록이 2개 이상이고 그 기간이 1개월 이상이면 그 기록만의 최소제곱 기울기를 표와 섞지 않고 0 ~ 표 값 2배로 맞춰 최근 속도로 쓴다")
+    void recentSpeedFromRecentRecords(List<RecommendGrowthRecord> records, double expectedRecentCmPerMonth) {
+        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+
+        assertThat(speed.recentCmPerMonth()).isCloseTo(expectedRecentCmPerMonth, within(0.000001));
+    }
+
     private static RecommendGrowthRecord record(LocalDate recordedOn, String heightCm) {
         return RecommendGrowthRecord.create(new RecommendGrowthRecord.RecordInfo(
             RECORD_ID.getAndIncrement(), CHILD_1_ID, new BigDecimal(heightCm), null, recordedOn.atTime(9, 0)));
