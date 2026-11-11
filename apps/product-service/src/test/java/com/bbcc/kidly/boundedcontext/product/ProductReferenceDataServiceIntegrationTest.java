@@ -41,7 +41,7 @@ class ProductReferenceDataServiceIntegrationTest {
     void load() {
         productReferenceDataService.load();
 
-        List<CategoryTreeResult> tree = categoryService.findTree();
+        List<CategoryTreeResult> tree = categoryService.findTree(null);
         assertThat(tree).extracting(CategoryTreeResult::name).containsExactly("의류", "잡화");
         List<CategoryTreeResult> clothes = tree.get(0).children();
         List<CategoryTreeResult> goods = tree.get(1).children();
@@ -93,7 +93,7 @@ class ProductReferenceDataServiceIntegrationTest {
     void loadGoodsTypes(String categoryName, String sizeCode, String sizeName, List<String> sizeValues) {
         productReferenceDataService.load();
 
-        CategoryTreeResult goods = categoryService.findTree().get(1);
+        CategoryTreeResult goods = categoryService.findTree(null).get(1);
         CategoryTreeResult category = goods.children().stream()
             .filter(child -> child.name().equals(categoryName))
             .findFirst()
@@ -129,7 +129,7 @@ class ProductReferenceDataServiceIntegrationTest {
 
         productReferenceDataService.load();
 
-        assertThat(categoryService.findTree()).isEmpty();
+        assertThat(categoryService.findTree(null)).isEmpty();
     }
 
     private List<String> measurementCodes(CategoryTreeResult category) {

@@ -161,7 +161,7 @@ public class ProductSampleDataService {
     // 같은 이름의 중간 카테고리로 입력 항목을 조회하면 오류가 나므로 말단만 담는다
     private Map<String, Long> findLeafCategoryIds() {
         Map<String, Long> ids = new HashMap<>();
-        for (CategoryTreeResult top : categoryService.findTree()) {
+        for (CategoryTreeResult top : categoryService.findTree(null)) {
             if (!top.name().equals(CLOTHING_CATEGORY)) {
                 continue;
             }

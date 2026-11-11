@@ -20,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.error.CommonErrorCode;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -121,12 +122,17 @@ public class CategoryService {
             measurementItems);
     }
 
-    // 지우지 않은 최상위 카테고리부터 하위 카테고리까지 계층으로 돌려준다. 같은 부모 아래에서는 ID 순서다
+    // 지우지 않은 최상위 카테고리부터 하위 카테고리까지 계층으로 돌려준다. 같은 부모 아래에서는 ID 순서다.
+    // childGender에게 보이지 않는 카테고리는 그 아래 카테고리와 함께 뺀다. childGender가 null이면 모두 돌려준다
     @Transactional(readOnly = true)
-    public List<CategoryTreeResult> findTree() {
+    public List<CategoryTreeResult> findTree(Gender childGender) {
         List<Category> topLevel = new ArrayList<>();
         Map<Long, List<Category>> childrenByParentId = new HashMap<>();
         for (Category category : categoryRepository.findAllByDeletedAtIsNullOrderByIdAsc()) {
+            // 보이지 않는 카테고리의 하위 카테고리는 붙을 곳이 없어 결과에 들어가지 않는다
+            if (!category.isVisibleTo(childGender)) {
+                continue;
+            }
             // 부모는 지연 로딩 프록시이므로 ID만 읽는다. 프록시를 초기화하지 않아 쿼리가 늘지 않는다
             Category parent = category.getParent();
             if (parent == null) {

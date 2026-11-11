@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.support.FunctionalTest;
 import jakarta.persistence.EntityManager;
 import java.util.List;
@@ -62,6 +63,47 @@ class CategoryApiTest {
             .jsonPath("$[1].name").isEqualTo("잡화")
             .jsonPath("$[1].leaf").isEqualTo(false)
             .jsonPath("$[1].children").isEmpty();
+    }
+
+    @Test
+    @DisplayName("VIS-02 남아 자녀의 성별로 카테고리 목록을 부르면 GIRL 카테고리와 그 아래 카테고리를 뺀다")
+    void boyDoesNotSeeGirlCategories() {
+        saveCategoriesWithGirlOnes();
+
+        client.get().uri("/api/v1/categories?gender=MALE")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$[*].name").isEqualTo(List.of("의류"))
+            .jsonPath("$[0].children[*].name").isEqualTo(List.of("바지"));
+    }
+
+    @Test
+    @DisplayName("VIS-02 여아 자녀의 성별로 카테고리 목록을 부르면 GIRL 카테고리까지 모두 받는다")
+    void girlSeesAllCategories() {
+        saveCategoriesWithGirlOnes();
+
+        expectAllCategories("/api/v1/categories?gender=FEMALE");
+    }
+
+    @Test
+    @DisplayName("VIS-03 성별 없이 카테고리 목록을 부르면 GIRL 카테고리까지 모두 받는다")
+    void noGenderSeesAllCategories() {
+        saveCategoriesWithGirlOnes();
+
+        expectAllCategories("/api/v1/categories");
+    }
+
+    @Test
+    @DisplayName("카테고리 목록의 성별 값이 MALE · FEMALE이 아니면 400이다")
+    void unknownGenderIsBadRequest() {
+        client.get().uri("/api/v1/categories?gender=X")
+            .exchange()
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.status").isEqualTo(400)
+            .jsonPath("$.instance").isEqualTo("/api/v1/categories");
     }
 
     @Test
@@ -164,6 +206,33 @@ class CategoryApiTest {
             .jsonPath("$.status").isEqualTo(status.value())
             .jsonPath("$.detail").isEqualTo(detail)
             .jsonPath("$.instance").isEqualTo(path);
+    }
+
+    private void expectAllCategories(String path) {
+        client.get().uri(path)
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$[*].name").isEqualTo(List.of("의류", "여아 전용관"))
+            .jsonPath("$[0].children[*].name").isEqualTo(List.of("바지", "원피스"))
+            .jsonPath("$[1].children[*].name").isEqualTo(List.of("블라우스"));
+    }
+
+    // 의류 아래에 바지(ALL) · 원피스(GIRL)를, 최상위에 GIRL 중간 카테고리 「여아 전용관」과 그 아래 ALL 말단을 저장한다
+    private void saveCategoriesWithGirlOnes() {
+        inTransaction(() -> {
+            ProductType clothingType = savedClothingType();
+            Category clothing = persist(Category.createMiddle("의류", null));
+            persist(Category.createLeaf(new Category.LeafInfo("바지", clothing, clothingType, List.of())));
+            Category dress = Category.createLeaf(new Category.LeafInfo("원피스", clothing, clothingType, List.of()));
+            dress.changeVisibleGender(CategoryVisibleGender.GIRL);
+            persist(dress);
+            Category girlOnly = Category.createMiddle("여아 전용관", null);
+            girlOnly.changeVisibleGender(CategoryVisibleGender.GIRL);
+            persist(girlOnly);
+            persist(Category.createLeaf(new Category.LeafInfo("블라우스", girlOnly, clothingType, List.of())));
+            return null;
+        });
     }
 
     // 색상만 옵션 항목으로 둔 의류 유형을 저장한다. 항목은 cascade되지 않아 먼저 저장한다

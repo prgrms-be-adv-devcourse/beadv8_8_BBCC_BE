@@ -172,7 +172,7 @@ class ReferenceDataDeleteIntegrationTest {
                 saved.top(), saved.clothing().type(), totalLength)
             .forEach(entity -> managed(entity).delete(NOW)));
 
-        assertThat(categoryService.findTree()).singleElement()
+        assertThat(categoryService.findTree(null)).singleElement()
             .satisfies(clothing -> assertThat(clothing.children()).isEmpty());
         assertThat(categoryService.findAll()).extracting(CategoryResult::name).containsExactly("의류");
         assertThat(productTypeService.findAll()).isEmpty();
