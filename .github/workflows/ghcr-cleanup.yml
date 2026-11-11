@@ -1,13 +1,11 @@
 # GHCR에 쌓인 오래된 컨테이너 이미지 버전을 정리하고 최근 N개만 남긴다.
-# deploy.yml 이 develop · main 에 push 할 때마다 커밋 SHA 태그 이미지를 올리므로 그대로 두면 계속 쌓이고,
+# deploy.yml 이 develop 에 push 할 때마다 커밋 SHA 태그 이미지를 올리므로 그대로 두면 계속 쌓이고,
 # 무료 조직의 패키지 저장 한도를 넘길 수 있다.
 # 태그 유무와 관계없이 최근 N개만 남기고 나머지는 오래된 것부터 지운다.
 # 버전 하나 = 실제로 빌드한 이미지 하나다. deploy.yml 은 소스가 그대로인 앱은 빌드하지 않고(#1169), 실행 내용이 그대로인 앱은 새로 빌드한 이미지를 올리지 않고(#1192) 기존 버전에 태그만 더 붙인다.
 # 그래서 잘 안 바뀌는 서비스의 버전은 그 서비스가 50번 더 바뀌기 전까지 지워지지 않는다(태그 src-<소스 키> · rt-<실행 키> · <커밋 SHA>).
-# develop 은 하루에도 수십 번 배포되므로 개수 기준이면 main(prod) 이미지가 먼저 밀려날 수 있다.
 # 기본값 50개는 develop 며칠 분량이다.
 # 지운 버전은 복구할 수 없어서 그 SHA 로는 deploy.yml 롤백을 할 수 없다.
-# 오래된 prod 로 되돌려야 하면 SHA 롤백 대신 git revert 후 다시 배포한다.
 # 서버에서 돌고 있는 컨테이너는 로컬 이미지를 쓰므로 영향이 없다.
 # 커밋마다 쌓이는 앱 · 검색 서비스(<저장소>-search-service) · Gateway(<저장소>-gateway) · 추천 서비스(<저장소>-recommend-service) · 정산 서비스(<저장소>-settlement-service) · 회원 서비스(<저장소>-member-service) · 결제 서비스(<저장소>-payment-service) · 상품 서비스(<저장소>-product-service) · 알림 서비스(<저장소>-notification-service) · 주문 서비스(<저장소>-order-service) · 커뮤니티 서비스(<저장소>-community-service) 패키지를 정리한다.
 # Elasticsearch(<저장소>-elasticsearch)는 docker/elasticsearch 가 바뀔 때만 쌓이고, 지우면 그 태그를 다시 빌드해야 해서 두지 않는다.

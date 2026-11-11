@@ -2,17 +2,10 @@
 # deploy.sh 가 -p <env> --env-file .env --env-file image.env 로 실행한다
 # Kafka 브로커(Redpanda)는 t3.medium k3s(deploy/kafka)에 환경마다 하나씩 뜬다. 서비스 · kafka-exporter 는 KAFKA_BOOTSTRAP_SERVERS(medium 사설 IP:NodePort)로 붙고,
 # 이 값은 레포가 공개라 deploy 워크플로가 서버 .env 에 붙인다
-# PostgreSQL 도 t3.medium k3s(deploy/postgres)에 인스턴스 하나로 뜨고 dev · prod 가 database · 계정(kidly_<env>)으로 나눠 쓴다. DB_URL 도 deploy 워크플로가 붙인다
-# 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES 에 search 가 있는 환경(dev · prod)에서만 뜬다
-# Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
-# .env 의 K3S_PROFILES 에 있는 서비스(dev)는 compose 가 아니라 t3.large 의 단독 k3s(deploy/k3s)에 뜬다(#1142). 그 서비스의 environment · image · mem_limit 은 k3s 에서도 그대로 쓴다
-# 회원(member-service)은 profile member 라 COMPOSE_PROFILES 에 member 가 있는 환경(dev · prod)에서만 뜬다
-# 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다
-# 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다
-# 상품(product-service)은 profile product 라 COMPOSE_PROFILES 에 product 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다)
-# 주문(order-service)은 profile order 라 COMPOSE_PROFILES 에 order 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다)
-# 커뮤니티(community-service)는 profile community 라 COMPOSE_PROFILES 에 community 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다)
-# 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다)
+# PostgreSQL 도 t3.medium k3s(deploy/postgres)에 인스턴스 하나로 뜨고 환경마다 database · 계정(kidly_<env>)을 나눠 쓴다. DB_URL 도 deploy 워크플로가 붙인다
+# 앱 서비스는 profile 이 서비스마다 있어(search · gateway · member · settlement · payment · product · order · community · notification · recommend) .env 의 COMPOSE_PROFILES 에 있는 것만 compose 로 뜬다
+# .env 의 K3S_PROFILES 에 있는 서비스는 compose 가 아니라 t3.large 의 단독 k3s(deploy/k3s)에 뜬다(#1142). 그 서비스의 environment · image · mem_limit 은 k3s 에서도 그대로 쓴다
+# 지금 환경은 dev 하나이고 모든 서비스가 K3S_PROFILES 다. prod 환경은 한 번도 배포하지 않아 걷어냈다(#1210)
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -366,7 +359,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       # Kafka 수신 스위치. 기본값은 order.yml 과 같고, 장애 때 끄는 용도로만 .env 에 둔다. 끄면 수신이 멈추고 메시지는 Kafka 에 남아 true 로 올리면 처리된다
       ORDER_KAFKA_CONSUMER_ENABLED: ${ORDER_KAFKA_CONSUMER_ENABLED:-true}
-      # 결제 마감. 기본값은 order.yml 과 같다(PT10M). .env.dev · .env.prod 에는 두지 않고, 시연 때만 잠깐 서버 .env 에 넣는다(#1041)
+      # 결제 마감. 기본값은 order.yml 과 같다(PT10M). .env.dev 에는 두지 않고, 시연 때만 잠깐 서버 .env 에 넣는다(#1041)
       ORDER_PAYMENT_TIMEOUT: ${ORDER_PAYMENT_TIMEOUT:-PT10M}
       # 판매자 발송 전 부분 취소 · 조르기 스위치. 기본값은 order.yml 과 같다
       ORDER_PARTIAL_CANCEL_ENABLED: ${ORDER_PARTIAL_CANCEL_ENABLED:-true}
