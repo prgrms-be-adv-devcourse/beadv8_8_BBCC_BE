@@ -25,6 +25,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -165,6 +166,21 @@ class SellerProductQueryIntegrationTest {
             .extracting(SellerProductSummary::productId)
             .isEqualTo(included ? List.of(target.getId()) : List.of());
         assertThat(page.getTotalElements()).isEqualTo(included ? 1 : 0);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"STOPPED", "ARCHIVED"})
+    @DisplayName("SALE-09 lowStock이면 수량이 0인 옵션이 판매중지나 보관뿐인 상품은 뺀다")
+    void findBySellerLowStockIgnoresNonOnSaleOptions(String saleStatus) {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Product product = saveProduct(saved, SELLER_ID, "상품 A", 100, 0);
+        changeOption(product.getOptions().get(1).getId(), saleStatus, CLOTHING_PRICE);
+
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, new SellerProductFilter(null, true), PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).isEmpty();
+        assertThat(page.getTotalElements()).isZero();
     }
 
     // 판매자의 판매대기 상품 하나를 저장하고 옵션마다 재고를 연다.
