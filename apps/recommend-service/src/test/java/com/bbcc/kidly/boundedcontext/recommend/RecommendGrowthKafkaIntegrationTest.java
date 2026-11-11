@@ -33,6 +33,7 @@ import tools.jackson.databind.json.JsonMapper;
 class RecommendGrowthKafkaIntegrationTest {
 
     private static final String CHILD_TOPIC = "kidly.childprofile.events";
+    private static final String CHILD_DLT = "kidly.childprofile.events.recommend.dlt";
     private static final LocalDateTime RECORDED_AT = LocalDateTime.of(2026, 11, 1, 9, 0);
 
     @Autowired
@@ -81,6 +82,43 @@ class RecommendGrowthKafkaIntegrationTest {
                 RecommendGrowthRecord::getBodyType,
                 RecommendGrowthRecord::getRecordedAt)
             .containsExactly(childId, BodyType.SLIM, RECORDED_AT);
+    }
+
+    @Test
+    @DisplayName("같은 성장 기록을 두 번 받아도 기록은 한 줄이고 DLT로 보내지 않는다")
+    void keepOneRecordForSameGrowthRecord() throws Exception {
+        Long growthRecordId = newId();
+        Long childId = newId();
+
+        messages.send(CHILD_TOPIC, growthRecorded(growthRecordId, childId));
+        // 다시 보낸 이벤트는 eventId만 새 값이다
+        var second = messages.send(CHILD_TOPIC, growthRecorded(growthRecordId, childId));
+
+        messages.awaitProcessed(CHILD_TOPIC, second);
+        assertThat(recordsOf(childId)).hasSize(1);
+        assertThat(messages.deadLetters(CHILD_DLT, String.valueOf(childId))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("성장 기록에 키가 없으면 DLT로 보내고 기록은 남기지 않는다")
+    void deadLetterGrowthRecordWithoutHeight() throws Exception {
+        Long growthRecordId = newId();
+        Long childId = newId();
+        var withoutHeight = new ChildGrowthRecordedEvent(UUID.randomUUID(), RECORDED_AT,
+            new ChildGrowthRecordedEvent.Data(growthRecordId, childId, null, BodyType.SLIM, RECORDED_AT));
+
+        messages.send(CHILD_TOPIC, withoutHeight);
+
+        String key = String.valueOf(childId);
+        AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(CHILD_DLT, key).isEmpty());
+        assertThat(messages.deadLetters(CHILD_DLT, key)).singleElement();
+        assertThat(recordsOf(childId)).isEmpty();
+    }
+
+    private List<RecommendGrowthRecord> recordsOf(Long childId) {
+        return growthRecordRepository.findAll().stream()
+            .filter(record -> childId.equals(record.getChildProfileId()))
+            .toList();
     }
 
     private static Long newId() {
