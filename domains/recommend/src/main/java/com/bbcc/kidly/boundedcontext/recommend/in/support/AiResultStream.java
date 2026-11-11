@@ -45,12 +45,15 @@ public class AiResultStream {
         emitter.complete();
     }
 
-    // 화면이 연결을 먼저 끊으면 보낼 수 없다. 오류로 닫아 연결을 정리한다
+    // 화면이 연결을 먼저 끊으면(IOException) 오류로 닫아 연결을 정리한다.
+    // 제한 시간(15초)으로 이미 닫힌 뒤에 AI 답이 오면(IllegalStateException) 보낼 곳이 없으므로 버린다
     private void sendEvent(SseEmitter emitter, String name, Object data) {
         try {
             emitter.send(SseEmitter.event().name(name).data(data, MediaType.APPLICATION_JSON));
         } catch (IOException e) {
             emitter.completeWithError(e);
+        } catch (IllegalStateException e) {
+            return;
         }
     }
 }
