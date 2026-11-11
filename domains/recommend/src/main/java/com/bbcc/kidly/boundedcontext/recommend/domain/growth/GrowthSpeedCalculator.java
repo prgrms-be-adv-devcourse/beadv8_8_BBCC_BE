@@ -23,6 +23,8 @@ public class GrowthSpeedCalculator {
     private static final String TABLE_SOURCE = "한국아동패널";
     private static final double MAX_TABLE_MULTIPLE = 2.0;
     private static final int RECENT_MONTHS = 3;
+    // 사춘기 앞뒤로 성장 속도가 해마다 크게 바뀌어 1년보다 오래된 기록은 지금 속도를 잘못 알려 준다
+    private static final int WINDOW_MONTHS = 12;
 
     private final GrowthVelocityTable table;
 
@@ -30,8 +32,9 @@ public class GrowthSpeedCalculator {
         this.table = requireNonNull(table, "table은 필수입니다");
     }
 
-    public GrowthSpeed calculate(Gender gender, LocalDate birthDate, List<RecommendGrowthRecord> records,
+    public GrowthSpeed calculate(Gender gender, LocalDate birthDate, List<RecommendGrowthRecord> allRecords,
             LocalDate today) {
+        List<RecommendGrowthRecord> records = recordsWithin(allRecords, WINDOW_MONTHS, today);
         long ageMonths = Period.between(birthDate, today).toTotalMonths();
         double tableCmPerMonth = table.yearlyCm(gender, ageMonths) / MONTHS_PER_YEAR;
         double recordMonths = recordMonths(records);
@@ -62,18 +65,27 @@ public class GrowthSpeedCalculator {
      * 오늘부터 3개월 안 기록만으로 구한 속도다. 표와 섞지 않으며, 기록이 부족하면 null이다.
      */
     private Double recentCmPerMonth(List<RecommendGrowthRecord> records, LocalDate today, double tableCmPerMonth) {
-        LocalDate from = today.minusMonths(RECENT_MONTHS);
-        List<RecommendGrowthRecord> recentRecords = new ArrayList<>();
-        for (RecommendGrowthRecord record : records) {
-            LocalDate recordedOn = record.getRecordedAt().toLocalDate();
-            if (!recordedOn.isBefore(from) && !recordedOn.isAfter(today)) {
-                recentRecords.add(record);
-            }
-        }
+        List<RecommendGrowthRecord> recentRecords = recordsWithin(records, RECENT_MONTHS, today);
         if (recordMonths(recentRecords) < MIN_RECORD_MONTHS) {
             return null;
         }
         return limitByTable(leastSquaresSlope(recentRecords).cmPerMonth(), tableCmPerMonth);
+    }
+
+    /**
+     * 기록 날짜가 오늘부터 months개월 전 날짜 이상, 오늘 이하인 기록만 고른다.
+     */
+    private List<RecommendGrowthRecord> recordsWithin(List<RecommendGrowthRecord> records, int months,
+            LocalDate today) {
+        LocalDate from = today.minusMonths(months);
+        List<RecommendGrowthRecord> selected = new ArrayList<>();
+        for (RecommendGrowthRecord record : records) {
+            LocalDate recordedOn = record.getRecordedAt().toLocalDate();
+            if (!recordedOn.isBefore(from) && !recordedOn.isAfter(today)) {
+                selected.add(record);
+            }
+        }
+        return selected;
     }
 
     // 집에서 잰 키의 오차로 기울기가 크게 흔들릴 수 있어 0 ~ 표 값의 2배 안으로 맞춘다
