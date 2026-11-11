@@ -227,7 +227,7 @@ echo "오래된 이미지 ${removed}개 정리"
 # 정리가 안 돼도 배포는 이미 끝났으므로 경고만 남긴다. sudo -n 은 규칙이 없으면 비밀번호를 묻지 않고 바로 실패한다
 crictl() { sudo -n /usr/local/bin/k3s crictl "$@"; }
 cleanup_k3s_images() {
-  local ids work stale deleted
+  local ids work stale picked left deleted
   ids=$(crictl images -q 2> /dev/null) || { echo "::warning::k3s 이미지를 정리하지 못했습니다. 서버의 deploy 유저 sudoers 규칙을 확인하세요(deploy/k3s/README.md)"; return 0; }
   [[ -n "$ids" ]] || return 0
   work=$(mktemp -d)
@@ -238,8 +238,16 @@ cleanup_k3s_images() {
   rm -rf "$work"
   [[ -n "$stale" ]] || { echo "k3s 오래된 이미지 0개 정리"; return 0; }
   # shellcheck disable=SC2086
-  deleted=$(crictl rmi $stale 2>&1 | grep -c '^Deleted' || true)
-  echo "k3s 오래된 이미지 ${deleted}개 정리"
+  crictl rmi $stale > /dev/null 2>&1 || true
+  # 지운 개수는 crictl rmi 출력 문구가 아니라 정리 전후 이미지 수의 차이로 센다(#1272). 출력 문구는 crictl 버전마다 다르다
+  picked=$(( $(wc -l <<< "$stale") ))
+  left=$(crictl images -q 2> /dev/null | wc -l) || left=$(wc -l <<< "$ids")
+  left=$(( left ))
+  deleted=$(( $(wc -l <<< "$ids") - left ))
+  echo "k3s 오래된 이미지 ${deleted}개 정리(고른 이미지 ${picked}개)"
+  if (( deleted < picked )); then
+    echo "::warning::k3s 이미지를 고른 ${picked}개 중 ${deleted}개만 지웠습니다. 서버의 deploy 유저 sudoers 규칙과 crictl rmi 를 확인하세요(deploy/k3s/README.md)"
+  fi
 }
 if (( ${#k3s_services[@]} > 0 )) && ! cleanup_k3s_images; then
   echo "::warning::k3s 이미지 정리 중 실패했습니다. 배포는 끝났습니다"
