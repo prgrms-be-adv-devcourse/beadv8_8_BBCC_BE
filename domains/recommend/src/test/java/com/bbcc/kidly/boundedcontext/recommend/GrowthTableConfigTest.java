@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GirthPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GirthRatioTable;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityTable;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightRatioRow;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightRatioTable;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +18,7 @@ class GrowthTableConfigTest {
 
     private static final GrowthVelocityTable GROWTH_VELOCITY_TABLE = new GrowthTableConfig().growthVelocityTable();
     private static final GirthRatioTable GIRTH_RATIO_TABLE = new GrowthTableConfig().girthRatioTable();
+    private static final BodyHeightRatioTable BODY_HEIGHT_RATIO_TABLE = new GrowthTableConfig().bodyHeightRatioTable();
 
     @ParameterizedTest(name = "{0}, {1}개월 → {2}cm/년")
     @CsvSource({
@@ -76,5 +79,35 @@ class GrowthTableConfigTest {
             .isEqualTo(GROWTH_VELOCITY_TABLE.yearlyCm(Gender.MALE, 0));
         assertThat(GIRTH_RATIO_TABLE.ratio(Gender.MALE, months, GirthPart.CHEST))
             .isEqualTo(GIRTH_RATIO_TABLE.ratio(Gender.MALE, 0, GirthPart.CHEST));
+    }
+
+    @ParameterizedTest(name = "{0}, {1}개월 → 목뒤 {2} · 허리 {3} · 엉덩이 {4} · 팔길이 {5} · 위팔길이 {6}")
+    @CsvSource({
+        "FEMALE, 72, 0.822, 0.599, 0.490, 0.328, 0.191",
+        "FEMALE, 12, 0.786, 0.551, 0.439, 0.299, 0.191",
+        "MALE, 36, 0.802, 0.558, 0.451, 0.312, 0.188",
+        "MALE, 131, 0.841, 0.606, 0.506, 0.337, 0.193",
+        "MALE, 132, 0.846, 0.610, 0.511, 0.339, 0.195",
+        "FEMALE, 240, 0.847, 0.615, 0.501, 0.341, 0.197",
+    })
+    @DisplayName("PRV-01 사이즈코리아 CSV에서 만 나이 · 성별의 키 대비 높이 비율을 읽고, 만 15세 이상이면 마지막 구간 값을 쓴다")
+    void bodyHeightRatioByAgeAndGender(Gender gender, long months, double neck, double waist, double hip, double arm,
+        double elbow) {
+        BodyHeightRatioRow row = BODY_HEIGHT_RATIO_TABLE.ratios(gender, months);
+
+        assertThat(row.neck()).isEqualTo(neck);
+        assertThat(row.waist()).isEqualTo(waist);
+        assertThat(row.hip()).isEqualTo(hip);
+        assertThat(row.arm()).isEqualTo(arm);
+        assertThat(row.elbow()).isEqualTo(elbow);
+    }
+
+    // 성장량 표 · 둘레 비율 표와 같은 기준으로, 잘못 들어온 생일에서도 계산이 멈추지 않게 한다
+    @ParameterizedTest
+    @ValueSource(longs = {-1, -11, -13, -30})
+    @DisplayName("PRV-01 생일이 오늘보다 뒤라 개월 수가 음수면 신체 높이 비율 표도 0세 값을 쓴다")
+    void bodyHeightRatioUsesAgeZeroForNegativeMonths(long months) {
+        assertThat(BODY_HEIGHT_RATIO_TABLE.ratios(Gender.FEMALE, months))
+            .isEqualTo(BODY_HEIGHT_RATIO_TABLE.ratios(Gender.FEMALE, 0));
     }
 }
