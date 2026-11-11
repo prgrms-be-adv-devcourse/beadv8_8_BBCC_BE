@@ -23,11 +23,18 @@ jobs:
         run: |
           printf '%s\n' "$MONITOR_KNOWN_HOSTS" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=8 "deploy@$APP_HOST" '
-            docker ps --format "{{.Names}}" | awk "/^dev-(gateway|order-service)-1$/ { print }"
+            set -e
+            docker compose -p dev -f /opt/app/dev/docker-compose.yml ls --format json >/dev/null
+            for name in dev-gateway-1 dev-order-service-1; do
+              test "$(docker inspect -f "{{.State.Running}}" "$name")" = true
+              printf "%s running\n" "$name"
+            done
             test -r /opt/app/dev/docker-compose.yml
             test -r /opt/app/monitoring/config.alloy
           '
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=8 "deploy@$MONITOR_HOST" '
+            set -e
+            export KUBECONFIG="$HOME/.kube/config"
             kubectl -n monitoring get deploy grafana -o name
             kubectl -n monitoring auth can-i create pods/portforward
             kubectl -n monitoring auth can-i create networkpolicies
