@@ -13,6 +13,7 @@
 # 주문(order-service)은 profile order 라 COMPOSE_PROFILES 에 order 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다)
 # 커뮤니티(community-service)는 profile community 라 COMPOSE_PROFILES 에 community 가 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 다음 main 배포 때 뜬다)
 # 알림(notification-service)은 profile notification 이라 COMPOSE_PROFILES 에 notification 이 있는 환경에서만 뜬다. dev · prod 모두 켰다(prod 는 첫 main 배포 때 뜬다)
+# 챗봇(chatbot-service)은 profile chatbot 이라 COMPOSE_PROFILES · K3S_PROFILES 에 chatbot 이 있는 환경에서만 뜬다(#1191)
 
 # 컨테이너 로그가 디스크를 채우지 않도록 10MB 씩 5개까지만 남긴다
 x-logging: &logging
@@ -443,6 +444,38 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # 챗봇 서비스(apps/chatbot-service, #1191). 회원 챗봇 API 와 답변 근거 문서. Kafka 를 쓰지 않는다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값만 넘긴다. 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
+  chatbot-service:
+    image: ${CHATBOT_IMAGE}
+    profiles: [chatbot]
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: -Xmx128m
+      # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 다른 서비스와 같은 설정이다
+      MALLOC_ARENA_MAX: "2"
+      DB_URL: ${DB_URL:?}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      LOG_PATH: /app/logs
+    ports:
+      - "127.0.0.1:${CHATBOT_PORT:-8104}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
+      start_period: 180s
+    # 기능이 없는 뼈대라 지금 서비스 중 가장 작은 추천 서비스의 시작값(힙 128m · 상한 448m)으로 둔다. 켠 뒤 재서 정한다
+    mem_limit: 448m
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
   # Gateway(apps/gateway, #608). nginx 뒤에서 토큰 검증 · 무효화 확인 · CORS 를 하고 app 으로 넘긴다. 상품 목록은 KIDLY_SEARCH_URI 로 넘긴다(#526)
   # 토큰 무효화 이벤트를 받는다(구독 그룹 kidly.gateway). DB 가 없어 비밀이 든 .env 대신 필요한 값만 넘기고 공개키만 마운트한다
   gateway:
@@ -472,6 +505,8 @@ services:
       KIDLY_COMMUNITY_URI: ${KIDLY_COMMUNITY_URI:-http://community-service:8080}
       # 알림함 API(/api/v1/notifications/**)를 받을 곳(#852). profile notification 이 꺼진 환경에서는 이 API 가 실패한다
       KIDLY_NOTIFICATION_URI: ${KIDLY_NOTIFICATION_URI:-http://notification-service:8080}
+      # 챗봇 API(/api/v1/chatbot/** · /api/v1/admin/chatbot/**)를 받을 곳(#1191). profile chatbot 이 꺼진 환경에서는 이 API 가 실패한다
+      KIDLY_CHATBOT_URI: ${KIDLY_CHATBOT_URI:-http://chatbot-service:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs

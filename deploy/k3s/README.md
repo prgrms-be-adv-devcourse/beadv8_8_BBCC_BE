@@ -1,10 +1,10 @@
 # 앱 서비스 k3s (t3.large)
 
-dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 띄운 k3s(노드 하나)에 올립니다(#1028 추천, #1142 나머지). 서비스 9개 · Gateway · kafka-exporter 모두 k3s 에 뜨고 dev 는 compose 로 띄우는 것이 없습니다. medium 의 k3s(Kafka · PostgreSQL · Elasticsearch · 모니터링)와는 따로 돕니다.
+dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 띄운 k3s(노드 하나)에 올립니다(#1028 추천, #1142 나머지). 서비스 10개 · Gateway · kafka-exporter 모두 k3s 에 뜨고 dev 는 compose 로 띄우는 것이 없습니다. medium 의 k3s(Kafka · PostgreSQL · Elasticsearch · 모니터링)와는 따로 돕니다.
 
 | 무엇이 | 값 |
 | --- | --- |
-| 무엇이 뜨나 | `deploy/.env.<환경>` 의 `K3S_PROFILES` 에 있는 profile. 지금 dev 는 서비스 9개(1차 #1148, 2차 #1159) · `gateway` · `kafka-monitoring`(kafka-exporter) · `redis`(캐시, #690). 한 profile 은 `COMPOSE_PROFILES` · `K3S_PROFILES` 중 한쪽에만 둔다 |
+| 무엇이 뜨나 | `deploy/.env.<환경>` 의 `K3S_PROFILES` 에 있는 profile. 지금 dev 는 서비스 10개(1차 #1148, 2차 #1159, 챗봇 #1191) · `gateway` · `kafka-monitoring`(kafka-exporter) · `redis`(캐시, #690). 한 profile 은 `COMPOSE_PROFILES` · `K3S_PROFILES` 중 한쪽에만 둔다 |
 | NodePort | `<PROFILE>_NODE_PORT` 가 있는 것만 이 서버의 그 포트로 닿는다. 지금은 Gateway 30200(nginx 가 붙는 곳) 하나. 나머지는 ClusterIP 라 클러스터 안에서만 `<이름>:<포트>` |
 | namespace | `kidly-<환경>`. Deployment · Service 이름은 compose profile 이름(`search`, `member` 등) |
 | 설정 | 서버의 `docker-compose.yml` · `.env` 의 그 서비스 설정을 그대로 쓴다. 환경 변수는 Secret `<이름>-env`, jwt 키는 Secret `<이름>-jwt`, 메모리는 `mem_limit` 을 request · limit 으로, 이미지는 `image.env` 의 그 서비스 이미지 |
@@ -52,4 +52,4 @@ curl -s localhost:30200/actuator/health     # nginx 가 붙는 Gateway
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)
 - **메모리**: request 합이 노드 할당량(약 7.6Gi)을 넘으면 새 Pod 가 Pending 이 된다. compose 컨테이너 몫은 스케줄러가 모르므로 `free -m` 으로 함께 본다
-  - dev 의 request 합은 6,080Mi(서비스 9개 5,312 · Gateway 512 · kafka-exporter 128 · Redis 128)다. 추천이 3개로 늘면 6,976Mi. 여기에 k3s 자체가 더해진다
+  - dev 의 request 합은 6,528Mi(서비스 10개 5,760 · Gateway 512 · kafka-exporter 128 · Redis 128)다. 추천이 3개로 늘면 7,424Mi. 여기에 k3s 자체가 더해진다

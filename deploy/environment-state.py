@@ -24,6 +24,7 @@ SERVICES = {
     'notification-service': ('kidly-notification', 'NOTIFICATION_PORT', 'notification'),
     'order-service': ('kidly-order', 'ORDER_PORT', 'order'),
     'community-service': ('kidly-community', 'COMMUNITY_PORT', 'community'),
+    'chatbot-service': ('kidly-chatbot', 'CHATBOT_PORT', 'chatbot'),
 }
 # compose 밖 k3s(t3.large 에 단독으로 띄운 k3s, deploy/k3s)에서 도는 서비스. .env 의 K3S_PROFILES 에 있는 profile 이다(#1142)
 # 한 profile 은 COMPOSE_PROFILES · K3S_PROFILES 중 한쪽에만 둔다. <PROFILE>_NODE_PORT 가 있으면 이 서버에서 그 NodePort 로 닿는다
