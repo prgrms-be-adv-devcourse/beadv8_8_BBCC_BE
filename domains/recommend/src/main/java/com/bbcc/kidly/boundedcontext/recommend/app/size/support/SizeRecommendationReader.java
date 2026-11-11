@@ -27,6 +27,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightRatioTable;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreviewCalculator;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -54,6 +57,7 @@ public class SizeRecommendationReader {
     private final SizeRecommender sizeRecommender;
     private final GrowthVelocityCalculator growthVelocityCalculator;
     private final WearablePeriodCalculator wearablePeriodCalculator;
+    private final WearPreviewCalculator wearPreviewCalculator;
 
     public SizeRecommendationReader(
         RecommendReplicaProductRepository replicaProductRepository,
@@ -62,7 +66,8 @@ public class SizeRecommendationReader {
         RecommendGrowthRecordRepository growthRecordRepository,
         GrowthChart growthChart,
         GrowthVelocityTable growthVelocityTable,
-        GirthRatioTable girthRatioTable) {
+        GirthRatioTable girthRatioTable,
+        BodyHeightRatioTable bodyHeightRatioTable) {
         this.replicaProductRepository = replicaProductRepository;
         this.replicaChildRepository = replicaChildRepository;
         this.referenceGarmentRepository = referenceGarmentRepository;
@@ -70,6 +75,7 @@ public class SizeRecommendationReader {
         this.sizeRecommender = new SizeRecommender(growthChart);
         this.growthVelocityCalculator = new GrowthVelocityCalculator(growthVelocityTable);
         this.wearablePeriodCalculator = new WearablePeriodCalculator(girthRatioTable);
+        this.wearPreviewCalculator = new WearPreviewCalculator(bodyHeightRatioTable);
     }
 
     // 상품의 사이즈 줄은 지연 로딩이므로 트랜잭션 안에서 읽어 계산한다
@@ -90,7 +96,10 @@ public class SizeRecommendationReader {
         int ageMonths = (int) Period.between(child.getBirthDate(), today).toTotalMonths();
         List<SizeAiQuestion.SizeLine> sizeLines = sizeLinesOf(product, productSizes);
         List<String> categoryPathNames = categoryPathNamesOf(product);
-        ReferenceFit referenceFit = referenceFitOf(product, categoryPathNames, productSizes, sizeLines, childId);
+        // 기준 핏 비교와 착용 미리보기가 같은 상품 입력을 쓴다
+        FitProduct fitProduct = fitProductOf(product, categoryPathNames, productSizes, sizeLines);
+        ReferenceFit referenceFit = referenceFitOf(fitProduct, childId);
+        WearPreview wearPreview = wearPreviewCalculator.preview(fitProduct, childInput, today).orElse(null);
         GrowthVelocity velocity = growthVelocityOf(child, today);
         List<WearablePeriod> wearablePeriods = wearablePeriodCalculator.calculate(
             new WearablePeriodCalculator.WearInfo(
@@ -101,22 +110,24 @@ public class SizeRecommendationReader {
         return new SizeRecommendationDraft(
             productId, childId, productSizes, rule,
             keyInputOf(productId, childId, child, ageMonths, question), question,
-            new SizeAiEvidence(referenceFit, question.givenNumbers()), null);
+            new SizeAiEvidence(referenceFit, question.givenNumbers()), wearPreview);
     }
 
-    // 기준 옷이 없거나 상품과 비교할 수 없으면 null이다. 사이즈 무관 상품은 비교하지 않으므로 기준 옷을 읽지 않는다.
-    // 비교는 AI에 보내는 사이즈 줄과 같은 줄로 한다.
-    private ReferenceFit referenceFitOf(RecommendReplicaProduct product, List<String> categoryPathNames,
-        ProductSizes productSizes, List<SizeAiQuestion.SizeLine> sizeLines, Long childId) {
-        if (productSizes.isSizeFree()) {
-            return null;
-        }
+    // AI에 보내는 사이즈 줄과 같은 실측으로 만든 상품 입력이다
+    private FitProduct fitProductOf(RecommendReplicaProduct product, List<String> categoryPathNames,
+        ProductSizes productSizes, List<SizeAiQuestion.SizeLine> sizeLines) {
         List<FitProduct.SizeMeasurements> sizes = new ArrayList<>();
         for (SizeAiQuestion.SizeLine line : sizeLines) {
             sizes.add(new FitProduct.SizeMeasurements(line.size(), line.measurements()));
         }
-        FitProduct fitProduct = new FitProduct(
-            product.getCategoryId(), categoryPathNames, productSizes.isSizeFree(), sizes);
+        return new FitProduct(product.getCategoryId(), categoryPathNames, productSizes.isSizeFree(), sizes);
+    }
+
+    // 기준 옷이 없거나 상품과 비교할 수 없으면 null이다. 사이즈 무관 상품은 비교하지 않으므로 기준 옷을 읽지 않는다.
+    private ReferenceFit referenceFitOf(FitProduct fitProduct, Long childId) {
+        if (fitProduct.sizeFree()) {
+            return null;
+        }
         return ReferenceFit.compare(fitProduct, referenceGarmentRepository.findAllByChildProfileId(childId))
             .orElse(null);
     }
