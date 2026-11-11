@@ -20,6 +20,7 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -191,6 +192,21 @@ class RecommendedProductApiTest {
             .jsonPath("$.totalElements").isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("VIS-02 남아 자녀의 맞춤 상품 목록에는 원피스처럼 여아에게만 보여 줄 카테고리의 상품이 없다")
+    void excludeGirlCategoryProductsForBoy() {
+        replicaProductService.applyProductChanged(productChanged(NEWER_PRODUCT_ID, PRODUCT_A_REGISTERED_AT));
+        // 맞는 사이즈가 있는 판매중 상품이지만 카테고리 경로의 원피스가 GIRL이라 남아 자녀에게서 빠진다
+        replicaProductService.applyProductChanged(dressChanged(OLDER_PRODUCT_ID));
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        list("")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[*].productId").isEqualTo(List.of(String.valueOf(NEWER_PRODUCT_ID)))
+            .jsonPath("$.totalElements").isEqualTo(1);
+    }
+
     @ParameterizedTest(name = "page {0}, size {1}")
     @CsvSource({"-1, 20", "0, 0", "0, 101"})
     @DisplayName("page가 음수이거나 size가 1 ~ 100 밖이면 400을 ProblemDetail로 받는다")
@@ -265,6 +281,17 @@ class RecommendedProductApiTest {
         return new ProductChangedEvent(UUID.randomUUID(), PRODUCT_CHANGED_AT,
             new ProductChangedEvent.Data(productId, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, categoryId,
                 ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, registeredAt, sizeFree, options));
+    }
+
+    // 상품 A와 같은 판매자 · 옵션으로, 카테고리 경로가 의류(ALL) > 원피스(GIRL)인 상품 정보 변경됨이다
+    private static ProductChangedEvent dressChanged(Long productId) {
+        return new ProductChangedEvent(UUID.randomUUID(), PRODUCT_CHANGED_AT,
+            new ProductChangedEvent.Data(productId, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, OTHER_CATEGORY_ID,
+                ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, sizedOptions(),
+                List.of(), null, null, List.of(), List.of(
+                    new ProductChangedEvent.CategoryPathEntry(1L, "의류", CategoryVisibleGender.ALL),
+                    new ProductChangedEvent.CategoryPathEntry(OTHER_CATEGORY_ID, "원피스", CategoryVisibleGender.GIRL)),
+                false, PRODUCT_A_REGISTERED_AT));
     }
 
     // 상품 A의 옵션인 110(105~115cm)과 120(115~125cm)이고, 판매가는 모두 25,000원이다

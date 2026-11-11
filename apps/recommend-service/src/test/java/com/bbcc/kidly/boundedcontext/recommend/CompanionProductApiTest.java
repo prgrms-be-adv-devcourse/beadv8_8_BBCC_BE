@@ -18,6 +18,7 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -56,6 +57,12 @@ class CompanionProductApiTest {
     private static final List<ProductChangedEvent.CategoryPathEntry> BOTTOM = List.of(
         new ProductChangedEvent.CategoryPathEntry(1L, "의류"), new ProductChangedEvent.CategoryPathEntry(60L, "하의"));
 
+    private static final Long SKIRT_PRODUCT_ID = 102L;
+
+    private static final List<ProductChangedEvent.CategoryPathEntry> SKIRT = List.of(
+        new ProductChangedEvent.CategoryPathEntry(1L, "의류"),
+        new ProductChangedEvent.CategoryPathEntry(61L, "치마", CategoryVisibleGender.GIRL));
+
     @Autowired
     private RestTestClient client;
 
@@ -87,6 +94,19 @@ class CompanionProductApiTest {
             .jsonPath("$.source").isEqualTo("RULE")
             .jsonPath("$.products.length()").isEqualTo(1)
             .jsonPath("$.products[0]").value(Map.class, card -> assertThat(card).isEqualTo(bottomCard()));
+    }
+
+    @Test
+    @DisplayName("PAIR-04 남아 자녀면 상의를 보고 있어도 치마 후보를 빼고, 바지 후보는 그대로 준다")
+    void excludeSkirtForBoy() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        saveProduct(BOTTOM_PRODUCT_ID, BOTTOM);
+        saveProduct(SKIRT_PRODUCT_ID, SKIRT);
+
+        companions(VIEWED_PRODUCT_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.products[*].productId").isEqualTo(List.of(String.valueOf(BOTTOM_PRODUCT_ID)));
     }
 
     @Test
