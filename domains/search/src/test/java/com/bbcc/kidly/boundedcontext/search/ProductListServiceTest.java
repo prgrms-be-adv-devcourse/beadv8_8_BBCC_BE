@@ -21,6 +21,8 @@ import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
 import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.search.dto.ProductHit;
+import com.bbcc.kidly.shared.search.dto.ProductSearchQuery;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import java.util.List;
 import java.util.Map;
@@ -241,6 +243,39 @@ class ProductListServiceTest {
         productListService.list(new ProductListRequest(null, "원피스", null, null, 1, null, null), 7L);
 
         verify(searchEventSender, never()).send(any());
+    }
+
+    @Test
+    @DisplayName("서비스 사이 검색은 검색어 · 가격 범위로 관련도순 첫 limit개를 찾아 카드 값으로 주고, 검색 이벤트는 보내지 않는다")
+    void searchesForOtherDomain() {
+        given(textEmbedder.embedKeyword("여아 원피스")).willReturn(Optional.of(List.of(0.1f, 0.2f)));
+        given(productSearch.search(any(), any())).willReturn(new PageImpl<>(List.of(
+            new ProductSearchItem(10L, "여아 원피스", "https://cdn/10.jpg", "키들리 상점", 25_000L, false, false))));
+
+        List<ProductHit> hits = productListService.search(new ProductSearchQuery(" 여아 원피스 ", 10_000L, 30_000L, 3));
+
+        assertThat(hits).containsExactly(
+            new ProductHit(10L, "여아 원피스", "키들리 상점", 25_000L, "https://cdn/10.jpg", false));
+        ProductSearchCondition condition = capturedCondition();
+        assertThat(condition.keyword()).isEqualTo("여아 원피스");
+        assertThat(condition.sort()).isEqualTo(ProductSearchSort.RELEVANCE);
+        assertThat(condition.keywordVector()).containsExactly(0.1f, 0.2f);
+        assertThat(condition.minPrice()).isEqualTo(10_000L);
+        assertThat(condition.maxPrice()).isEqualTo(30_000L);
+        assertThat(condition.categoryId()).isNull();
+        assertThat(capturedPageable()).isEqualTo(PageRequest.of(0, 3));
+        verifyNoInteractions(searchEventSender);
+    }
+
+    @Test
+    @DisplayName("서비스 사이 검색도 색인을 쓸 수 없으면 503 SEARCH_UNAVAILABLE이다")
+    void searchUnavailableForOtherDomain() {
+        given(productSearch.search(any(), any()))
+            .willThrow(new SearchUnavailableException("index=local-products", new RuntimeException("down")));
+
+        assertThatThrownBy(() -> productListService.search(new ProductSearchQuery("원피스", null, null, 5)))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(SearchErrorCode.SEARCH_UNAVAILABLE));
     }
 
     private void givenEmptyResult() {
