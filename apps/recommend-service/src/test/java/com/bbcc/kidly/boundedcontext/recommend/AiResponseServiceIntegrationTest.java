@@ -85,7 +85,8 @@ class AiResponseServiceIntegrationTest {
 
     private AiResponseService fixedClockService() {
         return new AiResponseService(
-            store, quota, jsonMapper, CLOCK, 2_000, Map.of(TYPE, Duration.ofSeconds(2)), Duration.ofHours(24));
+            store, quota, jsonMapper, CLOCK, 2_000, Map.of(TYPE, Duration.ofSeconds(2)), Duration.ofSeconds(10),
+            Duration.ofHours(24));
     }
 
     private Integer callCountOn(LocalDate date) {

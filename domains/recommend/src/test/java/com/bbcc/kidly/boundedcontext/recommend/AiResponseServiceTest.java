@@ -73,7 +73,7 @@ class AiResponseServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUTS, REUSE_PERIOD);
+        service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUTS, Duration.ofSeconds(10), REUSE_PERIOD);
     }
 
     @Test

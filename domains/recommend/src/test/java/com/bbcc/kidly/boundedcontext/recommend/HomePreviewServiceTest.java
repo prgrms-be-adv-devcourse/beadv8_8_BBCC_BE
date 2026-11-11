@@ -74,7 +74,8 @@ class HomePreviewServiceTest {
     @BeforeEach
     void setUp() {
         aiResponseService = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK,
-            2_000, Map.of(AiResponseType.HOME_PREVIEW, Duration.ofSeconds(1)), Duration.ofHours(24));
+            2_000, Map.of(AiResponseType.HOME_PREVIEW, Duration.ofSeconds(1)), Duration.ofSeconds(10),
+            Duration.ofHours(24));
     }
 
     @Test
