@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriodCalculator;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriodCalculator.WearInfo;
@@ -10,11 +11,15 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPa
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit.Item;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit.SizeDiff;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -27,7 +32,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 class WearablePeriodCalculatorTest {
 
     // 오늘 만 6세(78개월)인 여자아이, 키 120cm, 한 달 0.5cm씩 큰다
-    private static final long AGE_6_MONTHS = 78;
+    private static final LocalDate TODAY = LocalDate.of(2026, 11, 12);
+    private static final LocalDate BIRTH_DATE_AGE_6 = LocalDate.of(2020, 5, 1);
     private static final double HEIGHT_CM = 120.0;
     private static final double CM_PER_MONTH = 0.5;
     private static final List<String> TOP_PATH = List.of("의류", "상의");
@@ -48,12 +54,24 @@ class WearablePeriodCalculatorTest {
             SizeRange.of("125", 120, 125)));
 
         List<WearablePeriod> periods = calculator.calculate(
-            new WearInfo(sizes, TOP_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM + 0.4, CM_PER_MONTH, null));
+            new WearInfo(sizes, TOP_PATH, child(HEIGHT_CM + 0.4), TODAY, velocity(CM_PER_MONTH), null));
 
         // (130 − 120.4) ÷ 0.5 = 19.2 → 19, (125 − 120.4) ÷ 0.5 = 9.2 → 9
         assertThat(periods).containsExactly(
             new WearablePeriod("120", 19, null, 19),
             new WearablePeriod("125", 9, null, 9));
+    }
+
+    @Test
+    @DisplayName("WEAR-01 실수 나눗셈 오차로 정수 개월이 하나 작게 나오지 않는다")
+    void lengthMonthsWithoutFloatingPointLoss() {
+        // (121 − 120.4) ÷ 0.6은 실수로 계산하면 0.9999…라 그대로 내리면 0이 된다
+        ProductSizes sizes = ProductSizes.of(false, List.of(SizeRange.of("120", 115, 121)));
+
+        List<WearablePeriod> periods = calculator.calculate(
+            new WearInfo(sizes, TOP_PATH, child(120.4), TODAY, velocity(0.6), null));
+
+        assertThat(periods).extracting(WearablePeriod::lengthMonths).containsExactly(1);
     }
 
     @Test
@@ -65,7 +83,7 @@ class WearablePeriodCalculatorTest {
             item("SHOULDER_WIDTH", "28.0", "28.2")));
 
         List<WearablePeriod> periods = calculator.calculate(
-            new WearInfo(LONG_SIZES, TOP_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, CM_PER_MONTH, fit));
+            new WearInfo(LONG_SIZES, TOP_PATH, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), fit));
 
         assertThat(periods).extracting(WearablePeriod::size, WearablePeriod::widthMonths)
             .containsExactly(tuple("120", 13), tuple("130", null));
@@ -80,7 +98,7 @@ class WearablePeriodCalculatorTest {
             item("HIP_WIDTH", "33.0", "34.0")));
 
         List<WearablePeriod> periods = calculator.calculate(
-            new WearInfo(LONG_SIZES, SKIRT_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, CM_PER_MONTH, fit));
+            new WearInfo(LONG_SIZES, SKIRT_PATH, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), fit));
 
         assertThat(periods).extracting(WearablePeriod::size, WearablePeriod::widthMonths)
             .containsExactly(tuple("120", 10), tuple("130", null));
@@ -99,7 +117,7 @@ class WearablePeriodCalculatorTest {
                 new SizeDiff("130", new BigDecimal("31.0"), new BigDecimal("1.0"))))));
 
         List<WearablePeriod> periods = calculator.calculate(
-            new WearInfo(sizes, TOP_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, CM_PER_MONTH, fit));
+            new WearInfo(sizes, TOP_PATH, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), fit));
 
         assertThat(periods).containsExactly(
             new WearablePeriod("120", 10, 24, 10),
@@ -118,7 +136,7 @@ class WearablePeriodCalculatorTest {
                 new SizeDiff("110", new BigDecimal("29.0"), new BigDecimal("-1.0"))))));
 
         List<WearablePeriod> periods = calculator.calculate(
-            new WearInfo(sizes, TOP_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, CM_PER_MONTH, fit));
+            new WearInfo(sizes, TOP_PATH, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), fit));
 
         assertThat(periods).containsExactly(
             new WearablePeriod("110", 0, 0, 0),
@@ -132,7 +150,7 @@ class WearablePeriodCalculatorTest {
             item("CHEST_WIDTH", "30.0", "31.0")));
 
         List<WearablePeriod> periods = calculator.calculate(
-            new WearInfo(LONG_SIZES, TOP_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, 0.0, fit));
+            new WearInfo(LONG_SIZES, TOP_PATH, child(HEIGHT_CM), TODAY, velocity(0.0), fit));
 
         assertThat(periods).containsExactly(
             new WearablePeriod("120", null, null, null),
@@ -141,7 +159,8 @@ class WearablePeriodCalculatorTest {
 
     static Stream<Arguments> notCalculatedProducts() {
         return Stream.of(
-            Arguments.of(Named.of("사이즈 무관 상의", ProductSizes.of(true, List.of())), List.of("의류", "상의")),
+            // 사이즈 줄이 있어도 사이즈 무관이면 계산하지 않는다
+            Arguments.of(Named.of("사이즈 무관 상의", ProductSizes.of(true, LONG_SIZES.sizeRanges())), List.of("의류", "상의")),
             Arguments.of(Named.of("모자", LONG_SIZES), List.of("잡화", "모자")),
             Arguments.of(Named.of("양말", LONG_SIZES), List.of("잡화", "양말"))
         );
@@ -152,9 +171,18 @@ class WearablePeriodCalculatorTest {
     @DisplayName("WEAR-04 사이즈 무관 상품 · 모자 · 양말은 입을 수 있는 기간을 계산하지 않는다")
     void noPeriodsForSizeFreeHatAndSocks(ProductSizes sizes, List<String> categoryPathNames) {
         List<WearablePeriod> periods = calculator.calculate(
-            new WearInfo(sizes, categoryPathNames, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, CM_PER_MONTH, null));
+            new WearInfo(sizes, categoryPathNames, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), null));
 
         assertThat(periods).isEmpty();
+    }
+
+    private static ChildSizeInput child(double heightCm) {
+        return ChildSizeInput.of(heightCm, 21.0, Gender.FEMALE, BIRTH_DATE_AGE_6, BodyType.NORMAL, PreferredFit.REGULAR);
+    }
+
+    // 입을 수 있는 기간은 전체 성장 속도만 쓰므로 나머지 근거 칸은 아무 값이나 둔다
+    private static GrowthVelocity velocity(double cmPerMonth) {
+        return new GrowthVelocity(cmPerMonth, null, null, 0, 0.0, 0.0, 0.5, "한국아동패널");
     }
 
     // 120 사이즈 하나의 차이만 담은 항목이다
