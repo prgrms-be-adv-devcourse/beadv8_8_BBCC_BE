@@ -149,6 +149,12 @@
 - 개수는 목록 쿼리의 `case when` 집계로 세고, `lowStock` 조건은 `exists` 서브쿼리로 건다. 조건을 조인으로 걸면 집계에 들어가는 옵션이 줄어 개수가 틀어지므로 서브쿼리로 분리했다
 - 기존 칸 `optionCount` · `totalAvailableQuantity` · `minPrice`의 뜻은 그대로다(보관 옵션만 뺀다). 두 개수는 그중 판매중 옵션만 센다
 
+## 구매자 상세의 대표 이미지 (ProductDetailResponse, #1248)
+
+- 구매자 상세 응답에 `thumbnailUrl`을 더했다. 상품이 가진 대표 이미지를 그대로 싣고, 없으면 칸을 빼지 않고 `null`로 준다
+- 대표 이미지와 상세 이미지(`imageUrls`)는 따로 저장되는 값이다. 화면이 `imageUrls`의 첫 번째를 대표로 쓰면, 대표를 `imageUrls` 맨 앞에 넣지 않고 등록한 상품은 상세의 대표 이미지가 목록과 달라진다
+- `imageUrls`는 바꾸지 않았다. 대표 이미지를 `imageUrls`에 끼워 넣거나 빼지 않는다
+
 ## 검색 분리 (10-29)
 - 순서: 상품 이벤트 Kafka 발행 → 검색 서비스가 `product.changed`로 색인 · 다시 보내기(#577) → 목록 경로를 검색 서비스로 전환 → 상품의 `search` 코드 삭제(#796) → `product_search_document` 삭제 마이그레이션(#791)
 - 표는 엔티티를 지운 뒤 Flyway로 지운다. `ddl-auto: validate`라 엔티티가 남은 채 표를 먼저 지우면 앱이 뜨지 않는다
