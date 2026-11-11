@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSource;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -98,6 +99,21 @@ class SizeRecommendationJudgementTest {
             List.of(new AiSizeAnswer.Judgement("CHEST_WIDTH", cm("2.0"), "ROOMY", cm("0.0"), cm("3.0"))));
 
         SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, GIVEN);
+
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
+    }
+
+    // 양말 사이즈 이름처럼 숫자만으로 되지 않은 사이즈 이름의 숫자도 AI에게 준 숫자다
+    @Test
+    @DisplayName("FIT-10 사이즈 이름 「130-150mm」에서 뽑은 130 · 150을 근거 문장에 쓰면 AI 답을 쓴다")
+    void adoptAnswerUsingNumbersInSizeName() {
+        Set<BigDecimal> given = new HashSet<>(GIVEN.givenNumbers());
+        given.addAll(SizeAiEvidence.numbersIn("130-150mm"));
+        SizeAiEvidence evidence = new SizeAiEvidence(REFERENCE_FIT, given);
+        AiSizeAnswer answer = new AiSizeAnswer("120", "ROOMY",
+            List.of(new AiSizeAnswer.Reason("HEIGHT", "130-150mm 사이즈가 발에 맞아요.", null)), List.of());
+
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, evidence);
 
         assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
     }

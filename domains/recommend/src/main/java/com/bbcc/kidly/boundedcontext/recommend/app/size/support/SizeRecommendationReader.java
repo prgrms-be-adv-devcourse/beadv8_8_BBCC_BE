@@ -121,21 +121,20 @@ public class SizeRecommendationReader {
         }
     }
 
-    // 「110」처럼 숫자로 읽히는 사이즈 이름만 담고, 「FREE」나 「M」은 건너뛴다. null도 건너뛴다.
+    // 「110」이나 「130-150mm」처럼 사이즈 이름에 든 숫자를 담고, 「FREE」나 「M」은 숫자가 없어 건너뛴다. null도 건너뛴다.
     private void addIfNumber(Set<BigDecimal> numbers, String sizeName) {
-        if (sizeName == null) {
-            return;
-        }
-        try {
-            numbers.add(new BigDecimal(sizeName));
-        } catch (NumberFormatException e) {
-            // 숫자가 아닌 사이즈 이름이라 담지 않는다
+        if (sizeName != null) {
+            numbers.addAll(SizeAiEvidence.numbersIn(sizeName));
         }
     }
 
-    // 기준 옷이 없거나 상품과 비교할 수 없으면 null이다. 비교는 AI에 보내는 사이즈 줄과 같은 줄로 한다.
+    // 기준 옷이 없거나 상품과 비교할 수 없으면 null이다. 사이즈 무관 상품은 비교하지 않으므로 기준 옷을 읽지 않는다.
+    // 비교는 AI에 보내는 사이즈 줄과 같은 줄로 한다.
     private ReferenceFit referenceFitOf(RecommendReplicaProduct product, ProductSizes productSizes,
         List<SizeAiQuestion.SizeLine> sizeLines, Long childId) {
+        if (productSizes.isSizeFree()) {
+            return null;
+        }
         List<String> categoryPathNames = new ArrayList<>();
         for (RecommendReplicaCategoryPathEntry entry : product.getCategoryPath()) {
             categoryPathNames.add(entry.getCategoryName());
@@ -154,28 +153,8 @@ public class SizeRecommendationReader {
         ReferenceFit referenceFit) {
         return new AiResponseKey.Input(
             productId, childId, ageMonths, child.getHeightCm(), child.getWeightKg(),
-            child.getBodyType(), child.getPreferredFit(), null, null, PROMPT_VERSION, referenceFitText(referenceFit));
-    }
-
-    // 기준 핏을 늘 같은 글로 만든다. 항목과 사이즈 순서는 ReferenceFit이 고정하고, 2와 2.0이 같은 글이 되도록 숫자를 맞춘다.
-    private String referenceFitText(ReferenceFit referenceFit) {
-        if (referenceFit == null) {
-            return null;
-        }
-        StringBuilder text = new StringBuilder();
-        text.append(referenceFit.productPart()).append('>').append(referenceFit.comparedPart());
-        for (ReferenceFit.Item item : referenceFit.items()) {
-            text.append(';').append(item.code()).append('=').append(plain(item.garmentCm()));
-            for (ReferenceFit.SizeDiff diff : item.sizes()) {
-                text.append(',').append(diff.size()).append(':').append(plain(diff.productCm()))
-                    .append(':').append(plain(diff.diffCm()));
-            }
-        }
-        return text.toString();
-    }
-
-    private String plain(BigDecimal value) {
-        return value.stripTrailingZeros().toPlainString();
+            child.getBodyType(), child.getPreferredFit(), null, null, PROMPT_VERSION,
+            referenceFit == null ? null : referenceFit.keyText());
     }
 
     private SizeAiQuestion questionOf(

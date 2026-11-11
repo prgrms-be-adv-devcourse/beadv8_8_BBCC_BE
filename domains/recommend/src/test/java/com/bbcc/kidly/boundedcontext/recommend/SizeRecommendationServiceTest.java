@@ -52,6 +52,13 @@ class SizeRecommendationServiceTest {
 
     private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, null);
 
+    private static final ReferenceFit REFERENCE_FIT = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
+        new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
+            new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
+
+    private static final SizeAiQuestion QUESTION_WITH_FIT =
+        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, null);
+
     // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
     private static final SizeAiEvidence EVIDENCE =
         new SizeAiEvidence(null, Set.of(new BigDecimal("114"), new BigDecimal("110")));
@@ -146,30 +153,67 @@ class SizeRecommendationServiceTest {
             PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), rule, KEY_INPUT, QUESTION, EVIDENCE);
     }
 
-    // AI 응답 서비스가 저장된 답 없이 넘겨받은 호출을 그대로 실행한 것처럼 한다
-    @SuppressWarnings("unchecked")
+    @Test
+    @DisplayName("FIT-09 AI 답을 채택하면 추천 사이즈의 항목별 판단과 기준 핏을 결과에 담는다")
+    void resultHasAdoptedJudgementsAndReferenceFit() {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftWithReferenceFit());
+        given(aiSizeChooser.choose(QUESTION_WITH_FIT)).willReturn(answerWithChestDiff("2.0"));
+        givenAiResponseServiceCallsChooser();
+
+        SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("AI");
+        assertThat(result.itemJudgements()).containsExactly(new SizeRecommendationResult.ItemJudgement(
+            "CHEST_WIDTH", new BigDecimal("2.0"), "ROOMY", new BigDecimal("0.0"), new BigDecimal("3.0")));
+        assertThat(result.referenceFit().productPart()).isEqualTo("TOP");
+        assertThat(result.referenceFit().items()).extracting(SizeRecommendationResult.FitItem::code)
+            .containsExactly("CHEST_WIDTH");
+    }
+
     @Test
     @ExtendWith(OutputCaptureExtension.class)
     @DisplayName("FIT-09 · FIT-11 AI 답을 채택하면 프롬프트 판과 항목별 판단을 로그 한 줄로 남기고 자녀 정보는 남기지 않는다")
     void logAdoptedJudgementsWithPromptVersion(CapturedOutput output) {
-        ReferenceFit referenceFit = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
-            new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
-                new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
-        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION,
-            new SizeAiEvidence(referenceFit, Set.of(new BigDecimal("2.0")))));
-        given(aiSizeChooser.choose(QUESTION)).willReturn(new AiSizeAnswer("120", "ROOMY",
-            List.of(new AiSizeAnswer.Reason("MEASUREMENT", "가슴단면이 2cm 넉넉해요.", null)),
-            List.of(new AiSizeAnswer.Judgement("CHEST_WIDTH", new BigDecimal("2.0"), "ROOMY",
-                new BigDecimal("0.0"), new BigDecimal("3.0")))));
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftWithReferenceFit());
+        given(aiSizeChooser.choose(QUESTION_WITH_FIT)).willReturn(answerWithChestDiff("2.0"));
         givenAiResponseServiceCallsChooser();
 
         service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertThat(output.getOut()).contains("promptVersion=1", "productId=10", "CHEST_WIDTH", "ROOMY")
+            .doesNotContain("childId", "memberId", "=" + CHILD_ID);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("FIT-10 · FIT-11 AI 답을 검증에서 버리면 규칙 결과로 답하고 프롬프트 판과 함께 버렸다는 로그를 남긴다")
+    void logDiscardedAnswerWithPromptVersion(CapturedOutput output) {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftWithReferenceFit());
+        given(aiSizeChooser.choose(QUESTION_WITH_FIT)).willReturn(answerWithChestDiff("2.5"));
+        givenAiResponseServiceCallsChooser();
+
+        SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(output.getOut()).contains("규칙 결과로 답합니다", "promptVersion=1", "productId=10")
             .doesNotContain("childId", "memberId");
     }
 
+    // 상의 기준 옷 가슴단면 34cm와 상품 120의 가슴단면 36cm를 비교한 기준 핏을 넘긴 초안이다
+    private static SizeRecommendationDraft draftWithReferenceFit() {
+        return new SizeRecommendationDraft(PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT,
+            QUESTION_WITH_FIT, new SizeAiEvidence(REFERENCE_FIT, Set.of(new BigDecimal("2.0"))));
+    }
+
+    private static AiSizeAnswer answerWithChestDiff(String diffCm) {
+        return new AiSizeAnswer("120", "ROOMY",
+            List.of(new AiSizeAnswer.Reason("MEASUREMENT", "가슴단면이 2cm 넉넉해요.", null)),
+            List.of(new AiSizeAnswer.Judgement("CHEST_WIDTH", new BigDecimal(diffCm), "ROOMY",
+                new BigDecimal("0.0"), new BigDecimal("3.0"))));
+    }
+
+    // AI 응답 서비스가 저장된 답 없이 넘겨받은 호출을 그대로 실행한 것처럼 한다
+    @SuppressWarnings("unchecked")
     private void givenAiResponseServiceCallsChooser() {
         given(aiResponseService.respond(
             eq(AiResponseType.SIZE_RECOMMENDATION), eq(KEY_INPUT), eq(AiSizeAnswer.class), any()))

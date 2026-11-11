@@ -34,6 +34,27 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
     }
 
     /**
+     * 저장된 AI 답을 찾는 키에 넣을 글이다. 기준 핏이 같으면 늘 같은 글이 되도록 항목과 사이즈를 정해진 순서로 쓰고,
+     * 2와 2.0이 같은 글이 되도록 숫자의 끝의 0을 뗀다.
+     */
+    public String keyText() {
+        StringBuilder text = new StringBuilder();
+        text.append(productPart).append('>').append(comparedPart);
+        for (Item item : items) {
+            text.append(';').append(item.code()).append('=').append(plain(item.garmentCm()));
+            for (SizeDiff diff : item.sizes()) {
+                text.append(',').append(diff.size()).append(':').append(plain(diff.productCm()))
+                    .append(':').append(plain(diff.diffCm()));
+            }
+        }
+        return text.toString();
+    }
+
+    private static String plain(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    /**
      * 실측 항목 하나의 기준 옷 값과, 그 값에 대한 사이즈별 차이다.
      */
     public record Item(String code, BigDecimal garmentCm, List<SizeDiff> sizes) {

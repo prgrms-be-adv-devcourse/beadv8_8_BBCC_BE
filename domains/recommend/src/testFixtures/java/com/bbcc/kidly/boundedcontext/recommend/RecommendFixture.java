@@ -382,9 +382,6 @@ public final class RecommendFixture {
     }
 
     /**
-     * {@link #productAChange()}와 같은 상품 변경에서 사이즈 무관 여부, 옵션, 발생 시각만 바꾼다.
-     */
-    /**
      * 카테고리 경로가 「의류 > 상의」인 상품 A의 복사본이다. 상의 기준 옷과 비교할 때 쓴다.
      */
     public static RecommendReplicaProduct productATopReplica() {
@@ -396,6 +393,9 @@ public final class RecommendFixture {
                 new RecommendReplicaProduct.CategoryPathEntryInfo(PRODUCT_A_CATEGORY_ID, "상의"))));
     }
 
+    /**
+     * {@link #productAChange()}와 같은 상품 변경에서 사이즈 무관 여부, 옵션, 발생 시각만 바꾼다.
+     */
     public static RecommendReplicaProduct.ChangeInfo productAChangeOf(boolean sizeFree,
         List<RecommendReplicaProduct.OptionInfo> options, LocalDateTime occurredAt) {
         return new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID,

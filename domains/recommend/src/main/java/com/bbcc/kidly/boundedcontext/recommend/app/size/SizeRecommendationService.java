@@ -44,7 +44,7 @@ public class SizeRecommendationService {
         SizeRecommendationDraft draft = reader.read(memberId, productId, childId);
         AiSizeAnswer answer = askAi(draft);
         SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer, draft.aiEvidence());
-        logIfAdopted(draft, recommendation);
+        logOutcome(draft, answer, recommendation);
         return toResult(draft, recommendation);
     }
 
@@ -59,9 +59,16 @@ public class SizeRecommendationService {
             () -> chooser.choose(draft.aiQuestion())).orElse(null);
     }
 
-    // 어떤 프롬프트 판에서 어떤 판단을 채택했는지 남긴다. 자녀 ID, 회원 ID, 자녀 몸 정보는 남기지 않는다.
-    private void logIfAdopted(SizeRecommendationDraft draft, SizeRecommendation recommendation) {
+    // 어떤 프롬프트 판의 AI 답을 채택했는지, 검증에서 버렸는지 남긴다. 자녀 ID, 회원 ID, 자녀 몸 정보는 남기지 않는다.
+    // AI를 부르지 않았거나 답을 얻지 못한 경우(answer가 null)는 남기지 않는다.
+    private void logOutcome(SizeRecommendationDraft draft, AiSizeAnswer answer, SizeRecommendation recommendation) {
+        if (answer == null) {
+            return;
+        }
+        int promptVersion = draft.aiKeyInput().promptVersion();
         if (recommendation.getSource() != SizeRecommendationSource.AI) {
+            log.info("AI 사이즈 답을 검증에서 버리고 규칙 결과로 답합니다. promptVersion={}, productId={}",
+                promptVersion, draft.productId());
             return;
         }
         List<String> judgements = new ArrayList<>();
@@ -70,7 +77,7 @@ public class SizeRecommendationService {
                 + judgement.allowanceMinCm() + "~" + judgement.allowanceMaxCm());
         }
         log.info("사이즈 AI 답을 채택했습니다. promptVersion={}, productId={}, itemJudgements={}",
-            draft.aiKeyInput().promptVersion(), draft.productId(), judgements);
+            promptVersion, draft.productId(), judgements);
     }
 
     private SizeRecommendationResult toResult(SizeRecommendationDraft draft, SizeRecommendation recommendation) {
@@ -89,7 +96,7 @@ public class SizeRecommendationService {
             draft.productId(), draft.childId(), recommendation.getRecommendedSize(), fit,
             notices, recommendation.getCandidateSizes(), null,
             recommendation.getSource().name(), reasons,
-            referenceFitOf(draft.aiEvidence().referenceFit()), itemJudgementsOf(recommendation));
+            referenceFitOf(draft.aiQuestion().referenceFit()), itemJudgementsOf(recommendation));
     }
 
     private SizeRecommendationResult.ReferenceFit referenceFitOf(ReferenceFit referenceFit) {

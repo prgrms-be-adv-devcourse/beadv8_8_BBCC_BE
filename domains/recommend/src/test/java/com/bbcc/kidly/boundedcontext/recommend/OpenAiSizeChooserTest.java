@@ -10,7 +10,10 @@ import com.bbcc.kidly.boundedcontext.recommend.out.ai.OpenAiSizeChooser;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +27,9 @@ import org.springframework.ai.chat.prompt.Prompt;
 import tools.jackson.databind.json.JsonMapper;
 
 class OpenAiSizeChooserTest {
+
+    private static final String PROMPT_VERSION_3_SHA_256 =
+        "ca2c69554df5f7d6baf8862e946557eca021354fde7502d8d8d16167f21364b8";
 
     private static final SizeAiQuestion QUESTION = new SizeAiQuestion(
         new SizeAiQuestion.Child(82, 115.0, 20.0, BodyType.NORMAL, PreferredFit.LOOSE, BodyType.NORMAL),
@@ -96,5 +102,24 @@ class OpenAiSizeChooserTest {
 
         assertThat(answer.itemJudgements()).containsExactly(new AiSizeAnswer.Judgement(
             "CHEST_WIDTH", new BigDecimal("-1.0"), "TIGHT", new BigDecimal("0.0"), new BigDecimal("3.0")));
+    }
+
+    // 프롬프트 판 번호(SizeRecommendationReader.PROMPT_VERSION)는 AI 답 저장 키에 들어가, 판을 올려야 바뀐 프롬프트의 답이 예전 답과 섞이지 않는다
+    @Test
+    @DisplayName("FIT-11 시스템 지시 글은 프롬프트 판 3의 글과 같다. 지시를 고치면 판 번호를 올리고 이 해시를 바꾼다")
+    void systemInstructionIsPinnedToPromptVersion() throws Exception {
+        List<Prompt> prompts = new ArrayList<>();
+        ChatModel model = prompt -> {
+            prompts.add(prompt);
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[],"itemJudgements":[]}
+                """))));
+        };
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
+
+        byte[] digest = MessageDigest.getInstance("SHA-256")
+            .digest(prompts.getFirst().getSystemMessage().getText().getBytes(StandardCharsets.UTF_8));
+        assertThat(HexFormat.of().formatHex(digest)).isEqualTo(PROMPT_VERSION_3_SHA_256);
     }
 }

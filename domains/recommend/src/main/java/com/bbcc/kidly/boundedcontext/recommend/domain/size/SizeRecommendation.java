@@ -98,7 +98,7 @@ public class SizeRecommendation {
             return this;
         }
         List<SizeReason> reasons = usableReasons(answer.reasons());
-        if (!ReasonNumberChecker.allNumbersGiven(reasons, evidence.givenNumbers(), judgements.get())) {
+        if (!ReasonNumberChecker.allNumbersGiven(reasons, evidence, judgements.get())) {
             return this;
         }
         return new SizeRecommendation(

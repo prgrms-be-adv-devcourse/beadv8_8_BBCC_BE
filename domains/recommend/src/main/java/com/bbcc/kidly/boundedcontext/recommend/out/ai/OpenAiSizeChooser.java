@@ -35,8 +35,8 @@ public class OpenAiSizeChooser implements AiSizeChooser {
           items의 각 항목에 기준 옷 실측 garmentCm과, 사이즈마다 상품 실측 productCm, 차이 diffCm(상품 - 기준 옷, cm)이 있습니다.
           productPart와 comparedPart가 다르면 같은 종류의 기준 옷이 없어 다른 종류(예: 아우터 상품과 상의 기준 옷)와
           너비 항목만 비교한 것입니다. referenceFit이 null이면 기준 옷이 없는 것이니 무시하세요.
-        - ruleResult와 referenceFit의 차이를 함께 보고 사이즈를 고르세요. 몇 cm 넉넉해야 맞는지는 옷 종류와 항목을 보고 판단하세요.
-        - itemJudgements는 referenceFit이 있으면 고른 사이즈(recommendedSize)의 referenceFit 항목마다 하나씩 씁니다.
+        - ruleResult(키와 체형 규칙 결과)와 referenceFit의 항목별 차이(diffCm)를 함께 보고 사이즈를 고르세요. 몇 cm 넉넉해야 맞는지는 옷 종류와 항목을 보고 판단하세요.
+        - itemJudgements는 referenceFit이 있으면 고른 사이즈(recommendedSize)의 값이 referenceFit에 있는 항목마다 하나씩 씁니다.
           code, diffCm(referenceFit에 있는 그 사이즈의 값을 그대로), fit(TIGHT, PROPER, ROOMY 중 하나),
           그 판단에 쓴 여유 범위 allowanceMinCm와 allowanceMaxCm(cm, 최소가 최대보다 크지 않아야 함)을 쓰세요.
           referenceFit이 null이면 빈 목록입니다.
