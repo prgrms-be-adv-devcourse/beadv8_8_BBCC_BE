@@ -52,4 +52,21 @@ class OpenAiSizeChooserTest {
         assertThat(sent.getUserMessage().getText())
             .contains("\"judgedBodyType\":\"NORMAL\"", "\"size\":\"110\"", "\"ruleResult\"");
     }
+
+    @Test
+    @DisplayName("기준 옷 정보를 받지 않으므로, 가지고 계신 옷과 비교해 보라는 말 대신 상품 실측으로 근거를 쓰라고 지시한다")
+    void instructMeasurementReasonWithoutOwnedGarment() {
+        List<Prompt> prompts = new ArrayList<>();
+        ChatModel model = prompt -> {
+            prompts.add(prompt);
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[]}
+                """))));
+        };
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
+
+        String system = prompts.getFirst().getSystemMessage().getText();
+        assertThat(system).contains("가지고 계신 옷", "상품 실측");
+    }
 }
