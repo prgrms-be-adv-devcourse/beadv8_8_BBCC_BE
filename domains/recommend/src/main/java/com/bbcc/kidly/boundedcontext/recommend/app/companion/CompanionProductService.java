@@ -29,7 +29,7 @@ public class CompanionProductService {
 
     // 프롬프트나 답의 모양(OpenAiCompanionAiPicker, CompanionAiAnswer)을 바꾸면 올린다.
     // 프롬프트에 자녀 정보를 쓰지 않으므로 재사용 키에도 자녀 정보를 넣지 않는다.
-    private static final int PROMPT_VERSION = 2;
+    private static final int PROMPT_VERSION = 3;
 
     private final CompanionCandidateReader candidateReader;
     private final AiResponseService aiResponseService;
