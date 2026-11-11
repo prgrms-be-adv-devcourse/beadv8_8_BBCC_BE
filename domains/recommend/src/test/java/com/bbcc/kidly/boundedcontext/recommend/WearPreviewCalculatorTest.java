@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
@@ -20,10 +21,14 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class WearPreviewCalculatorTest {
 
@@ -121,6 +126,59 @@ class WearPreviewCalculatorTest {
 
         assertThat(preview.sizes()).extracting(WearPreview.SizeWear::sleeveCm, WearPreview.SizeWear::sleeveAt)
             .containsExactly(tuple(Double.valueOf(sleeveLengthCm), expected));
+    }
+
+    static Stream<Arguments> notPreviewedProducts() {
+        return Stream.of(
+            Arguments.of(Named.of("사이즈 무관 상의",
+                new FitProduct(1L, TOP_PATH, true, List.of(size("FREE", "45.0", "30.0"))))),
+            Arguments.of(Named.of("모자", product(List.of("잡화", "모자"), size("52", "20.0", null)))),
+            Arguments.of(Named.of("양말", product(List.of("잡화", "양말"), size("150", "15.0", null))))
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("notPreviewedProducts")
+    @DisplayName("PRV-05 사이즈 무관 상품 · 모자 · 양말은 착용 미리보기를 만들지 않는다")
+    void noPreviewForSizeFreeHatAndSocks(FitProduct product) {
+        assertThat(calculator.preview(product, GIRL_120, TODAY)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("PRV-05 총장이 없는 사이즈는 밑단 칸이, 소매길이가 없는 사이즈와 바지 · 치마는 소매 칸이 null이다")
+    void emptyFieldsWithoutMeasurement() {
+        WearPreview top = calculator.preview(product(TOP_PATH,
+            size("110", null, "30.0"), size("120", "45.0", null)), GIRL_120, TODAY).orElseThrow();
+        WearPreview pants = calculator.preview(product(List.of("의류", "바지"),
+            size("120", "70.0", "30.0")), GIRL_120, TODAY).orElseThrow();
+
+        assertThat(top.sizes()).containsExactly(
+            new WearPreview.SizeWear("110", null, null, 30.0, SleevePosition.ABOVE_WRIST),
+            new WearPreview.SizeWear("120", 54.4, HemPosition.HIP, null, null));
+        assertThat(pants.sizes()).containsExactly(
+            new WearPreview.SizeWear("120", 2.6, HemPosition.FLOOR, null, null));
+    }
+
+    static Stream<Arguments> nullInputs() {
+        FitProduct product = product(TOP_PATH, size("120", "45.0", null));
+        return Stream.of(
+            Arguments.of(Named.of("상품", (FitProduct) null), GIRL_120, TODAY, "product는 필수입니다"),
+            Arguments.of(Named.of("자녀", product), null, TODAY, "child는 필수입니다"),
+            Arguments.of(Named.of("오늘 날짜", product), GIRL_120, null, "today는 필수입니다"),
+            Arguments.of(Named.of("성별", product), ChildSizeInput.of(120.0, 21.0, null, BIRTH_DATE_AGE_6,
+                BodyType.NORMAL, PreferredFit.REGULAR), TODAY, "gender는 필수입니다"),
+            Arguments.of(Named.of("생년월일", product), ChildSizeInput.of(120.0, 21.0, Gender.FEMALE, null,
+                BodyType.NORMAL, PreferredFit.REGULAR), TODAY, "birthDate는 필수입니다")
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nullInputs")
+    @DisplayName("PRV-01 착용 미리보기 계산에 필요한 값이 null이면 계산하지 않는다")
+    void rejectNullInputs(FitProduct product, ChildSizeInput child, LocalDate today, String expectedMessage) {
+        assertThatThrownBy(() -> calculator.preview(product, child, today))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessage(expectedMessage);
     }
 
     private static FitProduct product(List<String> categoryPathNames, SizeMeasurements... sizes) {
