@@ -83,7 +83,7 @@ class SizeRecommendationReaderIntegrationTest {
         assertThat(keyInput.preferredFit()).isEqualTo(PreferredFit.LOOSE);
         assertThat(keyInput.candidateProductIds()).isNull();
         assertThat(keyInput.cartProductIds()).isNull();
-        assertThat(keyInput.promptVersion()).isEqualTo(1);
+        assertThat(keyInput.promptVersion()).isEqualTo(2);
     }
 
     @Test
