@@ -8,3 +8,25 @@ kidly:
       relay-interval: PT1S
       # 보낸 메시지를 지우는 시각. 매일 04:00. 보관 기간(7일)은 MemberOutboxCleanupService에 있다
       cleanup-cron: "0 0 4 * * *"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+kidly:
+  member:
+    withdrawal-check:
+      order-uri: ${KIDLY_ORDER_URI:http://localhost:8091}
+      settlement-uri: ${KIDLY_SETTLEMENT_URI:http://localhost:8088}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "dev | prod"
+kidly:
+  member:
+    withdrawal-check:
+      order-uri: ${KIDLY_ORDER_URI}
+      settlement-uri: ${KIDLY_SETTLEMENT_URI}

@@ -7,6 +7,9 @@ import static org.mockito.BDDMockito.then;
 
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
+import com.bbcc.kidly.boundedcontext.member.app.port.SellerWithdrawalBlockerFinder;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
+import com.bbcc.kidly.boundedcontext.member.domain.WithdrawalBlocker;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
@@ -14,6 +17,8 @@ import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import com.bbcc.kidly.shared.auth.out.SocialAccountFinder;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,12 +46,38 @@ class MemberServiceTest {
     @Mock
     private SocialAccountFinder socialAccountFinder;
 
+    @Mock
+    private SellerWithdrawalBlockerFinder blockerFinder;
+
     private MemberService memberService;
 
     @BeforeEach
     void setUp() {
         memberService = new MemberService(memberRepository, new NicknamePolicy(memberRepository), eventPublisher,
-            memberTokenRevoker, socialAccountFinder);
+            memberTokenRevoker, socialAccountFinder, blockerFinder);
+    }
+
+    @Test
+    @DisplayName("남은 주문이 있는 판매자는 탈퇴하지 못한다")
+    void blocksSellerWithdrawal() {
+        var member = MemberFixture.withSellerState(SellerStatus.ACTIVE);
+        given(memberRepository.getById(MEMBER_ID)).willReturn(member);
+        given(blockerFinder.find(MEMBER_ID)).willReturn(List.of(new WithdrawalBlocker("UNCONFIRMED_ORDER_ITEM", 3)));
+
+        assertThatThrownBy(() -> memberService.withdraw(MEMBER_ID))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.SELLER_WITHDRAWAL_BLOCKED));
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+        then(eventPublisher).shouldHaveNoInteractions();
+        then(memberTokenRevoker).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("일반 회원은 판매자 탈퇴 조건을 확인하지 않는다")
+    void withdrawsNonSellerWithoutCheck() {
+        given(memberRepository.getById(MEMBER_ID)).willReturn(MemberFixture.kakaoMember());
+        memberService.withdraw(MEMBER_ID);
+        then(blockerFinder).shouldHaveNoInteractions();
     }
 
     @Test
