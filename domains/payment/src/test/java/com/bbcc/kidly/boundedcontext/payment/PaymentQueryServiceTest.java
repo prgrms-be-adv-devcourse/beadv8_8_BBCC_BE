@@ -10,11 +10,16 @@ import static org.mockito.BDDMockito.given;
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentQueryService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentDetail;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentSummary;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentTotals;
+import com.bbcc.kidly.boundedcontext.payment.domain.DailyPaymentTotal;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
+import com.bbcc.kidly.boundedcontext.payment.domain.PaymentStatus;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
+import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -108,5 +113,37 @@ class PaymentQueryServiceTest {
             .containsExactly(
                 tuple(2L, "FAILED"),
                 tuple(MEMBER_ID, "COMPLETED"));
+    }
+
+    @Test
+    @DisplayName("결제 요약은 기간의 모든 날짜를 주고 결제가 없는 날은 0, 환불 이력 결제 수를 함께 준다")
+    void getTotals() {
+        LocalDate from = LocalDate.of(2026, 11, 9);
+        LocalDate to = LocalDate.of(2026, 11, 11);
+        given(paymentRepository.sumDailyPaidBetween(from.atStartOfDay(), LocalDate.of(2026, 11, 12).atStartOfDay()))
+            .willReturn(List.of(new DailyPaymentTotal(LocalDate.of(2026, 11, 10), 30_000L, 2L)));
+        given(paymentRepository.countByStatusIn(EnumSet.of(PaymentStatus.PARTIALLY_REFUNDED, PaymentStatus.REFUNDED)))
+            .willReturn(5L);
+
+        PaymentTotals totals = paymentQueryService.getTotals(from, to);
+
+        assertThat(totals.daily()).containsExactly(
+            new PaymentTotals.Day(LocalDate.of(2026, 11, 9), 0L, 0L),
+            new PaymentTotals.Day(LocalDate.of(2026, 11, 10), 30_000L, 2L),
+            new PaymentTotals.Day(LocalDate.of(2026, 11, 11), 0L, 0L));
+        assertThat(totals.refundedPaymentCount()).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("시작일이 종료일보다 늦거나 31일을 넘으면 INVALID_SUMMARY_PERIOD다")
+    void invalidTotalsPeriod() {
+        LocalDate day = LocalDate.of(2026, 11, 11);
+
+        assertThatThrownBy(() -> paymentQueryService.getTotals(day, day.minusDays(1)))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.INVALID_SUMMARY_PERIOD);
+        assertThatThrownBy(() -> paymentQueryService.getTotals(day.minusDays(31), day))
+            .isInstanceOf(BusinessException.class)
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.INVALID_SUMMARY_PERIOD);
     }
 }
