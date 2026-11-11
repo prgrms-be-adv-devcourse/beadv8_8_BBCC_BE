@@ -61,6 +61,7 @@ public class ProductDetailService {
             product.getStatus().name(),
             product.isSizeFree(),
             minPrice(options),
+            product.getThumbnailUrl(),
             product.getImageUrls(),
             toOptionAttributes(visibleOptions, type),
             options,

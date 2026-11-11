@@ -11,6 +11,7 @@ import java.util.Map;
  * @param description 판매자가 입력하지 않았으면 null이다
  * @param status 상품 상태의 이름
  * @param minPrice 옵션 판매가 중 가장 낮은 값. 옵션이 없으면 null이다
+ * @param thumbnailUrl 대표 이미지 주소. 판매자가 넣지 않았으면 null이다
  * @param optionAttributes 상품 유형에 연결한 옵션 항목 순서대로 담는다
  * @param options 옵션을 저장한 순서대로 담는다
  * @param productInfo 상품 유형에 연결한 정보 항목 순서대로 담는다
@@ -27,6 +28,7 @@ public record ProductDetailResult(
     String status,
     boolean sizeFree,
     Long minPrice,
+    String thumbnailUrl,
     List<String> imageUrls,
     List<OptionAttribute> optionAttributes,
     List<Option> options,
