@@ -13,7 +13,7 @@
 ## 로컬 실행
 
 1. `.env.example`을 루트에 `.env`로 복사한다. 로컬은 기본값이 있어 비워 둬도 된다(서비스가 실행될 때 루트의 `.env`를 자동으로 읽는다)
-2. `docker compose up -d` — PostgreSQL · Kafka · pgAdmin · Prometheus · Grafana
+2. `docker compose up -d` — PostgreSQL · Kafka · Redis(추천의 AI 답 저장소) · pgAdmin · Prometheus · Grafana
 3. `./gradlew :apps:gateway:bootRun` — Gateway(8083). 루트에서 실행한다. 모든 API 요청은 Gateway로 보낸다. 라우트에 없는 경로는 404다
 4. 필요한 서비스를 띄운다. Gateway가 경로별로 넘기므로 쓰려는 API의 서비스만 띄우면 된다. 서비스마다 자기 스키마를 직접 만들므로 빈 DB에서도 띄우는 순서는 상관없다. 루트에서 실행하고, IDE는 서비스마다 `XxxServiceApplication`, Gateway와 서비스를 한 번에 띄우려면 `Gateway + 서비스`를 쓴다
 
