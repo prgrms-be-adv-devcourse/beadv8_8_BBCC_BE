@@ -364,3 +364,21 @@
 웹 푸시는 FCM으로 보낸다. 대상은 등록 토큰이 아니라 FID(Firebase Installation ID)다. 프론트는 Firebase Messaging의 `register(messaging, { vapidKey })`와 `onRegistered`로 받은 FID를 사이트에 들어올 때와 `onRegistered`가 불릴 때마다 `PUT`하고, 로그아웃 때 `DELETE`한다(서비스 워커 `firebase-messaging-sw.js` 필요).
 푸시로 보내는 알림은 회원이 사이트를 떠난 뒤 일어나는 일이다: 주문 확인(`ORDER_PAID`), 구매자가 하지 않은 주문 취소(`ORDER_CANCELLED` · `ORDER_ITEM_CANCELLED`), 배송 출발 · 완료(`DELIVERY_SHIPPED` · `DELIVERY_DELIVERED`), 판매자 새 주문(`SELLER_ORDER_PAID`). 제목 · 본문은 알림함 알림과 같고, 누르면 알림함 `linkPath`(없으면 사이트 첫 화면)를 연다. 자녀 계정에는 보내지 않는다.
 회원 한 명의 FID는 10개까지 두고(넘으면 마지막 등록이 오래된 것부터 지운다), 270일 동안 다시 등록되지 않은 FID와 FCM이 무효라고 답한 FID는 지운다(매일 04:10 KST). 탈퇴하면 그 회원의 FID를 모두 지운다.
+
+## 챗봇
+
+| 메서드 | 경로 | 설명 | 권한 |
+|---|---|---|---|
+| POST | `/api/v1/chatbot/messages` | 챗봇에게 묻기. 본문 `message`(1~500자) · `history`(선택, 오래된 것부터 최대 10개, 각 `role` `USER` · `ASSISTANT`, `content` 1~1000자). 응답 `{ answer, sources: [{ documentId, title }] }`. 대화는 저장하지 않는다 | 🔒 |
+| POST | `/api/v1/admin/chatbot/documents` | 답변 근거 문서 저장(201 + `Location`). 본문 `title`(1~200자) · `category`(`FAQ` · `POLICY` · `SIZE_GUIDE`) · `content`(1~20,000자). 응답에 만든 조각 수 `chunkCount` | 🛠 |
+| GET | `/api/v1/admin/chatbot/documents` | 문서 목록(최신순, `page` · `size` 1~100, 기본 0 · 20). 본문은 넣지 않는다 | 🛠 |
+| GET | `/api/v1/admin/chatbot/documents/{id}` | 문서 상세(본문 · `chunkCount` 포함) | 🛠 |
+| PUT | `/api/v1/admin/chatbot/documents/{id}` | 문서 수정(제목 · 분류 · 본문 모두 보낸다). 조각을 모두 다시 만든다 | 🛠 |
+| DELETE | `/api/v1/admin/chatbot/documents/{id}` | 문서 삭제(204). 조각도 함께 지운다 | 🛠 |
+
+**답변 근거(#1191)**: 문서를 저장 · 수정하면 본문을 문단 단위로 800자 안팎의 조각으로 나눠(이웃 조각은 100자 안팎 겹친다) OpenAI 임베딩(`text-embedding-3-small`)으로 바꿔 둔다. 질문이 오면 질문을 임베딩해 코사인 유사도가 `kidly.chatbot.retrieval.min-score`(기본 0.3) 이상인 조각을 점수 순으로 `top-k`(기본 4)개까지 골라, 그 조각만으로 답하게 한다. `sources`는 고른 조각의 문서(점수 순, 문서마다 한 번)다. 넘는 조각이 없거나 문서가 하나도 없으면 AI를 부르지 않고 정해진 답("죄송해요, 그 질문에는 아직 답을 드리기 어려워요. 자세한 내용은 고객센터로 문의해 주세요.")과 빈 `sources`를 준다. 저장한 문서는 다음 질문부터 쓴다(서버가 여러 대여도 같다).
+
+오류 코드(상태 · `title` · `detail`은 `ChatbotErrorCode`에 있다):
+
+- `INVALID_CATEGORY`(400), `DOCUMENT_NOT_FOUND`(404)
+- `AI_UNAVAILABLE`(503): OpenAI 키가 없거나 호출이 실패 · 시간 초과했다. 문서 저장 · 수정은 반영되지 않는다
