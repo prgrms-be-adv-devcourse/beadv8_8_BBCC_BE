@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.ai;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
@@ -8,9 +10,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -29,12 +33,14 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class AiResponseService {
 
+    private static final Executor VIRTUAL_THREAD = Thread.ofVirtual()::start;
+
     private final AiResponseStore store;
     private final AiCallQuota quota;
     private final JsonMapper jsonMapper;
     private final Clock clock;
     private final int dailyCallLimit;
-    private final Duration callTimeout;
+    private final Map<AiResponseType, Duration> callTimeouts;
     private final Duration reusePeriod;
 
     @Autowired
@@ -43,11 +49,17 @@ public class AiResponseService {
         AiCallQuota quota,
         JsonMapper jsonMapper,
         @Value("${kidly.recommend.ai.daily-call-limit:2000}") int dailyCallLimit,
-        @Value("${kidly.recommend.ai.call-timeout:PT2.5S}") Duration callTimeout,
+        // 화면이 아래쪽에 있어 늦게 보여도 되는 기능일수록 길게 기다린다. Gateway의 추천 경로 제한 시간보다 짧아야 한다
+        @Value("${kidly.recommend.ai.call-timeout.home-preview:PT3S}") Duration homePreviewTimeout,
+        @Value("${kidly.recommend.ai.call-timeout.bought-together:PT4S}") Duration boughtTogetherTimeout,
+        @Value("${kidly.recommend.ai.call-timeout.size-recommendation:PT3.5S}") Duration sizeRecommendationTimeout,
         @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod
     ) {
-        this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")),
-            dailyCallLimit, callTimeout, reusePeriod);
+        this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit,
+            Map.of(AiResponseType.HOME_PREVIEW, homePreviewTimeout,
+                AiResponseType.BOUGHT_TOGETHER, boughtTogetherTimeout,
+                AiResponseType.SIZE_RECOMMENDATION, sizeRecommendationTimeout),
+            reusePeriod);
     }
 
     public AiResponseService(
@@ -56,7 +68,7 @@ public class AiResponseService {
         JsonMapper jsonMapper,
         Clock clock,
         int dailyCallLimit,
-        Duration callTimeout,
+        Map<AiResponseType, Duration> callTimeouts,
         Duration reusePeriod
     ) {
         this.store = store;
@@ -64,7 +76,7 @@ public class AiResponseService {
         this.jsonMapper = jsonMapper;
         this.clock = clock;
         this.dailyCallLimit = dailyCallLimit;
-        this.callTimeout = callTimeout;
+        this.callTimeouts = Map.copyOf(callTimeouts);
         this.reusePeriod = reusePeriod;
     }
 
@@ -79,6 +91,8 @@ public class AiResponseService {
      *   <li>응답 형식(record의 칸 이름 · 타입 · 의미)을 바꾸면 입력의 프롬프트 버전을 올린다.
      *       저장된 답은 모르는 칸을 무시하고 읽으므로, 올리지 않으면 옛 답이 새 칸 없이 재사용 기간 동안 쓰인다.</li>
      *   <li>응답 타입은 {@code Class}로 읽으므로 {@code List} 같은 제네릭은 record 하나로 감싼다.</li>
+     *   <li>제한 시간은 종류마다 다르다. 넘기면 기다리지 않고 빈 값을 돌려주지만, 늦게 온 답은 받는 대로 저장해
+     *       재사용 기간 동안 같은 입력의 다음 요청이 쓴다.</li>
      *   <li>실패하거나 제한 시간을 넘긴 호출도 하루 호출 횟수에 든다.</li>
      *   <li>저장된 답은 재사용 기간 안의 옛 답일 수 있으니, 상품이 지금 판매 중인지는 부른 쪽이 다시 거른다.</li>
      *   <li>입력의 ID 목록에 null이 있으면 키를 만들지 못해 예외를 던진다.</li>
@@ -103,7 +117,7 @@ public class AiResponseService {
         if (!tryAcquireQuietly(type, now)) {
             return Optional.empty();
         }
-        Optional<T> result = callWithTimeout(type, call);
+        Optional<T> result = callWithTimeout(type, key, now, call);
         if (result.isEmpty()) {
             return Optional.empty();
         }
@@ -149,9 +163,10 @@ public class AiResponseService {
         }
     }
 
-    private <T> Optional<T> callWithTimeout(AiResponseType type, Supplier<T> call) {
-        FutureTask<T> task = new FutureTask<>(call::get);
-        Thread.ofVirtual().start(task);
+    private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, LocalDateTime now,
+        Supplier<T> call) {
+        Duration callTimeout = requireNonNull(callTimeouts.get(type), "종류별 제한 시간이 없습니다");
+        CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
         try {
             return Optional.ofNullable(task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS));
         } catch (InterruptedException e) {
@@ -159,12 +174,19 @@ public class AiResponseService {
             task.cancel(true);
             logCallFailure(type, e);
         } catch (TimeoutException e) {
-            task.cancel(true);
+            // 화면에는 규칙 결과가 나가지만, 늦게 온 답은 받는 대로 저장해 같은 입력의 다음 요청이 쓰게 한다
+            task.thenAccept(lateAnswer -> saveLateAnswer(type, key, lateAnswer, now));
             logCallFailure(type, e);
         } catch (ExecutionException e) {
             logCallFailure(type, e.getCause());
         }
         return Optional.empty();
+    }
+
+    private <T> void saveLateAnswer(AiResponseType type, AiResponseKey key, T lateAnswer, LocalDateTime now) {
+        if (lateAnswer != null) {
+            saveQuietly(type, key, lateAnswer, now);
+        }
     }
 
     // 예외 메시지에 응답 본문이나 개인정보가 섞일 수 있어 클래스 이름만 남기고 스택 트레이스는 붙이지 않는다.
