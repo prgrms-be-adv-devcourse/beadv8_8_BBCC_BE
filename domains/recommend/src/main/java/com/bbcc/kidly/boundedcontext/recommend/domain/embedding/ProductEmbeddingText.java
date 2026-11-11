@@ -17,6 +17,11 @@ public record ProductEmbeddingText(String value) {
     public static final int MAX_LENGTH = 4_000;
 
     private static final String CATEGORY_SEPARATOR = " > ";
+    private static final String NAME_LABEL = "상품명";
+    private static final String CATEGORY_LABEL = "카테고리";
+    private static final String BRAND_LABEL = "브랜드";
+    private static final String DESCRIPTION_LABEL = "설명";
+    private static final String DETAIL_SEPARATOR = " / ";
 
     public record InfoValue(String code, String value) {
     }
@@ -25,12 +30,34 @@ public record ProductEmbeddingText(String value) {
         List<InfoValue> infoValues, String description) {
         requireNonNull(name, "name은 필수입니다");
         List<String> lines = new ArrayList<>();
-        lines.add("상품명: " + name);
-        addIfPresent(lines, "카테고리", joinCategoryNames(categoryPath));
-        addIfPresent(lines, "브랜드", brand);
+        lines.add(NAME_LABEL + ": " + name);
+        addIfPresent(lines, CATEGORY_LABEL, joinCategoryNames(categoryPath));
+        addIfPresent(lines, BRAND_LABEL, brand);
         lines.addAll(infoValueLines(infoValues == null ? List.of() : infoValues));
-        addIfPresent(lines, "설명", description);
+        addIfPresent(lines, DESCRIPTION_LABEL, description);
         return new ProductEmbeddingText(truncate(String.join("\n", lines)));
+    }
+
+    /**
+     * 상품명 · 카테고리 · 브랜드 줄을 뺀 나머지 줄(상품 정보 값 줄과 설명 줄)을 " / "로 이은 글이다. 남는 줄이 없으면 null이다.
+     */
+    public String detailText() {
+        List<String> details = new ArrayList<>();
+        for (String line : value.split("\n")) {
+            if (!isHeadLine(line)) {
+                details.add(line);
+            }
+        }
+        if (details.isEmpty()) {
+            return null;
+        }
+        return String.join(DETAIL_SEPARATOR, details);
+    }
+
+    private static boolean isHeadLine(String line) {
+        return line.startsWith(NAME_LABEL + ": ")
+            || line.startsWith(CATEGORY_LABEL + ": ")
+            || line.startsWith(BRAND_LABEL + ": ");
     }
 
     private static String truncate(String text) {

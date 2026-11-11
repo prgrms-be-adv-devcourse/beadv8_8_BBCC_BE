@@ -150,6 +150,22 @@ class HomePreviewServiceTest {
     }
 
     @Test
+    @DisplayName("HOME-07 근거를 넣기 전 프롬프트(버전 1)로 저장한 답은 자녀 값과 후보가 같아도 다시 쓰지 않고 AI를 다시 부른다")
+    void callAiAgainForAnswerOfOldPromptVersion() {
+        store.save(AiResponseType.HOME_PREVIEW, AiResponseKey.of(new AiResponseKey.Input(null, CHILD_ID,
+                CHILD.ageMonths(), CHILD.heightCm(), CHILD.weightKg(), CHILD.bodyType(), CHILD.preferredFit(),
+                List.of(1L, 2L, 3L, 4L, 5L, 6L), null, 1)),
+            "{\"picks\":[{\"productId\":5,\"reason\":\"추천 사이즈가 110인 상품이에요.\"}]}", BASE_TIME);
+        RecordingPicker picker = new RecordingPicker(answer(5L, "포근한 겨울 상의로 추천."));
+        givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
+
+        HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
+
+        assertThat(picker.requests).hasSize(1);
+        assertThat(result.items().getFirst().reason()).isEqualTo("포근한 겨울 상의로 추천.");
+    }
+
+    @Test
     @DisplayName("후보 구성이 바뀌면 저장한 답을 쓰지 않고 AI를 다시 부른다")
     void callAiAgainWhenCandidatesChange() {
         RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
