@@ -2,7 +2,10 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
@@ -13,11 +16,13 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +40,7 @@ import tools.jackson.databind.json.JsonMapper;
 class AiResponseServiceAsyncTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-10T15:30:00Z"), ZoneId.of("Asia/Seoul"));
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 11, 0, 30);
     private static final int DAILY_LIMIT = 2_000;
     private static final Map<AiResponseType, Duration> CALL_TIMEOUTS = Map.of(
         AiResponseType.HOME_PREVIEW, Duration.ofMillis(300),
@@ -74,6 +80,33 @@ class AiResponseServiceAsyncTest {
         assertThat(result).isCompletedWithValue(Optional.of(new Answer("저장한 답")));
         assertThat(calls).hasValue(0);
         verifyNoInteractions(quota);
+    }
+
+    @Test
+    @DisplayName("저장한 답이 없으면 AI를 기다리지 않고 바로 돌려주고, AI 답이 오면 저장한 뒤 그 답으로 끝난다")
+    void returnBeforeAiAnswersAndCompleteWithAnswer() {
+        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        CountDownLatch release = new CountDownLatch(1);
+
+        CompletableFuture<Optional<Answer>> result = service.respondAsync(TYPE, INPUT, Answer.class, () -> {
+            await(release);
+            return new Answer("새 답");
+        });
+
+        assertThat(result).isNotDone();
+        release.countDown();
+        assertThat(result.join()).contains(new Answer("새 답"));
+        verify(store, timeout(1_000)).save(TYPE, AiResponseKey.of(INPUT), "{\"reason\":\"새 답\"}", NOW);
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     record Answer(String reason) {
