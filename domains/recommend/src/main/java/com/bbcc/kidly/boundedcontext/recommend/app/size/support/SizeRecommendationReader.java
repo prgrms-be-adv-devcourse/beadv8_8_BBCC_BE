@@ -2,6 +2,11 @@ package com.bbcc.kidly.boundedcontext.recommend.app.size.support;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityCalculator;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityTable;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecord;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecordRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
@@ -21,7 +26,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -40,21 +47,30 @@ public class SizeRecommendationReader {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
     private static final int PROMPT_VERSION = 3;
+    private static final int GROWTH_WINDOW_MONTHS = 12;
+    private static final int CM_SCALE = 2;
+    private static final int PERCENT = 100;
 
     private final RecommendReplicaProductRepository replicaProductRepository;
     private final RecommendReplicaChildRepository replicaChildRepository;
     private final ReferenceGarmentRepository referenceGarmentRepository;
+    private final RecommendGrowthRecordRepository growthRecordRepository;
     private final SizeRecommender sizeRecommender;
+    private final GrowthVelocityCalculator growthVelocityCalculator;
 
     public SizeRecommendationReader(
         RecommendReplicaProductRepository replicaProductRepository,
         RecommendReplicaChildRepository replicaChildRepository,
         ReferenceGarmentRepository referenceGarmentRepository,
-        GrowthChart growthChart) {
+        RecommendGrowthRecordRepository growthRecordRepository,
+        GrowthChart growthChart,
+        GrowthVelocityTable growthVelocityTable) {
         this.replicaProductRepository = replicaProductRepository;
         this.replicaChildRepository = replicaChildRepository;
         this.referenceGarmentRepository = referenceGarmentRepository;
+        this.growthRecordRepository = growthRecordRepository;
         this.sizeRecommender = new SizeRecommender(growthChart);
+        this.growthVelocityCalculator = new GrowthVelocityCalculator(growthVelocityTable);
     }
 
     // 상품의 사이즈 줄은 지연 로딩이므로 트랜잭션 안에서 읽어 계산한다
@@ -75,7 +91,9 @@ public class SizeRecommendationReader {
         int ageMonths = (int) Period.between(child.getBirthDate(), today).toTotalMonths();
         List<SizeAiQuestion.SizeLine> sizeLines = sizeLinesOf(product, productSizes);
         ReferenceFit referenceFit = referenceFitOf(product, productSizes, sizeLines, childId);
-        SizeAiQuestion question = questionOf(sizeLines, referenceFit, child, childInput, rule, ageMonths, today);
+        SizeAiQuestion.GrowthSpeed growthSpeed = growthSpeedOf(child, today);
+        SizeAiQuestion question = questionOf(
+            sizeLines, referenceFit, growthSpeed, child, childInput, rule, ageMonths, today);
         return new SizeRecommendationDraft(
             productId, childId, productSizes, rule,
             keyInputOf(productId, childId, child, ageMonths, referenceFit), question,
@@ -158,12 +176,37 @@ public class SizeRecommendationReader {
     }
 
     private SizeAiQuestion questionOf(
-        List<SizeAiQuestion.SizeLine> sizeLines, ReferenceFit referenceFit, RecommendReplicaChild child,
-        ChildSizeInput childInput, SizeRecommendation rule, int ageMonths, LocalDate today) {
+        List<SizeAiQuestion.SizeLine> sizeLines, ReferenceFit referenceFit, SizeAiQuestion.GrowthSpeed growthSpeed,
+        RecommendReplicaChild child, ChildSizeInput childInput, SizeRecommendation rule, int ageMonths,
+        LocalDate today) {
         SizeAiQuestion.Child questionChild = new SizeAiQuestion.Child(
             ageMonths, childInput.heightCm(), childInput.weightKg(), child.getBodyType(),
             child.getPreferredFit(), sizeRecommender.decidedBodyType(childInput, today));
-        return new SizeAiQuestion(questionChild, sizeLines, ruleResultOf(rule), referenceFit, null);
+        return new SizeAiQuestion(questionChild, sizeLines, ruleResultOf(rule), referenceFit, growthSpeed);
+    }
+
+    // 성장 속도 계산이 보는 기간(12개월) 안의 이 자녀 기록만 읽는다
+    private SizeAiQuestion.GrowthSpeed growthSpeedOf(RecommendReplicaChild child, LocalDate today) {
+        LocalDateTime since = today.minusMonths(GROWTH_WINDOW_MONTHS).atStartOfDay();
+        List<RecommendGrowthRecord> records =
+            growthRecordRepository.findRecordedSince(child.getChildProfileId(), since);
+        GrowthVelocity velocity =
+            growthVelocityCalculator.calculate(child.getGender(), child.getBirthDate(), records, today);
+        return new SizeAiQuestion.GrowthSpeed(
+            rounded(velocity.cmPerMonth()), roundedOrNull(velocity.recentCmPerMonth()), velocity.recordCount(),
+            rounded(velocity.recordMonths()), (int) Math.round(velocity.childShare() * PERCENT),
+            rounded(velocity.tableCmPerMonth()), velocity.tableSource());
+    }
+
+    private BigDecimal rounded(double value) {
+        return BigDecimal.valueOf(value).setScale(CM_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal roundedOrNull(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return rounded(value);
     }
 
     private List<SizeAiQuestion.SizeLine> sizeLinesOf(RecommendReplicaProduct product, ProductSizes productSizes) {

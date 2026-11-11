@@ -14,14 +14,35 @@ import java.util.Map;
  * @param sizes 상품이 파는 사이즈별 권장 키와 실측
  * @param ruleResult 규칙으로 계산한 결과
  * @param referenceFit 자녀의 기준 옷과 이 상품의 사이즈별 실측을 비교한 기준 핏이고, 기준 옷이 없으면 null이다
- * @param growthSpeed 성장 속도다. 아직 계산하지 않아 늘 null이다
+ * @param growthSpeed 자녀의 키 성장 속도다
  */
 public record SizeAiQuestion(
     Child child,
     List<SizeLine> sizes,
     RuleResult ruleResult,
     ReferenceFit referenceFit,
-    String growthSpeed) {
+    GrowthSpeed growthSpeed) {
+
+    /**
+     * 숫자는 소수 둘째 자리까지 반올림한 값이다.
+     *
+     * @param cmPerMonth 전체 성장 속도(cm/월)
+     * @param recentCmPerMonth 최근 3개월 성장 속도(cm/월)이고, 계산할 수 없으면 null이다
+     * @param recordCount 계산에 쓴 성장 기록 개수
+     * @param recordMonths 첫 기록과 마지막 기록 사이 개월 수
+     * @param childSharePercent 전체 속도에서 자녀 기록이 차지하는 비중(0 ~ 100)이다
+     * @param tableCmPerMonth 나이 · 성별 표 값(cm/월)
+     * @param tableSource 표 출처
+     */
+    public record GrowthSpeed(
+        BigDecimal cmPerMonth,
+        BigDecimal recentCmPerMonth,
+        int recordCount,
+        BigDecimal recordMonths,
+        int childSharePercent,
+        BigDecimal tableCmPerMonth,
+        String tableSource) {
+    }
 
     /**
      * @param bodyType 보호자가 입력한 체형

@@ -69,7 +69,6 @@ class SizeRecommendationReaderIntegrationTest {
         assertThat(question.ruleResult())
             .isEqualTo(new SizeAiQuestion.RuleResult("120", "ROOMY", List.of("110", "120"), List.of()));
         assertThat(question.referenceFit()).isNull();
-        assertThat(question.growthSpeed()).isNull();
     }
 
     @Test
@@ -149,6 +148,20 @@ class SizeRecommendationReaderIntegrationTest {
             AiResponseKey.of(reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiKeyInput());
 
         assertThat(withGarment).isNotEqualTo(withoutGarment);
+    }
+
+    @Test
+    @DisplayName("GROW-01 · GROW-02 성장 기록이 없으면 AI 입력의 성장 속도는 나이 · 성별 표 값(만 7세 남아 6.00cm/년 ÷ 12)이고 아이 기록 비중은 0이다")
+    void growthSpeedFromTableWithoutRecords() {
+        replicaProductRepository.save(RecommendFixture.productAReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        assertThat(draft.aiQuestion().growthSpeed())
+            .usingRecursiveComparison(cmComparison())
+            .isEqualTo(new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0,
+                new BigDecimal("0.50"), "한국아동패널"));
     }
 
     @Test
