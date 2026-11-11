@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * 아이의 성장 기록과 나이 · 성별 표 값으로 키 성장 속도를 계산한다.
  */
-public class GrowthSpeedCalculator {
+public class GrowthVelocityCalculator {
 
     private static final int MONTHS_PER_YEAR = 12;
     // 한 해 365.25일을 12로 나눈 한 달의 평균 일수다
@@ -19,7 +19,6 @@ public class GrowthSpeedCalculator {
     private static final double MIN_RECORD_MONTHS = 1.0;
     // 집에서 잰 키의 오차를 0.5 ~ 1cm로 보고 그 가운데 값을 쓴다
     private static final double MEASUREMENT_ERROR_CM = 0.75;
-    private static final String TABLE_SOURCE = "한국아동패널";
     private static final double MAX_TABLE_MULTIPLE = 2.0;
     private static final int RECENT_MONTHS = 3;
     // 사춘기 앞뒤로 성장 속도가 해마다 크게 바뀌어 1년보다 오래된 기록은 지금 속도를 잘못 알려 준다
@@ -27,11 +26,11 @@ public class GrowthSpeedCalculator {
 
     private final GrowthVelocityTable table;
 
-    public GrowthSpeedCalculator(GrowthVelocityTable table) {
+    public GrowthVelocityCalculator(GrowthVelocityTable table) {
         this.table = requireNonNull(table, "table은 필수입니다");
     }
 
-    public GrowthSpeed calculate(Gender gender, LocalDate birthDate, List<RecommendGrowthRecord> allRecords,
+    public GrowthVelocity calculate(Gender gender, LocalDate birthDate, List<RecommendGrowthRecord> allRecords,
             LocalDate today) {
         List<RecommendGrowthRecord> records = recordsWithin(allRecords, WINDOW_MONTHS, today);
         long ageMonths = Period.between(birthDate, today).toTotalMonths();
@@ -39,8 +38,8 @@ public class GrowthSpeedCalculator {
         Slope slope = leastSquaresSlope(records);
         Double recentCmPerMonth = recentCmPerMonth(records, today, tableCmPerMonth);
         if (slope.months() < MIN_RECORD_MONTHS) {
-            return new GrowthSpeed(tableCmPerMonth, recentCmPerMonth, null, records.size(), slope.months(), 0.0,
-                    tableCmPerMonth, TABLE_SOURCE);
+            return new GrowthVelocity(tableCmPerMonth, recentCmPerMonth, null, records.size(), slope.months(), 0.0,
+                    tableCmPerMonth, table.source());
         }
         double tableError = table.yearlySdCm(gender, ageMonths) / MONTHS_PER_YEAR;
         return blend(records.size(), slope, recentCmPerMonth, tableCmPerMonth, tableError);
@@ -49,14 +48,14 @@ public class GrowthSpeedCalculator {
     /**
      * 아이 기록의 최소제곱 기울기와 표 값을, 오차가 작은 쪽에 비중을 두어 섞는다.
      */
-    private GrowthSpeed blend(int recordCount, Slope slope, Double recentCmPerMonth, double tableCmPerMonth,
+    private GrowthVelocity blend(int recordCount, Slope slope, Double recentCmPerMonth, double tableCmPerMonth,
             double tableError) {
         double childErrorSquare = MEASUREMENT_ERROR_CM * MEASUREMENT_ERROR_CM / slope.timeSpread();
         double childShare = tableError * tableError / (tableError * tableError + childErrorSquare);
         double blended = childShare * slope.cmPerMonth() + (1 - childShare) * tableCmPerMonth;
         double cmPerMonth = limitByTable(blended, tableCmPerMonth);
-        return new GrowthSpeed(cmPerMonth, recentCmPerMonth, slope.cmPerMonth(), recordCount, slope.months(),
-                childShare, tableCmPerMonth, TABLE_SOURCE);
+        return new GrowthVelocity(cmPerMonth, recentCmPerMonth, slope.cmPerMonth(), recordCount, slope.months(),
+                childShare, tableCmPerMonth, table.source());
     }
 
     /**

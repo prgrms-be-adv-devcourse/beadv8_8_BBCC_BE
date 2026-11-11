@@ -12,7 +12,7 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.growth;
  * @param tableCmPerMonth 표 값(cm/월)
  * @param tableSource 표 출처
  */
-public record GrowthSpeed(
+public record GrowthVelocity(
         double cmPerMonth,
         Double recentCmPerMonth,
         Double childCmPerMonth,

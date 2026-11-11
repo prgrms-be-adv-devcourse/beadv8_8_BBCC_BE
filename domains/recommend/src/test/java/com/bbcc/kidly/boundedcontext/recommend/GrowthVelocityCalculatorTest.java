@@ -4,8 +4,8 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_I
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthSpeed;
-import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthSpeedCalculator;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityCalculator;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecord;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -21,15 +21,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class GrowthSpeedCalculatorTest {
+class GrowthVelocityCalculatorTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 12);
     // 오늘 만 6세(78개월)인 여자아이다. 표의 만 6 ~ 7세 여 중앙값은 6.00cm/년이라 한 달 0.5cm다
     private static final LocalDate BIRTH_DATE_AGE_6 = LocalDate.of(2020, 5, 1);
     private static final AtomicLong RECORD_ID = new AtomicLong(1);
 
-    private final GrowthSpeedCalculator calculator =
-        new GrowthSpeedCalculator(new GrowthTableConfig().growthVelocityTable());
+    private final GrowthVelocityCalculator calculator =
+        new GrowthVelocityCalculator(new GrowthTableConfig().growthVelocityTable());
 
     static Stream<Arguments> recordsTooFewOrTooShort() {
         return Stream.of(
@@ -45,7 +45,7 @@ class GrowthSpeedCalculatorTest {
     @MethodSource("recordsTooFewOrTooShort")
     @DisplayName("GROW-02 기록이 1개 이하이거나 기간이 1개월 미만이면 한국아동패널 표 값 ÷ 12를 쓰고 아이 기록 비중은 0이다")
     void tableSpeedWhenRecordsTooFewOrTooShort(List<RecommendGrowthRecord> records) {
-        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+        GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
         assertThat(speed.cmPerMonth()).isEqualTo(0.5);
         assertThat(speed.tableCmPerMonth()).isEqualTo(0.5);
@@ -75,7 +75,7 @@ class GrowthSpeedCalculatorTest {
     @DisplayName("GROW-03 기간이 1개월 이상이면 아이 기록 기울기와 표 값을 오차가 작은 쪽에 비중을 두어 섞는다")
     void blendChildSlopeAndTableByError(List<RecommendGrowthRecord> records, double expectedChildShare,
         double expectedCmPerMonth) {
-        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+        GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
         assertThat(speed.childShare()).isCloseTo(expectedChildShare, within(0.000001));
         assertThat(speed.cmPerMonth()).isCloseTo(expectedCmPerMonth, within(0.000001));
@@ -86,7 +86,7 @@ class GrowthSpeedCalculatorTest {
     @MethodSource("unevenRecords")
     @DisplayName("GROW-03 아이 기록 기울기는 처음과 끝 기록이 아니라 모든 기록의 최소제곱 기울기다")
     void childSlopeIsLeastSquares(List<RecommendGrowthRecord> records, double expectedChildCmPerMonth) {
-        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+        GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
         assertThat(speed.childCmPerMonth()).isCloseTo(expectedChildCmPerMonth, within(0.000001));
     }
@@ -116,7 +116,7 @@ class GrowthSpeedCalculatorTest {
     @MethodSource("blendedOutOfRange")
     @DisplayName("GROW-04 섞은 결과가 0 미만이면 0, 표 값의 2배를 넘으면 2배로 맞춘다")
     void clampBlendedSpeed(List<RecommendGrowthRecord> records, double expectedCmPerMonth) {
-        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+        GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
         assertThat(speed.cmPerMonth()).isEqualTo(expectedCmPerMonth);
     }
@@ -145,7 +145,7 @@ class GrowthSpeedCalculatorTest {
     @MethodSource("recentRecordsEnough")
     @DisplayName("GROW-05 최근 3개월 안에 기록이 2개 이상이고 그 기간이 1개월 이상이면 그 기록만의 최소제곱 기울기를 표와 섞지 않고 0 ~ 표 값 2배로 맞춰 최근 속도로 쓴다")
     void recentSpeedFromRecentRecords(List<RecommendGrowthRecord> records, double expectedRecentCmPerMonth) {
-        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+        GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
         assertThat(speed.recentCmPerMonth()).isCloseTo(expectedRecentCmPerMonth, within(0.000001));
     }
@@ -169,7 +169,7 @@ class GrowthSpeedCalculatorTest {
     @MethodSource("recentRecordsNotEnough")
     @DisplayName("GROW-05 최근 3개월 안 기록이 1개 이하이거나 그 기간이 1개월 미만이면 최근 속도를 표로 메우지 않고 null로 둔다")
     void noRecentSpeedWhenRecentRecordsNotEnough(List<RecommendGrowthRecord> records) {
-        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+        GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
         assertThat(speed.recentCmPerMonth()).isNull();
     }
@@ -193,7 +193,7 @@ class GrowthSpeedCalculatorTest {
     @DisplayName("GROW-03 성장 속도는 오늘부터 12개월 안의 기록만으로 계산한다")
     void useRecordsWithinTwelveMonths(List<RecommendGrowthRecord> records, int expectedRecordCount,
         double expectedChildShare, double expectedCmPerMonth) {
-        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+        GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
         assertThat(speed.recordCount()).isEqualTo(expectedRecordCount);
         assertThat(speed.childShare()).isCloseTo(expectedChildShare, within(0.000001));
