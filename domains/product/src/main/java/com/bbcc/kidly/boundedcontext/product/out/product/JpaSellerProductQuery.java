@@ -14,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.QProductOption;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -37,9 +38,14 @@ public class JpaSellerProductQuery implements SellerProductQuery {
         NumberExpression<Long> optionCount = productOption.id.count();
         NumberExpression<Long> availableQuantity = inventory.availableQty.sumLong().coalesce(0L);
         NumberExpression<Long> minPrice = productOption.price.min();
+        NumberExpression<Integer> quantity = inventory.availableQty.coalesce(0);
+        BooleanExpression onSale = productOption.saleStatus.eq(ProductOptionStatus.ON_SALE);
+        NumberExpression<Long> soldOutCount = countIf(onSale.and(quantity.eq(0)));
+        NumberExpression<Long> lowStockCount = countIf(onSale.and(quantity.gt(0))
+            .and(quantity.loe(StockDisplay.LOW_STOCK_THRESHOLD)));
         List<Tuple> rows = queryFactory
             .select(product.id, product.name, product.thumbnailUrl, product.status, product.createdAt,
-                optionCount, availableQuantity, minPrice)
+                optionCount, availableQuantity, soldOutCount, lowStockCount, minPrice)
             .from(product)
             .leftJoin(productOption)
             .on(productOption.product.eq(product).and(productOption.saleStatus.ne(ProductOptionStatus.ARCHIVED)))
@@ -59,8 +65,8 @@ public class JpaSellerProductQuery implements SellerProductQuery {
                 row.get(product.status),
                 row.get(optionCount),
                 row.get(availableQuantity),
-                0L,
-                0L,
+                row.get(soldOutCount),
+                row.get(lowStockCount),
                 row.get(minPrice),
                 row.get(product.createdAt)));
         }
@@ -69,6 +75,11 @@ public class JpaSellerProductQuery implements SellerProductQuery {
             .from(product)
             .where(conditions(sellerId, filter));
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
+    }
+
+    // 조건에 맞는 옵션 행의 수를 센다. 옵션이 없는 상품은 옵션 칸이 null인 행 하나가 생기지만 조건이 거짓이라 0이 된다
+    private NumberExpression<Long> countIf(BooleanExpression condition) {
+        return new CaseBuilder().when(condition).then(1L).otherwise(0L).sumLong();
     }
 
     // 목록과 전체 건수가 같은 조건을 쓰도록 한 곳에서 만든다
