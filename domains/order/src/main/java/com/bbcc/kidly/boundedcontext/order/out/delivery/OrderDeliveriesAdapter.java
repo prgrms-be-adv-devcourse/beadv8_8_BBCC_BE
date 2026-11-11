@@ -51,6 +51,11 @@ public class OrderDeliveriesAdapter implements OrderDeliveries {
     }
 
     @Override
+    public boolean cancelForUnavailableSeller(Long orderId, Long sellerId) {
+        return deliveryOperations.cancelForUnavailableSeller(orderId, sellerId);
+    }
+
+    @Override
     public Page<DelayedDelivery> findShippingDelayed(LocalDateTime before, Pageable pageable) {
         return shippingDelays.findShippingDelayed(before, pageable)
             .map(view -> new DelayedDelivery(view.orderId(), view.deliveryId(), view.createdAt()));

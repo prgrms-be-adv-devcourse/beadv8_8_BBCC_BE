@@ -169,7 +169,7 @@
 | GET | `/api/v1/seller/orders` | 판매 주문 목록. 주문상품에 자녀 정보(`child`)는 없다(#997, 제3자 제공 동의 없이 판매자에게 넘기지 않음) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리(처음 완료 때 `delivery.delivered` 1번: 그 몫 주문상품(취소 제외) · 자동 구매확정 예정 시각, #1061. 택배 조회 완료도 같다) | 🏪 |
-| POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409 | 🏪 |
+| POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409. 판매자가 판매할 수 없게 되면(#1121, 판매자 상태가 ACTIVE 아님) 시스템이 그 판매자의 배송 전 주문을 정리한다: 결제대기 주문은 전체 취소(`cancelReason` `SELLER_UNAVAILABLE`), 결제완료 · 배송 준비 몫은 이 취소와 같은 결과(주문상품 `cancelReason` `SELLER_UNAVAILABLE`, 판매자가 고르는 사유는 아님. 그 몫으로 주문 전체가 취소되면 주문 `cancelReason`도 `SELLER_UNAVAILABLE`), 배송 중 · 배송 완료는 그대로 | 🏪 |
 | GET | `/api/v1/admin/orders` | 전체 주문 조회 | 🛠 |
 | GET | `/api/v1/admin/orders/{orderId}/history` | 주문 상태 이력 | 🛠 |
 | GET | `/api/v1/admin/orders/stuck` | 멈춘 주문 목록(`kind`). 줄마다 AI 진단 메모 `aiMemo`(#926, 없으면 null) | 🛠 |

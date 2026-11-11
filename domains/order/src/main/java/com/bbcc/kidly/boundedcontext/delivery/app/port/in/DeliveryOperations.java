@@ -38,6 +38,15 @@ public interface DeliveryOperations {
     List<DeliveryChange> cancelByOrder(Long orderId);
 
     /**
+     * 판매자가 판매할 수 없게 돼(#1121) 그 주문의 그 판매자 배송이 발송 전(READY)이면 판매자 발송 전 취소와 같은 경로로 취소한다:
+     * 배송 CANCELLED + 그 판매자 주문상품 취소(사유 SELLER_UNAVAILABLE, order-item.cancelled) + 상태 이력(주체 SYSTEM · 출처
+     * seller.changed). 배송이 없거나 이미 발송 · 배송 완료 · 취소면 아무것도 하지 않는다.
+     *
+     * @return 이번에 취소했으면 true
+     */
+    boolean cancelForUnavailableSeller(Long orderId, Long sellerId);
+
+    /**
      * 다른 컨텍스트가 읽는 판매자별 배송 한 건. 상태 · 택배사는 enum 이름 문자열.
      *
      * @param shipped 발송됐는지(배송 중 · 배송 완료)
