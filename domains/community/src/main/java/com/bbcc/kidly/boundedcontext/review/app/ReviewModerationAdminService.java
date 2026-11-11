@@ -1,10 +1,11 @@
 package com.bbcc.kidly.boundedcontext.review.app;
 
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewActivityLog;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImages;
-import com.bbcc.kidly.boundedcontext.review.app.port.ReviewModerations;
-import com.bbcc.kidly.boundedcontext.review.app.port.ReviewModerationStats;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewModerationStats.StatusCountRow;
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewModerationStats;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewModerations.AdminReviewRow;
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewModerations;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
@@ -37,6 +38,7 @@ public class ReviewModerationAdminService {
     private final ReviewStatsShare statsShare;
     private final ReviewModerationProperties properties;
     private final ReviewModerationStats moderationStats;
+    private final ReviewActivityLog activityLog;
 
     /**
      * 검사 현황(운영 조회): 상태별 리뷰 수(대기는 상한 전 PENDING · 상한 도달 PENDING_EXHAUSTED로 나눔, 없는 상태 0),
@@ -102,12 +104,19 @@ public class ReviewModerationAdminService {
         boolean hide = parseVisibility(visibility);
         Review review = reviews.findForUpdate(reviewId)
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
+        ModerationStatus before = review.getModerationStatus();
         if (hide) {
             if (review.hideByAdmin(adminId, ReviewTimes.now())) {
                 statsShare.remove(review);
             }
         } else if (review.restoreByAdmin(adminId, ReviewTimes.now())) {
             statsShare.add(review);
+        }
+        // 상태가 실제로 바뀐 조치만 남긴다(같은 값을 다시 보낸 요청은 남지 않는다)
+        if (review.getModerationStatus() != before) {
+            activityLog.moderationDecided(review.getId(), review.getProductId(), true,
+                review.getModerationStatus().name(),
+                review.getModerationReason() == null ? null : review.getModerationReason().name());
         }
         return new VisibilityChanged(review.getId(), review.getModerationStatus().name());
     }

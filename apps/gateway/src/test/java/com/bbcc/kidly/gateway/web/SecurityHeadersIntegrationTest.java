@@ -97,7 +97,8 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     @Test
     @DisplayName("actuator 응답에도 붙인다")
     void addsHeadersToActuator() {
-        expectSecurityHeaders(client.get().uri("/actuator/health").exchange().expectStatus().isOk());
+        // 전체 health 는 무효화 목록을 다 읽기 전 503 일 수 있어, 늘 200 인 liveness 로 헤더를 본다
+        expectSecurityHeaders(client.get().uri("/actuator/health/liveness").exchange().expectStatus().isOk());
     }
 
     private static void expectSecurityHeaders(ResponseSpec response) {

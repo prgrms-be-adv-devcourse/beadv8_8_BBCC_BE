@@ -43,6 +43,9 @@ kidly:
       relay-interval: P3650D
       cleanup-cron: "-"
   member:
+    withdrawal-check:
+      order-uri: http://order.test
+      settlement-uri: http://settlement.test
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"

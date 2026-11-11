@@ -74,6 +74,20 @@ class SizeRecommendationApiTest {
     }
 
     @Test
+    @DisplayName("AI 모델이 없으면 규칙 결과로 답하고, 출처는 RULE이고 근거는 빈 목록이다")
+    void recommendSizeByRuleWithoutAiModel() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.recommendedSize").isEqualTo("120")
+            .jsonPath("$.source").isEqualTo("RULE")
+            .jsonPath("$.reasons.length()").isEqualTo(0);
+    }
+
+    @Test
     @DisplayName("INV-R05 안내가 붙으면 code와 화면에 보여 줄 message를 함께 받는다 (키 115cm · 몸무게 18kg · 체형 보통 · 선호 핏 여유)")
     void recommendSizeWithNotices() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());

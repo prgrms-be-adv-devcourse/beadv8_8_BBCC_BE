@@ -2,9 +2,13 @@ package com.bbcc.kidly.boundedcontext.member.app;
 
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberResult;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
+import com.bbcc.kidly.boundedcontext.member.app.port.SellerWithdrawalBlockerFinder;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberErrorCode;
+import com.bbcc.kidly.boundedcontext.member.domain.MemberPolicy;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.NicknamePolicy;
+import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import com.bbcc.kidly.shared.auth.out.SocialAccountFinder;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
@@ -30,6 +34,7 @@ public class MemberService {
     private final ApplicationEventPublisher eventPublisher;
     private final MemberTokenRevoker memberTokenRevoker;
     private final SocialAccountFinder socialAccountFinder;
+    private final SellerWithdrawalBlockerFinder blockerFinder;
 
     @Transactional(readOnly = true)
     public MemberResult getMine(Long memberId) {
@@ -49,15 +54,19 @@ public class MemberService {
         return MemberResult.from(member, socialAccountFinder.findProviders(memberId));
     }
 
-    // 신청하면 바로 탈퇴한다. 배송지 · 자녀 프로필 · 소셜 계정 연결은 탈퇴 이벤트를 받아 지운다
+    // 배송지 · 자녀 프로필 · 소셜 계정 연결은 탈퇴 이벤트를 받아 지운다
     // Refresh Token은 탈퇴 회원의 재발급이 막히므로 남겨 두고, 만료되면 RefreshTokenCleaner가 지운다
-    // TODO 예치금 잔액이 0원인지 확인한다 (결제 도메인)
-    // TODO 진행 중인 주문이 없는지 확인한다 (주문 도메인)
-    // TODO 판매자인 회원의 판매자 · 상품을 처리한다 (판매자 · 상품 도메인)
     @Transactional
     public void withdraw(Long memberId) {
         var now = LocalDateTime.now();
         var member = memberRepository.getById(memberId);
+        if (member.requiresSellerWithdrawalCheck()) {
+            var blockers = blockerFinder.find(memberId);
+            if (!blockers.isEmpty()) {
+                throw new BusinessException(MemberErrorCode.SELLER_WITHDRAWAL_BLOCKED,
+                    MemberPolicy.withdrawalBlockedDetail(blockers));
+            }
+        }
         member.withdraw(now);
         memberTokenRevoker.revoke(memberId, now);
         eventPublisher.publishEvent(

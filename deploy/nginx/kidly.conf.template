@@ -68,7 +68,7 @@ server {
     }
 }
 
-# 개발 앱
+# 개발 앱(운영 서버로 쓴다). Gateway 는 이 서버의 단독 k3s 에 뜨고 NodePort 30200 으로 닿는다(deploy/k3s, #1142)
 server {
     listen 443 ssl;
     http2 on;
@@ -80,11 +80,11 @@ server {
     }
 
     location = /actuator/health {
-        proxy_pass http://127.0.0.1:8083;
+        proxy_pass http://127.0.0.1:30200;
     }
 
     location / {
-        proxy_pass http://127.0.0.1:8083;
+        proxy_pass http://127.0.0.1:30200;
     }
 }
 

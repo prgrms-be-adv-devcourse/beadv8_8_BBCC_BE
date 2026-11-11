@@ -1,7 +1,8 @@
 package com.bbcc.kidly.boundedcontext.favorite.app;
 
-import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteProducts;
+import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteProducts.ProductView;
+import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteProducts;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteStatsCounter;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.Favorites;
 import com.bbcc.kidly.boundedcontext.favorite.domain.Favorite;
@@ -34,6 +35,7 @@ public class FavoriteService {
     private final FavoriteStatsCounter favoriteStatsCounter;
     private final FavoriteProducts favoriteProducts;
     private final FavoriteSeparateTransaction separateTransaction;
+    private final FavoriteActivityLog activityLog;
 
     public void add(Long memberId, String productId) {
         Long id = FavoriteIds.productId(productId);
@@ -47,8 +49,10 @@ public class FavoriteService {
         Favorite favorite = create(memberId, id, product.saleEnded());
         try {
             separateTransaction.run(() -> {
-                favorites.saveAndFlush(favorite);
+                Favorite saved = favorites.saveAndFlush(favorite);
                 favoriteStatsCounter.increase(id, FavoriteTimes.now());
+                // 새로 생긴 찜만 남는다(동시 찜으로 막힌 저장은 이 트랜잭션과 함께 되돌려진다)
+                activityLog.favoriteAdded(saved.getId(), id);
             });
         } catch (DataIntegrityViolationException e) {
             // 같은 찜이 먼저 저장됐다. 다시 보지 않고 이미 찜으로 끝낸다(그 사이 해제됐어도 해제가 뒤에 일어난 것과 같은 결과)
@@ -61,12 +65,14 @@ public class FavoriteService {
     @Transactional
     public void remove(Long memberId, String productId) {
         Long id = FavoriteIds.productId(productId);
-        if (favorites.deleteByMember(memberId, id) == 0) {
+        List<Long> deleted = favorites.deleteByMember(memberId, id);
+        if (deleted.isEmpty()) {
             return;
         }
         if (favoriteStatsCounter.decreaseBy(id, 1, FavoriteTimes.now()) == 0) {
             throw new IllegalStateException("찜 수 행이 없습니다: productId=" + id);
         }
+        activityLog.favoriteRemoved(deleted.getFirst(), id);
     }
 
     private static Favorite create(Long memberId, Long productId, boolean saleEnded) {

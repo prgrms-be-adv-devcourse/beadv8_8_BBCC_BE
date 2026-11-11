@@ -12,8 +12,9 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | `member.changed` 회원 정보 변경됨 | 회원 → 판매자 | 신청자 닉네임 반영 | memberId · nickname | 보완 |
 | `member.withdrawn` 회원탈퇴됨 | 회원 → 회원(배송지) · 자녀 프로필 · **결제** · **커뮤니티** (추천 예정) | 배송지 · 자녀 프로필 삭제 · **지갑 동결** / 활동 기록 · AI 응답 삭제(추천, P16) · 찜 삭제 · 리뷰 작성자 닉네임 지움(커뮤니티, #663) | memberId | 보완 · 최종 |
 | `child.changed` 자녀 정보 변경됨 | 자녀 프로필 → 추천 · 주문 | 복사본 저장 (삭제면 삭제 직전 값 + deleted) | childId · memberId · heightCm · weightKg · gender · birthDate · bodyType(없으면 null) · preferredFit(없으면 null) · deleted | ① |
-| `seller.changed` 판매자 정보 변경됨 | 판매자 → 회원 · 상품 · 주문 · 추천 · **검색** | 복사본 저장 (승인 · 정지 때 발행) · 상호명 색인(검색) | sellerId · businessName · status(ACTIVE · SUSPENDED) | ② · 최종 |
-| `product.changed` 상품 정보 변경됨 | 상품 → 추천 · 주문 · **검색 · 커뮤니티** · 상품(검색용 표, 되돌리기용) | 복사본 저장 (판매 상태 변경 · 수정 · 품절 변경 때 발행) · 색인(검색) · 임베딩 다시 생성(추천) | productId · sellerId · name · categoryId · status · thumbnailUrl · createdAt · sizeFree · infoValues · options(optionId · optionName · size · price · minHeightCm · maxHeightCm · soldOut · saleStatus · values) · **brand · description · sizeSpecs**(#610) · **categoryPath**(id · name, 대분류 → 종류, #955) | ② · 최종 |
+| `child.growth-recorded` 성장 기록됨 | 자녀 프로필 → 추천 | 성장 이력 저장 | growthRecordId · childId · heightCm · bodyType(없으면 null) · recordedAt | ① |
+| `seller.changed` 판매자 정보 변경됨 | 판매자 → 회원 · 상품 · 주문 · 추천 · **검색** | 복사본 저장 (승인 · 정지 · 탈퇴 때 발행) · 상호명 색인(검색) | sellerId · businessName · status(ACTIVE · SUSPENDED · CLOSED) | ② · 최종 |
+| `product.changed` 상품 정보 변경됨 | 상품 → 추천 · 주문 · **검색 · 커뮤니티** · 상품(검색용 표, 되돌리기용) | 복사본 저장 (판매 상태 변경 · 수정 · 품절 변경 때 발행) · 색인(검색) · 임베딩 다시 생성(추천) | productId · sellerId · name · categoryId · status · thumbnailUrl · createdAt · sizeFree · infoValues · options(optionId · optionName · size · price · minHeightCm · maxHeightCm · soldOut · saleStatus · values) · **brand · description · sizeSpecs**(#610) · **categoryPath**(id · name, 대분류 → 종류, #955) · **saleStartedAt**(#1096) | ② · 최종 |
 | `order.created` 주문 생성됨 | 주문 → 상품 | 재고 차감 (선점) | orderId · memberId · items(orderItemId · optionId · quantity) | ④ |
 | `stock.deducted` 재고 차감됨 | 상품 → 주문 | 결제 요청 (결제대기일 때만) | orderId | ④ |
 | `order.payment-requested` 결제 요청됨 | 주문 → 결제 | 예치금으로 결제 | orderId · memberId · amount · items(orderItemId · amount) | ④ |
@@ -27,10 +28,9 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | `order.cancelled` 주문 취소됨 | 주문 → 상품 · 결제 (추천 예정) | 재고 복구 / 결제됐으면 남은 금액 환불, 아직이면 이후 결제 요청 거절 / 구매자 취소면 활동 기록(추천) | orderId · memberId · reason(OUT_OF_STOCK · PAYMENT_FAILED · PAYMENT_EXPIRED · BUYER_CANCELLED) · items(orderItemId · optionId · quantity) | 보완 |
 | order-item.cancelled 판매자 주문상품 취소됨 | 주문 → 결제 · 상품 | 주문상품 금액만큼 환불 / 재고 복구 | orderId · memberId · sellerId · cancellationId · reason(OUT_OF_STOCK · WRONG_PRODUCT_INFO · OTHER) · items(orderItemId · optionId · quantity · amount) | 최종 |
 | payment.refunded 환불 완료됨 (계약만) | 결제 → 주문 · 정산 | 취소 완료 / 미정산 대상 제외 (K18) | refundId · paymentId · orderId · cancellationId · items(orderItemId · amount) · amount · refundedAt | 최종 |
-| cart.item-added 장바구니 담김(발행은 이미 있음) | 주문 → 추천 | 활동 기록 저장, 선호 점수 갱신 | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
-| cart.item-removed 장바구니 빠짐(발행 요청) | 주문 → 추천 | 활동 기록 저장, 선호 점수 갱신 | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
+| cart.item-added 장바구니 담김(발행은 이미 있음) | 주문 → 추천 | 활동 기록 저장(선호 점수는 하루 한 번 배치가 계산) | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
+| cart.item-removed 장바구니 빠짐(발행 요청) | 주문 → 추천 | 활동 기록 저장(선호 점수는 하루 한 번 배치가 계산) | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
 | search.performed 검색어 기록됨(발행은 이미 있음) | 검색 → 추천 | 활동 기록 저장 | memberId · keyword · categoryId · attributeValueIds · resultCount | 최종 |
-| child.reference-garment.changed 기준 옷 변경됨 | 자녀 프로필 → 추천 | 기준 옷 복사본 저장 | childId · part(TOP · BOTTOM) · lengthCm · widthCm · sourceOrderItemId | 최종(2순위) |
 | `member.tokens-revoked` 토큰 무효화됨 | 회원 → API Gateway | 무효화 목록에 넣어 그 회원의 기존 토큰 거절 (도메인 아님) | memberId · 무효화 시각 | 최종 |
 | `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected` 조르기 | 주문 → (추천 · 알림 예정) | 활동 신호 · 인앱 알림 | 키 = 자녀 프로필 ID | 최종(예정) |
 | `review.created` 리뷰 작성됨 | 커뮤니티 → (미정) | 추천 · 검색 신호 (K28) | 리뷰 ID · 상품 ID · 주문상품 ID · 회원 ID · 별점 · 작성 시각(본문 · 닉네임 제외) | 최종(보류) |
@@ -48,13 +48,13 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 
 | 구분 | 내용 |
 |---|---|
-| 보내는 이벤트 | member.registered (①) · member.changed (보완) · member.withdrawn (보완) · child.changed (①, 자녀 프로필) · seller.changed (②, 판매자) |
+| 보내는 이벤트 | member.registered (①) · member.changed (보완) · member.withdrawn (보완) · child.changed · child.growth-recorded (①, 자녀 프로필) · seller.changed (②, 판매자) |
 | 받는 이벤트 | member.withdrawn → 배송지 · 자녀 프로필 삭제 · seller.changed → 판매자 상태 복사본(토큰 역할 계산) · member.changed → 신청자 닉네임 · member.registered → 환영 메일(알림) |
 | 시간 작업 | 만료된 Refresh Token 정리 · 실패한 알림 메일 재발송 (1분마다) |
 
 자녀 API(등록 · 목록 · 상세 · 수정 · 삭제)는 회원 담당입니다. 명세 v2의 추천 도메인 표시와 다르며, 이 문서를 따릅니다.
 
-최종: 보내는 이벤트에 `member.tokens-revoked`(→ Gateway)가 더해졌고, 받는 이벤트는 모두 Kafka입니다. 인증은 auth 도메인으로 분리 중이며(#686, PR #717), 머지되면 무효화 이벤트가 `auth.tokens-revoked`(`kidly.auth.events`)로 바뀝니다. 기준 옷 API(2순위)는 ① 카드에 있습니다.
+최종: 보내는 이벤트에 `member.tokens-revoked`(→ Gateway)가 더해졌고, 받는 이벤트는 모두 Kafka입니다. 인증은 auth 도메인으로 분리 중이며(#686, PR #717), 머지되면 무효화 이벤트가 `auth.tokens-revoked`(`kidly.auth.events`)로 바뀝니다. 기준 옷 API(2순위)는 추천이 저장하므로 ③ 카드에 있습니다.
 
 ## 상품 · heojungseok
 
@@ -62,7 +62,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 |---|---|
 | 보내는 이벤트 | product.changed (②) · stock.deducted (④) · stock.deduction-failed (보완) |
 | 받는 이벤트 | order.created 재고 차감 (선점) (④) · order.cancelled 재고 복구 · 이후 차감 거절 (보완) · seller.changed 판매자 복사본 · product.changed 검색용 표 갱신 (되돌리기용) |
-| 최종 | 판매자 · 주문 이벤트를 Kafka로 받음(그룹 `kidly.product`, #692) · `order-item.cancelled` 재고 복구(#716) · `product.changed`에 brand · description · sizeSpecs 추가(#610) · `product.changed`에 categoryPath 칸 추가(#955) · 보내는 이벤트는 아웃박스 |
+| 최종 | 판매자 · 주문 이벤트를 Kafka로 받음(그룹 `kidly.product`, #692) · `order-item.cancelled` 재고 복구(#716) · `product.changed`에 brand · description · sizeSpecs 추가(#610) · `product.changed`에 categoryPath 칸 추가(#955) · `product.changed`에 saleStartedAt 칸 추가(#1096) · 보내는 이벤트는 아웃박스 |
 
 ## 검색 · codes-gy (새 표)
 
@@ -84,7 +84,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | 구분 | 내용 |
 |---|---|
 | 보내는 이벤트 | 없음 |
-| 받는 이벤트 | child.changed · product.changed(보강 칸 포함) 복사본 저장과 임베딩 갱신 · seller.changed 판매자 복사본 · order-item.purchase-confirmed 구매 기록(자녀 · 사이즈가 있을 때만) · cart.item-added · cart.item-removed(발행 요청) · order.cancelled(reason이 `BUYER_CANCELLED`일 때만) 활동 기록과 선호 점수 갱신 · search.performed 활동 기록 · member.withdrawn 활동 기록 · AI 응답 삭제 · child.reference-garment.changed 기준 옷 복사본(2순위) |
+| 받는 이벤트 | child.changed · product.changed(보강 칸 포함) 복사본 저장과 임베딩 갱신 · seller.changed 판매자 복사본 · order-item.purchase-confirmed 구매 기록(자녀 · 사이즈가 있을 때만) · cart.item-added · cart.item-removed(발행 요청) · order.cancelled(reason이 `BUYER_CANCELLED`일 때만) 활동 기록 저장(선호 점수는 하루 한 번 배치가 계산) · search.performed 활동 기록 · member.withdrawn 활동 기록 · AI 응답 삭제 |
 | 구독 그룹 · DLT | `kidly.recommend`, 토픽마다 `{토픽}.recommend.dlt`, `occurredAt` 비교로 늦게 온 옛 이벤트 무시 |
 
 ## 주문 · L2J92

@@ -747,7 +747,7 @@
           "id": 9,
           "type": "timeseries",
           "title": "컨테이너 CPU",
-          "description": "컨테이너별 최근 2분 평균. 코어 하나를 다 쓰면 100%",
+          "description": "컨테이너별 최근 2분 평균. 코어 하나를 다 쓰면 100% 앱 서비스는 k3s Pod로 옮겨 아래 「k3s Pod CPU · 메모리」에 보입니다(#1142).",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -799,7 +799,7 @@
           "id": 10,
           "type": "timeseries",
           "title": "컨테이너 메모리",
-          "description": "앱 서버의 컨테이너 working set입니다. 모니터링 서버는 cAdvisor를 수집하지 않아 이 패널이 비어 있습니다. 환경별 제한·실제 사용량을 함께 보고, 컨테이너별 최고값을 더해 호스트 동시 최고값으로 판단하지 마세요.",
+          "description": "앱 서버의 컨테이너 working set입니다. 모니터링 서버는 cAdvisor를 수집하지 않아 이 패널이 비어 있습니다. 환경별 제한·실제 사용량을 함께 보고, 컨테이너별 최고값을 더해 호스트 동시 최고값으로 판단하지 마세요. 앱 서비스는 k3s Pod로 옮겨 아래 「k3s Pod CPU · 메모리」에 보입니다(#1142).",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -844,6 +844,178 @@
               },
               "expr": "max by (name) (container_memory_working_set_bytes{job=\"integrations/cadvisor\",instance=\"$instance\",name!=\"\"} and (time() - timestamp(container_memory_working_set_bytes{job=\"integrations/cadvisor\",instance=\"$instance\",name!=\"\"}) < 30))",
               "legendFormat": "{{name}}"
+            }
+          ]
+        },
+        {
+          "id": 21,
+          "type": "timeseries",
+          "title": "스왑 사용량",
+          "description": "총 스왑과 사용 중인 스왑을 표시합니다. 총 스왑이 0이면 비활성입니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 38,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "node_memory_SwapTotal_bytes{job=\"integrations/unix\",instance=\"$instance\"}",
+              "legendFormat": "총 스왑"
+            },
+            {
+              "refId": "B",
+              "expr": "node_memory_SwapTotal_bytes{job=\"integrations/unix\",instance=\"$instance\"} - node_memory_SwapFree_bytes{job=\"integrations/unix\",instance=\"$instance\"}",
+              "legendFormat": "사용 중"
+            }
+          ]
+        },
+        {
+          "id": 22,
+          "type": "timeseries",
+          "title": "스왑 입출력",
+          "description": "커널 스왑 카운터의 최근 5분 초당 페이지 수입니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 38,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(node_vmstat_pswpin{job=\"integrations/unix\",instance=\"$instance\"}[5m])",
+              "legendFormat": "읽기"
+            },
+            {
+              "refId": "B",
+              "expr": "rate(node_vmstat_pswpout{job=\"integrations/unix\",instance=\"$instance\"}[5m])",
+              "legendFormat": "쓰기"
+            }
+          ]
+        },
+        {
+          "id": 23,
+          "type": "timeseries",
+          "title": "k3s Pod CPU",
+          "description": "앱 서버 k3s(namespace kidly-dev)의 Pod별 CPU입니다. kubelet cAdvisor에서 읽습니다(job integrations/kubelet-cadvisor). 100%는 vCPU 1개입니다. HPA로 여러 개 뜬 Pod(추천)는 따로 보입니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 46
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{job=\"integrations/kubelet-cadvisor\", instance=\"$instance\"}[2m])) * 100",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "id": 24,
+          "type": "timeseries",
+          "title": "k3s Pod 메모리",
+          "description": "앱 서버 k3s의 Pod별 working set입니다(job integrations/kubelet-cadvisor). Pod 메모리 상한은 container_spec_memory_limit_bytes로 함께 수집하며, 상한에 가까우면 OOMKilled 위험입니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 46
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 15,
+                "showPoints": "never",
+                "gradientMode": "opacity"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (namespace, pod) (container_memory_working_set_bytes{job=\"integrations/kubelet-cadvisor\", instance=\"$instance\"})",
+              "legendFormat": "{{pod}}"
             }
           ]
         }

@@ -4,6 +4,8 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productOp
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendKafkaMessages.TIMEOUT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarment;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
@@ -71,6 +73,9 @@ class RecommendKafkaListenerIntegrationTest {
 
     @Autowired
     private RecommendReplicaProductRepository replicaProductRepository;
+
+    @Autowired
+    private ReferenceGarmentRepository referenceGarmentRepository;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -143,6 +148,23 @@ class RecommendKafkaListenerIntegrationTest {
                 RecommendReplicaChild::isDeleted)
             .containsExactly(memberId, Gender.MALE, LocalDate.of(2020, 5, 1), BodyType.NORMAL, PreferredFit.LOOSE,
                 CHANGED_AT, false);
+    }
+
+    @Test
+    @DisplayName("자녀 삭제를 Kafka로 받으면 그 자녀의 기준 옷을 지우고 다른 자녀의 것은 남긴다")
+    void deleteGarmentsOfDeletedChild() throws Exception {
+        Long childId = newId();
+        Long otherChildId = newId();
+        transactionTemplate.executeWithoutResult(status -> {
+            referenceGarmentRepository.save(ReferenceGarmentFixture.top(childId));
+            referenceGarmentRepository.save(ReferenceGarmentFixture.bottom(childId));
+            referenceGarmentRepository.save(ReferenceGarmentFixture.top(otherChildId));
+        });
+
+        messages.send(CHILD_TOPIC, childDeleted(childId, CHANGED_AT));
+
+        AsyncWait.until(TIMEOUT, () -> garmentsOf(childId).isEmpty());
+        assertThat(garmentsOf(otherChildId)).hasSize(1);
     }
 
     @Test
@@ -271,6 +293,16 @@ class RecommendKafkaListenerIntegrationTest {
             productId, 7L, "데일리 맨투맨", 3L, ProductStatus.ON_SALE, "https://img.kidly.dev/a.jpg",
             CHANGED_AT.minusDays(1), false,
             List.of(productOption(1L, "110", 105, 115), productOption(2L, "120", 115, 125))));
+    }
+
+    private List<ReferenceGarment> garmentsOf(Long childId) {
+        return transactionTemplate.execute(status -> referenceGarmentRepository.findAllByChildProfileId(childId));
+    }
+
+    private static ChildChangedEvent childDeleted(Long childId, LocalDateTime occurredAt) {
+        return new ChildChangedEvent(UUID.randomUUID(), occurredAt, new ChildChangedEvent.Data(childId, 1L,
+            new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, LocalDate.of(2020, 5, 1), BodyType.NORMAL,
+            PreferredFit.LOOSE, true));
     }
 
     // 키만 바꾼 자녀 정보 변경됨이다. 회원 ID와 나머지 값은 고정이다

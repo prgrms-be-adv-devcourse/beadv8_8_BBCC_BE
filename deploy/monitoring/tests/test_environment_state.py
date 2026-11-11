@@ -141,6 +141,73 @@ class EnvironmentStateTests(unittest.TestCase):
         self.assertFalse(target.exists())
         self.assertIn('kidly-community', stopped['jobs'])
 
+    def test_k3s_services_are_expected_without_local_target(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=gateway\nK3S_PROFILES=recommend,member\nGATEWAY_PORT=8083\nKAFKA_NODE_PORT=30092\n'
+            'RECOMMEND_NODE_PORT=30202\n')
+        self.assertEqual(state.k3s_services('dev'), [('recommend-service', 'kidly-recommend', 'recommend', 30202),
+                                                     ('member-service', 'kidly-member', 'member', None)])
+        with patch.object(state, 'run', return_value=''):
+            running = state.control('dev', 'resume')
+            self.assertEqual(running['jobs'], ['kidly-gateway', 'kidly-recommend', 'kidly-member'])
+            self.assertIn('kidly_app_expected{env="dev",app_job="kidly-member"} 1', state.metrics(running))
+            self.assertFalse((self.root / 'monitoring/targets/recommend/dev.yml').exists())
+            self.assertFalse((self.root / 'monitoring/targets/member/dev.yml').exists())
+            stopped = state.control('dev', 'stop')
+        self.assertIn('kidly-member', stopped['jobs'])
+
+    def test_k3s_pods_start_before_gateway_and_stop_after_compose(self):
+        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=gateway\nK3S_PROFILES=member\nGATEWAY_PORT=8083\n')
+        with patch.object(state, 'run', return_value='') as run:
+            state.control('dev', 'resume')
+            started = [call.args[0] for call in run.call_args_list]
+            run.reset_mock()
+            state.control('dev', 'stop')
+            stopped = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(started[0][-3:], ['--all', '--replicas', '1'])
+        self.assertIn('--for=condition=Available', started[1])
+        self.assertEqual(started[2][:2], ['docker', 'compose'])
+        self.assertEqual(stopped[0][:2], ['docker', 'compose'])
+        self.assertEqual(stopped[1][-3:], ['--all', '--replicas', '0'])
+        self.assertIn('kidly-dev', stopped[1])
+
+    def test_compose_only_environment_does_not_touch_k3s(self):
+        with patch.object(state, 'run', return_value='') as run:
+            state.control('dev', 'resume')
+            state.control('dev', 'stop')
+        self.assertFalse(any(call.args[0][0] == 'kubectl' for call in run.call_args_list))
+
+    def test_everything_on_k3s_needs_no_compose_up_and_keeps_kafka_expected(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=\nK3S_PROFILES=member,gateway,kafka-monitoring\nGATEWAY_NODE_PORT=30200\nKAFKA_EXPORTER_PORT=9308\n')
+        self.assertEqual(state.k3s_workloads('dev'), [
+            ('gateway', 'gateway', 'gateway', 30200, 'kidly-gateway'),
+            ('member-service', 'member', 'member', None, 'kidly-member'),
+            ('kafka-exporter', 'kafka-monitoring', 'kafka-exporter', None, 'kidly-kafka')])
+        with patch.object(state, 'run', return_value='') as run:
+            running = state.control('dev', 'resume')
+        self.assertFalse(any(call.args[0][:2] == ['docker', 'compose'] for call in run.call_args_list))
+        self.assertEqual(running['jobs'], ['kidly-gateway', 'kidly-member'])
+        self.assertTrue(running['kafka_exporter_expected'])
+        self.assertFalse((self.root / 'monitoring/targets/kafka/dev.yml').exists())
+
+    def test_service_in_both_compose_and_k3s_is_rejected(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=recommend\nK3S_PROFILES=recommend\nRECOMMEND_PORT=8087\n')
+        with self.assertRaisesRegex(ValueError, 'both COMPOSE_PROFILES and K3S_PROFILES: recommend'):
+            state.k3s_services('dev')
+
+    def test_unknown_k3s_profile_is_rejected(self):
+        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=gateway\nK3S_PROFILES=membr\nGATEWAY_PORT=8083\n')
+        with self.assertRaisesRegex(ValueError, 'membr'):
+            state.k3s_services('dev')
+
+    def test_invalid_node_port_is_rejected(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=gateway\nK3S_PROFILES=member\nGATEWAY_PORT=8083\nMEMBER_NODE_PORT=8090\n')
+        with self.assertRaisesRegex(ValueError, 'MEMBER_NODE_PORT'):
+            state.k3s_services('dev')
+
     def test_kafka_exporter_has_separate_intent_and_discovery(self):
         (self.root / 'dev/.env').write_text(
             'COMPOSE_PROFILES=search,kafka-monitoring\nSEARCH_PORT=8082\n'

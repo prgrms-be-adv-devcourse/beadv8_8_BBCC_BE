@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -100,15 +101,18 @@ public class ChildProfile extends BaseSoftDeleteEntity {
         return child;
     }
 
-    public void update(ChildProfileUpdateInfo info, LocalDateTime now) {
+    public Optional<GrowthRecord> update(ChildProfileUpdateInfo info, LocalDateTime now) {
         validateOptionalConsent(hasOptionalConsent(), info.bodyType(), info.preferredFit());
         boolean grown = this.heightCm.compareTo(info.heightCm()) != 0
             || !Objects.equals(this.bodyType, info.bodyType());
         change(info.name(), info.birthDate(), info.gender(), info.heightCm(), info.weightKg(),
             info.bodyType(), info.preferredFit());
         if (grown) {
-            growthRecords.add(new GrowthRecord(this, info.heightCm(), info.bodyType(), now));
+            var record = new GrowthRecord(this, info.heightCm(), info.bodyType(), now);
+            growthRecords.add(record);
+            return Optional.of(record);
         }
+        return Optional.empty();
     }
 
     public boolean hasOptionalConsent() {

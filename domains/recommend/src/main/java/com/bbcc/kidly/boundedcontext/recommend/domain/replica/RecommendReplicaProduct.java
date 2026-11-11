@@ -33,9 +33,9 @@ import org.hibernate.annotations.BatchSize;
 
 /**
  * 추천이 사이즈를 계산하려고 상품 정보 변경됨 이벤트에서 옮겨 둔 상품 정보다.
- * 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로는 아직 계산에 쓰지 않는다.
+ * 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로는 아직 사이즈 계산에 쓰지 않는다.
  * 브랜드 · 사이즈별 실측은 브랜드별 사이즈 보정과 실측 비교에, 카테고리 경로는 함께 사면 좋은 상품의 카테고리 짝에 쓰려고 함께 옮겨 둔다.
- * 상품 정보 값은 이름 · 브랜드 · 설명과 함께 임베딩할 글({@code embeddingText})로 합쳐 저장한다.
+ * 카테고리 경로의 이름과 상품 정보 값은 이름 · 브랜드 · 설명과 함께 임베딩할 글({@code embeddingText})로 합쳐 저장한다.
  * 벡터 칸(embedding · embedded_text_md5 · embedding_attempted_at)은 이 엔티티가 매핑하지 않고 상품 임베딩 저장소만 쓴다.
  * 주문 도메인에도 상품 복사본 엔티티 {@code ReplicaProduct}가 있어서, JPA 엔티티 이름이 겹치지 않게 클래스 이름 앞에 도메인 이름을 붙인다.
  */
@@ -79,6 +79,10 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     // 감사 칸 created_at과 이름이 겹치지 않게, 상품이 등록된 시각임을 이름에 드러낸다
     @Column(name = "product_registered_at", nullable = false)
     private LocalDateTime productRegisteredAt;
+
+    // 상품이 처음 판매중이 된 시각이다. 칸이 없는 예전 메시지로 만든 복사본은 비어 있다
+    @Column(name = "sale_started_at")
+    private LocalDateTime saleStartedAt;
 
     @Column(name = "is_size_free", nullable = false)
     private boolean sizeFree;
@@ -133,7 +137,17 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         String brand, String description, List<SizeSpecInfo> sizeSpecs, List<ProductEmbeddingText.InfoValue> infoValues,
-        LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath) {
+        LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath, LocalDateTime saleStartedAt) {
+
+        // 테스트 보조 코드만 쓰는 생성자다. 판매 시작 시각이 null이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 저장된 판매 시작 시각이 지워진다
+        public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
+            String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
+            String brand, String description, List<SizeSpecInfo> sizeSpecs,
+            List<ProductEmbeddingText.InfoValue> infoValues, LocalDateTime occurredAt,
+            List<CategoryPathEntryInfo> categoryPath) {
+            this(productId, sellerId, categoryId, name, status, thumbnailUrl, registeredAt, sizeFree, options,
+                brand, description, sizeSpecs, infoValues, occurredAt, categoryPath, null);
+        }
 
         // 테스트 보조 코드만 쓰는 생성자다. 경로는 빈 목록이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 저장된 카테고리 경로가 빈 목록으로 지워진다
         public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
@@ -210,11 +224,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
                 spec.size(), spec.minHeightCm(), spec.maxHeightCm(), spec.measurements()));
         }
         List<RecommendReplicaCategoryPathEntry> newCategoryPath = new ArrayList<>();
+        List<String> categoryNames = new ArrayList<>();
         for (CategoryPathEntryInfo entry : info.categoryPath()) {
             newCategoryPath.add(new RecommendReplicaCategoryPathEntry(entry.categoryId(), entry.categoryName()));
+            categoryNames.add(entry.categoryName());
         }
         this.embeddingText = ProductEmbeddingText.compose(
-            info.name(), info.brand(), info.infoValues(), info.description()).value();
+            info.name(), categoryNames, info.brand(), info.infoValues(), info.description()).value();
         this.sellerId = info.sellerId();
         this.categoryId = info.categoryId();
         this.name = info.name();
@@ -222,6 +238,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.status = info.status();
         this.thumbnailUrl = info.thumbnailUrl();
         this.productRegisteredAt = info.registeredAt();
+        this.saleStartedAt = info.saleStartedAt();
         this.sizeFree = info.sizeFree() || hasOnlyOptionsWithoutSize(info.options());
         this.brand = info.brand();
         this.description = info.description();

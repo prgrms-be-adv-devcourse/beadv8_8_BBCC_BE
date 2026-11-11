@@ -15,6 +15,11 @@ public interface JpaChildProfileRepository extends JpaRepository<ChildProfile, L
 
     @Override
     @EntityGraph(attributePaths = "growthRecords")
+    @Query("SELECT c FROM ChildProfile c ORDER BY c.id")
+    List<ChildProfile> findAllWithGrowthRecords();
+
+    @Override
+    @EntityGraph(attributePaths = "growthRecords")
     Optional<ChildProfile> findByIdAndMemberId(Long id, Long memberId);
 
     @Override

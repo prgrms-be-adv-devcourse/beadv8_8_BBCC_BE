@@ -5,7 +5,7 @@
 # PostgreSQL 도 t3.medium k3s(deploy/postgres)에 인스턴스 하나로 뜨고 dev · prod 가 database · 계정(kidly_<env>)으로 나눠 쓴다. DB_URL 도 deploy 워크플로가 붙인다
 # 검색(search-service)은 profile search 라 .env 의 COMPOSE_PROFILES 에 search 가 있는 환경(dev · prod)에서만 뜬다
 # Gateway(gateway)는 profile gateway 라 COMPOSE_PROFILES 에 gateway 가 있는 환경(dev · prod)에서만 뜬다
-# 추천(recommend-service)은 profile recommend 라 COMPOSE_PROFILES 에 recommend 가 있는 환경(dev · prod)에서만 뜬다
+# .env 의 K3S_PROFILES 에 있는 서비스(dev)는 compose 가 아니라 t3.large 의 단독 k3s(deploy/k3s)에 뜬다(#1142). 그 서비스의 environment · image · mem_limit 은 k3s 에서도 그대로 쓴다
 # 회원(member-service)은 profile member 라 COMPOSE_PROFILES 에 member 가 있는 환경(dev · prod)에서만 뜬다
 # 정산(settlement-service)은 profile settlement 라 COMPOSE_PROFILES 에 settlement 가 있는 환경(dev · prod)에서만 뜬다
 # 결제(payment-service)는 profile payment 라 COMPOSE_PROFILES 에 payment 가 있는 환경(dev · prod)에서만 뜬다
@@ -40,6 +40,40 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 128m
     cpus: 0.2
+    oom_score_adj: ${OOM_SCORE_ADJ:-0}
+    restart: unless-stopped
+    logging: *logging
+
+  # 캐시용 Redis(#690). 영속성을 끄고(RDB · AOF 없음) 64MB 를 넘으면 가장 오래 안 쓴 키부터 지운다. 원본은 DB 에 둔다
+  # 포트를 밖에 열지 않고 같은 namespace 의 서비스만 redis:6379 로 붙는다(k3s ClusterIP). 그래서 비밀번호 없이 protected-mode 를 끈다
+  # dev 는 K3S_PROFILES 의 redis 로 k3s 에 뜬다(deploy/k3s). 쓰는 앱은 용도별 이슈에서 붙인다
+  redis:
+    image: redis:7.4.12-alpine@sha256:7b1753b4c5ad8458906c272a8132b8c15f5557b000379eb115fb239706a384b7
+    profiles: [redis]
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --protected-mode
+      - "no"
+    expose:
+      - "6379"
+    user: "999:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    mem_limit: 128m
     oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
@@ -168,6 +202,9 @@ services:
       KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI}
       PORTONE_API_SECRET: ${PORTONE_API_SECRET}
       IDENTITY_KEY_SECRET: ${IDENTITY_KEY_SECRET}
+      # 판매자 탈퇴 조건 조회 주소
+      KIDLY_ORDER_URI: ${KIDLY_ORDER_URI:-http://order-service:8080}
+      KIDLY_SETTLEMENT_URI: ${KIDLY_SETTLEMENT_URI:-http://settlement-service:8080}
       KIDLY_ADMIN_BOOTSTRAP_EMAIL: ${KIDLY_ADMIN_BOOTSTRAP_EMAIL:-}
       KIDLY_ADMIN_BOOTSTRAP_PASSWORD: ${KIDLY_ADMIN_BOOTSTRAP_PASSWORD:-}
       LOG_PATH: /app/logs
@@ -438,6 +475,9 @@ services:
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       LOG_PATH: /app/logs
+    # 서비스가 k3s 에 뜨는 환경(dev)은 KIDLY_*_URI 가 이 서버의 NodePort(host.docker.internal)를 가리킨다(#1142)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:${GATEWAY_PORT:-8083}:8080"     # 외부 비공개. nginx 가 받아 넘긴다
     volumes:

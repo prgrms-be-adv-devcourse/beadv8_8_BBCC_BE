@@ -42,6 +42,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.availability.ApplicationAvailability;
+import org.springframework.boot.availability.ReadinessState;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
@@ -80,6 +82,12 @@ class AuthTokensRevokedKafkaIntegrationTest {
     @Autowired
     private AccessTokenRevocations revocations;
 
+    @Autowired
+    private ApplicationAvailability availability;
+
+    @Autowired
+    private RevocationReplay replay;
+
     @BeforeEach
     void createTopic() {
         try (Admin admin = admin()) {
@@ -110,6 +118,22 @@ class AuthTokensRevokedKafkaIntegrationTest {
         startListener();
 
         AsyncWait.until(TIMEOUT, () -> isRevoked(memberId));
+    }
+
+    @Test
+    @DisplayName("다시 읽기를 마친 뒤에야 Ready 가 되고, 그때는 이미 앞서 받은 무효화가 목록에 있다")
+    void readyOnlyAfterReplay() throws Exception {
+        var memberId = newMemberId();
+        send(null, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
+        commitGroupOffsetsToEnd();
+
+        startListener();
+
+        // 리스너가 시작하면 다시 기다린다(앞 테스트에서 이미 다 읽었어도). 첫 메시지 전 idle 은 5초 뒤라 이 상태가 보인다
+        AsyncWait.until(TIMEOUT, () -> !replay.caughtUp());
+        assertThat(availability.getReadinessState()).isEqualTo(ReadinessState.REFUSING_TRAFFIC);
+        AsyncWait.until(TIMEOUT, () -> availability.getReadinessState() == ReadinessState.ACCEPTING_TRAFFIC);
+        assertThat(isRevoked(memberId)).isTrue();
     }
 
     @Test

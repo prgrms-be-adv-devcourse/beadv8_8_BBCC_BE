@@ -52,6 +52,17 @@ jobs:
             *)         COLOR="#8c959f"; RESULT="❔ 배포 $CONCLUSION" ;;
           esac
 
+          # 더 새 배포가 있어 건너뛴 run(deploy.yml 의 superseded · 최신 배포인지 확인, #1169)은 성공으로 끝나지만 서버에 올리지 않았다
+          # deploy job 이 건너뛰어졌는지로 가린다. API 호출이 실패하면 그대로 "배포 성공"으로 보낸다
+          if [ "$WORKFLOW" = "deploy" ] && [ "$CONCLUSION" = "success" ]; then
+            # 서버에 올리기 직전에 더 새 배포를 보고 건너뛴 경우(deploy job 은 성공, 그 안의 "배포" step 은 건너뜀)도 같다
+            jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name == "superseded" or .name == "deploy") | "\(.name)=\(.conclusion)", (select(.name == "deploy") | .steps[]? | select(.name == "배포") | "deploy-step=\(.conclusion)")] | join(" ")' 2>/dev/null) || jobs=""
+            if [[ " $jobs " == *" superseded=success "* && " $jobs " == *" deploy=skipped "* ]] || [[ " $jobs " == *" deploy=success "* && " $jobs " == *" deploy-step=skipped "* ]]; then
+              COLOR="#8c959f"; RESULT="⏭️ 다음 배포에 포함"
+            fi
+          fi
+
           # 모니터링 배포는 같은 머지에서 앱 배포보다 먼저 끝나므로, 앱 배포 결과로 읽히지 않게 결과 문구에 "모니터링"을 넣는다
           # 환경 자리는 모니터링이 도는 서버(dev 서버)다. 앱 배포는 deploy.yml 의 환경 규칙과 같다: main → prod, 그 외 → dev
           if [ "$WORKFLOW" = "monitoring-deploy" ]; then RESULT="${RESULT/배포/모니터링 배포}"; ENV_LABEL="dev 서버"
@@ -88,6 +99,13 @@ jobs:
               CAUSE=$(gh api "repos/$REPO/check-runs/$failed_job_id/annotations" \
                 --jq '[.[] | select(.title == "앱 기동 실패")][0].message // empty' 2>/dev/null) || CAUSE=""
             fi
+          fi
+
+          # 앞서 줄 서 있던 배포는 이 배포에 포함된다고 보고 건너뛰었다(#1169). 이 배포가 실패하면 그 커밋들도 아직 서버에 없다
+          # 이미지 빌드 중 외부 다운로드 오류(11-09 Gradle 504 등)처럼 일시적인 실패면 다시 돌리면 된다
+          if [ "$WORKFLOW" = "deploy" ] && [ "$RUN_EVENT" = "push" ] && [ "$CONCLUSION" = "failure" ]; then
+            SKIPPED_NOTE="앞서 건너뛴 배포가 있었다면 그 커밋들도 아직 배포되지 않았어요. 일시적인 오류면 실행 링크에서 Re-run failed jobs 로 다시 돌리세요."
+            if [ -n "$HINT" ]; then HINT="$HINT"$'\n'"$SKIPPED_NOTE"; else HINT="$SKIPPED_NOTE"; fi
           fi
 
           # 제목은 배포한 커밋이다. PR 머지 커밋의 첫 줄은 "Merge pull request #N from 브랜치"라서 PR 알림처럼 "#N PR 제목"을 쓴다

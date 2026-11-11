@@ -52,7 +52,8 @@ public class RecommendReplicaProductService {
             toSizeSpecInfos(data.sizeSpecs()),
             toInfoValues(data.infoValues()),
             event.occurredAt(),
-            toCategoryPathEntryInfos(data.categoryPath()));
+            toCategoryPathEntryInfos(data.categoryPath()),
+            data.saleStartedAt());
     }
 
     // 이벤트의 카테고리 경로도 칸이 없는 예전 메시지는 빈 목록으로 오므로 null을 검사하지 않는다

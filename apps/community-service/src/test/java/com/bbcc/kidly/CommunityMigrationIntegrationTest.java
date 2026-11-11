@@ -194,6 +194,85 @@ class CommunityMigrationIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("활동 표를 만들며 지금 남은 작성 자격 · 리뷰 · 찜 · 검사 결정(통과 · 대기 제외)을 원본 시각으로 백필하고, "
+        + "같은 백필을 다시 돌려도 행이 늘지 않는다")
+    void backfillsActivityOnce() throws Exception {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+            serviceFlyway(dataSource).target("202611081000").load().migrate();
+            jdbc.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
+                + "option_id, size, confirmed_at, created_at, updated_at) values "
+                + "(11, 1, 13, 14, 15, null, now(), '2026-11-01 10:00:00', now()), "
+                + "(12, 1, 13, 14, 15, null, now(), '2026-11-01 10:00:00', now())");
+            jdbc.update("insert into community.review (id, order_item_id, product_id, member_id, nickname, rating, "
+                + "content, fit, created_at, updated_at, moderation_status, moderation_reason, moderated_at, "
+                + "moderated_by_admin_id) values "
+                + "(1, 11, 14, 13, '닉', 4, '본문', 'LARGE', '2026-11-02 10:00:00', now(), 'PASSED', null, now(), null), "
+                + "(2, 12, 14, 13, '닉', 2, '본문', null, '2026-11-03 10:00:00', now(), 'HIDDEN', 'HATE', "
+                + "'2026-11-04 10:00:00', null), "
+                + "(3, 13, 14, 13, '닉', 3, '본문', null, '2026-11-03 10:00:00', now(), 'CONFIRMED_HIDDEN', 'HATE', "
+                + "'2026-11-05 10:00:00', 99), "
+                + "(4, 14, 14, 13, '닉', 5, '본문', null, '2026-11-03 10:00:00', now(), 'PENDING', null, null, null), "
+                // 관리자가 다시 공개한 뒤 고쳐져 검사기가 숨긴 리뷰: 관리자 ID가 남아 있어도 HIDDEN은 검사기 결정이다
+                + "(5, 15, 14, 13, '닉', 1, '본문', null, '2026-11-03 10:00:00', now(), 'HIDDEN', 'HATE', "
+                + "'2026-11-07 10:00:00', 99)");
+            jdbc.update("insert into community.review_image (review_id, position, image_url, created_at) values "
+                + "(1, 0, 'https://img/a.jpg', now()), (1, 1, 'https://img/b.jpg', now())");
+            jdbc.update("insert into community.favorite (member_id, product_id, created_at, updated_at) values "
+                + "(13, 14, '2026-11-06 10:00:00', now()), (13, 15, '2026-11-06 11:00:00', now())");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            Map<String, Long> counts = activityCounts(jdbc);
+            assertThat(counts).containsExactlyInAnyOrderEntriesOf(Map.of("ELIGIBILITY_CREATED", 2L,
+                "REVIEW_CREATED", 5L, "FAVORITE_ADDED", 2L, "MODERATION_DECIDED", 3L));
+            assertThat(jdbc.queryForObject("select count(*) from community.activity "
+                + "where attributes->>'backfilled' = 'true'", Long.class)).isEqualTo(12L);
+            assertThat(jdbc.queryForMap("select occurred_at::text as at, attributes::text as attrs "
+                + "from community.activity where type = 'REVIEW_CREATED' and aggregate_id = 1"))
+                .containsEntry("at", "2026-11-02 10:00:00")
+                .hasEntrySatisfying("attrs", attrs -> assertThat((String) attrs)
+                    .contains("\"rating\": 4", "\"fit\": \"LARGE\"", "\"image_count\": 2",
+                        "\"order_item_id\": 11"));
+            assertThat(jdbc.queryForList("select attributes->>'by' || ':' || (attributes->>'status') || ':' "
+                + "|| occurred_at::text from community.activity where type = 'MODERATION_DECIDED' "
+                + "order by aggregate_id",
+                String.class)).containsExactly("moderator:HIDDEN:2026-11-04 10:00:00",
+                "admin:CONFIRMED_HIDDEN:2026-11-05 10:00:00", "moderator:HIDDEN:2026-11-07 10:00:00");
+            assertThat(jdbc.queryForList("select indexname from pg_indexes where schemaname = 'community' "
+                + "and tablename = 'activity'", String.class)).contains("idx_activity_occurred_at");
+
+            // 같은 백필 문장을 다시 돌려도 행이 늘지 않는다
+            for (String statement : backfillStatements()) {
+                jdbc.update(statement);
+            }
+            assertThat(activityCounts(jdbc)).isEqualTo(counts);
+        }
+    }
+
+    private static Map<String, Long> activityCounts(JdbcTemplate jdbc) {
+        Map<String, Long> counts = new java.util.HashMap<>();
+        jdbc.query("select type, count(*) from community.activity group by type",
+            (org.springframework.jdbc.core.RowCallbackHandler) row -> counts.put(row.getString(1), row.getLong(2)));
+        return counts;
+    }
+
+    // 활동 마이그레이션의 백필(INSERT) 문장들
+    private static List<String> backfillStatements() throws java.io.IOException {
+        String sql = new ClassPathResource("db/migration/community/V202611101700__community_activity.sql")
+            .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        return Stream.of(sql.split(";"))
+            .map(statement -> statement.lines().filter(line -> !line.strip().startsWith("--"))
+                .reduce("", (a, b) -> a + "\n" + b).strip())
+            .filter(statement -> statement.startsWith("INSERT"))
+            .toList();
+    }
+
     // baseline 버전까지만 적용하고 이력은 지워 서비스가 처음 뜨기 전의 운영 DB 상태로 둔다
     private static void createCommunityTablesUpTo(DriverManagerDataSource dataSource, JdbcTemplate jdbc,
         String version) {

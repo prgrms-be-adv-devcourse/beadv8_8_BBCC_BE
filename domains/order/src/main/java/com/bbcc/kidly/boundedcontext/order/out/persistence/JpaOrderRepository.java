@@ -20,6 +20,12 @@ import org.springframework.data.repository.Repository;
  */
 public interface JpaOrderRepository extends Repository<Order, Long>, OrderRepository {
 
+    // 주문상품의 판매자 ID(order_item.seller_id) · 상태 인덱스(idx_order_item_seller_status, #1120)로 찾고 주문 상태로 거른다
+    @Override
+    @Query("select count(i) from Order o join o.items i where i.product.sellerId = :sellerId "
+        + "and i.status = :itemStatus and o.status <> :excludedOrderStatus")
+    long countSellerItems(Long sellerId, OrderItem.Status itemStatus, Order.Status excludedOrderStatus);
+
     /**
      * SELECT … FOR UPDATE. 잠금 대기 시간은 따로 두지 않는다(앞 트랜잭션이 끝나면 바로 풀림).
      */

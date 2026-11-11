@@ -1,27 +1,23 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.recommended;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductPage;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
-import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductSelector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
-import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
-import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.global.error.BusinessException;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,36 +32,43 @@ public class RecommendedProductService {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
-    private final RecommendReplicaProductRepository replicaProductRepository;
     private final RecommendReplicaChildRepository replicaChildRepository;
     private final RecommendReplicaSellerRepository replicaSellerRepository;
-    private final RecommendedProductSelector selector;
+    private final RecommendedProductRanking ranking;
 
     public RecommendedProductService(
-        RecommendReplicaProductRepository replicaProductRepository,
         RecommendReplicaChildRepository replicaChildRepository,
         RecommendReplicaSellerRepository replicaSellerRepository,
-        GrowthChart growthChart) {
-        this.replicaProductRepository = replicaProductRepository;
+        RecommendedProductRanking ranking) {
         this.replicaChildRepository = replicaChildRepository;
         this.replicaSellerRepository = replicaSellerRepository;
-        this.selector = new RecommendedProductSelector(new SizeRecommender(growthChart));
+        this.ranking = ranking;
     }
 
     // 상품의 사이즈 줄은 지연 로딩이므로 트랜잭션 안에서 읽어 계산한다
+    // asOf가 없으면 지금 시각(한국 시간, 초 단위)을 기준 시각으로 정해 결과에 담는다
     @Transactional(readOnly = true)
-    public Page<RecommendedProductResult> list(Long memberId, Long childId, Long categoryId, int page, int size) {
+    public RecommendedProductPage list(Long memberId, Long childId, Long categoryId, int page, int size,
+        LocalDateTime asOf) {
+        LocalDateTime now = LocalDateTime.now(SERVICE_ZONE);
+        // 요청 값만 보고 알 수 있는 오류라 자녀를 읽기 전에 거절한다
+        if (asOf != null && asOf.isAfter(now)) {
+            throw new BusinessException(RecommendErrorCode.INVALID_AS_OF);
+        }
+        LocalDateTime baseTime = asOf;
+        if (baseTime == null) {
+            baseTime = now.truncatedTo(ChronoUnit.SECONDS);
+        }
         RecommendReplicaChild child = replicaChildRepository.findById(childId)
             .orElseThrow(() -> new BusinessException(RecommendErrorCode.CHILD_NOT_FOUND));
         if (!child.isVisibleTo(memberId)) {
             throw new BusinessException(RecommendErrorCode.CHILD_NOT_FOUND);
         }
 
-        List<RecommendReplicaProduct> products = replicaProductRepository.findAllOnSale(categoryId);
-        List<RecommendedProduct> recommended =
-            selector.select(child.toChildSizeInput(), products, LocalDate.now(SERVICE_ZONE));
+        List<RecommendedProduct> recommended = ranking.rank(memberId, child, categoryId, baseTime);
         Pageable pageable = PageRequest.of(page, size);
-        return new PageImpl<>(toPageContent(recommended, pageable), pageable, recommended.size());
+        return new RecommendedProductPage(
+            new PageImpl<>(toPageContent(recommended, pageable), pageable, recommended.size()), baseTime);
     }
 
     // 요청한 페이지의 상품만 결과로 바꾼다. 시작 위치가 전체 개수를 넘으면 빈 목록이다

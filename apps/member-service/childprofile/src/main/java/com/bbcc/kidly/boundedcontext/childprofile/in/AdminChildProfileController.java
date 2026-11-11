@@ -1,7 +1,9 @@
 package com.bbcc.kidly.boundedcontext.childprofile.in;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildChangedRepublishService;
+import com.bbcc.kidly.boundedcontext.childprofile.app.ChildGrowthRecordedRepublishService;
 import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildChangedRepublishResponse;
+import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildGrowthRecordedRepublishResponse;
 import com.bbcc.kidly.member.support.security.AuthAdmin;
 import com.bbcc.kidly.member.support.security.LoginAdmin;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminChildProfileController {
 
     private final ChildChangedRepublishService childChangedRepublishService;
+    private final ChildGrowthRecordedRepublishService childGrowthRecordedRepublishService;
+
+    @PostMapping("/growth-recorded-events")
+    public ChildGrowthRecordedRepublishResponse republishGrowthRecordedEvents(@LoginAdmin AuthAdmin admin) {
+        return new ChildGrowthRecordedRepublishResponse(childGrowthRecordedRepublishService.republishAll());
+    }
 
     // 삭제되지 않은 자녀마다 child.changed를 지금 값으로 다시 보내고, 보낸 자녀 수를 돌려준다
     @PostMapping("/changed-events")

@@ -277,4 +277,12 @@ class MemberTest {
         return member;
     }
 
+    @Test
+    @DisplayName("활성 또는 정지된 판매자는 탈퇴 조건을 확인한다")
+    void sellerWithdrawalCheck() {
+        assertThat(MemberFixture.kakaoMember().requiresSellerWithdrawalCheck()).isFalse();
+        assertThat(MemberFixture.withSellerState(SellerStatus.ACTIVE).requiresSellerWithdrawalCheck()).isTrue();
+        assertThat(MemberFixture.withSellerState(SellerStatus.SUSPENDED).requiresSellerWithdrawalCheck()).isTrue();
+        assertThat(MemberFixture.withSellerState(SellerStatus.CLOSED).requiresSellerWithdrawalCheck()).isFalse();
+    }
 }

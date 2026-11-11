@@ -52,6 +52,9 @@ class OrderMigrationIntegrationTest {
     private static final String RESERVATION_VALID_UNTIL_VERSION_BEFORE = "202611062200";
     private static final String RESERVATION_VALID_UNTIL_MIGRATION =
         "db/migration/orders/V202611062400__cart_reservation_valid_until.sql";
+    // 주문상품 판매자 인덱스 마이그레이션(#1120) 파일
+    private static final String ORDER_ITEM_SELLER_INDEX_MIGRATION =
+        "db/migration/orders/V202611101300__order_item_seller_index.sql";
 
     @Test
     @DisplayName("kidly-app이 주문 마이그레이션을 모두 적용한 DB에서는 baseline을 잡고 스키마를 바꾸지 않는다")
@@ -284,6 +287,25 @@ class OrderMigrationIntegrationTest {
             assertThat(jdbc.queryForList("SELECT reservation_id || ':' || coalesce(valid_until::text, 'null')"
                 + " FROM orders.cart_reservation ORDER BY id", String.class))
                 .containsExactly("wish-1:null", "wish-2:2026-11-13 22:00:00");
+        }
+    }
+
+    @Test
+    @DisplayName("주문상품 판매자 인덱스 마이그레이션(#1120): (seller_id, status) 인덱스가 생기고, 같은 파일을 다시 적용해도 오류 · 변화가 없다")
+    void orderItemSellerIndexMigrationIsRepeatable() throws Exception {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            serviceFlyway(dataSource).load().migrate();
+            var before = schema(jdbc);
+            String sql = new String(new ClassPathResource(ORDER_ITEM_SELLER_INDEX_MIGRATION).getInputStream()
+                .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            jdbc.execute(sql);
+
+            assertThat(schema(jdbc)).isEqualTo(before).contains("CREATE INDEX idx_order_item_seller_status ON "
+                + "orders.order_item USING btree (seller_id, status)");
         }
     }
 

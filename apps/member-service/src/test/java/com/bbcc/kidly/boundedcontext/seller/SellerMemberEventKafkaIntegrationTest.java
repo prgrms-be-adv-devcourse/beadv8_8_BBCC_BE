@@ -5,7 +5,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
+import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
+import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
@@ -44,7 +48,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * member.changed가 커밋되면 kidly.member.events를 거쳐 그 회원의 판매자 신청 닉네임을 바꾼다(#568).
  * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
  * 회원 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 신청 · 키로 걸러 본다.
  */
@@ -55,6 +58,7 @@ class SellerMemberEventKafkaIntegrationTest {
     private static final String TOPIC = "kidly.member.events";
     private static final String GROUP = "kidly.seller";
     private static final String DLT = "kidly.member.events.seller.dlt";
+    private static final String SELLER_TOPIC = "kidly.seller.events";
     private static final String LISTENER_ID = "sellerMemberEventListener";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
@@ -69,6 +73,9 @@ class SellerMemberEventKafkaIntegrationTest {
 
     @Autowired
     private SellerApplicationRepository sellerApplicationRepository;
+
+    @Autowired
+    private SellerRepository sellerRepository;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -142,6 +149,73 @@ class SellerMemberEventKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("회원 탈퇴를 Kafka로 받아 그 회원의 모든 신청에서 개인정보만 비우고 나머지는 남긴다")
+    void clearPersonalInfoOnWithdrawal() throws Exception {
+        // 회원당 심사 중인 신청은 1건만 있을 수 있어서 거절 1건 + 심사 중 1건
+        var rejected = sellerApplicationRepository.save(SellerFixture.rejectedApplication(memberId)).getId();
+        var pending = sellerApplicationRepository.save(SellerFixture.application(memberId)).getId();
+        var otherMemberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+        var other = sellerApplicationRepository.save(SellerFixture.application(otherMemberId)).getId();
+
+        // 탈퇴는 회원 아웃박스가 보내므로 토픽에 직접 넣는다
+        sendWithdrawn(memberWithdrawn(NOW));
+
+        AsyncWait.until(TIMEOUT, () -> nicknameOf(pending) == null);
+        assertCleared(rejected, SellerApplicationStatus.REJECTED);
+        assertCleared(pending, SellerApplicationStatus.PENDING);
+        var untouched = sellerApplicationRepository.getById(other);
+        assertThat(untouched.getApplicantNickname()).isEqualTo(SellerFixture.APPLICANT_NICKNAME);
+        assertThat(untouched.getRepresentativeName()).isEqualTo(SellerFixture.REPRESENTATIVE_NAME);
+        assertThat(untouched.getBusinessRegistrationNumber()).isEqualTo(SellerFixture.BUSINESS_REGISTRATION_NUMBER);
+    }
+
+    @Test
+    @DisplayName("승인된 판매자의 탈퇴로 신청 개인정보를 비우고 판매자를 닫는다")
+    void closeSellerOnWithdrawal() throws Exception {
+        var application = sellerApplicationRepository.save(SellerFixture.approvedApplication(memberId)).getId();
+        sellerRepository.save(SellerFixture.activeSeller(memberId));
+
+        var sent = sendWithdrawn(memberWithdrawn(NOW));
+
+        awaitProcessed(sent);
+        assertCleared(application, SellerApplicationStatus.APPROVED);
+        assertThat(sellerRepository.getById(memberId).getStatus()).isEqualTo(SellerStatus.CLOSED);
+    }
+
+    @Test
+    @DisplayName("같은 탈퇴 이벤트를 두 번 받아도 결과는 한 번 받은 것과 같고 DLT로 보내지 않는다")
+    void duplicateWithdrawal() throws Exception {
+        var application = sellerApplicationRepository.save(SellerFixture.approvedApplication(memberId)).getId();
+        sellerRepository.save(SellerFixture.activeSeller(memberId));
+        var event = memberWithdrawn(NOW);
+
+        sendWithdrawn(event);
+        var second = sendWithdrawn(event);
+
+        awaitProcessed(second);
+        assertCleared(application, SellerApplicationStatus.APPROVED);
+        assertThat(sellerRepository.getById(memberId).getStatus()).isEqualTo(SellerStatus.CLOSED);
+        assertThat(sellerApplicationRepository.getById(application).getApplicantWithdrawnAt()).isEqualTo(NOW);
+        assertThat(deadLetters()).isEmpty();
+        AsyncWait.until(TIMEOUT, () -> !sellerChanged().isEmpty());
+        assertThat(sellerChanged()).singleElement().satisfies(record ->
+            assertThat(jsonMapper.readTree(record.value()).get("data").get("status").asString()).isEqualTo("CLOSED"));
+    }
+
+    @Test
+    @DisplayName("신청이 없는 회원이 탈퇴하면 아무것도 바꾸지 않고 DLT로 보내지 않는다")
+    void withdrawalWithoutApplication() throws Exception {
+        var otherMemberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
+        var other = sellerApplicationRepository.save(SellerFixture.application(otherMemberId)).getId();
+
+        var sent = sendWithdrawn(memberWithdrawn(NOW));
+
+        awaitProcessed(sent);
+        assertThat(nicknameOf(other)).isEqualTo(SellerFixture.APPLICANT_NICKNAME);
+        assertThat(deadLetters()).isEmpty();
+    }
+
+    @Test
     @DisplayName("판매자가 받지 않는 종류는 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
     void skipOtherEventType() throws Exception {
         var application = sellerApplicationRepository.save(SellerFixture.application(memberId)).getId();
@@ -175,6 +249,16 @@ class SellerMemberEventKafkaIntegrationTest {
         });
     }
 
+    private void assertCleared(Long applicationId, SellerApplicationStatus status) {
+        var application = sellerApplicationRepository.getById(applicationId);
+        assertThat(application.getApplicantNickname()).isNull();
+        assertThat(application.getRepresentativeName()).isNull();
+        assertThat(application.getBusinessRegistrationNumber()).isNull();
+        assertThat(application.getApplicantId()).isEqualTo(memberId);
+        assertThat(application.getBusinessName()).isEqualTo(SellerFixture.BUSINESS_NAME);
+        assertThat(application.getStatus()).isEqualTo(status);
+    }
+
     private String nicknameOf(Long applicationId) {
         return sellerApplicationRepository.getById(applicationId).getApplicantNickname();
     }
@@ -185,6 +269,14 @@ class SellerMemberEventKafkaIntegrationTest {
 
     private MemberChangedEvent memberChanged(String nickname, LocalDateTime occurredAt) {
         return new MemberChangedEvent(UUID.randomUUID(), occurredAt, new MemberChangedEvent.Data(memberId, nickname));
+    }
+
+    private MemberWithdrawnEvent memberWithdrawn(LocalDateTime occurredAt) {
+        return new MemberWithdrawnEvent(UUID.randomUUID(), occurredAt, new MemberWithdrawnEvent.Data(memberId));
+    }
+
+    private RecordMetadata sendWithdrawn(MemberWithdrawnEvent event) throws Exception {
+        return sendRaw("member.withdrawn", event.eventId(), jsonMapper.writeValueAsString(event));
     }
 
     // 보낸 결과를 위치로 기다려야 하는 변경은 직접 넣는다. 리스너는 본문에서 eventId · occurredAt · data만 읽는다
@@ -224,18 +316,33 @@ class SellerMemberEventKafkaIntegrationTest {
         }
     }
 
-    // DLT를 처음부터 지금 끝까지 읽어 이 테스트의 키만 돌려준다. 다른 테스트가 넣은 DLT 메시지도 있다
     private List<ConsumerRecord<String, String>> deadLetters() {
-        var partition = new TopicPartition(DLT, 0);
+        return memberRecords(DLT);
+    }
+
+    private List<ConsumerRecord<String, String>> sellerChanged() {
+        return memberRecords(SELLER_TOPIC).stream()
+            .filter(record -> "seller.changed".equals(eventType(record)))
+            .toList();
+    }
+
+    private static String eventType(ConsumerRecord<String, String> record) {
+        return new String(record.headers().lastHeader("eventType").value(), UTF_8);
+    }
+
+    private List<ConsumerRecord<String, String>> memberRecords(String topic) {
         try (var consumer = new KafkaConsumer<String, String>(Map.of(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            consumer.assign(List.of(partition));
-            consumer.seekToBeginning(List.of(partition));
-            var end = consumer.endOffsets(List.of(partition)).get(partition);
+            var partitions = consumer.partitionsFor(topic).stream()
+                .map(info -> new TopicPartition(topic, info.partition()))
+                .toList();
+            consumer.assign(partitions);
+            consumer.seekToBeginning(partitions);
+            var end = consumer.endOffsets(partitions);
             var records = new ArrayList<ConsumerRecord<String, String>>();
-            while (consumer.position(partition) < end) {
+            while (partitions.stream().anyMatch(partition -> consumer.position(partition) < end.get(partition))) {
                 consumer.poll(Duration.ofMillis(200)).forEach(records::add);
             }
             return records.stream().filter(record -> String.valueOf(memberId).equals(record.key())).toList();

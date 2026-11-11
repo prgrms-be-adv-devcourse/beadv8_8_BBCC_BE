@@ -5,13 +5,14 @@
 | `kidly.member.events` | `member.registered` | 회원 ID | member | notification, payment |
 | | `member.suspended` | 회원 ID | | childprofile, notification |
 | | `member.changed` | 회원 ID | | seller |
-| | `member.withdrawn` | 회원 ID | | auth, childprofile, community(찜 정리 · 리뷰 닉네임 지움(탈퇴 표시)), member(배송지), notification, order(#1001: 결제대기 주문 취소 · 회원 장바구니 정리), payment, recommend |
+| | `member.withdrawn` | 회원 ID | | auth, childprofile, community(찜 정리 · 리뷰 닉네임 지움(탈퇴 표시)), member(배송지), notification, order(#1001: 결제대기 주문 취소 · 회원 장바구니 정리), payment, recommend(활동 기록 · 기준 옷 지움), seller(#1093: 판매자 신청 개인정보 비움) |
 | `kidly.seller.events` | `seller.changed` | 판매자 ID | seller | member, notification, order, product, recommend, search |
 | | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
+| | `child.growth-recorded` | 자녀 ID | | recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
 | | `child-account.changed` | 자녀 계정 ID | | childprofile, notification, order |
-| `kidly.product.events` | `product.changed`(data에 관리자 판매 중지 `stoppedByAdmin`) | 상품 ID | product | community, notification, order, recommend, search |
+| `kidly.product.events` | `product.changed`(data에 관리자 판매 중지 `stoppedByAdmin`, 판매 시작 시각 `saleStartedAt`) | 상품 ID | product | community, notification, order, recommend, search |
 | | `stock.deducted` · `stock.deduction-failed` | 주문 ID | | order |
 | `kidly.order.events` | `order.created` | 주문 ID | order | product |
 | | `order.payment-requested` | 주문 ID | | payment |
@@ -42,6 +43,7 @@
 - 주문은 자기 토픽 `kidly.order.events`를 구독 그룹 `kidly.order`로 읽습니다(#999, 조르기 결제 완료). 자기 토픽 구독은 허용입니다: 받은 메시지를 다시 넣지 않고, 실패는 주문 DLT `kidly.order.events.order.dlt`로 갑니다. 결제 정리 트랜잭션과 떨어져 있어 조르기 처리가 실패해도 결제는 되돌아가지 않습니다.
 - `wish.approved` · `wish.item-added`는 #999에서 보내지 않습니다(승인 단계 · 공용 장바구니를 없앰, 받는 도메인 없음).
 - `child.changed`는 관리자 `POST /api/v1/admin/children/changed-events`로 삭제되지 않은 자녀 전체를 지금 값으로 다시 보낼 수 있습니다(#1055). 형식 · 키는 같고 `eventId` · `occurredAt`만 새로 정합니다. 받는 도메인(auth · order · recommend)은 여러 번 받아도 결과가 같습니다.
+- `child.growth-recorded`는 관리자 `POST /api/v1/admin/children/growth-recorded-events`로 삭제되지 않은 자녀의 성장 이력을 다시 보낼 수 있습니다(#1110). `eventId`만 새로 정하며 받는 쪽은 `growthRecordId`로 중복을 거릅니다.
 - 새 이벤트를 만들거나 토픽, 키, 메시지 형식을 바꾸려면 팀에 먼저 묻습니다. 결정되면 이 표에 추가합니다.
 
 ---
@@ -58,5 +60,6 @@
 - 수신 도메인 `notification`은 환불 완료 메일을 `memberId`에게 보내고, `memberId`가 `null`인 예전 메시지는 받는 사람을 알 수 없어 보내지 않는다. 정산금 지급 메일은 판매자에게 보내되 0원 정산은 입금이 없어 보내지 않고, `eventId` 대신 `settlementId`로 한 통만 만든다.
 - `member.registered` (`MemberRegisteredEvent`): `memberId`, `email`, `resent`. 기존 회원 이메일은 관리자 `POST /api/v1/admin/members/registered-events`로 채운다. 회원 서비스가 이메일이 있는 회원(탈퇴 회원 제외)마다 `resent=true`인 `member.registered`를 새 `eventId`로 다시 보낸다(토픽 보존 기간이 지나 재소비로는 채울 수 없다). `resent`를 더하기 전의 메시지에는 없어 `null`로 읽히고 새 가입으로 본다. 수신 도메인 `notification`은 `resent`면 이메일 복사본만 저장하고 환영 메일 · 알림함은 만들지 않는다. `payment`는 지갑이 이미 있으면 새로 만들지 않아 그대로다.
 - `product.changed` (`ProductChangedEvent`)의 `stoppedByAdmin`: 관리자가 운영 정책에 따라 판매를 중지한 상품이면 `true`. 판매자가 스스로 중지한 상품은 `false`이고, 이 칸을 더하기 전의 메시지도 `false`로 읽힌다. 판매자가 이미 중지한 상품을 관리자가 중지하면 판매 상태가 그대로라 이벤트가 나가지 않는다.
+- `product.changed` (`ProductChangedEvent`)의 `saleStartedAt`: 상품이 처음 판매중이 된 시각(한국 시간)이다. 판매중지 뒤 다시 판매해도 바뀌지 않는다. 이 칸이 생기기 전의 메시지와, 판매를 시작하지 않고 등록 취소한 상품은 `null`이다. 이 칸이 생기기 전에 판매를 시작한 상품은 실제 판매 시작 시각을 알 수 없어 상품을 만든 시각으로 채웠다.
 - 수신 도메인 `notification`은 `product.changed`로 상품 이름 복사본에 판매 상태와 재고 있는 옵션을 저장하고, 복사본보다 늦은 변경에서 판매 중이던 상품을 관리자가 중지하면 판매자에게 메일 · 알림함을, 재고가 있던 옵션이 새로 품절되면 알림함만 남긴다. 처음 받은 상품은 알리지 않는다.
 - `member.withdrawn` (`MemberWithdrawnEvent`): `memberId`. 수신 도메인 `notification`은 그 회원의 알림함 알림 · 이메일 복사본 · 푸시 FID를 지우고, 이메일 발송 기록은 상태 · 시각 · 유형만 남기고 받는 주소를 비운다. 아직 보내지 않은 메일은 보내지 않는다. 같은 메시지를 다시 받아도 결과가 같다.

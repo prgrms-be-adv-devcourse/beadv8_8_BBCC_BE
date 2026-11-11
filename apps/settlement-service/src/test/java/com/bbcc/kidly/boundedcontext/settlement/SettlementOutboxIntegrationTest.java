@@ -94,7 +94,7 @@ class SettlementOutboxIntegrationTest {
     void recordOnAdminRetry() {
         var settlement = settlementRepository.save(SettlementFixture.settlement(10_000L));
 
-        adminSettlementService.retryPayout(settlement.getId());
+        adminSettlementService.retryPayout(settlement.getId(), ADMIN_ID);
 
         assertThat(outboxCount()).isOne();
         assertThat(jdbcTemplate.queryForObject("select message_key from settlement.settlement_outbox", String.class))

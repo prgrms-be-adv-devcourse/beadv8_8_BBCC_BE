@@ -6,15 +6,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Gateway가 DB 없이 뜨고 health가 UP인지 본다.
+ * Gateway가 DB 없이 뜨고 살아 있는지(liveness) 본다.
+ * 전체 health 는 토큰 무효화 목록을 다 읽기 전까지 readiness 때문에 DOWN 이라(RevocationReplay) 시점에 따라 달라진다.
  */
 @IntegrationTest
 class GatewayApplicationIntegrationTest extends GatewayTestSupport {
 
     @Test
-    @DisplayName("DB 없이 뜨고 health가 UP이다")
+    @DisplayName("DB 없이 뜨고 liveness가 UP이다")
     void health() {
-        client.get().uri("/actuator/health").exchange()
+        client.get().uri("/actuator/health/liveness").exchange()
             .expectStatus().isOk()
             .expectBody().jsonPath("$.status").isEqualTo("UP");
     }

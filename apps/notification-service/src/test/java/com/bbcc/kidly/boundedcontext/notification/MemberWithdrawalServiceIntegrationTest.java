@@ -74,6 +74,19 @@ class MemberWithdrawalServiceIntegrationTest {
             .containsExactly("fid-other");
     }
 
+    @Test
+    @DisplayName("탈퇴한 뒤 늦게 온 알림은 그 회원 알림함에 넣지 않고, 같은 숫자 ID의 자녀와 다른 회원에게는 넣는다")
+    void skipInboxAfterWithdrawal() {
+        memberWithdrawalService.purge(MEMBER_ID);
+
+        addInbox(InboxRecipient.member(MEMBER_ID), "late");
+        addInbox(InboxRecipient.child(MEMBER_ID), "child");
+        addInbox(InboxRecipient.member(OTHER_MEMBER_ID), "other");
+
+        assertThat(jdbcTemplate.queryForList("SELECT dedup_key FROM notification.inbox ORDER BY id", String.class))
+            .containsExactly("child", "other");
+    }
+
     private void addPushFid(Long memberId, String fid) {
         jdbcTemplate.update("""
             INSERT INTO notification.push_token (member_id, fid, last_registered_at, created_at, updated_at)

@@ -5,7 +5,7 @@
 - Swagger: 서비스마다 연다(로컬 `http://localhost:<서비스 포트>/swagger-ui.html`, 포트는 README의 로컬 실행 표). 서비스에 직접 붙으므로 로그인이 필요한 API는 Gateway 헤더(`X-Member-*`)를 직접 넣어야 한다
 - 오류 응답은 ProblemDetail 5필드(`type`, `title`, `status`, `detail`, `instance`)다. 도메인 오류의 상태 · `title` · `detail`은 각 도메인의 `XxxErrorCode` enum에 있다
 - API를 추가 · 변경 · 삭제하는 PR에서 이 표도 같이 고친다
-- 권한: 🌐 누구나 · 🔒 로그인 · 🏪 판매자 · 🛠 관리자. 판매자 · 관리자 역할은 Gateway가 `/api/v1/seller/**` · `/api/v1/admin/**` 경로로 검사한다
+- 권한: 🌐 누구나 · 🔒 로그인 · 🏪 판매자 · 🛠 관리자 · 내부(서비스끼리만 부름. Gateway가 `/internal/**`을 밖에서 404로 막는다). 판매자 · 관리자 역할은 Gateway가 `/api/v1/seller/**` · `/api/v1/admin/**` 경로로 검사한다
 - 요청 수 제한: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 분당 30번까지 받는다. 넘으면 429 ProblemDetail(`title` "요청이 너무 많습니다")과 `Retry-After`(초)다(#816)
 
 ## 인증
@@ -38,7 +38,7 @@
 |---|---|---|---|
 | GET | `/api/v1/members/me` | 내 정보 조회 | 🔒 |
 | PATCH | `/api/v1/members/me` | 내 정보 수정(닉네임) | 🔒 |
-| DELETE | `/api/v1/members/me` | 탈퇴. 신청하면 바로 탈퇴한다 | 🔒 |
+| DELETE | `/api/v1/members/me` | 탈퇴. 판매자에게 남은 주문·정산이 있으면 409, 확인할 수 없으면 503 | 🔒 |
 | GET | `/api/v1/members/me/addresses` | 배송지 목록 | 🔒 |
 | POST | `/api/v1/members/me/addresses` | 배송지 등록 | 🔒 |
 | PATCH | `/api/v1/members/me/addresses/{addressId}` | 배송지 수정 | 🔒 |
@@ -70,6 +70,7 @@
 | GET | `/api/v1/admin/child-profile-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/child-profile-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 | POST | `/api/v1/admin/children/changed-events` | 삭제되지 않은 자녀마다 `child.changed`를 지금 값으로 다시 보냄(인증 · 주문 · 추천 자녀 복사본 채우기). 응답 `publishedCount` | 🛠 |
+| POST | `/api/v1/admin/children/growth-recorded-events` | 삭제되지 않은 자녀의 성장 이력을 `child.growth-recorded`로 다시 보냄. 응답 `publishedCount` | 🛠 |
 
 ## 판매자
 
@@ -133,9 +134,15 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거) | 🔒 |
-| GET | `/api/v1/recommendations/products` | 자녀 맞춤 상품(`childId` · `categoryId` · `page` · `size` · `asOf`) | 🔒 |
-| POST | `/api/v1/recommendations/product-views` | 상품 상세 진입 기록(`productId`. 활동 기록에 한 줄, 응답 204) | 🔒 |
+| GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거 `reasons`(`type` · `detail` · `sourceId`) · 출처 `source`(`AI` · `RULE`)). AI가 규칙 계산 결과를 받아 그 상품의 실제 사이즈 안에서 고른다. AI가 없거나 실패 · 2.5초 초과 · 하루 호출 상한 · 상품에 없는 사이즈를 답하면 규칙 결과로 답하고 `source`는 `RULE`, `reasons`는 `[]`이다. AI 답은 규칙 후보 밖의 사이즈일 수 있어 `recommendedSize`가 `candidateSizes`에 없을 수 있다. 사이즈 구분이 없는 상품은 AI를 부르지 않는다. 같은 자녀 · 상품 · 입력이면 24시간 동안 지난 AI 답을 다시 쓴다 | 🔒 |
+| GET | `/api/v1/recommendations/products` | 자녀 맞춤 상품(`childId` · `categoryId` · `page` · `size` · `asOf`). 선호 점수 순이고, 응답 끝에 기준 시각 `asOf`(한국 시간, 시간대 표시 없음, 초 단위)가 있다. 2쪽부터는 1쪽 응답의 `asOf`를 그대로 보낸다. 없으면 지금 시각이고, 지금보다 늦으면 400 | 🔒 |
+| GET | `/api/v1/recommendations/products/preview` | 홈 맛보기 4개(`childId`). 응답 `source`(`AI` · `RULE`)와 `products`(더보기 카드 칸 + `reason`). AI가 자녀 맞춤 상품 상위 20개 중 4개와 이유를 고르고, 같은 입력이면 24시간 동안 지난 답을 다시 쓴다. AI를 쓸 수 없으면(키 없음 · 하루 상한 · 실패 · 시간 초과) 상위 4개를 `RULE`로, 이유는 `null`. `source`가 `AI`여도 `reason`은 `null`일 수 있다(AI가 모자라게 골라 빈 자리를 채운 상품, AI가 이유를 주지 않은 상품). 후보가 없으면 `products`는 `[]`, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404 | 🔒 |
+| GET | `/api/v1/recommendations/companions` | 함께 사면 좋은 상품(`productId` · `childId` 필수). 보고 있는 상품과 짝이 되는 종류(예: 상의 → 바지 · 치마 · 아우터 · 잡화. 카테고리 「하의」와 「바지」는 같은 종류) 가운데 자녀에게 맞는 사이즈로 살 수 있고 장바구니 · 구매확정 상품이 아닌 상품을 4개까지 돌려준다. 응답 `source`(`AI` · `RULE`)와 `products`(상품 카드 · AI가 쓴 이유 `reason`). `reason`은 40자 안의 경어체 한 문장이고, 규칙으로 채운 상품이거나 AI 이유가 40자를 넘거나 경어체로 끝나지 않으면 `null`이다. 후보가 없으면 `products`는 `[]`, 없는 상품 · 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404 | 🔒 |
+| POST | `/api/v1/recommendations/product-views` | 상품 상세 진입 기록(`productId` · 선택 `childId`. 같은 회원 · 자녀 · 상품은 같은 날(한국 시간) 한 번만 기록, 응답 204, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404) | 🔒 |
+| GET | `/api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(상의, 하의 순서이고 없으면 `[]`. 칸 `part`(`TOP` · `BOTTOM`) · `categoryId` · `measurements`(실측 항목 코드별 cm)). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
+| PUT | `/api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(`{part}`는 `TOP` · `BOTTOM`. 본문 `categoryId`(상품 말단 카테고리, 구분에 맞아야 함) · `measurements`(상의 필수 `TOTAL_LENGTH` · `CHEST_WIDTH`, 선택 `SHOULDER_WIDTH` · `SLEEVE_LENGTH` / 하의 필수 `TOTAL_LENGTH` · `WAIST_WIDTH`, 선택 `RISE`. 0cm 초과 200cm 이하, 소수 첫째 자리까지). 같은 구분을 다시 저장하면 교체하고 응답 200에 저장한 값. 값이 틀리거나 알 수 없는 구분이면 400, 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
+| DELETE | `/api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 삭제(응답 204, 이미 없어도 204. 알 수 없는 구분이면 400, 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404) | 🔒 |
+| GET | `/api/v1/recommendations/children/{childId}/purchases?page=&size=` | 자녀에게 산 옷 목록(기준 옷 「산 옷에서 고르기」용, #1109). 구매확정된 주문상품만 구매확정이 늦은 순서로, 팀 목록 형식. 칸 `orderItemId` · `productId` · `productName` · `categoryId` · `size`(주문 당시 사이즈) · `measurements`(그 사이즈의 실측, 실측 항목 코드별 cm) · `confirmedAt`. 상품 정보가 없으면 `productName` · `categoryId` · `measurements`가 null, 그 사이즈의 실측이 없으면 `measurements`만 null. `size`(쪽 크기)는 1 ~ 100(기본 20). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
 
 ## 주문
 
@@ -148,6 +155,7 @@
 | POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸이라도 그 예약의 결제 가능 기한이 지났으면 409 `RESERVATION_EXPIRED`(`결제 기한이 지난 예약입니다`, #1008). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음. 기한도 지났으면 `RESERVATION_EXPIRED`가 먼저). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) | 🔒 |
 | GET | `/api/v1/orders` | 내 주문 목록 | 🔒 |
 | GET | `/api/v1/orders/{orderId}` | 주문 상세 | 🔒 |
+| GET | `/internal/sellers/{sellerId}/order-items/summary` | 서비스 사이 전용(#1120, 판매자 탈퇴 #1091의 남은 주문 확인). 200 `{"sellerId": 12, "openItemCount": 3}`: 그 판매자 상품의 주문상품 중 주문이 취소되지 않았고 주문상품이 `ORDERED`인 수(결제대기 · 결제완료 · 배송 준비 · 배송 중 · 배송 완료 후 구매확정 전. 구매확정 · 취소된 주문상품과 전체 취소된 주문의 주문상품은 빠짐, 주문이 없으면 0). `sellerId`는 숫자다(주문의 다른 응답은 ID가 문자열). 같은 모양의 계약 `shared.order.out.SellerOrderItems`(`summarize`)를 주문이 구현한다. 판매자 ID가 숫자가 아니거나 1 미만이면 400 `잘못된 판매자 ID입니다`. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
 | POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체) | 🔒 |
 | GET | `/api/v1/orders/{orderId}/timeline` | 주문 처리 타임라인(단계 · 상태 · 시각) | 🔒 |
 | POST | `/api/v1/orders/{orderId}/items/{orderItemId}/confirm` | 구매확정 | 🔒 |
@@ -277,6 +285,7 @@
 | GET | `/api/v1/admin/settlement-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
 | GET | `/api/v1/admin/settlement-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/settlement-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
+| GET | `/internal/sellers/{sellerId}/withdrawal-blockers` | 판매자 탈퇴를 막는 정산 사유. `blockers`에 `UNSETTLED_ITEM`(정산서에 아직 안 들어간 구매확정 항목) · `UNPAID_SETTLEMENT`(지급 대기 `COMPLETED` · 지급 실패 `FAILED` 정산서)와 건수(`count`)를 이 순서로, 0건인 사유는 빼고 준다. 없으면 `[]`(모르는 판매자도 200) | 내부 |
 
 ## 커뮤니티
 

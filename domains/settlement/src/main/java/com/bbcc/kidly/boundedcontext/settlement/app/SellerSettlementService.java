@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.settlement.app;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.dto.SellerWithdrawalBlockerResult;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementDetailResult;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementSearchRequest;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementTargetResult;
@@ -8,10 +9,13 @@ import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSearch;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSummaryQuery;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSummaryRow;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementTargetQuery;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SellerWithdrawalBlocker;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemRepository;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -53,5 +57,15 @@ public class SellerSettlementService {
         var settlement = settlementRepository.getByIdAndSellerId(settlementId, sellerId);
         var items = settlementItemRepository.findAllBySettlementIdOrderByIdAsc(settlement.getId());
         return SettlementDetailResult.of(settlement, items);
+    }
+
+    // 지급 대기(COMPLETED)와 지급 실패(FAILED)는 돈이 아직 판매자에게 나가지 않았으므로 탈퇴를 막는다
+    @Transactional(readOnly = true)
+    public List<SellerWithdrawalBlockerResult> getWithdrawalBlockers(Long sellerId) {
+        var blockers = SellerWithdrawalBlocker.of(
+            settlementItemRepository.countBySellerIdAndStatus(sellerId, SettlementItemStatus.PENDING),
+            settlementRepository.countBySellerIdAndStatusIn(
+                sellerId, List.of(SettlementStatus.COMPLETED, SettlementStatus.FAILED)));
+        return blockers.stream().map(SellerWithdrawalBlockerResult::from).toList();
     }
 }

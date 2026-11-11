@@ -5,11 +5,14 @@ import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotification;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipientType;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationPolicy;
+import com.bbcc.kidly.boundedcontext.notification.domain.WithdrawnMemberRepository;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -19,17 +22,29 @@ import org.springframework.transaction.annotation.Transactional;
  * 알림함. 알림을 넣고, 로그인 주체(회원 · 자녀 계정)가 자기 알림을 보고 읽음 처리한다. 오래된 알림은 정리한다.
  * 로그인 주체(PrincipalId)를 받는 사람(InboxRecipient)으로 바꿔 늘 종류와 ID로 거른다. 같은 숫자 ID의 다른 종류 주체 알림은 보이지도 바뀌지도 않는다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class InboxNotificationService {
 
     private final InboxNotificationRepository inboxNotificationRepository;
+    private final WithdrawnMemberRepository withdrawnMemberRepository;
 
     /**
      * 알림함에 넣는다. 같은 dedupKey가 이미 있으면 넣지 않는다(같은 이벤트를 다시 받거나 동시에 받아도 한 건).
+     * 탈퇴한 회원에게는 넣지 않는다. 탈퇴 뒤에 늦게 온 이벤트(판매자 탈퇴로 취소된 주문 등)가 지운 알림함을 되살리지 않게 한다.
+     * 탈퇴 처리(MemberWithdrawalService.purge)와 같은 회원 잠금을 잡고 탈퇴 표시를 보므로, 탈퇴와 엇갈려도 행이 남지 않는다.
      */
     @Transactional
     public void add(InboxNotificationInfo info) {
+        var recipient = info.recipient();
+        if (recipient.type() == InboxRecipientType.MEMBER) {
+            withdrawnMemberRepository.lock(recipient.id());
+            if (withdrawnMemberRepository.exists(recipient.id())) {
+                log.debug("탈퇴한 회원이라 알림함에 넣지 않음: type={}", info.type());
+                return;
+            }
+        }
         inboxNotificationRepository.saveIfAbsent(InboxNotification.create(info), LocalDateTime.now());
     }
 

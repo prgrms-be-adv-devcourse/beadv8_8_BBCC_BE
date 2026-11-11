@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.review.app;
 
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewActivityLog;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewEligibilities;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImages;
@@ -56,6 +57,7 @@ public class ReviewService {
     private final ReviewImageProperties imageProperties;
     private final ReviewImageCleanupQueue cleanupQueue;
     private final CommunityMetrics metrics;
+    private final ReviewActivityLog activityLog;
 
     /**
      * @param nickname 작성 시점 닉네임(로그인 정보). 없으면 null로 저장한다
@@ -106,6 +108,8 @@ public class ReviewService {
                 reviewImages.saveAll(images.toImages(saved.getId()));
                 // 정리 대기에 있던 사진을 다시 붙이면 그 대기를 지운다
                 cleanupQueue.cancel(images.urls());
+                activityLog.reviewCreated(saved.getId(), saved.getProductId(), saved.getOrderItemId(),
+                    saved.getRating(), fitName(saved.getFit()), images.urls().size());
                 return ReviewView.from(saved, purchasedSize, images.urls());
             });
         } catch (DataIntegrityViolationException e) {
@@ -174,7 +178,9 @@ public class ReviewService {
             return null;
         });
         // 글 · 사진이 실제로 바뀌면 다시 검사 대기(공개 그대로). 별점 · 핏만 바뀌면 그대로
-        if (!review.getContent().equals(contentBefore) || (images != null && !images.urls().equals(imagesBefore))) {
+        boolean contentChanged = !review.getContent().equals(contentBefore);
+        boolean imagesChanged = images != null && !images.urls().equals(imagesBefore);
+        if (contentChanged || imagesChanged) {
             review.markContentChanged();
         }
         Review saved = reviews.saveAndFlush(review);
@@ -194,6 +200,11 @@ public class ReviewService {
                 Reason.REPLACED);
             cleanupQueue.cancel(images.urls().stream().filter(url -> !imagesBefore.contains(url)).toList());
         }
+        // 실제로 바뀐 것이 있을 때만 남긴다(같은 값으로 보낸 수정은 남지 않는다)
+        if (contentChanged || imagesChanged || ratingDelta != 0 || fitBefore != saved.getFit()) {
+            activityLog.reviewUpdated(saved.getId(), saved.getProductId(), saved.getRating(), fitName(saved.getFit()),
+                imageUrls.size(), contentChanged, imagesChanged);
+        }
         return ReviewView.from(saved, purchasedSize, imageUrls);
     }
 
@@ -212,6 +223,11 @@ public class ReviewService {
         if (review.isPublic()) {
             adjustStats(review.getProductId(), -1, -review.getRating(), FitDelta.of(review.getFit(), null));
         }
+        activityLog.reviewDeleted(review.getId(), review.getProductId(), review.getRating(), review.isPublic());
+    }
+
+    private static String fitName(Fit fit) {
+        return fit == null ? null : fit.name();
     }
 
     /**

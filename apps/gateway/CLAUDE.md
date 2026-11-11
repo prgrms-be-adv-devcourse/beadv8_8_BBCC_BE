@@ -27,7 +27,11 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 읽기 실패는 재시도 없이 DLT `kidly.auth.events.gateway.dlt` + ERROR 로그(본문 없이 `eventType` · `eventId` · 키)
 - 31분 안에서 읽지 못해 DLT로 간 메시지는 Gateway가 다시 뜰 때마다 다시 읽혀 DLT로 다시 간다(ERROR 로그도 다시)
 - `jwt.access-token-validity`는 회원 서비스 인증 모듈의 `auth.yml`(`apps/member-service/auth/src/main/resources`)과 같아야 한다
-- 한계: 기동 직후 되감아 다 읽기 전에는 무효화된 토큰도 통과한다. 서비스는 토큰을 보지 않으므로 dev · prod 모두 이 사이는 실제로 뚫린다(prod 전환 전 readiness로 줄일 일)
+- 다시 다 읽기 전에는 요청을 받지 않는다(`revocation/RevocationReplay`, #1176): readiness가 REFUSING_TRAFFIC이라 k3s가 새 Pod로 보내지 않는다(`revocation/RevocationAwareApplicationAvailability`가 Boot의 ApplicationAvailability를 대신한다). liveness는 그대로다
+  - 다 읽음 = 무효화 리스너가 파티션을 받은 뒤 더 읽을 메시지가 없을 때(컨테이너 idle 이벤트, 1초 간격 · 첫 메시지 전에는 5초)
+  - 리스너가 다시 시작하면 다시 기다린다. 한 번 다 읽은 뒤의 재조정(rebalance)으로는 다시 막지 않는다(받은 무효화는 메모리에 그대로 있다)
+  - 시간 상한 60초: 넘으면 WARN을 남기고 요청을 받는다(브로커 장애로 Gateway 전체가 멈추지 않게). 앱이 뜰 때 리스너가 돌지 않으면(테스트의 auto-startup: false) 기다리지 않는다
+- 한계: 시간 상한을 넘겨 Ready가 된 경우, 그리고 롤링 배포에서 옛 Pod · 새 Pod가 겹칠 때는 무효화된 토큰이 통과할 수 있다. 같은 구독 그룹이라 새 Pod는 처음에 파티션 일부만 받아 그것만 다 읽고 Ready가 되고, 옛 Pod가 내려간 뒤 나머지 파티션을 받아 다시 읽는 몇 초 동안 그 파티션의 무효화를 모른다. 없애려면 인스턴스마다 모든 파티션을 직접 받아야 한다(구독 그룹 규칙과 함께 정할 일)
 
 ## 지켜야 할 것
 - CORS 값(허용 origin · 메서드 · 노출 헤더)은 Gateway(`application.yml`)에서만 바꾼다

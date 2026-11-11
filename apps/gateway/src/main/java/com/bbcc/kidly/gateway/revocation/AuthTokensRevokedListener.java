@@ -19,10 +19,13 @@ import tools.jackson.databind.json.JsonMapper;
  * 그동안의 무효화를 다시 읽는다. 그보다 오래된 무효화로 막을 토큰은 이미 만료됐다. 구독 그룹의 책갈피는 쓰지 않는다
  * (그 시각 뒤 메시지가 없는 파티션은 책갈피 · auto.offset.reset 위치에서 읽는다. 거기 있는 메시지는 보존 기간이 지나 목록에 남지 않는다).
  * 같은 메시지를 다시 받아도 가장 늦은 시각만 남아 결과가 같다. 예외는 잡지 않는다(재시도 없이 DLT, GatewayKafkaListenerConfig).
+ * 다시 다 읽기 전에는 Gateway 가 요청을 받지 않는다(RevocationReplay).
  */
 @Component
 @RequiredArgsConstructor
 public class AuthTokensRevokedListener implements ConsumerSeekAware {
+
+    static final String LISTENER_ID = "gatewayAuthEventListener";
 
     // 이벤트 시각은 시간대 없는 한국 시간이다(팀 규칙)
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -36,7 +39,7 @@ public class AuthTokensRevokedListener implements ConsumerSeekAware {
         callback.seekToTimestamp(assignments.keySet(), from.toEpochMilli());
     }
 
-    @KafkaListener(id = "gatewayAuthEventListener", topics = GatewayKafkaListenerConfig.AUTH_EVENTS,
+    @KafkaListener(id = LISTENER_ID, topics = GatewayKafkaListenerConfig.AUTH_EVENTS,
         groupId = GatewayKafkaListenerConfig.GROUP, containerFactory = "gatewayKafkaListenerContainerFactory")
     public void on(ConsumerRecord<String, String> record) {
         switch (GatewayKafkaListenerConfig.eventType(record)) {

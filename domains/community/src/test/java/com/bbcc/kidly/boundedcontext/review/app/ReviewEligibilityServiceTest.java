@@ -24,7 +24,8 @@ class ReviewEligibilityServiceTest {
 
     private final FakeReviewEligibilities eligibilities = new FakeReviewEligibilities();
     private final ReviewEligibilityService service =
-        new ReviewEligibilityService(eligibilities, new ReviewSeparateTransaction());
+        new ReviewEligibilityService(eligibilities, new ReviewSeparateTransaction(),
+            org.mockito.Mockito.mock(com.bbcc.kidly.boundedcontext.review.app.port.ReviewActivityLog.class));
 
     @Test
     @DisplayName("처음 받은 주문상품은 자격을 저장한다")

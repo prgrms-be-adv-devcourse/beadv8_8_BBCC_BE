@@ -312,7 +312,7 @@ class ProductDetailApiTest {
         product.addSizeSpecs(addSizeSpecs(List.of(
             spec(size110, 105, 115, top110Measurements()),
             spec(size120, 115, 125, top120Measurements()))), category, clothingType);
-        product.startSale(SELLER_ID, category, clothingType);
+        product.startSale(SELLER_ID, category, clothingType, ProductFixture.NOW);
         inTransaction(() -> {
             saveClothingType();
             saveCategory(category);

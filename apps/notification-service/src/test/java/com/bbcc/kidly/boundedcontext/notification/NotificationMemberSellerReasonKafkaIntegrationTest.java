@@ -37,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
@@ -76,6 +77,9 @@ class NotificationMemberSellerReasonKafkaIntegrationTest {
 
     @Autowired
     private KafkaContainer kafka;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private final Long memberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     private final String email = "member-" + UUID.randomUUID() + "@kidly.co.kr";
@@ -159,6 +163,27 @@ class NotificationMemberSellerReasonKafkaIntegrationTest {
             .equals(List.of(NotificationStatus.SENT)));
         assertThat(notifications(sellerEmail)).singleElement()
             .satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.SELLER_APPROVED));
+    }
+
+    @Test
+    @DisplayName("판매자 탈퇴(CLOSED)를 받으면 실패 없이 상태 복사본만 CLOSED로 바꾸고 메일을 더 만들지 않는다")
+    void sellerClosed() throws Exception {
+        send("kidly.seller.events", new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new SellerChangedEvent.Data(memberId, "키들리 상점", SellerStatus.ACTIVE)));
+        AsyncWait.until(TIMEOUT, () -> statuses().equals(List.of(NotificationStatus.SENT)));
+
+        send("kidly.seller.events", new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new SellerChangedEvent.Data(memberId, "키들리 상점", SellerStatus.CLOSED)));
+
+        // 처리에 실패하면 트랜잭션이 되돌려져 복사본이 바뀌지 않고 DLT로 간다. CLOSED가 보이면 처리에 성공한 것이다
+        AsyncWait.until(TIMEOUT, () -> "CLOSED".equals(sellerStatus()));
+        assertThat(notifications()).singleElement()
+            .satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.SELLER_APPROVED));
+    }
+
+    private String sellerStatus() {
+        return jdbcTemplate.queryForList("SELECT status FROM notification.seller_status WHERE seller_id = ?",
+            String.class, memberId).stream().findFirst().orElse(null);
     }
 
     private List<Notification> notifications() {

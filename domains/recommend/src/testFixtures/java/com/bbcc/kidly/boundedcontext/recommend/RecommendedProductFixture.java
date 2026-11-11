@@ -20,7 +20,7 @@ public final class RecommendedProductFixture {
     public static final LocalDateTime BASE_TIME = LocalDateTime.of(2026, 11, 6, 12, 0);
 
     /**
-     * 기준 시각보다 30일 이른 등록 시각이다. 최신성 1점을 받지 않는다.
+     * 기준 시각보다 30일 이른 등록 시각이다. 최신성 몫을 받지 않는다.
      */
     public static final LocalDateTime OLD_REGISTERED_AT = BASE_TIME.minusDays(30);
 
@@ -30,7 +30,7 @@ public final class RecommendedProductFixture {
     public static RecommendedProduct recommendedProduct(
         Long productId, Long categoryId, String brand, LocalDateTime registeredAt) {
         return new RecommendedProduct(productId, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, PRODUCT_A_THUMBNAIL_URL,
-            25_000L, "110", categoryId, brand, registeredAt);
+            25_000L, "110", categoryId, brand, registeredAt, registeredAt);
     }
 
     /**
@@ -38,5 +38,14 @@ public final class RecommendedProductFixture {
      */
     public static RecommendedProduct recommendedProductRegisteredAt(Long productId, LocalDateTime registeredAt) {
         return recommendedProduct(productId, PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, registeredAt);
+    }
+
+    /**
+     * 상품 A의 카테고리 · 브랜드로 등록 시각과 판매 시작 시각을 따로 정한다.
+     */
+    public static RecommendedProduct recommendedProductSaleStartedAt(
+        Long productId, LocalDateTime registeredAt, LocalDateTime saleStartedAt) {
+        return new RecommendedProduct(productId, PRODUCT_A_SELLER_ID, PRODUCT_A_NAME, PRODUCT_A_THUMBNAIL_URL,
+            25_000L, "110", PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, registeredAt, saleStartedAt);
     }
 }

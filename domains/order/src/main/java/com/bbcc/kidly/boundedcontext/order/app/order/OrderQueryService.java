@@ -11,8 +11,11 @@ import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
+import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.order.dto.SellerOrderItemSummary;
+import com.bbcc.kidly.shared.order.out.SellerOrderItems;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -35,12 +38,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class OrderQueryService {
+public class OrderQueryService implements SellerOrderItems {
 
     private final OrderRepository orderRepository;
     private final OrderDeliveries orderDeliveries;
     private final SellerReplicaRepository sellerReplicaRepository;
     private final OrderStatusHistoryRepository historyRepository;
+
+    /**
+     * 그 판매자 상품의 미종결 주문상품 수(#1120, {@link SellerOrderItems}): 주문이 취소되지 않았고 주문상품이 주문됨(ORDERED)인 수
+     * (결제대기 · 결제완료 · 배송 준비 · 배송 중 · 배송 완료 후 구매확정 전). 구매확정 · 취소된 주문상품과 취소된 주문의 주문상품은 빼고,
+     * 주문이 없으면 0. 그 값으로 무엇을 할지는 부르는 쪽이 정한다.
+     */
+    @Override
+    public SellerOrderItemSummary summarize(Long sellerId) {
+        return new SellerOrderItemSummary(sellerId, orderRepository.countSellerItems(sellerId,
+            OrderItem.Status.ORDERED, Order.Status.CANCELLED));
+    }
 
     public OrderDetail getOrder(Long memberId, Long orderId) {
         return orderRepository.findByIdAndMemberId(orderId, memberId)

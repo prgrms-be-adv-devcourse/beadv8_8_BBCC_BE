@@ -4,12 +4,17 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecordRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
+import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class ActivityRecordService {
+
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final ActivityRecordRepository activityRecordRepository;
     private final RecommendReplicaChildRepository replicaChildRepository;
@@ -96,11 +103,20 @@ public class ActivityRecordService {
         activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
     }
 
-    // 이벤트로 받은 기록이 아니므로 이벤트 ID는 서버가 새로 만든다. 같은 상품을 다시 보면 새 기록이 한 줄 더 남는다
-    public void recordProductViewed(Long memberId, Long productId) {
+    public void recordProductViewed(Long memberId, Long productId, Long childId) {
+        if (childId != null) {
+            requireVisibleChild(memberId, childId);
+        }
         ActivityRecord.ProductViewedInfo info = new ActivityRecord.ProductViewedInfo(
-            UUID.randomUUID(), memberId, productId, LocalDateTime.now());
-        activityRecordRepository.save(ActivityRecord.productViewed(info));
+            UUID.randomUUID(), memberId, childId, productId, LocalDateTime.now(SERVICE_ZONE));
+        activityRecordRepository.saveProductViewedIfAbsent(ActivityRecord.productViewed(info));
+    }
+
+    private void requireVisibleChild(Long memberId, Long childId) {
+        Optional<RecommendReplicaChild> child = replicaChildRepository.findById(childId);
+        if (child.isEmpty() || !child.get().isVisibleTo(memberId)) {
+            throw new BusinessException(RecommendErrorCode.CHILD_NOT_FOUND);
+        }
     }
 
     public void deleteActivityRecordsOfWithdrawnMember(MemberWithdrawnEvent event) {

@@ -160,6 +160,34 @@ class MemberSellerEventKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("판매자가 탈퇴로 닫히면 Kafka로 받아 SELLER를 빼고 Access Token을 무효화하며, DLT로 보내지 않는다")
+    void closedSellerLosesSellerRole() {
+        save(MemberFixture.withSellerState(SellerStatus.ACTIVE));
+
+        publishInTransaction(sellerChanged(SellerStatus.CLOSED, APPROVED_AT.plusDays(1)));
+
+        AsyncWait.until(TIMEOUT, () -> tokensRevokedCount() > 0);
+        assertThat(sellerState().status()).isEqualTo(SellerStatus.CLOSED);
+        assertThat(rolesOfNewToken()).doesNotContain(Role.SELLER);
+        assertThat(deadLetters()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 회원이 판매자 닫힘 이벤트를 받아도 처리에 성공하고 DLT로 보내지 않는다")
+    void withdrawnMemberAcceptsClosed() throws Exception {
+        var member = MemberFixture.withSellerState(SellerStatus.ACTIVE);
+        member.withdraw(MemberFixture.NOW.plusHours(1));
+        save(member);
+
+        var sent = sendChanged(sellerChanged(SellerStatus.CLOSED, APPROVED_AT.plusDays(1)));
+
+        awaitProcessed(sent);
+        assertThat(sellerState().status()).isEqualTo(SellerStatus.CLOSED);
+        assertThat(memberRepository.getById(memberId).roles()).doesNotContain(Role.SELLER);
+        assertThat(deadLetters()).isEmpty();
+    }
+
+    @Test
     @DisplayName("판매자로 승인되면 새로 발급한 토큰에 SELLER가 담기고, Access Token은 무효화하지 않는다")
     void approvalDoesNotRevoke() throws Exception {
         save(MemberFixture.kakaoMember());

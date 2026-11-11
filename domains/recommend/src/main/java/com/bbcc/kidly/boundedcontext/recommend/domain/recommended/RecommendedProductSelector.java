@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -55,6 +56,11 @@ public class RecommendedProductSelector {
     }
 
     private RecommendedProduct toRecommendedProduct(RecommendReplicaProduct product, String recommendedSize) {
+        // 판매 시작 시각이 없는 예전 메시지로 만든 복사본은 등록 시각을 판매 시작 시각으로 본다
+        LocalDateTime saleStartedAt = product.getSaleStartedAt();
+        if (saleStartedAt == null) {
+            saleStartedAt = product.getProductRegisteredAt();
+        }
         return new RecommendedProduct(
                 product.getProductId(),
                 product.getSellerId(),
@@ -64,7 +70,8 @@ public class RecommendedProductSelector {
                 recommendedSize,
                 product.getCategoryId(),
                 product.getBrand(),
-                product.getProductRegisteredAt()
+                product.getProductRegisteredAt(),
+                saleStartedAt
         );
     }
 }

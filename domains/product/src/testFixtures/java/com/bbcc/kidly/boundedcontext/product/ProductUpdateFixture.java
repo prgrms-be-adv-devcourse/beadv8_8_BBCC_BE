@@ -116,7 +116,7 @@ final class ProductUpdateFixture {
             spec(clothing.size110(), 105, 115, top110Measurements()),
             spec(clothing.size120(), 115, 125, top120Measurements()))), top, clothing.type());
         if (startSale) {
-            product.startSale(SELLER_ID, top, clothing.type());
+            product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
         }
         ReflectionTestUtils.setField(product, "version", VERSION);
         return new ProductA(clothing, top, outer, bottom, shoes, product);

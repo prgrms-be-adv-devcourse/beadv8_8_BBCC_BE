@@ -35,6 +35,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @IntegrationTest
 class SettlementPayoutRetryIntegrationTest {
 
+    private static final Long ADMIN_ID = 7L;
+
     private static final long TIMEOUT_SECONDS = 60;
 
     @Autowired
@@ -56,21 +58,24 @@ class SettlementPayoutRetryIntegrationTest {
     private TransactionTemplate transactionTemplate;
 
     @Test
-    @DisplayName("재요청하면 정산금액으로 지급을 다시 요청하고, 지급 완료된 뒤 다시 재요청하면 SETTLEMENT_NOT_RETRYABLE이다")
+    @DisplayName("재요청하면 정산금액으로 지급을 다시 요청하고 관리자 행위를 남기며, 지급 완료된 뒤 다시 재요청하면 "
+        + "SETTLEMENT_NOT_RETRYABLE이고 행위도 남지 않는다")
     void retry() {
         var settlement = saveCompleted();
 
-        adminSettlementService.retryPayout(settlement.getId());
+        adminSettlementService.retryPayout(settlement.getId(), ADMIN_ID);
 
         var requests = PayoutRequests.of(jdbcTemplate, settlement.getId());
         assertThat(requests).singleElement().extracting(PayoutRequests.Request::amount)
             .isEqualTo(settlement.getSettlementAmount());
         PayoutRequests.complete(eventPublisher, transactionTemplate, requests.getFirst());
         assertThat(reload(settlement).getStatus()).isEqualTo(SettlementStatus.PAID);
-        assertThatThrownBy(() -> adminSettlementService.retryPayout(settlement.getId()))
+        assertThatThrownBy(() -> adminSettlementService.retryPayout(settlement.getId(), ADMIN_ID))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(SettlementErrorCode.SETTLEMENT_NOT_RETRYABLE));
         assertThat(PayoutRequests.of(jdbcTemplate, settlement.getId())).hasSize(1);
+        assertThat(AdminActions.of(jdbcTemplate, "PAYOUT_RETRY", settlement.getId()))
+            .containsExactly(new AdminActions.Row(ADMIN_ID, "PAYOUT_RETRY", settlement.getId()));
     }
 
     @Test
@@ -79,7 +84,7 @@ class SettlementPayoutRetryIntegrationTest {
         var settlement = saveCompleted();
 
         // 재요청은 정산서를 바꾸지 않고 지급 요청만 다시 보낸다. 중복 입금은 결제가 정산서마다 한 번만 입금해 막는다(결제 서비스 테스트)
-        var errors = runTwiceAtOnce(() -> adminSettlementService.retryPayout(settlement.getId()));
+        var errors = runTwiceAtOnce(() -> adminSettlementService.retryPayout(settlement.getId(), ADMIN_ID));
 
         assertThat(errors).isEmpty();
         var requests = PayoutRequests.of(jdbcTemplate, settlement.getId());
@@ -95,7 +100,7 @@ class SettlementPayoutRetryIntegrationTest {
     @Test
     @DisplayName("없는 정산서를 재요청하면 NOT_FOUND다")
     void retryNotFound() {
-        assertThatThrownBy(() -> adminSettlementService.retryPayout(999L))
+        assertThatThrownBy(() -> adminSettlementService.retryPayout(999L, ADMIN_ID))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
     }
@@ -112,6 +117,8 @@ class SettlementPayoutRetryIntegrationTest {
         assertThat(requests).hasSize(1);
         PayoutRequests.complete(eventPublisher, transactionTemplate, requests.getFirst());
         assertThat(reload(settlement).getStatus()).isEqualTo(SettlementStatus.PAID);
+        // 자동 재요청은 관리자 행위가 아니다
+        assertThat(AdminActions.of(jdbcTemplate, "PAYOUT_RETRY", settlement.getId())).isEmpty();
     }
 
     @Test

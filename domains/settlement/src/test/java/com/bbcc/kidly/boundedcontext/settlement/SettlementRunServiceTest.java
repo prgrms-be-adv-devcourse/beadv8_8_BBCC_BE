@@ -5,13 +5,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementProperties;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementRunService;
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementAdminActions;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementAdminActionType;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSkipRepository;
@@ -62,6 +66,9 @@ class SettlementRunServiceTest {
 
     @Mock
     private SettlementRepository settlementRepository;
+
+    @Mock
+    private SettlementAdminActions settlementAdminActions;
 
     @Spy
     private SettlementProperties properties = new SettlementProperties(
@@ -164,6 +171,67 @@ class SettlementRunServiceTest {
         assertThat(result.cutoffAt()).isEqualTo(cutoffAt);
         assertThat(result.periodStartOn()).isEqualTo(LocalDate.of(2026, 10, 28));
         assertThat(result.periodEndOn()).isEqualTo(LocalDate.of(2026, 11, 1));
+        // 자동 실행은 관리자 행위가 아니다
+        verifyNoInteractions(settlementAdminActions);
+    }
+
+    @Test
+    @DisplayName("관리자가 멈춘 실행을 정리하면 그 관리자 ID와 실행 ID로 RUN_RECOVER를 남긴다")
+    void recoverRecordsAdmin() {
+        var stuck = runningExecution(LocalDateTime.now().minusMinutes(5));
+        given(jobRepository.getJobExecution(1L)).willReturn(stuck);
+        var recovered = new JobExecution(1L, INSTANCE, new JobParametersBuilder()
+            .addLocalDateTime(SettlementJobConfig.CUTOFF_AT, LocalDateTime.of(2026, 11, 15, 0, 0)).toJobParameters());
+        recovered.setStatus(BatchStatus.FAILED);
+        given(jobOperator.recover(stuck)).willReturn(recovered);
+
+        settlementRunService.recover(1L, 7L);
+
+        verify(settlementAdminActions).record(eq(7L), eq(SettlementAdminActionType.RUN_RECOVER), eq(1L),
+            any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("멈춘 실행 정리는 감사 기록을 먼저 남기고, 기록이 실패하면 정리하지 않는다")
+    void recoverSkippedWhenAuditFails() {
+        var stuck = runningExecution(LocalDateTime.now().minusMinutes(5));
+        given(jobRepository.getJobExecution(1L)).willReturn(stuck);
+        var failure = new DataAccessResourceFailureException("DB 연결 실패");
+        willThrow(failure).given(settlementAdminActions).record(any(), any(), any(), any());
+
+        assertThatThrownBy(() -> settlementRunService.recover(1L, 7L)).isSameAs(failure);
+
+        verify(jobOperator, never()).recover(any(JobExecution.class));
+    }
+
+    @Test
+    @DisplayName("수동 실행이 끝난 뒤 감사 기록이 DB 오류로 실패해도 실행 결과를 돌려준다(정산은 이미 반영됐다)")
+    void runManuallyReturnsResultWhenAuditFails() throws Exception {
+        given(jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME)).willReturn(Set.of());
+        var completed = new JobExecution(1L, INSTANCE, new JobParametersBuilder()
+            .addLocalDateTime(SettlementJobConfig.CUTOFF_AT, LocalDateTime.of(2026, 11, 2, 0, 0)).toJobParameters());
+        completed.setStatus(BatchStatus.COMPLETED);
+        given(jobOperator.start(eq(settlementJob), any(JobParameters.class))).willReturn(completed);
+        willThrow(new DataAccessResourceFailureException("DB 연결 실패")).given(settlementAdminActions)
+            .record(any(), any(), any(), any());
+
+        var result = settlementRunService.runManually(LocalDate.of(2026, 11, 2), 7L);
+
+        assertThat(result.runId()).isEqualTo(1L);
+        verify(settlementAdminActions).record(eq(7L), eq(SettlementAdminActionType.RUN_MANUAL), eq(1L),
+            any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("끝난 실행은 정리하지 않고 관리자 행위도 남기지 않는다")
+    void recoverRejectedRecordsNothing() {
+        var completed = new JobExecution(1L, INSTANCE, new JobParameters());
+        completed.setStatus(BatchStatus.COMPLETED);
+        given(jobRepository.getJobExecution(1L)).willReturn(completed);
+
+        assertThatThrownBy(() -> settlementRunService.recover(1L, 7L)).isInstanceOf(BusinessException.class);
+
+        verifyNoInteractions(settlementAdminActions);
     }
 
     @Test
