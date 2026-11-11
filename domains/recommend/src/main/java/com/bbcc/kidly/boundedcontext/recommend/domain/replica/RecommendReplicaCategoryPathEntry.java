@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
 
 import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import jakarta.persistence.Column;
@@ -34,6 +35,6 @@ public class RecommendReplicaCategoryPathEntry {
         Long categoryId, String categoryName, CategoryVisibleGender visibleGender) {
         this.categoryId = requireNonNull(categoryId, "categoryId는 필수입니다");
         this.categoryName = requireNonNull(categoryName, "categoryName은 필수입니다");
-        this.visibleGender = visibleGender == null ? CategoryVisibleGender.ALL : visibleGender;
+        this.visibleGender = requireNonNullElse(visibleGender, CategoryVisibleGender.ALL);
     }
 }

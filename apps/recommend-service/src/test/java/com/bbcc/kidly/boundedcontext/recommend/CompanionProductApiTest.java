@@ -63,6 +63,12 @@ class CompanionProductApiTest {
         new ProductChangedEvent.CategoryPathEntry(1L, "의류"),
         new ProductChangedEvent.CategoryPathEntry(61L, "치마", CategoryVisibleGender.GIRL));
 
+    private static final Long DRESS_PRODUCT_ID = 103L;
+
+    private static final List<ProductChangedEvent.CategoryPathEntry> DRESS = List.of(
+        new ProductChangedEvent.CategoryPathEntry(1L, "의류"),
+        new ProductChangedEvent.CategoryPathEntry(62L, "원피스", CategoryVisibleGender.GIRL));
+
     @Autowired
     private RestTestClient client;
 
@@ -104,6 +110,19 @@ class CompanionProductApiTest {
         saveProduct(SKIRT_PRODUCT_ID, SKIRT);
 
         companions(VIEWED_PRODUCT_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.products[*].productId").isEqualTo(List.of(String.valueOf(BOTTOM_PRODUCT_ID)));
+    }
+
+    @Test
+    @DisplayName("PAIR-04 남아 자녀가 원피스를 보고 있어도 보고 있는 상품은 거르지 않고 그 짝인 바지 후보를 준다")
+    void keepCompanionsOfDressViewedByBoy() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        saveProduct(DRESS_PRODUCT_ID, DRESS);
+        saveProduct(BOTTOM_PRODUCT_ID, BOTTOM);
+
+        companions(DRESS_PRODUCT_ID)
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.products[*].productId").isEqualTo(List.of(String.valueOf(BOTTOM_PRODUCT_ID)));

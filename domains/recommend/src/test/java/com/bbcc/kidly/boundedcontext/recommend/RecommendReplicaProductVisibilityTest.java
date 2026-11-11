@@ -38,8 +38,8 @@ class RecommendReplicaProductVisibilityTest {
     }
 
     @ParameterizedTest(name = "{0} 카테고리, {1} 자녀")
-    @CsvSource({"ALL, MALE", "ALL, FEMALE", "GIRL, FEMALE"})
-    @DisplayName("VIS-02 남아 자녀에게는 ALL 카테고리 상품을, 여아 자녀에게는 모든 상품을 보여 준다")
+    @CsvSource({"ALL, MALE", "ALL, FEMALE", "GIRL, FEMALE", "GIRL, "})
+    @DisplayName("VIS-02 남아 자녀에게는 ALL 카테고리 상품을, 여아 자녀에게는 모든 상품을 보여 주고, 성별을 모르면 거르지 않는다")
     void productIsVisibleByChildGender(CategoryVisibleGender leafVisibleGender, Gender childGender) {
         RecommendReplicaProduct product = productWithPath(List.of(
             new CategoryPathEntryInfo(1L, "의류", CategoryVisibleGender.ALL),
@@ -49,13 +49,9 @@ class RecommendReplicaProductVisibilityTest {
     }
 
     @Test
-    @DisplayName("VIS-03 자녀 성별이 없으면 GIRL 카테고리 상품도 보여 준다")
-    void girlCategoryProductIsVisibleWithoutChildGender() {
-        RecommendReplicaProduct dress = productWithPath(List.of(
-            new CategoryPathEntryInfo(1L, "의류", CategoryVisibleGender.ALL),
-            new CategoryPathEntryInfo(5L, "원피스", CategoryVisibleGender.GIRL)));
-
-        assertThat(dress.isVisibleTo(null)).isTrue();
+    @DisplayName("VIS-01 카테고리 경로가 없는 예전 복사본은 남아 자녀에게도 보여 준다")
+    void productWithoutCategoryPathIsVisibleToBoy() {
+        assertThat(productWithPath(List.of()).isVisibleTo(Gender.MALE)).isTrue();
     }
 
     private static RecommendReplicaProduct productWithPath(List<CategoryPathEntryInfo> categoryPath) {

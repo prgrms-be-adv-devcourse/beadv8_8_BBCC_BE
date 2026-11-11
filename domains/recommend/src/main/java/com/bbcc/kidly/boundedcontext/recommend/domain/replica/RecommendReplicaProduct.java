@@ -37,6 +37,7 @@ import org.hibernate.annotations.BatchSize;
  * 추천이 사이즈를 계산하려고 상품 정보 변경됨 이벤트에서 옮겨 둔 상품 정보다.
  * 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로는 아직 사이즈 계산에 쓰지 않는다.
  * 브랜드 · 사이즈별 실측은 브랜드별 사이즈 보정과 실측 비교에, 카테고리 경로는 함께 사면 좋은 상품의 카테고리 짝에 쓰려고 함께 옮겨 둔다.
+ * 카테고리 경로의 보일 성별은 남아 자녀에게 여아에게만 보여 줄 카테고리의 상품을 추천하지 않는 데 쓴다.
  * 카테고리 경로의 이름과 상품 정보 값은 이름 · 브랜드 · 설명과 함께 임베딩할 글({@code embeddingText})로 합쳐 저장한다.
  * 벡터 칸(embedding · embedded_text_md5 · embedding_attempted_at)은 이 엔티티가 매핑하지 않고 상품 임베딩 저장소만 쓴다.
  * 주문 도메인에도 상품 복사본 엔티티 {@code ReplicaProduct}가 있어서, JPA 엔티티 이름이 겹치지 않게 클래스 이름 앞에 도메인 이름을 붙인다.
@@ -186,13 +187,6 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
      */
     public record CategoryPathEntryInfo(Long categoryId, String categoryName, CategoryVisibleGender visibleGender) {
 
-        // 칸이 없는 예전 메시지는 보일 성별이 null로 오므로 ALL로 바꾼다
-        public CategoryPathEntryInfo {
-            if (visibleGender == null) {
-                visibleGender = CategoryVisibleGender.ALL;
-            }
-        }
-
         // 테스트 보조 코드만 쓰는 생성자다. 보일 성별이 ALL이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 보일 성별이 ALL로 저장된다
         public CategoryPathEntryInfo(Long categoryId, String categoryName) {
             this(categoryId, categoryName, CategoryVisibleGender.ALL);
@@ -331,7 +325,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     }
 
     /**
-     * 자녀 성별에게 보여 줄 상품인지 돌려준다. 남아에게는 경로의 어느 단계든 GIRL이면 보여 주지 않는다.
+     * 이 성별의 자녀에게 보여 줄 상품인지 돌려준다. 남아에게는 경로의 어느 단계든 GIRL이면 보여 주지 않는다.
      * 성별을 모르거나(null) 여아이거나 경로가 비어 있으면 보여 준다.
      */
     public boolean isVisibleTo(Gender childGender) {
