@@ -17,7 +17,9 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
 
     private static final int REASON_MAX_LENGTH = 40;
 
-    private static final Pattern POLITE_ENDING = Pattern.compile("(요|니다)\\.?$");
+    // 「요」 · 「니다」로 끝나고 그 뒤에 마침표나 느낌표가 붙을 수 있다. 물음표는 제안하는 말투(…까요?, …어때요?)에만 허용한다
+    private static final Pattern POLITE_ENDING =
+        Pattern.compile("(요|니다)[.!]?$|(까요|어때요|어떠세요|겠어요)\\?$");
 
     public CompanionSelection {
         requireNonNull(source, "source는 필수입니다");
@@ -72,7 +74,7 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
     }
 
     // 화면에 빈 이유 칸이나 형식에 맞지 않는 문장을 보여 주지 않도록, 비었거나 40자를 넘거나
-    // 「요」 · 「니다」로 끝나지 않는 이유는 없는 것으로 본다(말줄임으로 끝난 문장도 여기서 걸러진다)
+    // 경어체로 끝나지 않는 이유는 없는 것으로 본다(말줄임으로 끝난 문장도 여기서 걸러진다)
     private static String reasonOrNull(String reason) {
         if (reason == null || reason.isBlank()) {
             return null;
