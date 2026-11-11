@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.ArrayList;
@@ -17,7 +18,8 @@ import java.util.Optional;
 public class WearPreviewCalculator {
 
     private static final String TOTAL_LENGTH = "TOTAL_LENGTH";
-    // 무릎 · 복사뼈 언저리 2cm 안이면 그 관절에 닿는다고 본다
+    private static final String SLEEVE_LENGTH = "SLEEVE_LENGTH";
+    // 무릎 · 복사뼈 · 손목 언저리 2cm 안이면 그 관절에 닿는다고 본다
     private static final double JOINT_RANGE_CM = 2.0;
 
     private final BodyHeightTable table;
@@ -52,8 +54,31 @@ public class WearPreviewCalculator {
                                                  double heightCm, BodyHeightRow ratios) {
         double totalLengthCm = measurements.measurements().get(TOTAL_LENGTH).doubleValue();
         double hemCm = hemBaseCm - totalLengthCm;
+        BigDecimal sleeve = measurements.measurements().get(SLEEVE_LENGTH);
+        if (sleeve == null) {
+            return new WearPreview.SizeWear(measurements.size(), roundToTenth(hemCm),
+                    hemPositionOf(hemCm, heightCm, ratios), null, null);
+        }
+        double sleeveCm = sleeve.doubleValue();
         return new WearPreview.SizeWear(measurements.size(), roundToTenth(hemCm),
-                hemPositionOf(hemCm, heightCm, ratios), null, null);
+                hemPositionOf(hemCm, heightCm, ratios), roundToTenth(sleeveCm),
+                sleevePositionOf(sleeveCm, heightCm * ratios.arm()));
+    }
+
+    /**
+     * 소매길이가 팔길이의 절반 이하면 팔꿈치, 팔길이 언저리면 손목, 그보다 길면 손에 닿는다고 본다.
+     */
+    private static SleevePosition sleevePositionOf(double sleeveCm, double armCm) {
+        if (sleeveCm <= armCm / 2) {
+            return SleevePosition.ELBOW;
+        }
+        if (sleeveCm < armCm - JOINT_RANGE_CM) {
+            return SleevePosition.ABOVE_WRIST;
+        }
+        if (sleeveCm <= armCm + JOINT_RANGE_CM) {
+            return SleevePosition.WRIST;
+        }
+        return SleevePosition.HAND;
     }
 
     /**
