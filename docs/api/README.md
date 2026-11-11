@@ -136,13 +136,28 @@
 |---|---|---|---|
 | GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거 `reasons`(`type` · `detail` · `sourceId`) · 출처 `source`(`AI` · `RULE`)). AI가 규칙 계산 결과를 받아 그 상품의 실제 사이즈 안에서 고른다. AI가 없거나 실패 · 2.5초 초과 · 하루 호출 상한 · 상품에 없는 사이즈를 답하면 규칙 결과로 답하고 `source`는 `RULE`, `reasons`는 `[]`이다. AI 답은 규칙 후보 밖의 사이즈일 수 있어 `recommendedSize`가 `candidateSizes`에 없을 수 있다. 사이즈 구분이 없는 상품은 AI를 부르지 않는다. 같은 자녀 · 상품 · 입력이면 24시간 동안 지난 AI 답을 다시 쓴다 | 🔒 |
 | GET | `/api/v1/recommendations/products` | 자녀 맞춤 상품(`childId` · `categoryId` · `page` · `size` · `asOf`). 선호 점수 순이고, 응답 끝에 기준 시각 `asOf`(한국 시간, 시간대 표시 없음, 초 단위)가 있다. 2쪽부터는 1쪽 응답의 `asOf`를 그대로 보낸다. 없으면 지금 시각이고, 지금보다 늦으면 400 | 🔒 |
-| GET | `/api/v1/recommendations/products/preview` | 홈 맛보기 4개(`childId`). 응답 `source`(`AI` · `RULE`)와 `products`(더보기 카드 칸 + `reason`). AI가 자녀 맞춤 상품 상위 20개 중 4개와 이유를 고르고, 같은 입력이면 24시간 동안 지난 답을 다시 쓴다. AI를 쓸 수 없으면(키 없음 · 하루 상한 · 실패 · 시간 초과) 상위 4개를 `RULE`로, 이유는 `null`. `source`가 `AI`여도 `reason`은 `null`일 수 있다(AI가 모자라게 골라 빈 자리를 채운 상품, AI가 이유를 주지 않은 상품). 후보가 없으면 `products`는 `[]`, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404 | 🔒 |
-| GET | `/api/v1/recommendations/companions` | 함께 사면 좋은 상품(`productId` · `childId` 필수). 보고 있는 상품과 짝이 되는 종류(예: 상의 → 바지 · 치마 · 아우터 · 잡화. 카테고리 「하의」와 「바지」는 같은 종류) 가운데 자녀에게 맞는 사이즈로 살 수 있고 장바구니 · 구매확정 상품이 아닌 상품을 4개까지 돌려준다. 응답 `source`(`AI` · `RULE`)와 `products`(상품 카드 · AI가 쓴 이유 `reason`). `reason`은 40자 안의 경어체 한 문장이고, 규칙으로 채운 상품이거나 AI 이유가 40자를 넘거나 경어체로 끝나지 않으면 `null`이다. 후보가 없으면 `products`는 `[]`, 없는 상품 · 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404 | 🔒 |
+| GET | `/api/v1/recommendations/products/preview` | 홈 맛보기 4개(`childId`). 응답 `source`(`AI` · `RULE`)와 `products`(더보기 카드 칸 + `reason`). AI가 자녀 맞춤 상품 상위 20개 중 4개와 이유를 고르고, 같은 입력이면 24시간 동안 지난 답을 다시 쓴다. AI를 쓸 수 없으면(키 없음 · 하루 상한 · 실패 · 시간 초과) 상위 4개를 `RULE`로, 이유는 `null`. `source`가 `AI`여도 `reason`은 `null`일 수 있다(AI가 모자라게 골라 빈 자리를 채운 상품, AI가 이유를 주지 않은 상품). 후보가 없으면 `products`는 `[]`, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404. `Accept: text/event-stream`으로 부르면 AI 답을 기다리지 않는 스트림이다(아래 「AI 추천 스트림」) | 🔒 |
+| GET | `/api/v1/recommendations/companions` | 함께 사면 좋은 상품(`productId` · `childId` 필수). 보고 있는 상품과 짝이 되는 종류(예: 상의 → 바지 · 치마 · 아우터 · 잡화. 카테고리 「하의」와 「바지」는 같은 종류) 가운데 자녀에게 맞는 사이즈로 살 수 있고 장바구니 · 구매확정 상품이 아닌 상품을 4개까지 돌려준다. 응답 `source`(`AI` · `RULE`)와 `products`(상품 카드 · AI가 쓴 이유 `reason`). `reason`은 40자 안의 경어체 한 문장이고, 규칙으로 채운 상품이거나 AI 이유가 40자를 넘거나 경어체로 끝나지 않으면 `null`이다. 후보가 없으면 `products`는 `[]`, 없는 상품 · 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404. `Accept: text/event-stream`으로 부르면 AI 답을 기다리지 않는 스트림이다(아래 「AI 추천 스트림」) | 🔒 |
 | POST | `/api/v1/recommendations/product-views` | 상품 상세 진입 기록(`productId` · 선택 `childId`. 같은 회원 · 자녀 · 상품은 같은 날(한국 시간) 한 번만 기록, 응답 204, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404) | 🔒 |
 | GET | `/api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(상의, 바지, 아우터, 원피스, 치마 순서이고 없으면 `[]`. 칸 `part`(`TOP` · `BOTTOM` · `OUTER` · `DRESS` · `SKIRT`) · `categoryId` · `measurements`(실측 항목 코드별 cm)). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
 | PUT | `/api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(`{part}`는 `TOP` 상의 · `BOTTOM` 바지 · `OUTER` 아우터 · `DRESS` 원피스 · `SKIRT` 치마. 본문 `categoryId`(상품 말단 카테고리. 상의는 「상의」, 바지는 「하의」 · 「바지」, 아우터는 「아우터」, 원피스는 「원피스」, 치마는 「치마」 카테고리) · `measurements`(`TOP` · `OUTER` 필수 `TOTAL_LENGTH` · `CHEST_WIDTH`, 선택 `SHOULDER_WIDTH` · `SLEEVE_LENGTH` / `DRESS` 필수 `TOTAL_LENGTH` · `CHEST_WIDTH`, 선택 `SHOULDER_WIDTH` / `BOTTOM` 필수 `TOTAL_LENGTH` · `WAIST_WIDTH`, 선택 `RISE` / `SKIRT` 필수 `TOTAL_LENGTH` · `WAIST_WIDTH`, 선택 `HIP_WIDTH`. 0cm 초과 200cm 이하, 소수 첫째 자리까지). 원피스 · 아우터를 `TOP`에, 치마를 `BOTTOM`에 저장하면 400이다. 같은 구분을 다시 저장하면 교체하고 응답 200에 저장한 값. 값이 틀리거나 알 수 없는 구분이면 400, 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
 | DELETE | `/api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 삭제(응답 204, 이미 없어도 204. 알 수 없는 구분이면 400, 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404) | 🔒 |
 | GET | `/api/v1/recommendations/children/{childId}/purchases?page=&size=` | 자녀에게 산 옷 목록(기준 옷 「산 옷에서 고르기」용, #1109). 구매확정된 주문상품만 구매확정이 늦은 순서로, 팀 목록 형식. 칸 `orderItemId` · `productId` · `productName` · `categoryId` · `size`(주문 당시 사이즈) · `measurements`(그 사이즈의 실측, 실측 항목 코드별 cm) · `confirmedAt`. 상품 정보가 없으면 `productName` · `categoryId` · `measurements`가 null, 그 사이즈의 실측이 없으면 `measurements`만 null. `size`(쪽 크기)는 1 ~ 100(기본 20). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
+
+### AI 추천 스트림
+
+홈 맛보기(`/api/v1/recommendations/products/preview`)와 함께 사면(`/api/v1/recommendations/companions`)은 같은 주소를 `Accept: text/event-stream`으로 부르면 AI 답을 기다리지 않는 SSE 응답을 준다. `Accept: application/json`(기본)은 위의 JSON 응답 그대로다.
+
+- 이벤트는 두 가지다. 본문(`data`)은 JSON 응답과 같은 모양(`{ source, products }`)이다
+  - `rule`: 규칙 결과(`source: "RULE"`). AI 답이 없을 때 쓸 결과로, 화면은 들고 있다가 `ai` 없이 닫히면 그린다
+  - `ai`: AI 결과(`source: "AI"`)
+- 보내는 순서
+  - 저장한 AI 답이 있으면 `ai` 하나만 보내고 닫는다
+  - 없으면 `rule`을 바로 보내고, AI 답이 오면 `ai`를 보낸 뒤 닫는다
+  - AI를 쓸 수 없으면(키 없음 · 하루 상한 · 실패 · 10초 안에 답이 없음) `rule`만 보낸 채 닫는다
+- 스트림을 열기 전에 나는 오류(400 · 401 · 404)는 JSON 응답과 같은 상태 코드와 ProblemDetail로 받는다. 스트림 도중 서버 오류가 나면 `error` 이벤트 없이 닫는다
+- 응답 헤더 `X-Accel-Buffering: no`로 프록시가 이벤트를 모았다가 보내지 않게 한다. 연결은 최대 15초 열려 있다
+- 로그인 토큰은 `Authorization` 헤더로 보내므로, 브라우저 기본 `EventSource` 대신 `fetch`로 스트림을 읽는다
 
 ## 주문
 
