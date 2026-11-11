@@ -22,9 +22,9 @@ public class WearPreviewCalculator {
     // 무릎 · 복사뼈 · 손목 언저리 2cm 안이면 그 관절에 닿는다고 본다
     private static final double JOINT_RANGE_CM = 2.0;
 
-    private final BodyHeightTable table;
+    private final BodyHeightRatioTable table;
 
-    public WearPreviewCalculator(BodyHeightTable table) {
+    public WearPreviewCalculator(BodyHeightRatioTable table) {
         this.table = requireNonNull(table, "table은 필수입니다");
     }
 
@@ -40,7 +40,7 @@ public class WearPreviewCalculator {
             return Optional.empty();
         }
         long months = Period.between(child.birthDate(), today).toTotalMonths();
-        BodyHeightRow ratios = table.ratios(child.gender(), months);
+        BodyHeightRatioRow ratios = table.ratios(child.gender(), months);
         List<WearPreview.SizeWear> sizes = new ArrayList<>();
         for (FitProduct.SizeMeasurements measurements : product.sizes()) {
             sizes.add(sizeWear(measurements, garment, child.heightCm(), ratios));
@@ -56,7 +56,7 @@ public class WearPreviewCalculator {
      * 총장이 없는 사이즈는 밑단 칸이, 소매길이가 없는 사이즈와 소매가 없는 바지 · 치마는 소매 칸이 null이다.
      */
     private static WearPreview.SizeWear sizeWear(FitProduct.SizeMeasurements measurements, GarmentPart garment,
-                                                 double heightCm, BodyHeightRow ratios) {
+                                                 double heightCm, BodyHeightRatioRow ratios) {
         boolean bottomWear = isBottomWear(garment);
         Double hemCm = null;
         HemPosition hemAt = null;
@@ -98,7 +98,7 @@ public class WearPreviewCalculator {
     /**
      * 밑단 높이가 몸의 어느 높이 사이에 있는지 위에서부터 차례로 본다. 반올림하기 전 값으로 판정한다.
      */
-    private static HemPosition hemPositionOf(double hemCm, double heightCm, BodyHeightRow ratios) {
+    private static HemPosition hemPositionOf(double hemCm, double heightCm, BodyHeightRatioRow ratios) {
         double waistCm = heightCm * ratios.waist();
         double hipCm = heightCm * ratios.hip();
         double crotchCm = heightCm * ratios.crotch();
@@ -131,7 +131,7 @@ public class WearPreviewCalculator {
         return HemPosition.FLOOR;
     }
 
-    private static WearPreview.Body bodyOf(double heightCm, BodyHeightRow ratios) {
+    private static WearPreview.Body bodyOf(double heightCm, BodyHeightRatioRow ratios) {
         return new WearPreview.Body(
                 roundToTenth(heightCm * ratios.neck()),
                 roundToTenth(heightCm * ratios.shoulder()),

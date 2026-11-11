@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GirthPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GirthRatioTable;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityTable;
-import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightRow;
-import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightTable;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightRatioRow;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightRatioTable;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import org.junit.jupiter.api.DisplayName;
@@ -18,7 +18,7 @@ class GrowthTableConfigTest {
 
     private static final GrowthVelocityTable GROWTH_VELOCITY_TABLE = new GrowthTableConfig().growthVelocityTable();
     private static final GirthRatioTable GIRTH_RATIO_TABLE = new GrowthTableConfig().girthRatioTable();
-    private static final BodyHeightTable BODY_HEIGHT_TABLE = new GrowthTableConfig().bodyHeightTable();
+    private static final BodyHeightRatioTable BODY_HEIGHT_RATIO_TABLE = new GrowthTableConfig().bodyHeightRatioTable();
 
     @ParameterizedTest(name = "{0}, {1}개월 → {2}cm/년")
     @CsvSource({
@@ -92,7 +92,7 @@ class GrowthTableConfigTest {
     })
     @DisplayName("PRV-01 사이즈코리아 CSV에서 만 나이 · 성별의 키 대비 높이 비율을 읽고, 만 15세 이상이면 마지막 구간 값을 쓴다")
     void bodyHeightRatioByAgeAndGender(Gender gender, long months, double neck, double waist, double hip, double arm) {
-        BodyHeightRow row = BODY_HEIGHT_TABLE.ratios(gender, months);
+        BodyHeightRatioRow row = BODY_HEIGHT_RATIO_TABLE.ratios(gender, months);
 
         assertThat(row.neck()).isEqualTo(neck);
         assertThat(row.waist()).isEqualTo(waist);

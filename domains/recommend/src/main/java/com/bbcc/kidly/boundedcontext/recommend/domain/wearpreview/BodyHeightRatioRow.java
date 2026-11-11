@@ -14,7 +14,7 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
  * @param ankle 가쪽복사높이
  * @param arm 팔길이
  */
-public record BodyHeightRow(
+public record BodyHeightRatioRow(
         Gender gender,
         int ageYears,
         double neck,

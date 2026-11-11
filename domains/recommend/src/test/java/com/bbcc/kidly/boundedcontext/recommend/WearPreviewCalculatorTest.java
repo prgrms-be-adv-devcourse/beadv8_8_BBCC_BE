@@ -40,7 +40,7 @@ class WearPreviewCalculatorTest {
     private static final List<String> TOP_PATH = List.of("의류", "상의");
 
     private final WearPreviewCalculator calculator =
-        new WearPreviewCalculator(new GrowthTableConfig().bodyHeightTable());
+        new WearPreviewCalculator(new GrowthTableConfig().bodyHeightRatioTable());
 
     @Test
     @DisplayName("PRV-01 몸 높이는 자녀 키 × 나이 · 성별 비율을 소수 첫째 자리로 반올림한 cm다")
