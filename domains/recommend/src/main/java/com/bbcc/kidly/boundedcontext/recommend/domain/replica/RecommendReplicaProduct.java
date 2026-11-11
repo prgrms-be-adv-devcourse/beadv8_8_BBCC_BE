@@ -120,6 +120,15 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         joinColumns = @JoinColumn(name = "product_id"))
     private List<RecommendReplicaSizeSpec> sizeSpecs = new ArrayList<>();
 
+    // 옵션 색상이다. 홈 맛보기 AI가 이유를 쓸 때 상품 특성으로 쓴다. applyIfNewer로만 바꾸고 getColors로 읽는다
+    @Getter(AccessLevel.NONE)
+    @BatchSize(size = BATCH_FETCH_SIZE)
+    @ElementCollection
+    @CollectionTable(schema = "recommend", name = "replica_product_color",
+        joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "color", nullable = false, length = 255)
+    private Set<String> colors = new HashSet<>();
+
     @Column(name = "embedding_text", columnDefinition = "TEXT")
     private String embeddingText;
 
@@ -137,7 +146,18 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     public record ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
         String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
         String brand, String description, List<SizeSpecInfo> sizeSpecs, List<ProductEmbeddingText.InfoValue> infoValues,
-        LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath, LocalDateTime saleStartedAt) {
+        LocalDateTime occurredAt, List<CategoryPathEntryInfo> categoryPath, LocalDateTime saleStartedAt,
+        List<String> colors) {
+
+        // 테스트 보조 코드만 쓰는 생성자다. 색상이 빈 목록이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 저장된 색상이 지워진다
+        public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
+            String thumbnailUrl, LocalDateTime registeredAt, boolean sizeFree, List<OptionInfo> options,
+            String brand, String description, List<SizeSpecInfo> sizeSpecs,
+            List<ProductEmbeddingText.InfoValue> infoValues, LocalDateTime occurredAt,
+            List<CategoryPathEntryInfo> categoryPath, LocalDateTime saleStartedAt) {
+            this(productId, sellerId, categoryId, name, status, thumbnailUrl, registeredAt, sizeFree, options,
+                brand, description, sizeSpecs, infoValues, occurredAt, categoryPath, saleStartedAt, List.of());
+        }
 
         // 테스트 보조 코드만 쓰는 생성자다. 판매 시작 시각이 null이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 저장된 판매 시작 시각이 지워진다
         public ChangeInfo(Long productId, Long sellerId, Long categoryId, String name, ProductStatus status,
@@ -250,6 +270,11 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         this.sizeSpecs.addAll(newSizeSpecs);
         this.categoryPath.clear();
         this.categoryPath.addAll(newCategoryPath);
+        // 색상 칸이 없는 예전 메시지는 빈 목록으로 다룬다
+        this.colors.clear();
+        if (info.colors() != null) {
+            this.colors.addAll(info.colors());
+        }
         for (OptionInfo option : info.options()) {
             if (option.saleStatus() == OptionSaleStatus.ON_SALE && !option.soldOut()) {
                 this.sellableSizes.add(option.size() == null ? FREE_SIZE : option.size());
@@ -281,6 +306,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
      */
     public List<RecommendReplicaCategoryPathEntry> getCategoryPath() {
         return Collections.unmodifiableList(categoryPath);
+    }
+
+    // 화면 · 프롬프트에 늘 같은 순서로 보이도록 이름 순서로 돌려준다
+    public List<String> getColors() {
+        List<String> sorted = new ArrayList<>(colors);
+        Collections.sort(sorted);
+        return sorted;
     }
 
     /**
