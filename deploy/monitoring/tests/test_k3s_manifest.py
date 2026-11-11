@@ -66,6 +66,7 @@ class K3sManifestTests(unittest.TestCase):
         self.assertNotIn('suspend', spec)
         job = spec['jobTemplate']['spec']
         self.assertEqual((job['backoffLimit'], job['activeDeadlineSeconds']), (2, 7200))
+        self.assertEqual(job['podReplacementPolicy'], 'Failed')
         template = job['template']
         self.assertEqual(template['metadata']['labels'], {'app': 'settlement-daily-run', 'kidly/job': 'kidly-settlement'})
         self.assertNotEqual(template['metadata']['labels']['app'], deployment['selector']['matchLabels']['app'])
