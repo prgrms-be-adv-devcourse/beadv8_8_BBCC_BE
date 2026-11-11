@@ -26,6 +26,7 @@ class GrowthVelocityCalculatorTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 12);
     // 오늘 만 6세(78개월)인 여자아이다. 표의 만 6 ~ 7세 여 중앙값은 6.00cm/년이라 한 달 0.5cm다
     private static final LocalDate BIRTH_DATE_AGE_6 = LocalDate.of(2020, 5, 1);
+    private static final LocalDate BIRTH_DATE_AGE_14 = LocalDate.of(2012, 5, 1);
     private static final AtomicLong RECORD_ID = new AtomicLong(1);
 
     private final GrowthVelocityCalculator calculator =
@@ -37,13 +38,16 @@ class GrowthVelocityCalculatorTest {
             Arguments.of(Named.of("기록 1개", List.of(record(TODAY.minusMonths(2), "115.0")))),
             Arguments.of(Named.of("기록 2개, 기간 20일", List.of(
                 record(TODAY.minusDays(20), "115.0"),
-                record(TODAY, "117.0"))))
+                record(TODAY, "117.0")))),
+            Arguments.of(Named.of("달력으로 한 달이 안 됨(9월 13일 → 10월 12일)", List.of(
+                record(LocalDate.of(2026, 9, 13), "115.0"),
+                record(LocalDate.of(2026, 10, 12), "115.6"))))
         );
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("recordsTooFewOrTooShort")
-    @DisplayName("GROW-02 기록이 1개 이하이거나 기간이 1개월 미만이면 한국아동패널 표 값 ÷ 12를 쓰고 아이 기록 비중은 0이다")
+    @DisplayName("GROW-02 기록이 1개 이하이거나 첫 기록과 마지막 기록이 달력으로 한 달 미만 떨어져 있으면 한국아동패널 표 값 ÷ 12를 쓰고 아이 기록 비중은 0이다")
     void tableSpeedWhenRecordsTooFewOrTooShort(List<RecommendGrowthRecord> records) {
         GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
@@ -64,7 +68,10 @@ class GrowthVelocityCalculatorTest {
                 record(TODAY, "121.0"))), 0.551415, 0.777601),
             Arguments.of(Named.of("매달 기록 12개, 330일, 한 달 0.6cm씩", IntStream.range(0, 12)
                 .mapToObj(i -> record(TODAY.minusDays(30L * i), String.valueOf(121.0 - 0.6 * i)))
-                .toList()), 0.905232, 0.598444)
+                .toList()), 0.905232, 0.598444),
+            Arguments.of(Named.of("달력으로 한 달(9월 12일 → 10월 12일, 30일)", List.of(
+                record(LocalDate.of(2026, 9, 12), "115.0"),
+                record(LocalDate.of(2026, 10, 12), "115.6"))), 0.032320, 0.503515)
         );
     }
 
@@ -72,7 +79,7 @@ class GrowthVelocityCalculatorTest {
     // 표 오차는 만 6세 여 표준편차 2.36cm/년 ÷ 12, 아이 기록 오차는 측정 오차 0.75cm ÷ √(Σ(기록 시점 − 평균 시점)²)(개월)다.
     @ParameterizedTest(name = "{0}")
     @MethodSource("recordsLongEnough")
-    @DisplayName("GROW-03 기간이 1개월 이상이면 아이 기록 기울기와 표 값을 오차가 작은 쪽에 비중을 두어 섞는다")
+    @DisplayName("GROW-03 첫 기록과 마지막 기록이 달력으로 한 달 이상 떨어져 있으면 아이 기록 기울기와 표 값을 오차가 작은 쪽에 비중을 두어 섞는다")
     void blendChildSlopeAndTableByError(List<RecommendGrowthRecord> records, double expectedChildShare,
         double expectedCmPerMonth) {
         GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
@@ -105,7 +112,7 @@ class GrowthVelocityCalculatorTest {
         return Stream.of(
             Arguments.of(Named.of("182일에 15cm 큼, 섞은 값 1.607564", List.of(
                 record(TODAY.minusDays(182), "115.0"),
-                record(TODAY, "130.0"))), 1.0),
+                record(TODAY, "130.0"))), 0.893333),
             Arguments.of(Named.of("182일에 4cm 줄어듦, 섞은 값 -0.144580", List.of(
                 record(TODAY.minusDays(182), "120.0"),
                 record(TODAY, "116.0"))), 0.0)
@@ -114,11 +121,29 @@ class GrowthVelocityCalculatorTest {
 
     @ParameterizedTest(name = "{0} → {1}cm/월")
     @MethodSource("blendedOutOfRange")
-    @DisplayName("GROW-04 섞은 결과가 0 미만이면 0, 표 값의 2배를 넘으면 2배로 맞춘다")
+    @DisplayName("GROW-04 섞은 결과가 0 미만이면 0, 표의 중앙값 + 2 × 표준편차(만 6세 여 10.72cm/년 ÷ 12)를 넘으면 그 값으로 맞춘다")
     void clampBlendedSpeed(List<RecommendGrowthRecord> records, double expectedCmPerMonth) {
         GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
-        assertThat(speed.cmPerMonth()).isEqualTo(expectedCmPerMonth);
+        assertThat(speed.cmPerMonth()).isCloseTo(expectedCmPerMonth, within(0.000001));
+    }
+
+    // 만 14 ~ 15세 여는 중앙값 0.92 · 표준편차 1.83cm/년이라, 표 값 2배(0.153cm/월)로 자르면 늦게 크는 아이의 실제 속도가 잘린다
+    @ParameterizedTest(name = "{0} → {1}cm/월")
+    @MethodSource("lateGrowingTeen")
+    @DisplayName("GROW-04 만 14세 여는 표 값의 2배를 넘어도 중앙값 + 2 × 표준편차(0.381667cm/월)까지는 그대로 쓴다")
+    void doNotCutLateGrowingTeen(List<RecommendGrowthRecord> records, double expectedCmPerMonth) {
+        GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_14, records, TODAY);
+
+        assertThat(speed.cmPerMonth()).isCloseTo(expectedCmPerMonth, within(0.000001));
+    }
+
+    static Stream<Arguments> lateGrowingTeen() {
+        return Stream.of(
+            Arguments.of(Named.of("182일에 150 → 153cm", List.of(
+                record(TODAY.minusDays(182), "150.0"),
+                record(TODAY, "153.0"))), 0.257311)
+        );
     }
 
     static Stream<Arguments> recentRecordsEnough() {
@@ -126,7 +151,7 @@ class GrowthVelocityCalculatorTest {
             Arguments.of(Named.of("최근 3개월 안 기록 2개(60일 · 오늘), 300일 전 기록은 뺌", List.of(
                 record(TODAY.minusDays(300), "113.0"),
                 record(TODAY.minusDays(60), "116.0"),
-                record(TODAY, "117.8"))), 0.913125),
+                record(TODAY, "117.6"))), 0.811667),
             Arguments.of(Named.of("최근 3개월 안 기록 3개, 최소제곱", List.of(
                 record(TODAY.minusDays(200), "113.0"),
                 record(TODAY.minusDays(80), "115.0"),
@@ -135,15 +160,15 @@ class GrowthVelocityCalculatorTest {
             Arguments.of(Named.of("3개월 전 날짜(8월 12일) 기록은 넣음", List.of(
                 record(TODAY.minusMonths(3), "115.0"),
                 record(TODAY, "117.0"))), 0.661685),
-            Arguments.of(Named.of("45일에 3cm 큼, 2.029167 → 표 값 2배", List.of(
+            Arguments.of(Named.of("45일에 3cm 큼, 2.029167 → 상한", List.of(
                 record(TODAY.minusDays(45), "110.0"),
-                record(TODAY, "113.0"))), 1.0)
+                record(TODAY, "113.0"))), 0.893333)
         );
     }
 
     @ParameterizedTest(name = "{0} → {1}cm/월")
     @MethodSource("recentRecordsEnough")
-    @DisplayName("GROW-05 최근 3개월 안에 기록이 2개 이상이고 그 기간이 1개월 이상이면 그 기록만의 최소제곱 기울기를 표와 섞지 않고 0 ~ 표 값 2배로 맞춰 최근 속도로 쓴다")
+    @DisplayName("GROW-05 최근 3개월 안에 기록이 2개 이상이고 그 기록들이 달력으로 한 달 이상 떨어져 있으면 그 기록만의 최소제곱 기울기를 표와 섞지 않고 전체 속도와 같은 범위로 맞춰 최근 속도로 쓴다")
     void recentSpeedFromRecentRecords(List<RecommendGrowthRecord> records, double expectedRecentCmPerMonth) {
         GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
