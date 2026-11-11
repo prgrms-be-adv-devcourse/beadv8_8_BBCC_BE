@@ -166,6 +166,22 @@ class CompanionProductApiTest {
             .jsonPath("$.title").isEqualTo("상품을 찾을 수 없습니다");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"*/*", "application/json, text/plain, */*"})
+    @DisplayName("Accept가 */*거나 JSON을 먼저 바라면 스트림이 아니라 지금처럼 JSON으로 받는다")
+    void returnJsonForWildcardOrJsonFirstAccept(String accept) {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        client.get().uri(PATH + "?productId={productId}&childId={childId}", VIEWED_PRODUCT_ID, CHILD_1_ID)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .header("Accept", accept)
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+            .expectBody()
+            .jsonPath("$.source").isEqualTo("RULE");
+    }
+
     private RestTestClient.ResponseSpec companionsStream(Long productId) {
         return client.get().uri(PATH + "?productId={productId}&childId={childId}", productId, CHILD_1_ID)
             .headers(TestMembers.buyer(MEMBER_1_ID))
