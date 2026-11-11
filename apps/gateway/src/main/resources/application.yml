@@ -72,6 +72,26 @@ spring:
               uri: ${kidly.gateway.member-uri}
               predicates:
                 - Path=/api/v1/child/profile,/api/v1/child/onboarding,/api/v1/child/onboarding/notice
+            # AI 답을 기다리는 추천 API는 추천 서비스가 기능마다 기다리는 시간(함께 사면 4초, 사이즈 3.5초, 맛보기 3초)보다
+            # 0.5초 길게 둔다. 추천 서비스가 AI를 기다리다 규칙 결과로 답할 시간을 주기 위해서다. 아래 recommend 라우트보다 먼저 맞춘다
+            - id: recommend-companions
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/api/v1/recommendations/companions
+              metadata:
+                response-timeout: 4500
+            - id: recommend-size
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/api/v1/recommendations/size
+              metadata:
+                response-timeout: 4000
+            - id: recommend-preview
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/api/v1/recommendations/products/preview
+              metadata:
+                response-timeout: 3500
             # 추천 API는 추천 서비스로 간다(#704)
             - id: recommend
               uri: ${kidly.gateway.recommend-uri}
