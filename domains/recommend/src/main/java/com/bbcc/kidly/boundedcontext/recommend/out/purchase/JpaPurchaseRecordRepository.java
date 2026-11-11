@@ -4,6 +4,8 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.purchase.PurchasedGarmen
 import com.bbcc.kidly.boundedcontext.recommend.app.port.purchase.PurchasedGarments;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecordRepository;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,4 +25,13 @@ public interface JpaPurchaseRecordRepository
         """,
         countQuery = "select count(r) from PurchaseRecord r where r.childProfileId = :childProfileId")
     Page<PurchasedGarmentRow> findByChild(@Param("childProfileId") Long childProfileId, Pageable pageable);
+
+    @Override
+    @Query("""
+        select distinct r.productId
+        from PurchaseRecord r
+        where r.childProfileId = :childProfileId and r.confirmedAt >= :since
+        """)
+    List<Long> findProductIdsConfirmedSince(@Param("childProfileId") Long childProfileId,
+        @Param("since") LocalDateTime since);
 }
