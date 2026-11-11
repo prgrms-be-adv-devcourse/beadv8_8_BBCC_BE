@@ -100,6 +100,17 @@ class OpenAiCompanionAiPickerTest {
         assertThat(schema).contains("picks", "productId", "reason");
     }
 
+    @Test
+    @DisplayName("PAIR-08 AI에 이유를 40자 안의 해요체 · 합니다체 한 문장으로, 말줄임표 없이 쓰고 물음표는 제안할 때만 쓰라고 지시한다")
+    void instructReasonFormat() {
+        chatModel.answer = "{\"picks\": []}";
+
+        picker.pick(request());
+
+        assertThat(chatModel.lastPrompt.getSystemMessage().getText())
+            .contains("40자", "해요체", "합니다체", "말줄임표", "물음표");
+    }
+
     private static CompanionAiRequest request() {
         CompanionAiProduct viewed = new CompanionAiProduct(7001L, "데일리 맨투맨", List.of("의류", "상의"), "키즈랩");
         List<CompanionAiProduct> candidates = List.of(
