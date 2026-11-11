@@ -24,7 +24,7 @@ otelcol.processor.filter "tracing_trial" {
 
   traces {
     span = [
-      `resource.attributes["deployment.environment.name"] != "dev"`,
+      `resource.attributes["deployment.environment.name"] != "tracing-trial"`,
       `resource.attributes["service.name"] != "kidly-gateway" and resource.attributes["service.name"] != "kidly-order"`,
       `attributes["http.request.method"] == nil and attributes["http.method"] == nil and instrumentation_scope.name != "io.opentelemetry.jdbc"`,
     ]
@@ -69,7 +69,7 @@ otelcol.processor.batch "tracing_trial" {
 
 otelcol.exporter.otlphttp "tracing_trial" {
   client {
-    endpoint = "http://127.0.0.1:14318"
+    endpoint = "http://tempo-trial:4318"
   }
 
   sending_queue {

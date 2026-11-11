@@ -74,23 +74,6 @@ server {
     http2 on;
     server_name dev-api.__DOMAIN__;
 
-    # dev 공개 요청의 추적 문맥을 지운다. 기존 공통 헤더를 함께 선언해 상속 동작을 유지한다.
-    proxy_set_header Host              $host;
-    proxy_set_header X-Real-IP         $remote_addr;
-    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-Host  $host;
-    proxy_set_header X-Forwarded-Port  $server_port;
-    proxy_set_header X-Member-Id       "";
-    proxy_set_header X-Member-Roles    "";
-    proxy_set_header X-Member-Nickname "";
-    proxy_set_header X-Admin-Id        "";
-    proxy_set_header X-Child-Account-Id  "";
-    proxy_set_header X-Child-Guardian-Id "";
-    proxy_set_header traceparent "";
-    proxy_set_header tracestate "";
-    proxy_set_header baggage "";
-
     # actuator 는 서버 안(Alloy)에서만 쓴다. 외부에는 헬스체크만 연다
     location /actuator {
         return 404;
