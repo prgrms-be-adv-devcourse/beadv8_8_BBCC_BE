@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -98,6 +99,55 @@ class AiResponseServiceAsyncTest {
         release.countDown();
         assertThat(result.join()).contains(new Answer("새 답"));
         verify(store, timeout(1_000)).save(TYPE, AiResponseKey.of(INPUT), "{\"reason\":\"새 답\"}", NOW);
+    }
+
+    @Test
+    @DisplayName("하루 상한에 닿았으면 AI를 부르지 않고 빈 값으로 끝난 결과를 돌려준다")
+    void returnEmptyWhenDailyLimitReached() {
+        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(false);
+        AtomicInteger calls = new AtomicInteger();
+
+        CompletableFuture<Optional<Answer>> result = service.respondAsync(TYPE, INPUT, Answer.class, () -> {
+            calls.incrementAndGet();
+            return new Answer("새 답");
+        });
+
+        assertThat(result).isCompletedWithValue(Optional.empty());
+        assertThat(calls).hasValue(0);
+    }
+
+    @Test
+    @DisplayName("AI 호출이 실패하거나 null을 돌려주면 빈 값으로 끝나고 저장하지 않는다")
+    void completeEmptyWhenAiFailsOrReturnsNull() {
+        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+
+        CompletableFuture<Optional<Answer>> failed = service.respondAsync(TYPE, INPUT, Answer.class, () -> {
+            throw new IllegalStateException("응답 본문");
+        });
+        CompletableFuture<Optional<Answer>> nullAnswer = service.respondAsync(TYPE, INPUT, Answer.class, () -> null);
+
+        assertThat(failed.join()).isEmpty();
+        assertThat(nullAnswer.join()).isEmpty();
+        verify(store, never()).save(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("최대 시간 안에 AI 답이 오지 않으면 빈 값으로 끝나고, 그 뒤에 온 답은 저장해 다음 요청이 쓴다")
+    void completeEmptyAfterAsyncWaitAndSaveLateAnswer() {
+        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        CountDownLatch release = new CountDownLatch(1);
+
+        CompletableFuture<Optional<Answer>> result = service.respondAsync(TYPE, INPUT, Answer.class, () -> {
+            await(release);
+            return new Answer("늦은 답");
+        });
+
+        assertThat(result.join()).isEmpty();
+        release.countDown();
+        verify(store, timeout(1_000)).save(TYPE, AiResponseKey.of(INPUT), "{\"reason\":\"늦은 답\"}", NOW);
     }
 
     private static void await(CountDownLatch latch) {
