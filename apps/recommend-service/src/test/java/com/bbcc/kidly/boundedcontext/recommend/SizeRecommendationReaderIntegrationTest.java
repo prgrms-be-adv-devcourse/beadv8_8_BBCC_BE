@@ -216,6 +216,39 @@ class SizeRecommendationReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("성장 기록이 늘어 성장 속도가 달라지면 지난 AI 답을 찾는 키도 달라져, 예전 답을 다시 쓰지 않는다")
+    void aiKeyChangesWithGrowthSpeed() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        AiResponseKey withoutRecords =
+            AiResponseKey.of(reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiKeyInput());
+
+        LocalDateTime now = LocalDate.now(ZoneId.of("Asia/Seoul")).atTime(9, 0);
+        saveGrowthRecord(1L, "111.0", now.minusDays(182));
+        saveGrowthRecord(2L, "115.0", now.minusDays(1));
+        AiResponseKey withRecords =
+            AiResponseKey.of(reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiKeyInput());
+
+        assertThat(withRecords).isNotEqualTo(withoutRecords);
+    }
+
+    // 기록이 없어 성장 속도는 표 값 0.50cm/월이고, 사이즈 120은 20개월 입을 수 있다
+    @Test
+    @DisplayName("FIT-10 답 검증 값에는 AI 입력에 들어간 성장 속도와 입을 수 있는 개월 수도 모은다")
+    void collectGrowthNumbers() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        List<String> given = new ArrayList<>();
+        for (BigDecimal number : draft.aiEvidence().givenNumbers()) {
+            given.add(number.stripTrailingZeros().toPlainString());
+        }
+        assertThat(given).contains("0.5", "20");
+    }
+
+    @Test
     @DisplayName("AI 입력에는 자녀 이름 · 생년월일 · 회원 ID를 담는 칸이 없다")
     void aiQuestionHasNoPersonalFields() {
         List<String> names = new ArrayList<>();

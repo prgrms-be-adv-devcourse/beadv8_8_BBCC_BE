@@ -107,7 +107,7 @@ public class SizeRecommendationReader {
             growthSpeedOf(velocity), wearablePeriods);
         return new SizeRecommendationDraft(
             productId, childId, productSizes, rule,
-            keyInputOf(productId, childId, child, ageMonths, referenceFit), question,
+            keyInputOf(productId, childId, child, ageMonths, question), question,
             new SizeAiEvidence(referenceFit, givenNumbersOf(question)));
     }
 
@@ -128,7 +128,25 @@ public class SizeRecommendationReader {
             addIfNumber(numbers, candidateSize);
         }
         addReferenceFitNumbers(numbers, question.referenceFit());
+        addGrowthNumbers(numbers, question);
         return numbers;
+    }
+
+    private void addGrowthNumbers(Set<BigDecimal> numbers, SizeAiQuestion question) {
+        SizeAiQuestion.GrowthSpeed speed = question.growthSpeed();
+        numbers.add(speed.cmPerMonth());
+        if (speed.recentCmPerMonth() != null) {
+            numbers.add(speed.recentCmPerMonth());
+        }
+        addIfNumber(numbers, speed.recordCount());
+        numbers.add(speed.recordMonths());
+        addIfNumber(numbers, speed.childSharePercent());
+        numbers.add(speed.tableCmPerMonth());
+        for (WearablePeriod period : question.wearablePeriods()) {
+            addIfNumber(numbers, period.lengthMonths());
+            addIfNumber(numbers, period.widthMonths());
+            addIfNumber(numbers, period.months());
+        }
     }
 
     private void addReferenceFitNumbers(Set<BigDecimal> numbers, ReferenceFit referenceFit) {
@@ -183,11 +201,48 @@ public class SizeRecommendationReader {
     }
 
     private AiResponseKey.Input keyInputOf(Long productId, Long childId, RecommendReplicaChild child, int ageMonths,
-        ReferenceFit referenceFit) {
+        SizeAiQuestion question) {
         return new AiResponseKey.Input(
             productId, childId, ageMonths, child.getHeightCm(), child.getWeightKg(),
-            child.getBodyType(), child.getPreferredFit(), null, null, PROMPT_VERSION,
-            referenceFit == null ? null : referenceFit.keyText());
+            child.getBodyType(), child.getPreferredFit(), null, null, PROMPT_VERSION, extraKeyTextOf(question));
+    }
+
+    // 답에 영향을 주는 기준 핏 · 성장 속도 · 입을 수 있는 기간을 늘 같은 글로 이어 붙인다. 질문에 넣은 반올림 값으로 만든다.
+    private String extraKeyTextOf(SizeAiQuestion question) {
+        StringBuilder text = new StringBuilder();
+        if (question.referenceFit() != null) {
+            text.append(question.referenceFit().keyText());
+        }
+        SizeAiQuestion.GrowthSpeed speed = question.growthSpeed();
+        text.append("|growthSpeed=").append(plain(speed.cmPerMonth())).append(',')
+            .append(plain(speed.recentCmPerMonth())).append(',')
+            .append(speed.recordCount()).append(',')
+            .append(plain(speed.recordMonths())).append(',')
+            .append(speed.childSharePercent()).append(',')
+            .append(plain(speed.tableCmPerMonth())).append(',')
+            .append(speed.tableSource());
+        text.append("|wearablePeriods=");
+        for (WearablePeriod period : question.wearablePeriods()) {
+            text.append(period.size()).append(':')
+                .append(blankIfNull(period.lengthMonths())).append(':')
+                .append(blankIfNull(period.widthMonths())).append(':')
+                .append(blankIfNull(period.months())).append(';');
+        }
+        return text.toString();
+    }
+
+    private String plain(BigDecimal value) {
+        if (value == null) {
+            return "";
+        }
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    private String blankIfNull(Integer value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toString();
     }
 
     private SizeAiQuestion.Child questionChildOf(
