@@ -63,21 +63,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: read
+      contents: read
     outputs:
       skip: ${{ steps.check.outputs.skip }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
       - id: check
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
         run: |
           if [[ "$EVENT" != push ]]; then echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
-          # 조회가 실패하면 건너뛰지 않고 배포한다(대기만 길어질 뿐 배포가 빠지지는 않게)
-          newer=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?branch=$GITHUB_REF_NAME&event=push&per_page=30" \
-            --jq "[.workflow_runs[] | select(.run_number > $GITHUB_RUN_NUMBER and (.status | IN(\"queued\", \"pending\", \"waiting\", \"requested\", \"in_progress\")))] | length") || newer=0
+          newer=$(.github/scripts/newer-deploy.sh)
           if (( newer > 0 )); then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice title=배포 건너뜀::뒤에 더 새 배포가 ${newer}건 줄 서 있어 건너뜁니다. 이 커밋은 다음 배포에 포함됩니다"
+            echo "::notice title=배포 건너뜀::이 배포보다 새 배포가 ${newer}건 있어 건너뜁니다. 이 커밋은 새 배포에 포함됩니다"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -379,6 +381,7 @@ jobs:
     if: ${{ !cancelled() && needs.monitoring-location.result == 'success' && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) && needs.elasticsearch.result != 'failure' && needs.kafka.result == 'success' && needs.postgres.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       packages: read
     environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
@@ -387,8 +390,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 서버를 바꾸기 직전에 더 새 배포가 있는지 한 번 더 본다(#1169). 앞의 superseded job 은 "Re-run failed jobs" 때 다시 돌지 않아,
+      # 실패한 옛 배포를 다시 돌리면 그 사이 끝난 더 새 배포를 옛 코드로 덮을 수 있다. 이 step 은 deploy job 과 함께 다시 돈다
+      - name: 최신 배포인지 확인
+        id: newer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != push ]]; then echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          newer=$(.github/scripts/newer-deploy.sh)
+          if (( newer > 0 )); then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=배포 건너뜀::이 배포보다 새 배포가 ${newer}건 있어 서버를 바꾸지 않습니다"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # 잘못된 SHA 면 서버 파일을 바꾸기 전에 멈춘다
       - name: 배포할 커밋 확인
+        if: steps.newer.outputs.skip != 'true'
         env:
           SHA: ${{ inputs.sha || github.sha }}
         run: |
@@ -396,6 +417,7 @@ jobs:
 
       # deploy-notify.yml 이 이 step 이름으로 "18시 이후 서버 꺼짐" 안내를 붙인다
       - name: 서버 접속 확인 · SSH 키 준비
+        if: steps.newer.outputs.skip != 'true'
         uses: ./.github/actions/server-ssh
         with:
           host: ${{ env.SSH_HOST }}
@@ -404,6 +426,7 @@ jobs:
 
       # 서버의 DB 데이터와 로그 말고는 전부 레포와 Environment Secret 에서 매번 새로 만든다. 비밀 값은 출력하지 않는다
       - name: 서버 설정 파일 만들기
+        if: steps.newer.outputs.skip != 'true'
         env:
           APP_ENV: ${{ vars.APP_ENV }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -477,6 +500,7 @@ jobs:
 
       # 파일 이름을 나열해 올린다 (. 을 통째로 올리면 /opt/app/<환경> 자체의 권한이 바뀐다)
       - name: 서버에 설정 파일 올리기
+        if: steps.newer.outputs.skip != 'true'
         env:
           APP_ENV: ${{ vars.APP_ENV }}
         run: |
@@ -486,6 +510,7 @@ jobs:
               "mkdir -p $dir && tar -xzf - --no-same-owner -C $dir && chmod 700 $dir/jwt && chmod 600 $dir/.env $dir/jwt/private.pem"
 
       - name: 배포
+        if: steps.newer.outputs.skip != 'true'
         id: deploy
         env:
           SHA: ${{ inputs.sha || github.sha }}
@@ -512,7 +537,7 @@ jobs:
           " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
 
       - name: 운영 대상 목록 동기화
-        if: success()
+        if: success() && steps.newer.outputs.skip != 'true'
         env:
           APP_SSH_HOST: ${{ vars.SSH_HOST }}
           MONITORING_SSH_HOST: ${{ needs.monitoring-location.outputs.host }}
