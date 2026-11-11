@@ -6,6 +6,9 @@ kidly:
     # 자동 정산 cron (Asia/Seoul). 기본 평일 09:05~17:05 매시간. "-"면 자동 실행을 끈다
     # 실행 때 영업일(공휴일 제외)인지 확인하고, 그날 처음 성공한 실행이 전날까지 확정된 대상을 정산한다. 나머지는 건너뛴다
     run-cron: ${SETTLEMENT_RUN_CRON:0 5 9-17 * * MON-FRI}
+    # 영업일이면 이 시각(Asia/Seoul)에 그날 끝난 정산 실행이 있는지 확인한다. 없으면 ERROR, 2시간 넘게 실행 중인 기록이 있으면 관리자 복구가 필요하다는 ERROR를 남긴다
+    # ERROR는 Grafana 알림으로 이어진다. 기본 12:30(CronJob 10:00 + 실행 제한 2시간 + 여유). "-"면 끈다
+    run-check-cron: ${SETTLEMENT_RUN_CHECK_CRON:0 30 12 * * *}
     # 지급 결과를 30분 넘게 못 받은 정산서를 다시 요청하는 cron (Asia/Seoul). 기본 10분마다. "-"면 끈다
     payout-retry-cron: ${SETTLEMENT_PAYOUT_RETRY_CRON:0 */10 * * * *}
     # 한 트랜잭션에서 처리하는 판매자 수(1 이상). 실패하면 그 묶음을 판매자 1명씩 다시 처리한다
@@ -70,6 +73,7 @@ kidly:
       consumer:
         enabled: false
     run-cron: "-"
+    run-check-cron: "-"
     payout-retry-cron: "-"
     outbox:
       cleanup-cron: "-"

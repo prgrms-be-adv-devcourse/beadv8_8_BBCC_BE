@@ -15,9 +15,7 @@ import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookup
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -96,30 +94,6 @@ class SettlementSchedulerTest {
         scheduler.runDaily();
 
         assertThat(skipLogLine(output)).contains("INFO");
-    }
-
-    @Test
-    @DisplayName("실행 중인 기록이 2시간 넘게 남아 있으면 멈춘 것이라 ERROR를 남긴다")
-    void stuckRunIsError(CapturedOutput output) {
-        givenRunFails(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
-        given(settlementRunService.findRunningSince()).willReturn(Optional.of(
-            new SettlementRunService.RunningExecution(7L, LocalDateTime.now().minusHours(3))));
-
-        scheduler.runDaily();
-
-        assertThat(output.toString()).contains("ERROR").contains("정산 실행 7이");
-    }
-
-    @Test
-    @DisplayName("실행 중인 기록이 최근 것이면 ERROR를 남기지 않는다")
-    void recentRunIsNotError(CapturedOutput output) {
-        givenRunFails(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
-        given(settlementRunService.findRunningSince()).willReturn(Optional.of(
-            new SettlementRunService.RunningExecution(7L, LocalDateTime.now().minusMinutes(10))));
-
-        scheduler.runDaily();
-
-        assertThat(output.toString()).doesNotContain("ERROR");
     }
 
     @Test

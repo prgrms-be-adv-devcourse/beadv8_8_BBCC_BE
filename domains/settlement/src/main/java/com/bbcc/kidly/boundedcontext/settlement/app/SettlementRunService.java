@@ -71,10 +71,15 @@ public class SettlementRunService {
         return result;
     }
 
+    // 같은 기준일을 관리자가 수동 실행해 끝낸 것도 끝난 것으로 본다(SETTLEMENT_ALREADY_RUN과 같은 기준).
+    public boolean isCompleted(LocalDate today) {
+        return isCompleted(cutoffOf(SettlementPeriod.daily(today).cutoffAt()));
+    }
+
     /**
      * 끝나지 않은 실행이 있으면 그중 가장 먼저 시작한 것의 ID와 시작 시각. 없으면 비어 있다.
      * 서버가 실행 도중 죽으면 기록이 STARTED로 남아 그 뒤 실행이 "실행 중"으로 건너뛰어진다(진행 없이 staleRunAfter가 지나면
-     * 다음 실행이 닫는다). 스케줄러가 이걸로 그래도 닫히지 않은 오래된 실행을 알린다.
+     * 다음 실행이 닫는다). 실행 확인(SettlementRunCheckScheduler)이 이걸로 그래도 닫히지 않은 오래된 실행을 알린다.
      */
     public Optional<RunningExecution> findRunningSince() {
         return jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME).stream()
@@ -125,10 +130,8 @@ public class SettlementRunService {
 
     // 실행 중 확인은 조회라 동시에 온 요청이 함께 통과할 수 있다. 같은 대상은 정산서 유니크 · 낙관적 락이 막는다
     private SettlementRunResult run(LocalDateTime cutoffAt, SettlementTriggerType triggerType, Long requestedBy) {
-        var cutoff = new JobParametersBuilder().addLocalDateTime(SettlementJobConfig.CUTOFF_AT, cutoffAt)
-            .toJobParameters();
-        var last = jobRepository.getLastJobExecution(SettlementJobConfig.JOB_NAME, cutoff);
-        if (last != null && last.getStatus() == BatchStatus.COMPLETED) {
+        var cutoff = cutoffOf(cutoffAt);
+        if (isCompleted(cutoff)) {
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
         }
         jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME).forEach(this::recoverIfStale);
@@ -146,6 +149,16 @@ public class SettlementRunService {
             throw conflictOr(cutoff, e);
         }
         return resultOf(execution);
+    }
+
+    private boolean isCompleted(JobParameters cutoff) {
+        var last = jobRepository.getLastJobExecution(SettlementJobConfig.JOB_NAME, cutoff);
+        return last != null && last.getStatus() == BatchStatus.COMPLETED;
+    }
+
+    private static JobParameters cutoffOf(LocalDateTime cutoffAt) {
+        return new JobParametersBuilder().addLocalDateTime(SettlementJobConfig.CUTOFF_AT, cutoffAt)
+            .toJobParameters();
     }
 
     // 진행 없이 staleRunAfter가 지난 실행은 죽은 것으로 보고 FAILED로 닫는다. 아니면 실행 중이다.
