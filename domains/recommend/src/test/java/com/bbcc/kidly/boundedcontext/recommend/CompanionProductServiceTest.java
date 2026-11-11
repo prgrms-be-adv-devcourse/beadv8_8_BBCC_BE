@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.CompanionProductService;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductsResult;
+import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductsWithAi;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.support.CompanionCandidateReader;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.support.CompanionCandidates;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionAiAnswer;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -123,6 +125,41 @@ class CompanionProductServiceTest {
         assertThat(result.source()).isEqualTo(CompanionSource.RULE);
         assertThat(result.products()).isEmpty();
         verifyNoInteractions(aiResponseService);
+    }
+
+    @Test
+    @DisplayName("PAIR-06 기다리지 않는 추천은 규칙 상위 4개를 바로 담고, AI 답이 오면 AI가 고른 순서와 이유로 끝난다")
+    void returnRuleNowAndAiLater() {
+        given(candidateReader.read(MEMBER_ID, VIEWED_PRODUCT_ID, CHILD_ID)).willReturn(candidates(6));
+        CompanionAiAnswer answer = new CompanionAiAnswer(List.of(
+            new CompanionAiPick(5L, "같은 색 계열이라 함께 입기 좋아요."),
+            new CompanionAiPick(2L, "가을에 겹쳐 입기 좋아요.")));
+        given(aiResponseService.respondAsync(eq(AiResponseType.BOUGHT_TOGETHER), any(), eq(CompanionAiAnswer.class),
+            any())).willReturn(CompletableFuture.completedFuture(Optional.of(answer)));
+
+        CompanionProductsWithAi result = service(Optional.of(aiPicker)).recommendWithAiLater(MEMBER_ID,
+            VIEWED_PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.rule().source()).isEqualTo(CompanionSource.RULE);
+        assertThat(result.rule().products()).extracting(CompanionProductResult::productId)
+            .containsExactly(1L, 2L, 3L, 4L);
+        CompanionProductsResult ai = result.ai().join().orElseThrow();
+        assertThat(ai.source()).isEqualTo(CompanionSource.AI);
+        assertThat(ai.products()).extracting(CompanionProductResult::productId).containsExactly(5L, 2L, 1L, 3L);
+    }
+
+    @Test
+    @DisplayName("PAIR-06 기다리지 않는 추천에서 AI 답을 얻지 못하면 AI 결과는 빈 값으로 끝난다")
+    void completeAiEmptyWhenNoAiAnswer() {
+        given(candidateReader.read(MEMBER_ID, VIEWED_PRODUCT_ID, CHILD_ID)).willReturn(candidates(6));
+        given(aiResponseService.respondAsync(eq(AiResponseType.BOUGHT_TOGETHER), any(), eq(CompanionAiAnswer.class),
+            any())).willReturn(CompletableFuture.completedFuture(Optional.empty()));
+
+        CompanionProductsWithAi result = service(Optional.of(aiPicker)).recommendWithAiLater(MEMBER_ID,
+            VIEWED_PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.rule().products()).hasSize(4);
+        assertThat(result.ai().join()).isEmpty();
     }
 
     private CompanionProductService service(Optional<CompanionAiPicker> picker) {
