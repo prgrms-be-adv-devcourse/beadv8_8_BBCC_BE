@@ -16,7 +16,9 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.tool.StructuredOutputChatOptions;
 
 class OpenAiCompanionAiPickerTest {
 
@@ -86,6 +88,18 @@ class OpenAiCompanionAiPickerTest {
         assertThatThrownBy(() -> picker.pick(request())).isInstanceOf(RuntimeException.class);
     }
 
+    @Test
+    @DisplayName("PAIR-09 AI 요청에 답의 JSON 스키마(고른 상품 ID와 이유)를 함께 보내 답의 모양을 지키게 한다")
+    void sendAnswerJsonSchemaWithRequest() {
+        chatModel.answer = "{\"picks\": []}";
+
+        picker.pick(request());
+
+        assertThat(chatModel.lastPrompt.getOptions()).isInstanceOf(StructuredOutputChatOptions.class);
+        String schema = ((StructuredOutputChatOptions) chatModel.lastPrompt.getOptions()).getOutputSchema();
+        assertThat(schema).contains("picks", "productId", "reason");
+    }
+
     private static CompanionAiRequest request() {
         CompanionAiProduct viewed = new CompanionAiProduct(7001L, "데일리 맨투맨", List.of("의류", "상의"), "키즈랩");
         List<CompanionAiProduct> candidates = List.of(
@@ -100,6 +114,12 @@ class OpenAiCompanionAiPickerTest {
         private String answer;
 
         private Prompt lastPrompt;
+
+        // 실제 OpenAI 모델처럼 JSON 스키마를 받을 수 있는 옵션을 기본으로 둔다
+        @Override
+        public ChatOptions getDefaultOptions() {
+            return StructuredOutputChatOptions.builder().build();
+        }
 
         @Override
         public ChatResponse call(Prompt prompt) {
