@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPa
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct.SizeMeasurements;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.HemPosition;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.SleevePosition;
 import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
 import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreviewCalculator;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
@@ -96,6 +97,30 @@ class WearPreviewCalculatorTest {
         WearPreview preview = calculator.preview(product, GIRL_120, TODAY).orElseThrow();
 
         assertThat(preview.sizes()).extracting(WearPreview.SizeWear::hemAt).containsExactly(expected);
+    }
+
+    // 만 6세 여 120cm의 팔길이는 39.12cm라, 절반은 19.56cm, 팔길이 ± 2cm는 37.12 ~ 41.12cm다
+    @ParameterizedTest(name = "소매길이 {0}cm → {1}")
+    @CsvSource({
+        "15.0, ELBOW",
+        "19.5, ELBOW",
+        "19.6, ABOVE_WRIST",
+        "30.0, ABOVE_WRIST",
+        "37.1, ABOVE_WRIST",
+        "37.2, WRIST",
+        "39.0, WRIST",
+        "41.1, WRIST",
+        "41.2, HAND",
+        "43.0, HAND",
+    })
+    @DisplayName("PRV-04 소매 위치는 팔길이의 절반 이하면 ELBOW, 팔길이 ± 2cm면 WRIST, 그 사이는 ABOVE_WRIST, 더 길면 HAND다")
+    void sleevePositionByArmLength(String sleeveLengthCm, SleevePosition expected) {
+        FitProduct product = product(TOP_PATH, size("120", "45.0", sleeveLengthCm));
+
+        WearPreview preview = calculator.preview(product, GIRL_120, TODAY).orElseThrow();
+
+        assertThat(preview.sizes()).extracting(WearPreview.SizeWear::sleeveCm, WearPreview.SizeWear::sleeveAt)
+            .containsExactly(tuple(Double.valueOf(sleeveLengthCm), expected));
     }
 
     private static FitProduct product(List<String> categoryPathNames, SizeMeasurements... sizes) {
