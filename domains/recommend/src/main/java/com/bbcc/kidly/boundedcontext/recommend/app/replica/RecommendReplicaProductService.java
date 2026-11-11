@@ -68,7 +68,8 @@ public class RecommendReplicaProductService {
         List<ProductChangedEvent.CategoryPathEntry> categoryPath) {
         List<RecommendReplicaProduct.CategoryPathEntryInfo> infos = new ArrayList<>();
         for (ProductChangedEvent.CategoryPathEntry entry : categoryPath) {
-            infos.add(new RecommendReplicaProduct.CategoryPathEntryInfo(entry.id(), entry.name()));
+            infos.add(new RecommendReplicaProduct.CategoryPathEntryInfo(
+                entry.id(), entry.name(), entry.visibleGender()));
         }
         return infos;
     }

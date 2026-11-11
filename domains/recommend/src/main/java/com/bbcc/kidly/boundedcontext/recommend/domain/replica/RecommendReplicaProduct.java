@@ -6,6 +6,8 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbedding
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.CollectionTable;
@@ -35,6 +37,7 @@ import org.hibernate.annotations.BatchSize;
  * 추천이 사이즈를 계산하려고 상품 정보 변경됨 이벤트에서 옮겨 둔 상품 정보다.
  * 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로는 아직 사이즈 계산에 쓰지 않는다.
  * 브랜드 · 사이즈별 실측은 브랜드별 사이즈 보정과 실측 비교에, 카테고리 경로는 함께 사면 좋은 상품의 카테고리 짝에 쓰려고 함께 옮겨 둔다.
+ * 카테고리 경로의 보일 성별은 남아 자녀에게 여아에게만 보여 줄 카테고리의 상품을 추천하지 않는 데 쓴다.
  * 카테고리 경로의 이름과 상품 정보 값은 이름 · 브랜드 · 설명과 함께 임베딩할 글({@code embeddingText})로 합쳐 저장한다.
  * 벡터 칸(embedding · embedded_text_md5 · embedding_attempted_at)은 이 엔티티가 매핑하지 않고 상품 임베딩 저장소만 쓴다.
  * 주문 도메인에도 상품 복사본 엔티티 {@code ReplicaProduct}가 있어서, JPA 엔티티 이름이 겹치지 않게 클래스 이름 앞에 도메인 이름을 붙인다.
@@ -182,7 +185,12 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     /**
      * 경로는 대분류부터 종류 순서로 담는다.
      */
-    public record CategoryPathEntryInfo(Long categoryId, String categoryName) {
+    public record CategoryPathEntryInfo(Long categoryId, String categoryName, CategoryVisibleGender visibleGender) {
+
+        // 테스트 보조 코드만 쓰는 생성자다. 보일 성별이 ALL이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 보일 성별이 ALL로 저장된다
+        public CategoryPathEntryInfo(Long categoryId, String categoryName) {
+            this(categoryId, categoryName, CategoryVisibleGender.ALL);
+        }
     }
 
     /**
@@ -246,7 +254,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         List<RecommendReplicaCategoryPathEntry> newCategoryPath = new ArrayList<>();
         List<String> categoryNames = new ArrayList<>();
         for (CategoryPathEntryInfo entry : info.categoryPath()) {
-            newCategoryPath.add(new RecommendReplicaCategoryPathEntry(entry.categoryId(), entry.categoryName()));
+            newCategoryPath.add(new RecommendReplicaCategoryPathEntry(
+                entry.categoryId(), entry.categoryName(), entry.visibleGender()));
             categoryNames.add(entry.categoryName());
         }
         this.embeddingText = ProductEmbeddingText.compose(
@@ -313,6 +322,22 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         List<String> sorted = new ArrayList<>(colors);
         Collections.sort(sorted);
         return sorted;
+    }
+
+    /**
+     * 이 성별의 자녀에게 보여 줄 상품인지 돌려준다. 남아에게는 경로의 어느 단계든 GIRL이면 보여 주지 않는다.
+     * 성별을 모르거나(null) 여아이거나 경로가 비어 있으면 보여 준다.
+     */
+    public boolean isVisibleTo(Gender childGender) {
+        if (childGender != Gender.MALE) {
+            return true;
+        }
+        for (RecommendReplicaCategoryPathEntry entry : categoryPath) {
+            if (entry.getVisibleGender() == CategoryVisibleGender.GIRL) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

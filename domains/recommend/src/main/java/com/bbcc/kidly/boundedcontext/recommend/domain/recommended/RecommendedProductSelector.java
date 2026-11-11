@@ -38,6 +38,10 @@ public class RecommendedProductSelector {
             if (product.getStatus() != ProductStatus.ON_SALE) {
                 continue;
             }
+            // 남아 자녀에게는 원피스 · 치마처럼 여아에게만 보여 줄 카테고리의 상품을 추천하지 않는다
+            if (!product.isVisibleTo(childSizeInput.gender())) {
+                continue;
+            }
             if (product.isSizeFree()) {
                 if (product.hasSellableOption()) {
                     selected.add(toRecommendedProduct(product, null));
