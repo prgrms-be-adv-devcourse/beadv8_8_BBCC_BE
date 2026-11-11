@@ -8,11 +8,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 함께 사면 좋은 상품으로 고른 결과다. 출처와, 보여 줄 순서대로 정렬된 상품을 담는다.
  */
 public record CompanionSelection(CompanionSource source, List<CompanionPick> picks) {
+
+    private static final int REASON_MAX_LENGTH = 40;
+
+    private static final Pattern POLITE_ENDING = Pattern.compile("(요|니다)\\.?$");
 
     public CompanionSelection {
         requireNonNull(source, "source는 필수입니다");
@@ -66,9 +71,13 @@ public record CompanionSelection(CompanionSource source, List<CompanionPick> pic
         return new CompanionSelection(source, picks);
     }
 
-    // 화면에 빈 이유 칸을 보여 주지 않도록 비어 있는 이유는 없는 것으로 본다
+    // 화면에 빈 이유 칸이나 형식에 맞지 않는 문장을 보여 주지 않도록, 비었거나 40자를 넘거나
+    // 「요」 · 「니다」로 끝나지 않는 이유는 없는 것으로 본다(말줄임으로 끝난 문장도 여기서 걸러진다)
     private static String reasonOrNull(String reason) {
         if (reason == null || reason.isBlank()) {
+            return null;
+        }
+        if (reason.length() > REASON_MAX_LENGTH || !POLITE_ENDING.matcher(reason.strip()).find()) {
             return null;
         }
         return reason;
