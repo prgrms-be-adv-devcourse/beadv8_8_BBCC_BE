@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -146,6 +148,23 @@ class SellerProductQueryIntegrationTest {
             .extracting(SellerProductSummary::productId)
             .containsExactly(stoppedNewer.getId(), stoppedOlder.getId());
         assertThat(page.getTotalElements()).isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, true", "1, true", "5, true", "6, false"})
+    @DisplayName("SALE-09 lowStock이면 판매중 옵션의 판매 가능 수량이 5 이하인 상품만 돌려준다. 0 · 5는 포함하고 6은 뺀다")
+    void findBySellerFiltersLowStockByQuantityBoundary(int stock, boolean included) {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Product target = saveProduct(saved, SELLER_ID, "경계 상품", 100, stock);
+        saveProduct(saved, SELLER_ID, "재고 넉넉한 상품", 100);
+
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, new SellerProductFilter(null, true), PageRequest.of(0, 10));
+
+        assertThat(page.getContent())
+            .extracting(SellerProductSummary::productId)
+            .isEqualTo(included ? List.of(target.getId()) : List.of());
+        assertThat(page.getTotalElements()).isEqualTo(included ? 1 : 0);
     }
 
     // 판매자의 판매대기 상품 하나를 저장하고 옵션마다 재고를 연다.
