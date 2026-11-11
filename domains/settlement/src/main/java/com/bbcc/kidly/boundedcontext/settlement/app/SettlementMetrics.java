@@ -15,6 +15,8 @@ import java.time.LocalTime;
 import java.time.Year;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 정산 지급이 어디서 멈추는지 보는 Micrometer 지표. 지표 이름 · 태그는 이 클래스에만 둔다(Prometheus에서 소문자 snake_case).
@@ -92,8 +94,14 @@ public class SettlementMetrics {
             .orElse(0.0);
     }
 
+    // 지급 실패를 기록하는 트랜잭션 안에서만 부른다. 버전 충돌 등으로 롤백되면 세지 않도록 커밋 뒤에 올린다
     public void countPayoutFailed() {
-        payoutFailed.increment();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                payoutFailed.increment();
+            }
+        });
     }
 
     public void recordSent(Duration delay) {
