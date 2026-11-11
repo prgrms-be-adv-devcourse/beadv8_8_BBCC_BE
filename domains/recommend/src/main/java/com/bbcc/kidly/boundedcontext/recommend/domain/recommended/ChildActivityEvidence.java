@@ -43,9 +43,44 @@ public final class ChildActivityEvidence {
      * 후보 하나의 근거 라벨이다. 맞는 근거가 없으면 빈 목록이다.
      */
     public List<String> labelsFor(Long categoryId, String categoryName, String brand) {
+        List<String> labels = frequentLabels(categoryId, categoryName, brand);
+        if (categoryCartAddCounts.getOrDefault(categoryId, 0) > 0) {
+            labels.add("장바구니에 담은 카테고리: " + categoryName);
+        }
+        if (brand != null && purchasedBrands.contains(brand)) {
+            labels.add("산 적 있는 브랜드: " + brand);
+        }
+        if (purchasedCategoryIds.contains(categoryId)) {
+            labels.add("전에 산 카테고리: " + categoryName);
+        }
+        return labels;
+    }
+
+    // 자주 본 카테고리 · 브랜드를 활동 횟수가 많은 순으로 둔다. 같으면 카테고리를 앞에 둔다
+    private List<String> frequentLabels(Long categoryId, String categoryName, String brand) {
+        int categoryCount = categoryActivityCounts.getOrDefault(categoryId, 0);
+        int brandCount = 0;
+        if (brand != null) {
+            brandCount = brandActivityCounts.getOrDefault(brand, 0);
+        }
         List<String> labels = new ArrayList<>();
-        if (categoryActivityCounts.getOrDefault(categoryId, 0) >= FREQUENT_COUNT) {
-            labels.add("자주 본 카테고리: " + categoryName);
+        String categoryLabel = null;
+        if (categoryCount >= FREQUENT_COUNT) {
+            categoryLabel = "자주 본 카테고리: " + categoryName;
+        }
+        String brandLabel = null;
+        if (brandCount >= FREQUENT_COUNT) {
+            brandLabel = "자주 본 브랜드: " + brand;
+        }
+        if (brandLabel != null && brandCount > categoryCount) {
+            labels.add(brandLabel);
+            brandLabel = null;
+        }
+        if (categoryLabel != null) {
+            labels.add(categoryLabel);
+        }
+        if (brandLabel != null) {
+            labels.add(brandLabel);
         }
         return labels;
     }
