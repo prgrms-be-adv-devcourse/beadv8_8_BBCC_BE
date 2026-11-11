@@ -74,7 +74,7 @@ class AiResultStreamTest {
             Object data = null;
             // 이벤트 이름 줄(event:)은 text/plain 조각에 들어 있고, 본문은 미디어 타입이 없는 조각이다
             for (DataWithMediaType part : builder.build()) {
-                if (MediaType.TEXT_PLAIN.equals(part.getMediaType())) {
+                if (part.getMediaType() != null && part.getMediaType().isCompatibleWith(MediaType.TEXT_PLAIN)) {
                     String text = String.valueOf(part.getData());
                     int start = text.indexOf("event:");
                     if (start >= 0) {
