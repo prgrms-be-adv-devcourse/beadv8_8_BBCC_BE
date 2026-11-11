@@ -26,13 +26,24 @@ public class OpenAiSizeChooser implements AiSizeChooser {
         - child의 키, 몸무게, 입력 체형(bodyType), 판정 체형(judgedBodyType), 선호 핏(preferredFit)과
           sizes의 사이즈별 권장 키, 실측(cm)을 함께 보고 고르세요.
           judgedBodyType이 null이면 체형을 쓰지 않고 키만 보고 고른 것입니다.
-        - referenceFit과 growthSpeed가 null이면 무시하세요.
+        - growthSpeed가 null이면 무시하세요.
         - fit은 ROOMY, PROPER, TIGHT 중 하나입니다.
         - reasons는 1개에서 3개입니다. type은 HEIGHT, BODY_TYPE, PREFERRED_FIT, MEASUREMENT, RULE_RESULT, GROWTH 중
           하나이고, detail은 보호자에게 그대로 보여 줄 짧은 한국어 존댓말 문장입니다("~요"로 끝냅니다).
           sourceId는 null입니다.
-        - 자녀가 가진 옷(기준 옷)의 실측은 받지 않습니다. "가지고 계신 옷과 비교해 보세요"처럼 다른 옷과 비교해 보라는 말을 쓰지 마세요.
-          MEASUREMENT 근거는 상품 실측을 자녀의 키, 체형, 선호 핏과 견주어 설명하세요.
+        - referenceFit은 자녀가 지금 잘 맞게 입는 옷(기준 옷)과 이 상품을 비교한 값입니다.
+          items의 각 항목에 기준 옷 실측 garmentCm과, 사이즈마다 상품 실측 productCm, 차이 diffCm(상품 - 기준 옷, cm)이 있습니다.
+          productPart와 comparedPart가 다르면 같은 종류의 기준 옷이 없어 다른 종류(예: 아우터 상품과 상의 기준 옷)와
+          너비 항목만 비교한 것입니다. referenceFit이 null이면 기준 옷이 없는 것이니 무시하세요.
+        - ruleResult(키와 체형 규칙 결과)와 referenceFit의 항목별 차이(diffCm)를 함께 보고 사이즈를 고르세요. 몇 cm 넉넉해야 맞는지는 옷 종류와 항목을 보고 판단하세요.
+        - itemJudgements는 referenceFit이 있으면 고른 사이즈(recommendedSize)의 값이 referenceFit에 있는 항목마다 하나씩 씁니다.
+          code, diffCm(referenceFit에 있는 그 사이즈의 값을 그대로), fit(TIGHT, PROPER, ROOMY 중 하나),
+          그 판단에 쓴 여유 범위 allowanceMinCm와 allowanceMaxCm(cm, 최소가 최대보다 크지 않아야 함)을 쓰세요.
+          referenceFit이 null이면 빈 목록입니다.
+        - reasons의 detail에 숫자를 쓸 때는 질문에 있는 숫자나 itemJudgements의 여유 범위만 쓰고, 새로 계산한 숫자는 쓰지 마세요.
+          차이는 부호 없이 "1cm 작아요"처럼 써도 됩니다.
+        - MEASUREMENT 근거는 referenceFit이 있으면 기준 옷과의 차이로 설명하고, 없으면 상품 실측을 자녀의 키, 체형, 선호 핏과
+          견주어 설명하세요.
         """;
 
     private final ChatModel chatModel;

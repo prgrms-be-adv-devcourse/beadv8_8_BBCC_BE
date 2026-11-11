@@ -34,6 +34,27 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
     }
 
     /**
+     * 저장된 AI 답을 찾는 키에 넣을 글이다. 기준 핏이 같으면 늘 같은 글이 되도록 항목과 사이즈를 정해진 순서로 쓰고,
+     * 2와 2.0이 같은 글이 되도록 숫자의 끝의 0을 뗀다.
+     */
+    public String keyText() {
+        StringBuilder text = new StringBuilder();
+        text.append(productPart).append('>').append(comparedPart);
+        for (Item item : items) {
+            text.append(';').append(item.code()).append('=').append(plain(item.garmentCm()));
+            for (SizeDiff diff : item.sizes()) {
+                text.append(',').append(diff.size()).append(':').append(plain(diff.productCm()))
+                    .append(':').append(plain(diff.diffCm()));
+            }
+        }
+        return text.toString();
+    }
+
+    private static String plain(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    /**
      * 실측 항목 하나의 기준 옷 값과, 그 값에 대한 사이즈별 차이다.
      */
     public record Item(String code, BigDecimal garmentCm, List<SizeDiff> sizes) {
@@ -54,6 +75,23 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
      */
     public boolean substituted() {
         return productPart != comparedPart;
+    }
+
+    /**
+     * 그 항목 · 그 사이즈의 차이(상품 − 기준 옷, cm)를 돌려준다. 비교하지 않은 항목이거나 그 사이즈가 없으면 null이다.
+     */
+    public BigDecimal diffOf(String code, String size) {
+        for (Item item : items) {
+            if (!item.code().equals(code)) {
+                continue;
+            }
+            for (SizeDiff diff : item.sizes()) {
+                if (diff.size().equals(size)) {
+                    return diff.diffCm();
+                }
+            }
+        }
+        return null;
     }
 
     public static Optional<ReferenceFit> compare(FitProduct product, List<ReferenceGarment> garments) {
