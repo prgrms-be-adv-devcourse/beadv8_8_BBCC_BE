@@ -119,7 +119,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 |---|---|
 | 보내는 이벤트 | `settlement.payout-requested` (⑦) |
 | 받는 이벤트 | `order-item.purchase-confirmed` 정산 대상 등록 (⑥) · `payment.payout-completed` · `payment.payout-failed` 지급 결과 반영 (⑦) |
-| 시간 작업 | 영업일 일정산 — Spring Batch `settlementJob`, 영업일 09:05~17:05 매시간 시도 · 하루 1회 (⑦) |
+| 시간 작업 | 영업일 일정산 — Spring Batch `settlementJob`, k3s CronJob 매일 10시 한 번 실행 · 영업일 아니면 건너뜀 · 12:30 결과 확인 (⑦) |
 
 ## 공통 · 팀
 

@@ -91,7 +91,7 @@ public class SettlementRunService {
     public record RunningExecution(Long runId, LocalDateTime startedAt) {
     }
 
-    // 오늘 0시를 기준으로 전날까지 확정된 대기 항목을 정산한다. 영업일인지는 호출한 쪽(스케줄러)이 확인한다
+    // 오늘 0시를 기준으로 전날까지 확정된 대기 항목을 정산한다. 영업일인지는 호출한 쪽(SettlementDailyRunner)이 확인한다
     public SettlementRunResult runScheduled(LocalDate today) {
         return run(SettlementPeriod.daily(today).cutoffAt(), SettlementTriggerType.SCHEDULED, null);
     }

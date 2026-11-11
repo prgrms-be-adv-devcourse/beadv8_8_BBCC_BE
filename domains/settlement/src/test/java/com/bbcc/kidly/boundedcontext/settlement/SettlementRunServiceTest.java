@@ -72,7 +72,7 @@ class SettlementRunServiceTest {
 
     @Spy
     private SettlementProperties properties = new SettlementProperties(
-        new BigDecimal("0.1"), "0 5 9-17 * * MON-FRI", "0 */10 * * * *", 100, Duration.ofMinutes(30));
+        new BigDecimal("0.1"), "0 */10 * * * *", 100, Duration.ofMinutes(30));
 
     @InjectMocks
     private SettlementRunService settlementRunService;

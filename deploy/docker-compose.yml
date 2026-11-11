@@ -149,7 +149,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # 정산 서비스(apps/settlement-service, #729). 정산 API · 자동 정산(Spring Batch) · 결제 · 주문 이벤트 수신(구독 그룹 kidly.settlement), 정산 이벤트 발행(아웃박스)
+  # 정산 서비스(apps/settlement-service, #729). 정산 API · 정산 실행 확인 · 결제 · 주문 이벤트 수신(구독 그룹 kidly.settlement), 정산 이벤트 발행(아웃박스)
   # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   settlement-service:
     image: ${SETTLEMENT_IMAGE}
@@ -164,7 +164,7 @@ services:
       DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-      # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일 조회가 실패해 자동 정산을 건너뛴다
+      # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일을 받아 저장하지 못한다
       HOLIDAY_API_SERVICE_KEY: ${HOLIDAY_API_SERVICE_KEY:-}
       LOG_PATH: /app/logs
     ports:

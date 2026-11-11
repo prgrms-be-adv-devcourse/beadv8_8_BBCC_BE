@@ -280,9 +280,9 @@ v2.0: 정산 담당 보강본으로 바꿨습니다. 월 정산 → **영업일 
 | 중복 실행 | 같은 `cutoffAt` 작업이 이미 끝났으면 409 (이미 정산한 기준일) · 실행 중이면 409 · 실행 시작 전에 Batch의 실행 중 작업을 조회해 409. 동시에 온 두 요청이 같이 통과해도 정산 대상 `@Version` · 정산서 유니크가 중복 정산을 막음 |
 | 다시 실행 | 작업 자체가 실패(`FAILED`)하면 같은 기준일로 다시 실행. 건너뛴 판매자가 있어도 작업은 완료라 같은 기준일 재실행은 409이고, 남은 대상은 다음 기준일에 정산. 읽기가 `PENDING`만 고르므로 이미 정산한 판매자는 다시 처리하지 않음 (읽기 위치를 저장하지 않음) |
 | 실행 기록 | 따로 저장하지 않음. 실행 결과 · 조회 API는 Batch 작업 실행(ID · 파라미터 · 상태 · 단계 쓰기/건너뛴 수)으로 만듦 |
-| 자동 실행 | `@Scheduled(cron = 설정값, zone = "Asia/Seoul")` (지금 평일 09:05~17:05 매시간) → 영업일인지 확인(주말 · 공휴일이면 건너뜀, 공휴일 조회 실패면 다음 시간 재시도) → 종료 기준일 = 실행일 0시 → 작업 실행 (그날 이미 정산했으면 409로 건너뜀) |
+| 자동 실행 | k3s CronJob 매일 10시 한 번 실행 → 영업일인지 확인(주말 · 공휴일이면 건너뜀) → 종료 기준일 = 실행일 0시 → 작업 실행 (그날 이미 정산했으면 건너뜀) → API 서버가 영업일 12:30에 결과 확인 |
 | 수동 실행 | `POST /api/v1/admin/settlements/run` → 같은 작업을 끝날 때까지 기다려 실행 (시연용) → 201 + 실행 결과 |
-| 설정값 | `settlement.fee-rate`(0.1) · `settlement.run-cron`(`0 5 9-17 * * MON-FRI`) · `settlement.payout-retry-cron`(`0 */10 * * * *`) · `settlement.chunk-size`(100) · `spring.batch.job.enabled=false`(기동 때 자동 실행 안 함) · `spring.batch.jdbc.table-prefix=settlement.BATCH_` · `spring.batch.jdbc.initialize-schema`: local `always`, 그 외 `never`(배포 전 DDL) |
+| 설정값 | `settlement.fee-rate`(0.1) · `settlement.run-check-cron`(`0 30 12 * * *`) · `settlement.payout-retry-cron`(`0 */10 * * * *`) · `settlement.chunk-size`(100) · `spring.batch.job.enabled=false`(기동 때 자동 실행 안 함) · `spring.batch.jdbc.table-prefix=settlement.BATCH_` · `spring.batch.jdbc.initialize-schema`: local `always`, 그 외 `never`(배포 전 DDL) |
 | 의존성 | `build.gradle.kts`: `implementation("org.springframework.boot:spring-boot-starter-batch-jdbc")` · `testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")`. 버전은 Spring Boot 4.1.1이 맞춤. DB에 실행 기록을 남겨야 재실행 방지 · 이어서 실행이 되므로 `-jdbc` 스타터를 씀 |
 
 ### ⑦ 상세 7. API

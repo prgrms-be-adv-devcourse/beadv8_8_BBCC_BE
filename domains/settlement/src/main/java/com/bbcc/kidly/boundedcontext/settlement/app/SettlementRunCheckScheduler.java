@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 영업일 하루 한 번, 그날 기준일의 정산 실행이 끝났는지 확인해 없으면 ERROR를 남긴다(Grafana 알림).
- * 누가 실행했는지(k3s CronJob · 매시간 스케줄러 · 관리자)는 보지 않는다. 멈춘 실행(2시간 넘게 실행 중)도 같은 확인에서 알린다.
+ * 누가 실행했는지(k3s CronJob · 관리자)는 보지 않는다. 멈춘 실행(2시간 넘게 실행 중)도 같은 확인에서 알린다.
  */
 @Slf4j
 @Component
