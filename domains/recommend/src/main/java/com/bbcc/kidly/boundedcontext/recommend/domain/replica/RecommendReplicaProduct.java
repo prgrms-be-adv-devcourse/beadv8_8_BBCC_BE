@@ -126,7 +126,7 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     @ElementCollection
     @CollectionTable(schema = "recommend", name = "replica_product_color",
         joinColumns = @JoinColumn(name = "product_id"))
-    @Column(name = "color", nullable = false, length = 100)
+    @Column(name = "color", nullable = false, length = 255)
     private Set<String> colors = new HashSet<>();
 
     @Column(name = "embedding_text", columnDefinition = "TEXT")
