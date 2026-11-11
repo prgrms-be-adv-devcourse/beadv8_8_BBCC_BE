@@ -90,6 +90,7 @@ groups:
       description: 최근 10분 미처리가 남아 있고 증가 추세가 5분 지속됐습니다. 그룹·토픽별 소비 진행·도메인 처리 실패를 확인하세요.
         임의 offset 변경·재처리는 하지 마세요. 그룹별 허용 대기시간 합의 전에는 이 규칙을 활성화하지 않습니다.
     isPaused: true
+  # Kafka exporter 수집 주기 30초. 10분 창에서 최대 2개 누락을 허용한다.
   - uid: kidly-kafka-consumer-stalled
     title: Kafka 소비 진행 정지
     condition: B

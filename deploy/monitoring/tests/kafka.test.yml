@@ -155,7 +155,7 @@ tests:
   - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
     values: 3+0x40
   - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
-    values: 10+0x40
+    values: 10+0x32 11+1x7
   - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="1"}
     values: 3+0x40
   - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="1"}
@@ -199,3 +199,6 @@ tests:
         env: dev
         consumergroup: stalled
         topic: orders
+  - eval_time: 17m
+    alertname: kidly-kafka-consumer-stalled
+    exp_alerts: []
