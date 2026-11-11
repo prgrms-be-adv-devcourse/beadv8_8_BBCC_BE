@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -36,9 +37,10 @@ public class SellerSettlementService {
     @Transactional(readOnly = true)
     public Page<SettlementTargetResult> getTargets(Long sellerId, Pageable pageable) {
         var rows = settlementTargetQuery.findPending(sellerId, pageable);
+        var dates = new HashMap<LocalDate, LocalDate>();
         try {
             return rows.map(row -> SettlementTargetResult.of(row,
-                businessCalendar.nextBusinessDayAfter(row.confirmedAt().toLocalDate())));
+                dates.computeIfAbsent(row.confirmedAt().toLocalDate(), businessCalendar::nextBusinessDayAfter)));
         } catch (SettlementHolidayLookupException e) {
             return rows.map(row -> SettlementTargetResult.of(row, (LocalDate) null));
         }
