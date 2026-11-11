@@ -35,8 +35,37 @@ public class WearablePeriodCalculator {
         List<WearablePeriod> periods = new ArrayList<>();
         for (SizeRange range : info.sizes().sizeRanges()) {
             int lengthMonths = (int) Math.floor((range.maxHeightCm() - info.heightCm()) / info.cmPerMonth());
-            periods.add(new WearablePeriod(range.size(), lengthMonths, null, lengthMonths));
+            Integer widthMonths = widthMonths(info, range.size());
+            periods.add(new WearablePeriod(range.size(), lengthMonths, widthMonths, lengthMonths));
         }
         return periods;
+    }
+
+    /**
+     * 기준 옷보다 큰 너비를 몸이 채우는 데 걸리는 개월 수다. 너비 항목이 여럿이면 가장 짧은 값을 쓰고, 없으면 null이다.
+     * 너비 항목은 단면이라 몸 둘레의 절반만큼 커진다고 본다.
+     */
+    private Integer widthMonths(WearInfo info, String size) {
+        if (info.referenceFit() == null) {
+            return null;
+        }
+        Integer shortest = null;
+        for (ReferenceFit.Item item : info.referenceFit().items()) {
+            GirthPart part = GirthPart.ofWidthCode(item.code());
+            if (part == null) {
+                continue;
+            }
+            for (ReferenceFit.SizeDiff diff : item.sizes()) {
+                if (!diff.size().equals(size)) {
+                    continue;
+                }
+                double ratio = girthRatioTable.ratio(info.gender(), info.ageMonths(), part);
+                int months = (int) Math.floor(diff.diffCm().doubleValue() / (info.cmPerMonth() * ratio / 2));
+                if (shortest == null || months < shortest) {
+                    shortest = months;
+                }
+            }
+        }
+        return shortest;
     }
 }
