@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend.app.port.ai;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -11,8 +12,16 @@ import java.util.List;
  *
  * @param child 자녀의 몸 정보다
  * @param candidates AI가 고를 후보 상품이다. 선호 점수 순서이다
+ * @param today 계절을 알려 주려고 넘기는 오늘 날짜(한국 시간)다. 없으면 null이다
  */
-public record HomePreviewAiRequest(Child child, List<Candidate> candidates) {
+public record HomePreviewAiRequest(Child child, List<Candidate> candidates, LocalDate today) {
+
+    /**
+     * 오늘 날짜 없이 요청을 만든다.
+     */
+    public HomePreviewAiRequest(Child child, List<Candidate> candidates) {
+        this(child, candidates, null);
+    }
 
     /**
      * 자녀의 몸 정보다. 값이 없는 선택 항목은 null이다.

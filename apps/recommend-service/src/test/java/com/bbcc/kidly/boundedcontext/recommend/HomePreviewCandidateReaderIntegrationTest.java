@@ -97,6 +97,7 @@ class HomePreviewCandidateReaderIntegrationTest {
 
         HomePreviewCandidates candidates = candidateReader.read(MEMBER_1_ID, CHILD_1_ID);
 
+        assertThat(candidates.aiRequest().today()).isEqualTo(now.toLocalDate());
         assertThat(candidates.aiRequest().candidates())
             .filteredOn(candidate -> candidate.productId().equals(PRODUCT_A_ID))
             .singleElement()

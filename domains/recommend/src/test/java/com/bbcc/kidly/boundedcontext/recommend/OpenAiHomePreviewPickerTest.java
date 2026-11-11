@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.recommend.out.ai.OpenAiHomePreviewPicker;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -68,6 +69,25 @@ class OpenAiHomePreviewPickerTest {
             .contains("48", "105.5", "17.2", "NORMAL", "REGULAR")
             .contains("301", "줄무늬 티셔츠", "키들리", "의류 > 상의", "15000", "110")
             .contains("302", "데님 바지", "꼬마", "의류 > 바지", "25000");
+    }
+
+    @Test
+    @DisplayName("HOME-07 프롬프트에 오늘 날짜와 후보마다 자녀 활동 근거 · 판매 중인 색상 · 상품 정보를 한 줄로 넣는다")
+    void promptHasTodayEvidenceColorsAndProductInfo() {
+        given(chatModel.call(any(Prompt.class))).willReturn(response("{\"picks\":[]}"));
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        HomePreviewAiRequest request = new HomePreviewAiRequest(REQUEST.child(), List.of(
+            new HomePreviewAiRequest.Candidate(301L, "줄무늬 티셔츠", "키들리", List.of("의류", "상의"), 15_000L, "110",
+                List.of("자주 찾아본 카테고리: 상의", "산 적 있는 브랜드: 키들리"), List.of("네이비", "아이보리"),
+                "MAIN_MATERIAL: 면 100% / 설명: 부드러운\n기모|맨투맨")),
+            LocalDate.of(2026, 11, 11));
+
+        new OpenAiHomePreviewPicker(chatModel).pick(request);
+
+        verify(chatModel).call(prompt.capture());
+        assertThat(prompt.getValue().getUserMessage().getText()).contains(
+            "2026-11-11", "자주 찾아본 카테고리: 상의, 산 적 있는 브랜드: 키들리", "네이비, 아이보리",
+            "MAIN_MATERIAL: 면 100% / 설명: 부드러운 기모 맨투맨");
     }
 
     @Test
