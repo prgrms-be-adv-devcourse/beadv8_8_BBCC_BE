@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendKafkaMessages.RETRY_BACKOFF_TOTAL_MS;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendKafkaMessages.TIMEOUT;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -100,18 +101,20 @@ class RecommendGrowthKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("성장 기록에 키가 없으면 DLT로 보내고 기록은 남기지 않는다")
+    @DisplayName("성장 기록에 키(cm) 값이 없으면 재시도 없이 DLT로 보내고 기록은 남기지 않는다")
     void deadLetterGrowthRecordWithoutHeight() throws Exception {
         Long growthRecordId = newId();
         Long childId = newId();
         var withoutHeight = new ChildGrowthRecordedEvent(UUID.randomUUID(), RECORDED_AT,
             new ChildGrowthRecordedEvent.Data(growthRecordId, childId, null, BodyType.SLIM, RECORDED_AT));
 
-        messages.send(CHILD_TOPIC, withoutHeight);
+        var sent = messages.send(CHILD_TOPIC, withoutHeight);
 
         String key = String.valueOf(childId);
         AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(CHILD_DLT, key).isEmpty());
-        assertThat(messages.deadLetters(CHILD_DLT, key)).singleElement();
+        assertThat(messages.deadLetters(CHILD_DLT, key)).singleElement()
+            .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
+                .isLessThan(RETRY_BACKOFF_TOTAL_MS));
         assertThat(recordsOf(childId)).isEmpty();
     }
 
@@ -125,7 +128,7 @@ class RecommendGrowthKafkaIntegrationTest {
         return ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     }
 
-    // 기록 · 자녀 ID만 바꾼 성장 기록이다. 키 115.5cm, 체형 마름
+    // 기록 · 자녀 ID만 바꾼 성장 기록이다. 키는 115.5cm, 체형은 마름이다
     private static ChildGrowthRecordedEvent growthRecorded(Long growthRecordId, Long childId) {
         return new ChildGrowthRecordedEvent(UUID.randomUUID(), RECORDED_AT,
             new ChildGrowthRecordedEvent.Data(growthRecordId, childId, new BigDecimal("115.5"), BodyType.SLIM,

@@ -7,7 +7,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.OTHER_MEM
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-import com.bbcc.kidly.boundedcontext.recommend.app.growth.GrowthRecordService;
+import com.bbcc.kidly.boundedcontext.recommend.app.growth.RecommendGrowthRecordService;
 import com.bbcc.kidly.boundedcontext.recommend.app.member.RecommendMemberWithdrawalService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
@@ -55,7 +55,7 @@ class GrowthRecordCleanupIntegrationTest {
     private RecommendReplicaChildService replicaChildService;
 
     @Autowired
-    private GrowthRecordService growthRecordService;
+    private RecommendGrowthRecordService growthRecordService;
 
     @Autowired
     private RecommendMemberWithdrawalService memberWithdrawalService;
@@ -73,6 +73,30 @@ class GrowthRecordCleanupIntegrationTest {
         assertThat(count(CHILD_1_ID)).isZero();
         assertThat(count(SIBLING_ID)).isEqualTo(1);
         assertThat(count(OTHER_MEMBER_CHILD_ID)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("삭제가 아닌 자녀 정보 변경을 받으면 성장 기록은 그대로다")
+    void keepGrowthRecordsOnChildChanged() {
+        givenTwoMembersWithGrowthRecords();
+
+        replicaChildService.applyChildChanged(
+            RecommendFixture.childChangedEventAt(new BigDecimal("120.0"), CHILD_CHANGED_AT.plusMinutes(1)));
+
+        assertThat(count(CHILD_1_ID)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("복사본에 반영한 시각보다 이르게 일어난 삭제가 늦게 도착해도 그 자녀의 성장 기록은 지운다")
+    void deleteGrowthRecordsOnLateChildDeleted() {
+        givenTwoMembersWithGrowthRecords();
+        replicaChildService.applyChildChanged(
+            RecommendFixture.childChangedEventAt(new BigDecimal("120.0"), DELETED_AT.plusMinutes(10)));
+
+        assertThatCode(() -> replicaChildService.applyChildChanged(RecommendFixture.childDeletedEvent(DELETED_AT)))
+            .doesNotThrowAnyException();
+
+        assertThat(count(CHILD_1_ID)).isZero();
     }
 
     @Test
@@ -108,15 +132,24 @@ class GrowthRecordCleanupIntegrationTest {
     }
 
     // 회원 1의 자녀 1(기록 둘)과 삭제된 형제(기록 하나), 회원 2의 자녀(기록 하나)를 둔다.
-    // 형제의 기록은 삭제 표시 뒤에 저장해, 회원 탈퇴가 삭제된 자녀의 기록까지 찾는지 본다
+    // 서비스는 삭제된 자녀의 기록을 저장하지 않으므로, 형제의 기록은 삭제 전에 남은 옛 데이터처럼 표에 직접 넣는다.
+    // 회원 탈퇴가 삭제된 자녀의 기록까지 찾는지 보기 위해서다
     private void givenTwoMembersWithGrowthRecords() {
         replicaChildService.applyChildChanged(childChanged(CHILD_1_ID, MEMBER_1_ID, false));
         replicaChildService.applyChildChanged(childChanged(SIBLING_ID, MEMBER_1_ID, true));
         replicaChildService.applyChildChanged(childChanged(OTHER_MEMBER_CHILD_ID, OTHER_MEMBER_ID, false));
         growthRecordService.recordGrowth(growthRecorded(501L, CHILD_1_ID));
         growthRecordService.recordGrowth(growthRecorded(502L, CHILD_1_ID));
-        growthRecordService.recordGrowth(growthRecorded(503L, SIBLING_ID));
+        insertGrowthRecord(503L, SIBLING_ID);
         growthRecordService.recordGrowth(growthRecorded(504L, OTHER_MEMBER_CHILD_ID));
+    }
+
+    private void insertGrowthRecord(Long growthRecordId, Long childProfileId) {
+        jdbcTemplate.update("""
+            insert into recommend.growth_record
+                (growth_record_id, child_profile_id, height_cm, body_type, recorded_at, created_at, updated_at)
+            values (?, ?, 115.0, 'NORMAL', ?, ?, ?)
+            """, growthRecordId, childProfileId, RECORDED_AT, RECORDED_AT, RECORDED_AT);
     }
 
     private static ChildChangedEvent childChanged(Long childId, Long memberId, boolean deleted) {

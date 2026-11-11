@@ -1,11 +1,13 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_CHANGED_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.bbcc.kidly.boundedcontext.recommend.app.growth.GrowthRecordService;
+import com.bbcc.kidly.boundedcontext.recommend.app.growth.RecommendGrowthRecordService;
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecord;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.JpaRecommendGrowthRecordRepository;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
@@ -16,6 +18,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -32,21 +37,40 @@ class GrowthRecordIntegrationTest {
     private JpaRecommendGrowthRecordRepository growthRecordRepository;
 
     @Autowired
-    private GrowthRecordService growthRecordService;
+    private RecommendGrowthRecordService growthRecordService;
 
-    @Test
+    @Autowired
+    private RecommendReplicaChildService replicaChildService;
+
+    // 체형은 입력하지 않을 수 있어 null도 그대로 저장한다
+    @ParameterizedTest(name = "체형 {0}")
+    @NullSource
+    @EnumSource(value = BodyType.class, names = "SLIM")
     @DisplayName("성장 기록 이벤트의 기록 ID · 자녀 · 키 · 체형 · 기록 시각을 그대로 저장한다")
-    void saveGrowthRecord() {
-        growthRecordService.recordGrowth(growthRecorded(501L, new BigDecimal("115.5"), BodyType.SLIM, RECORDED_AT));
+    void saveGrowthRecord(BodyType bodyType) {
+        growthRecordService.recordGrowth(growthRecorded(501L, new BigDecimal("115.5"), bodyType, RECORDED_AT));
 
         assertThat(growthRecordRepository.findAll()).singleElement()
             .satisfies(record -> {
                 assertThat(record.getGrowthRecordId()).isEqualTo(501L);
                 assertThat(record.getChildProfileId()).isEqualTo(CHILD_1_ID);
                 assertThat(record.getHeightCm()).isEqualByComparingTo("115.5");
-                assertThat(record.getBodyType()).isEqualTo(BodyType.SLIM);
+                assertThat(record.getBodyType()).isEqualTo(bodyType);
                 assertThat(record.getRecordedAt()).isEqualTo(RECORDED_AT);
             });
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 자녀의 성장 기록은 예외 없이 저장하지 않는다")
+    void skipGrowthRecordOfDeletedChild() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        replicaChildService.applyChildChanged(RecommendFixture.childDeletedEvent(CHILD_CHANGED_AT.plusMinutes(5)));
+
+        assertThatCode(() -> growthRecordService.recordGrowth(
+            growthRecorded(501L, new BigDecimal("115.5"), BodyType.SLIM, RECORDED_AT)))
+            .doesNotThrowAnyException();
+
+        assertThat(growthRecordRepository.findAll()).isEmpty();
     }
 
     @Test
@@ -60,16 +84,6 @@ class GrowthRecordIntegrationTest {
             .doesNotThrowAnyException();
 
         assertThat(growthRecordRepository.findAll()).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("체형을 입력하지 않은 성장 기록도 체형 없이 저장한다")
-    void saveGrowthRecordWithoutBodyType() {
-        growthRecordService.recordGrowth(growthRecorded(501L, new BigDecimal("115.5"), null, RECORDED_AT));
-
-        assertThat(growthRecordRepository.findAll()).singleElement()
-            .extracting(RecommendGrowthRecord::getBodyType)
-            .isNull();
     }
 
     @Test

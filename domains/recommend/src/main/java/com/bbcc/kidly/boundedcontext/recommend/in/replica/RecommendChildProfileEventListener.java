@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.in.replica;
 
-import com.bbcc.kidly.boundedcontext.recommend.app.growth.GrowthRecordService;
+import com.bbcc.kidly.boundedcontext.recommend.app.growth.RecommendGrowthRecordService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.in.RecommendKafkaListenerConfig;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
@@ -21,7 +21,7 @@ import tools.jackson.databind.json.JsonMapper;
 public class RecommendChildProfileEventListener {
 
     private final RecommendReplicaChildService replicaChildService;
-    private final GrowthRecordService growthRecordService;
+    private final RecommendGrowthRecordService growthRecordService;
     private final JsonMapper jsonMapper;
 
     @KafkaListener(id = "recommendChildProfileEventListener", topics = "kidly.childprofile.events",
