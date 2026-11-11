@@ -1,6 +1,9 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.referencegarment;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.referencegarment.GarmentCategoryPaths;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.purchase.PurchasedGarmentRow;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.purchase.PurchasedGarments;
+import com.bbcc.kidly.boundedcontext.recommend.app.referencegarment.dto.PurchasedGarmentResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.referencegarment.dto.ReferenceGarmentResult;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarment;
@@ -10,12 +13,20 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.Reference
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,12 +40,51 @@ public class ReferenceGarmentService {
 
     private final RecommendReplicaChildRepository replicaChildRepository;
 
+    private final PurchasedGarments purchasedGarments;
+
+    private final RecommendReplicaProductRepository replicaProductRepository;
+
     @Transactional(readOnly = true)
     public List<ReferenceGarmentResult> list(Long memberId, Long childId) {
         requireChildOf(memberId, childId);
         return referenceGarmentRepository.findAllByChildProfileId(childId).stream()
             .map(ReferenceGarmentResult::from)
             .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PurchasedGarmentResult> listPurchasedGarments(Long memberId, Long childId, int page, int size) {
+        requireChildOf(memberId, childId);
+        Page<PurchasedGarmentRow> rows = purchasedGarments.findByChild(childId, PageRequest.of(page, size));
+        // 줄마다 읽지 않도록 그 페이지의 상품을 한 번에 읽는다
+        Map<Long, RecommendReplicaProduct> products = new HashMap<>();
+        for (RecommendReplicaProduct product : replicaProductRepository.findAllById(productIdsOf(rows))) {
+            products.put(product.getProductId(), product);
+        }
+        return rows.map(row -> toResult(row, products.get(row.productId())));
+    }
+
+    private static Set<Long> productIdsOf(Page<PurchasedGarmentRow> rows) {
+        Set<Long> productIds = new HashSet<>();
+        for (PurchasedGarmentRow row : rows) {
+            productIds.add(row.productId());
+        }
+        return productIds;
+    }
+
+    private static PurchasedGarmentResult toResult(PurchasedGarmentRow row, RecommendReplicaProduct product) {
+        if (product == null) {
+            return new PurchasedGarmentResult(row.orderItemId(), row.productId(), null, null, row.size(), null,
+                row.confirmedAt());
+        }
+        Map<String, BigDecimal> measurements = null;
+        for (RecommendReplicaSizeSpec spec : product.getSizeSpecs()) {
+            if (spec.getSize().equals(row.size())) {
+                measurements = spec.getMeasurements();
+            }
+        }
+        return new PurchasedGarmentResult(row.orderItemId(), row.productId(), product.getName(),
+            product.getCategoryId(), row.size(), measurements, row.confirmedAt());
     }
 
     @Transactional
