@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.ai;
 
+import static java.util.Objects.requireNonNull;
+
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
@@ -8,6 +10,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -34,7 +37,7 @@ public class AiResponseService {
     private final JsonMapper jsonMapper;
     private final Clock clock;
     private final int dailyCallLimit;
-    private final Duration callTimeout;
+    private final Map<AiResponseType, Duration> callTimeouts;
     private final Duration reusePeriod;
 
     @Autowired
@@ -43,11 +46,17 @@ public class AiResponseService {
         AiCallQuota quota,
         JsonMapper jsonMapper,
         @Value("${kidly.recommend.ai.daily-call-limit:2000}") int dailyCallLimit,
-        @Value("${kidly.recommend.ai.call-timeout:PT2.5S}") Duration callTimeout,
+        // 화면이 아래쪽에 있어 늦게 보여도 되는 기능일수록 길게 기다린다. Gateway의 추천 경로 제한 시간보다 짧아야 한다
+        @Value("${kidly.recommend.ai.call-timeout.home-preview:PT3S}") Duration homePreviewTimeout,
+        @Value("${kidly.recommend.ai.call-timeout.bought-together:PT4S}") Duration boughtTogetherTimeout,
+        @Value("${kidly.recommend.ai.call-timeout.size-recommendation:PT3.5S}") Duration sizeRecommendationTimeout,
         @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod
     ) {
-        this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")),
-            dailyCallLimit, callTimeout, reusePeriod);
+        this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit,
+            Map.of(AiResponseType.HOME_PREVIEW, homePreviewTimeout,
+                AiResponseType.BOUGHT_TOGETHER, boughtTogetherTimeout,
+                AiResponseType.SIZE_RECOMMENDATION, sizeRecommendationTimeout),
+            reusePeriod);
     }
 
     public AiResponseService(
@@ -56,7 +65,7 @@ public class AiResponseService {
         JsonMapper jsonMapper,
         Clock clock,
         int dailyCallLimit,
-        Duration callTimeout,
+        Map<AiResponseType, Duration> callTimeouts,
         Duration reusePeriod
     ) {
         this.store = store;
@@ -64,7 +73,7 @@ public class AiResponseService {
         this.jsonMapper = jsonMapper;
         this.clock = clock;
         this.dailyCallLimit = dailyCallLimit;
-        this.callTimeout = callTimeout;
+        this.callTimeouts = Map.copyOf(callTimeouts);
         this.reusePeriod = reusePeriod;
     }
 
@@ -153,6 +162,7 @@ public class AiResponseService {
         FutureTask<T> task = new FutureTask<>(call::get);
         Thread.ofVirtual().start(task);
         try {
+            Duration callTimeout = requireNonNull(callTimeouts.get(type), "종류별 제한 시간이 없습니다");
             return Optional.ofNullable(task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

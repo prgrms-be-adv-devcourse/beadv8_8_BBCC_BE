@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -84,7 +85,7 @@ class AiResponseServiceIntegrationTest {
 
     private AiResponseService fixedClockService() {
         return new AiResponseService(
-            store, quota, jsonMapper, CLOCK, 2_000, Duration.ofSeconds(2), Duration.ofHours(24));
+            store, quota, jsonMapper, CLOCK, 2_000, Map.of(TYPE, Duration.ofSeconds(2)), Duration.ofHours(24));
     }
 
     private Integer callCountOn(LocalDate date) {
