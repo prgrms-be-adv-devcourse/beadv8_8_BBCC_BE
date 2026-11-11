@@ -95,25 +95,30 @@ if (( ${#k3s_services[@]} > 0 )); then
   ns=$(python3 k3s/k3s.py namespace "$APP_ENV")
   kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply --server-side -f - > /dev/null
   python3 k3s/k3s.py pull-secret "$APP_ENV" "$DOCKER_CONFIG" | kubectl apply --server-side --force-conflicts -f - > /dev/null
-  # 두 프로세스가 함께 돌면 안 되는 서비스(k3s.py 의 SINGLE_INSTANCE)는 맨 뒤에 올린다. 그 전에 compose 의 옛 컨테이너를 멈추므로
-  # Gateway 가 NodePort 로 다시 뜰 때까지 그 서비스만 잠깐 응답하지 못한다(처음 옮길 때 한 번)
-  rolling=() last=()
-  for line in "${k3s_services[@]}"; do
-    read -r _ name _ <<< "$line"
-    if python3 k3s/k3s.py single-instance "$APP_ENV" "$name"; then last+=("$line"); else rolling+=("$line"); fi
+  # 순서(k3s.py 의 rank): 롤링 서비스 → 두 프로세스가 함께 돌면 안 되는 서비스(SINGLE_INSTANCE) → Gateway(EDGE)
+  # SINGLE_INSTANCE 는 compose 의 옛 컨테이너를 먼저 멈추므로 Gateway 가 새 주소로 다시 뜰 때까지 그 서비스만 잠깐 응답하지 못한다(처음 옮길 때 한 번)
+  # Gateway 는 다른 서비스를 클러스터 안 이름으로 부르므로 그 서비스들이 모두 뜬 뒤에 올린다
+  ordered=()
+  for rank in 0 1 2; do
+    for line in "${k3s_services[@]}"; do
+      read -r _ _ name _ <<< "$line"
+      if [[ "$(python3 k3s/k3s.py rank "$APP_ENV" "$name")" == "$rank" ]]; then ordered+=("$line"); fi
+    done
   done
-  ordered=("${rolling[@]}" "${last[@]}")
   for line in "${ordered[@]}"; do
-    read -r service name node_port <<< "$line"
+    read -r service profile name node_port job <<< "$line"
     if python3 k3s/k3s.py single-instance "$APP_ENV" "$name"; then
-      compose --profile "$name" rm --stop --force "$service"
+      compose --profile "$profile" rm --stop --force "$service"
     fi
     # 받을 수 없는 이미지면 Pod 가 ImagePullBackOff 로 남는다. 바꾸기 전에 멈춘다
-    image=$(compose --profile "$name" config --images "$service")
-    docker manifest inspect "$image" > /dev/null || { echo "::error::$image 를 GHCR 에서 받을 수 없습니다"; exit 1; }
+    image=$(compose --profile "$profile" config --images "$service")
+    # GHCR 이미지만 확인한다(kafka-exporter 처럼 공개 이미지는 digest 로 고정돼 있다)
+    if [[ "$image" == ghcr.io/* ]]; then
+      docker manifest inspect "$image" > /dev/null || { echo "::error::$image 를 GHCR 에서 받을 수 없습니다"; exit 1; }
+    fi
     # 손으로 바꾼 필드가 있어도 레포 내용으로 되돌린다(--force-conflicts). replicas 는 매니페스트에 없어 HPA · 끄기 값이 남는다
-    compose --profile "$name" config --format json "$service" \
-      | python3 k3s/k3s.py manifest "$APP_ENV" "$service" "$name" "$node_port" \
+    compose --profile "$profile" config --format json "$service" \
+      | python3 k3s/k3s.py manifest "$APP_ENV" "$service" "$name" "$node_port" "$job" \
       | kubectl apply --server-side --force-conflicts -f - > /dev/null
     if ! kubectl -n "$ns" rollout status "deploy/$name" --timeout 420s; then
       echo "::error::k3s 의 $name 이 420s 안에 준비되지 않았습니다"
@@ -129,7 +134,8 @@ if (( ${#k3s_services[@]} > 0 )); then
 fi
 # 앱이 healthy 가 되지 못하면 워크플로가 원인을 뽑을 수 있게 앱 로그를 남기고 실패한다 (.github/scripts/startup-error.sh)
 # --remove-orphans: compose 에서 뺀 서비스(t3.medium 으로 옮긴 elasticsearch)의 컨테이너를 지운다. 볼륨은 남는다
-if ! compose up -d --wait --remove-orphans; then
+# 모든 서비스가 k3s 에 뜨는 환경(COMPOSE_PROFILES 가 빔)은 compose 로 띄울 것이 없다(up 은 no service selected 로 실패한다)
+if [[ -n "$services" ]] && ! compose up -d --wait --remove-orphans; then
   echo "::group::앱 로그 (마지막 1000줄)"
   compose logs --no-log-prefix --no-color --tail 1000 || true
   echo "::endgroup::"
@@ -188,10 +194,10 @@ if ! compose up -d --wait --remove-orphans; then
   exit 1
 fi
 # k3s 로 옮겨 간 서비스의 옛 compose 컨테이너를 지운다. --remove-orphans 는 꺼진 profile 의 컨테이너를 남긴다
-# 위에서 k3s 의 새 Pod 가 준비됐고 Gateway 도 NodePort 를 보도록 다시 떴으므로 끊기지 않는다. 없으면 아무것도 하지 않는다
+# 위에서 k3s 의 새 Pod 가 준비됐고 Gateway 도 새 주소로 다시 떴으므로 끊기지 않는다. Gateway 를 옮길 때는 nginx 가 새 NodePort 를 먼저 찾는다(deploy/nginx). 없으면 아무것도 하지 않는다
 for line in "${k3s_services[@]}"; do
-  read -r service name _ <<< "$line"
-  compose --profile "$name" rm --stop --force "$service"
+  read -r service profile _ <<< "$line"
+  compose --profile "$profile" rm --stop --force "$service"
 done
 # 추천만 따로 띄우던 옛 namespace(#1028). 같은 서비스가 kidly-<환경> 에 떴으므로 지운다. 없으면 아무것도 하지 않는다
 if (( ${#k3s_services[@]} > 0 )); then

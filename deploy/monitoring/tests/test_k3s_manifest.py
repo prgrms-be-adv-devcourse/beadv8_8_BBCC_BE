@@ -25,6 +25,8 @@ class K3sManifestTests(unittest.TestCase):
             'image': 'ghcr.io/x/member-service:abc',
             'mem_limit': str(512 * 1024 * 1024),
             'environment': {'SPRING_PROFILES_ACTIVE': 'dev', 'DB_PASSWORD': 'secret', 'MAIL_PASSWORD': None},
+            'healthcheck': {'test': ['CMD', 'curl', '-f', 'http://localhost:8080/actuator/health']},
+            'ports': [{'target': 8080, 'published': '8090', 'host_ip': '127.0.0.1'}],
             'volumes': [
                 {'type': 'bind', 'source': str(self.project / 'jwt'), 'target': '/app/jwt', 'read_only': True},
                 {'type': 'bind', 'source': str(self.project / 'logs'), 'target': '/app/logs'},
@@ -34,7 +36,7 @@ class K3sManifestTests(unittest.TestCase):
         return data
 
     def items(self, name='member', service=None):
-        result = k3s.manifest('dev', name, 30204, service or self.service(), self.project)
+        result = k3s.manifest('dev', name, 30204, 'kidly-' + name, service or self.service(), self.project)
         return {item['kind'] + '/' + item['metadata']['name']: item for item in result['items']}
 
     def test_compose_settings_become_deployment_and_node_port(self):
@@ -49,7 +51,7 @@ class K3sManifestTests(unittest.TestCase):
         self.assertNotIn('HorizontalPodAutoscaler/member', items)
 
     def test_service_without_node_port_is_cluster_internal(self):
-        result = k3s.manifest('dev', 'member', None, self.service(), self.project)
+        result = k3s.manifest('dev', 'member', None, 'kidly-member', self.service(), self.project)
         service = [item for item in result['items'] if item['kind'] == 'Service'][0]['spec']
         self.assertEqual(service['type'], 'ClusterIP')
         self.assertNotIn('nodePort', service['ports'][0])
@@ -111,6 +113,39 @@ class K3sManifestTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as stop:
                 k3s.main(['k3s.py', 'single-instance', 'dev', name])
             self.assertEqual(stop.exception.code, code)
+
+    def test_pods_carry_the_prometheus_job_and_skip_service_links(self):
+        pod = self.items()['Deployment/member']['spec']['template']
+        self.assertEqual(pod['metadata']['labels'], {'app': 'member', 'kidly/job': 'kidly-member'})
+        self.assertFalse(pod['spec']['enableServiceLinks'])
+        self.assertEqual(self.items()['Deployment/member']['spec']['selector']['matchLabels'], {'app': 'member'})
+
+    def test_spring_service_uses_actuator_health_groups(self):
+        container = self.items()['Deployment/member']['spec']['template']['spec']['containers'][0]
+        self.assertEqual(container['readinessProbe']['httpGet']['path'], '/actuator/health/readiness')
+
+    def test_kafka_exporter_keeps_compose_command_port_and_lockdown(self):
+        exporter = {
+            'image': 'danielqsj/kafka-exporter:v1.11.0@sha256:abc', 'mem_limit': str(128 * 1024 * 1024),
+            'command': ['--kafka.server=10.0.0.1:30092', '--topic.workers=2'],
+            'ports': [{'target': 9308, 'published': '9308', 'host_ip': '127.0.0.1'}],
+            'user': '65534:65534', 'read_only': True, 'cap_drop': ['ALL'], 'security_opt': ['no-new-privileges:true'],
+        }
+        result = k3s.manifest('dev', 'kafka-exporter', None, 'kidly-kafka', exporter, self.project)
+        items = {item['kind']: item for item in result['items']}
+        container = items['Deployment']['spec']['template']['spec']['containers'][0]
+        self.assertEqual(container['args'], ['--kafka.server=10.0.0.1:30092', '--topic.workers=2'])
+        self.assertEqual(container['ports'], [{'name': 'http', 'containerPort': 9308}])
+        self.assertIn('tcpSocket', container['readinessProbe'])
+        self.assertEqual(container['securityContext'], {
+            'runAsUser': 65534, 'runAsNonRoot': True, 'runAsGroup': 65534, 'readOnlyRootFilesystem': True,
+            'capabilities': {'drop': ['ALL']}, 'allowPrivilegeEscalation': False})
+        self.assertEqual(container['volumeMounts'], [])
+        self.assertEqual(items['Service']['spec']['ports'][0]['port'], 9308)
+        self.assertEqual(items['Deployment']['spec']['template']['metadata']['labels']['kidly/job'], 'kidly-kafka')
+
+    def test_gateway_goes_after_services_that_it_calls(self):
+        self.assertEqual([k3s.rank(name) for name in ('member', 'product', 'gateway')], [0, 1, 2])
 
     def test_pull_secret_needs_ghcr_login(self):
         config = self.project / 'docker'

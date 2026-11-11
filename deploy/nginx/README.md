@@ -1,6 +1,6 @@
 # nginx + HTTPS 설정
 
-앱 서버(t3.large)에서 nginx 가 443 을 받아 운영 Gateway(`127.0.0.1:8084`), 개발 Gateway(`127.0.0.1:8083`), Grafana(모니터링 서버 t3.medium 의 Traefik `<사설 IP>:80`)로 넘깁니다.
+앱 서버(t3.large)에서 nginx 가 443 을 받아 운영 Gateway(`127.0.0.1:8084`), 개발 Gateway(t3.large k3s 의 NodePort `127.0.0.1:30200`, deploy/k3s), Grafana(모니터링 서버 t3.medium 의 Traefik `<사설 IP>:80`)로 넘깁니다.
 `/actuator` 와 그 아래 경로는 `/actuator/health` 만 밖으로 열고 나머지는 404 입니다.
 인증서는 ZeroSSL 에서 무료로 받고(ACME), certbot 도커 이미지로 발급·갱신합니다.
 `kro.kr` 은 공용 접미사 목록(PSL)에 없어 Let's Encrypt 의 "등록 도메인당 주 50장" 한도를 모든 `kro.kr` 사용자와 나눠 쓰기 때문에 자주 막힙니다.
@@ -8,7 +8,7 @@
 | 주소 | 연결되는 곳 |
 | --- | --- |
 | `https://api.<도메인>` | Gateway (8084). `/actuator/health` 도 Gateway가 받음 |
-| `https://dev-api.<도메인>` | Gateway (8083). `/actuator/health` 도 Gateway가 받음 |
+| `https://dev-api.<도메인>` | Gateway (k3s NodePort 30200). `/actuator/health` 도 Gateway가 받음 |
 | `https://grafana.<도메인>` | Grafana (t3.medium k3s, `deploy/monitoring`) |
 | IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음 |
 
