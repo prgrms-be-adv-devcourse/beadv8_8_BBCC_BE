@@ -118,6 +118,42 @@ class SizeRecommendationApiTest {
             .jsonPath("$").value(Map.class, body -> assertThat(body).containsEntry("referenceFit", null));
     }
 
+    // 자녀 1은 키 115cm이고 성장 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 큰다
+    @Test
+    @DisplayName("GROW-01 · WEAR-03 성장 속도와 사이즈별 입을 수 있는 기간을 받고, 없는 최근 속도와 너비 기준은 칸을 빼지 않고 null로 받는다")
+    void recommendSizeWithGrowthSpeedAndWearablePeriods() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.growthSpeed.cmPerMonth").isEqualTo(0.5)
+            .jsonPath("$.growthSpeed.recordCount").isEqualTo(0)
+            .jsonPath("$.growthSpeed.childSharePercent").isEqualTo(0)
+            .jsonPath("$.growthSpeed.tableSource").isEqualTo("한국아동패널")
+            .jsonPath("$.growthSpeed").value(Map.class,
+                growthSpeed -> assertThat(growthSpeed).containsEntry("recentCmPerMonth", null))
+            .jsonPath("$.wearablePeriods.length()").isEqualTo(2)
+            .jsonPath("$.wearablePeriods[1].size").isEqualTo("120")
+            .jsonPath("$.wearablePeriods[1].lengthMonths").isEqualTo(20)
+            .jsonPath("$.wearablePeriods[1].months").isEqualTo(20)
+            .jsonPath("$.wearablePeriods[1]").value(Map.class,
+                period -> assertThat(period).containsEntry("widthMonths", null));
+    }
+
+    @Test
+    @DisplayName("WEAR-04 사이즈 무관 상품은 입을 수 있는 기간을 null이 아닌 빈 목록으로 받는다")
+    void recommendSizeFreeProductWithoutWearablePeriods() {
+        replicaProductRepository.save(RecommendFixture.productASizeFreeReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.wearablePeriods.length()").isEqualTo(0);
+    }
+
     @Test
     @DisplayName("AI 모델이 없으면 규칙 결과로 답하고, 출처는 RULE이고 근거는 빈 목록이다")
     void recommendSizeByRuleWithoutAiModel() {

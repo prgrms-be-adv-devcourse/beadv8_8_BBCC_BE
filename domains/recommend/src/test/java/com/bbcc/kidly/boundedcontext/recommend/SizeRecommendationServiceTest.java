@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendati
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
@@ -197,6 +198,26 @@ class SizeRecommendationServiceTest {
         assertThat(result.source()).isEqualTo("RULE");
         assertThat(output.getOut()).contains("규칙 결과로 답합니다", "promptVersion=1", "productId=10")
             .doesNotContain("childId", "memberId");
+    }
+
+    @Test
+    @DisplayName("GROW-01 · WEAR-03 AI 모델이 없어 규칙 결과로 답해도 성장 속도와 사이즈별 입을 수 있는 기간을 결과에 담는다")
+    void resultHasGrowthSpeedAndWearablePeriodsWithoutAi() {
+        SizeAiQuestion question = new SizeAiQuestion(null, List.of(), null, null,
+            new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0,
+                new BigDecimal("0.50"), "한국아동패널"),
+            List.of(new WearablePeriod("120", 20, null, 20)));
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, question, EVIDENCE));
+
+        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+            .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(result.growthSpeed()).isEqualTo(new SizeRecommendationResult.GrowthSpeed(
+            new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널"));
+        assertThat(result.wearablePeriods())
+            .containsExactly(new SizeRecommendationResult.WearablePeriod("120", 20, null, 20));
     }
 
     // 상의 기준 옷 가슴단면 34cm와 상품 120의 가슴단면 36cm를 비교한 기준 핏을 넘긴 초안이다

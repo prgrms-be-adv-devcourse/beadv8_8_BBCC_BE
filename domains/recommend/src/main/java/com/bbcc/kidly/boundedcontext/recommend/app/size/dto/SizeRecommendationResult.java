@@ -14,6 +14,8 @@ import java.util.List;
  * @param reasons 사이즈를 고른 근거이고, 근거가 없으면 빈 목록이다
  * @param referenceFit 자녀의 기준 옷과 이 상품을 비교한 기준 핏이고, 기준 옷이 없거나 비교할 수 없으면 null이다
  * @param itemJudgements AI 답을 채택했을 때의 실측 항목별 판단이고, 규칙 결과이거나 판단이 없으면 빈 목록이다
+ * @param growthSpeed 자녀의 키 성장 속도이고, 질문에 성장 속도가 없으면 null이다
+ * @param wearablePeriods 사이즈별로 앞으로 몇 개월 입을 수 있는지이고, 사이즈 무관 상품이나 모자 · 양말처럼 계산하지 않으면 빈 목록이다
  */
 public record SizeRecommendationResult(
     Long productId,
@@ -26,7 +28,9 @@ public record SizeRecommendationResult(
     String source,
     List<Reason> reasons,
     ReferenceFit referenceFit,
-    List<ItemJudgement> itemJudgements) {
+    List<ItemJudgement> itemJudgements,
+    GrowthSpeed growthSpeed,
+    List<WearablePeriod> wearablePeriods) {
 
     /**
      * @param code 안내 종류의 이름
@@ -73,5 +77,30 @@ public record SizeRecommendationResult(
      */
     public record ItemJudgement(String code, BigDecimal diffCm, String fit, BigDecimal allowanceMinCm,
                                 BigDecimal allowanceMaxCm) {
+    }
+
+    /**
+     * 숫자는 소수 둘째 자리까지 반올림한 값이다.
+     *
+     * @param cmPerMonth 전체 성장 속도(cm/월)
+     * @param recentCmPerMonth 최근 3개월 성장 속도(cm/월)이고, 기록이 부족하면 null이다
+     * @param recordCount 계산에 쓴 성장 기록 개수
+     * @param recordMonths 첫 기록과 마지막 기록 사이 개월 수
+     * @param childSharePercent 전체 속도에서 자녀 기록이 차지하는 비중(0 ~ 100)
+     * @param tableCmPerMonth 나이 · 성별 표 값(cm/월)
+     * @param tableSource 표 출처
+     */
+    public record GrowthSpeed(BigDecimal cmPerMonth, BigDecimal recentCmPerMonth, int recordCount,
+                              BigDecimal recordMonths, int childSharePercent, BigDecimal tableCmPerMonth,
+                              String tableSource) {
+    }
+
+    /**
+     * @param size 사이즈 이름
+     * @param lengthMonths 권장 키 상한까지 크는 데 걸리는 개월 수이고, 계산할 수 없으면 null이다
+     * @param widthMonths 기준 옷보다 큰 너비를 몸이 채우는 데 걸리는 개월 수이고, 계산할 수 없으면 null이다
+     * @param months 길이 기준과 너비 기준 중 짧은 개월 수이고, 계산할 수 없으면 null이다
+     */
+    public record WearablePeriod(String size, Integer lengthMonths, Integer widthMonths, Integer months) {
     }
 }
