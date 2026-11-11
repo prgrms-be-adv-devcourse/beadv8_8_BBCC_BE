@@ -62,7 +62,7 @@ v1.1: 단계 연결이 끝나 v1.0의 「혼자 시작하기」 칸과 7.1 「�
 | `PATCH /api/v1/members/me/addresses/{addressId}/default` | 기본 배송지 변경 |
 
 - **완료 기준** 카카오로 로그인하면 회원과 지갑이 생기고, 자녀를 등록해 목록에서 볼 수 있다. 배송지를 등록하고 기본 배송지를 바꿀 수 있고, Refresh Token으로 재발급 · 로그아웃할 수 있다.
-- **최종** 결제가 `member.withdrawn`을 받아 지갑을 동결한다(잔액은 운영자가 환급). 로그인 회원 확인은 Gateway가 하고, 판매자 자격을 잃으면 `member.tokens-revoked`로 토큰이 무효화된다.
+- **최종** 결제가 `member.withdrawn`을 받아 지갑을 동결한다(잔액은 운영자가 환급). 로그인 회원 확인은 Gateway가 하고, 판매자 자격을 잃으면 `auth.tokens-revoked`로 토큰이 무효화된다.
 
 ## ② 상품 등록
 
