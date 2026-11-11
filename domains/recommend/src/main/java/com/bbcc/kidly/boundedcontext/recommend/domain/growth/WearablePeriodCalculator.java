@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.growth;
 
 import static java.util.Objects.requireNonNull;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
@@ -35,6 +36,14 @@ public class WearablePeriodCalculator {
         requireNonNull(info.sizes(), "sizes는 필수입니다");
         requireNonNull(info.categoryPathNames(), "categoryPathNames는 필수입니다");
         requireNonNull(info.gender(), "gender는 필수입니다");
+        // 사이즈 무관 상품은 고를 사이즈가 없다
+        if (info.sizes().isSizeFree()) {
+            return List.of();
+        }
+        // 기준 핏 비교와 같은 기준으로 고른다. 모자 · 양말처럼 어느 기준 옷 칸에도 맞지 않으면 계산하지 않는다
+        if (GarmentPart.ofCategoryPath(info.categoryPathNames()) == null) {
+            return List.of();
+        }
         List<WearablePeriod> periods = new ArrayList<>();
         for (SizeRange range : info.sizes().sizeRanges()) {
             // 한 달 성장량이 0 이하면 나눌 수 없어 계산하지 않는다
