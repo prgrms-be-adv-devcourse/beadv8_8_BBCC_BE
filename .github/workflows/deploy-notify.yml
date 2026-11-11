@@ -52,12 +52,13 @@ jobs:
             *)         COLOR="#8c959f"; RESULT="❔ 배포 $CONCLUSION" ;;
           esac
 
-          # 뒤에 더 새 배포가 줄 서 있어 건너뛴 run(deploy.yml 의 superseded, #1169)은 성공으로 끝나지만 서버에 올리지 않았다
+          # 더 새 배포가 있어 건너뛴 run(deploy.yml 의 superseded · 최신 배포인지 확인, #1169)은 성공으로 끝나지만 서버에 올리지 않았다
           # deploy job 이 건너뛰어졌는지로 가린다. API 호출이 실패하면 그대로 "배포 성공"으로 보낸다
           if [ "$WORKFLOW" = "deploy" ] && [ "$CONCLUSION" = "success" ]; then
+            # 서버에 올리기 직전에 더 새 배포를 보고 건너뛴 경우(deploy job 은 성공, 그 안의 "배포" step 은 건너뜀)도 같다
             jobs=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
-              --jq '[.jobs[] | select(.name == "superseded" or .name == "deploy") | "\(.name)=\(.conclusion)"] | join(" ")' 2>/dev/null) || jobs=""
-            if [[ " $jobs " == *" superseded=success "* && " $jobs " == *" deploy=skipped "* ]]; then
+              --jq '[.jobs[] | select(.name == "superseded" or .name == "deploy") | "\(.name)=\(.conclusion)", (select(.name == "deploy") | .steps[]? | select(.name == "배포") | "deploy-step=\(.conclusion)")] | join(" ")' 2>/dev/null) || jobs=""
+            if [[ " $jobs " == *" superseded=success "* && " $jobs " == *" deploy=skipped "* ]] || [[ " $jobs " == *" deploy=success "* && " $jobs " == *" deploy-step=skipped "* ]]; then
               COLOR="#8c959f"; RESULT="⏭️ 다음 배포에 포함"
             fi
           fi
