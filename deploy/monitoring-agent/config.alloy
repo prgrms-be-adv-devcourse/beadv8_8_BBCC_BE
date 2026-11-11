@@ -438,6 +438,57 @@ prometheus.scrape "containers" {
 	scrape_interval = "15s"
 }
 
+// k3s Pod 컨테이너 CPU · 메모리. 위 cAdvisor 는 docker 컨테이너만 본다(docker_only). k3s 의 Pod 는 kubelet 이 내장한 cAdvisor 에서 읽는다
+// 토큰은 deploy.sh 가 적용한 k3s-metrics.yaml 의 ServiceAccount(nodes/metrics get 만)의 Secret 을 k3s API 로 읽는다. Secret 이 없으면 Alloy 가 뜨지 않으므로 deploy.sh 가 먼저 확인한다
+remote.kubernetes.secret "kidly_metrics_reader" {
+	namespace = "kube-system"
+	name      = "kidly-metrics-reader-token"
+
+	client {
+		kubeconfig_file = "/etc/rancher/k3s/k3s.yaml"
+	}
+}
+
+// instance 는 docker 컨테이너 지표와 같은 호스트 이름이라 Kidly 서버 대시보드의 서버 선택으로 함께 거른다
+prometheus.scrape "k3s_cadvisor" {
+	job_name        = "integrations/kubelet-cadvisor"
+	targets         = [{"__address__" = "127.0.0.1:10250", "instance" = constants.hostname}]
+	scheme          = "https"
+	metrics_path    = "/metrics/cadvisor"
+	scrape_interval = "15s"
+	bearer_token    = remote.kubernetes.secret.kidly_metrics_reader.data["token"]
+
+	// kubelet 은 자체 서명 인증서를 쓴다. 이 서버 안(127.0.0.1)에서만 붙는다
+	tls_config {
+		insecure_skip_verify = true
+	}
+
+	forward_to = [prometheus.relabel.k3s_cadvisor.receiver]
+}
+
+// 시계열을 줄인다: CPU · 메모리 · 메모리 상한만, 컨테이너 줄만(Pod 합계 줄 container="" · pause 는 뺀다), 라벨은 namespace · pod · container 만
+prometheus.relabel "k3s_cadvisor" {
+	forward_to = [prometheus.remote_write.medium.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "container_(cpu_usage_seconds_total|memory_working_set_bytes|spec_memory_limit_bytes)"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["container"]
+		regex         = "|POD"
+		action        = "drop"
+	}
+
+	// 재시작마다 바뀌는 cgroup 경로(id) · 이미지 · containerd 이름은 뺀다
+	rule {
+		regex  = "id|image|name"
+		action = "labeldrop"
+	}
+}
+
 prometheus.remote_write "medium" {
 	endpoint {
 		url = string.format("http://%s:30090/api/v1/write", sys.env("MONITORING_HOST"))
