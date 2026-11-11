@@ -101,6 +101,44 @@ class CompanionSelectionTest {
             .containsExactly(1L, 2L, 3L, 4L);
     }
 
+    static Stream<String> displayableReasons() {
+        return Stream.of("좋아요.", "좋아요", "단정한 느낌을 줍니다.", "단정한 느낌을 줍니다", "가".repeat(38) + "요.");
+    }
+
+    @ParameterizedTest
+    @MethodSource("displayableReasons")
+    @DisplayName("PAIR-08 40자 안에서 「요」나 「니다」로 끝나는 이유는 마침표가 있든 없든 그대로 쓴다")
+    void keepPoliteReasonWithinFortyCharacters(String reason) {
+        CompanionSelection selection =
+            CompanionSelection.of(List.of(new CompanionAiPick(4L, reason)), rankedCandidates(6));
+
+        assertThat(selection.picks().getFirst().reason()).isEqualTo(reason);
+    }
+
+    @Test
+    @DisplayName("PAIR-08 40자를 넘는 이유는 상품은 쓰고 이유만 없는 것으로 본다")
+    void dropReasonLongerThanFortyCharacters() {
+        String reason = "가".repeat(39) + "요.";
+
+        CompanionSelection selection =
+            CompanionSelection.of(List.of(new CompanionAiPick(4L, reason)), rankedCandidates(6));
+
+        assertThat(selection.source()).isEqualTo(CompanionSource.AI);
+        assertThat(selection.picks().getFirst().product().productId()).isEqualTo(4L);
+        assertThat(selection.picks().getFirst().reason()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"같은 색이라 함께 입기 좋다.", "겹쳐 입기 좋아…", "편안한 코디 완성"})
+    @DisplayName("PAIR-08 「요」나 「니다」로 끝나지 않는 이유는 상품은 쓰고 이유만 없는 것으로 본다")
+    void dropReasonNotEndingPolitely(String reason) {
+        CompanionSelection selection =
+            CompanionSelection.of(List.of(new CompanionAiPick(4L, reason)), rankedCandidates(6));
+
+        assertThat(selection.picks().getFirst().product().productId()).isEqualTo(4L);
+        assertThat(selection.picks().getFirst().reason()).isNull();
+    }
+
     static Stream<List<CompanionAiPick>> noUsableAiPicks() {
         return Stream.of(null, List.of(), List.of(new CompanionAiPick(99L, "후보에 없는 상품")));
     }
