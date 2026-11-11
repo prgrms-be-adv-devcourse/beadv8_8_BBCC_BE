@@ -76,21 +76,6 @@ public class SettlementRunService {
         return isCompleted(cutoffOf(SettlementPeriod.daily(today).cutoffAt()));
     }
 
-    /**
-     * 끝나지 않은 실행이 있으면 그중 가장 먼저 시작한 것의 ID와 시작 시각. 없으면 비어 있다.
-     * 서버가 실행 도중 죽으면 기록이 STARTED로 남아 그 뒤 실행이 "실행 중"으로 건너뛰어진다(진행 없이 staleRunAfter가 지나면
-     * 다음 실행이 닫는다). 실행 확인(SettlementRunCheckScheduler)이 이걸로 그래도 닫히지 않은 오래된 실행을 알린다.
-     */
-    public Optional<RunningExecution> findRunningSince() {
-        return jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME).stream()
-            .filter(execution -> execution.getStartTime() != null)
-            .min(Comparator.comparing(JobExecution::getStartTime))
-            .map(execution -> new RunningExecution(execution.getId(), execution.getStartTime()));
-    }
-
-    public record RunningExecution(Long runId, LocalDateTime startedAt) {
-    }
-
     // 오늘 0시를 기준으로 전날까지 확정된 대기 항목을 정산한다. 영업일인지는 호출한 쪽(SettlementDailyRunner)이 확인한다
     public SettlementRunResult runScheduled(LocalDate today) {
         return run(SettlementPeriod.daily(today).cutoffAt(), SettlementTriggerType.SCHEDULED, null);
