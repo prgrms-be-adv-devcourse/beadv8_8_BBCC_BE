@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthSpeed;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthSpeedCalculator;
@@ -12,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -49,6 +51,33 @@ class GrowthSpeedCalculatorTest {
         assertThat(speed.tableCmPerMonth()).isEqualTo(0.5);
         assertThat(speed.childShare()).isEqualTo(0.0);
         assertThat(speed.tableSource()).isEqualTo("한국아동패널");
+    }
+
+    static Stream<Arguments> recordsLongEnough() {
+        return Stream.of(
+            Arguments.of(Named.of("기록 2개, 91일, 115 → 118cm", List.of(
+                record(TODAY.minusDays(91), "115.0"),
+                record(TODAY, "118.0"))), 0.235069, 0.618342),
+            Arguments.of(Named.of("기록 2개, 182일, 115 → 121cm", List.of(
+                record(TODAY.minusDays(182), "115.0"),
+                record(TODAY, "121.0"))), 0.551415, 0.777601),
+            Arguments.of(Named.of("매달 기록 12개, 330일, 한 달 0.6cm씩", IntStream.range(0, 12)
+                .mapToObj(i -> record(TODAY.minusDays(30L * i), String.valueOf(121.0 - 0.6 * i)))
+                .toList()), 0.905232, 0.598444)
+        );
+    }
+
+    // 기대값은 아이 기록 비중 = 표 오차² ÷ (표 오차² + 아이 기록 오차²)을 손으로 계산한 값이다.
+    // 표 오차는 만 6세 여 표준편차 2.36cm/년 ÷ 12, 아이 기록 오차는 측정 오차 0.75cm ÷ √(Σ(기록 시점 − 평균 시점)²)(개월)다.
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("recordsLongEnough")
+    @DisplayName("GROW-03 기간이 1개월 이상이면 아이 기록 기울기와 표 값을 오차가 작은 쪽에 비중을 두어 섞는다")
+    void blendChildSlopeAndTableByError(List<RecommendGrowthRecord> records, double expectedChildShare,
+        double expectedCmPerMonth) {
+        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+
+        assertThat(speed.childShare()).isCloseTo(expectedChildShare, within(0.000001));
+        assertThat(speed.cmPerMonth()).isCloseTo(expectedCmPerMonth, within(0.000001));
     }
 
     private static RecommendGrowthRecord record(LocalDate recordedOn, String heightCm) {
