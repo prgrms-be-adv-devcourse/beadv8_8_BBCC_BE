@@ -25,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementMetricsTest {
@@ -85,11 +87,18 @@ class SettlementMetricsTest {
     }
 
     @Test
-    @DisplayName("지급 실패 카운터는 기동 때 0으로 등록되고 한 건마다 1 오른다")
+    @DisplayName("지급 실패 카운터는 기동 때 0으로 등록되고 커밋된 뒤에만 1 오른다")
     void payoutFailureCounterStartsAtZero() {
         var counter = registry.get("settlement_payout_failed_total").counter();
         assertThat(counter.count()).isZero();
-        metrics.countPayoutFailed();
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            metrics.countPayoutFailed();
+            assertThat(counter.count()).isZero();
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
         assertThat(counter.count()).isEqualTo(1);
     }
 
