@@ -22,12 +22,12 @@ class ChildActivityEvidenceTest {
 
     @ParameterizedTest
     @CsvSource({"4, false", "5, true", "12, true"})
-    @DisplayName("HOME-05 30일 안에 5번 이상 본 카테고리면 「자주 본 카테고리」 근거를 붙인다")
+    @DisplayName("HOME-05 30일 안에 5번 이상 찾아본(상품 조회 · 검색 · 담기) 카테고리면 「자주 찾아본 카테고리」 근거를 붙인다")
     void frequentlyViewedCategory(int activityCount, boolean expected) {
         ChildActivityEvidence evidence = new ChildActivityEvidence(Map.of(PANTS_ID, activityCount), Map.of(),
             Map.of(), Set.of(), Set.of());
 
-        boolean labeled = evidence.labelsFor(PANTS_ID, PANTS, null).contains("자주 본 카테고리: 바지");
+        boolean labeled = evidence.labelsFor(PANTS_ID, PANTS, null).contains("자주 찾아본 카테고리: 바지");
 
         assertThat(labeled).isEqualTo(expected);
     }
@@ -43,12 +43,12 @@ class ChildActivityEvidenceTest {
 
     @ParameterizedTest
     @CsvSource({"4, false", "5, true"})
-    @DisplayName("HOME-05 30일 안에 5번 이상 본 브랜드면 「자주 본 브랜드」 근거를 붙인다")
+    @DisplayName("HOME-05 30일 안에 5번 이상 찾아본 브랜드면 「자주 찾아본 브랜드」 근거를 붙인다")
     void frequentlyViewedBrand(int activityCount, boolean expected) {
         ChildActivityEvidence evidence = new ChildActivityEvidence(Map.of(), Map.of(), Map.of(BRAND, activityCount),
             Set.of(), Set.of());
 
-        assertThat(evidence.labelsFor(PANTS_ID, PANTS, BRAND).contains("자주 본 브랜드: 데님하우스")).isEqualTo(expected);
+        assertThat(evidence.labelsFor(PANTS_ID, PANTS, BRAND).contains("자주 찾아본 브랜드: 데님하우스")).isEqualTo(expected);
     }
 
     @Test
@@ -71,13 +71,13 @@ class ChildActivityEvidenceTest {
     }
 
     @Test
-    @DisplayName("HOME-05 근거가 여러 개면 자주 본 근거를 활동 횟수가 많은 순으로 먼저 두고, 담은 · 산 근거를 뒤에 둔다")
+    @DisplayName("HOME-05 근거가 여러 개면 자주 찾아본 근거를 활동 횟수가 많은 순으로 먼저 두고, 담은 · 산 근거를 뒤에 둔다")
     void orderFrequentByCountThenCartAndPurchase() {
         ChildActivityEvidence evidence = new ChildActivityEvidence(Map.of(PANTS_ID, 6), Map.of(PANTS_ID, 2),
             Map.of(BRAND, 9), Set.of(BRAND), Set.of(PANTS_ID));
 
         assertThat(evidence.labelsFor(PANTS_ID, PANTS, BRAND)).containsExactly(
-            "자주 본 브랜드: 데님하우스", "자주 본 카테고리: 바지", "장바구니에 담은 카테고리: 바지",
+            "자주 찾아본 브랜드: 데님하우스", "자주 찾아본 카테고리: 바지", "장바구니에 담은 카테고리: 바지",
             "산 적 있는 브랜드: 데님하우스", "전에 산 카테고리: 바지");
     }
 
@@ -88,5 +88,14 @@ class ChildActivityEvidenceTest {
             Map.of("다른 브랜드", 9), Set.of("다른 브랜드"), Set.of(99L));
 
         assertThat(evidence.labelsFor(PANTS_ID, PANTS, BRAND)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("HOME-05 카테고리가 없는 후보는 카테고리 근거 없이 브랜드 근거만 붙이고 예외를 던지지 않는다")
+    void skipCategoryLabelsWithoutCategory() {
+        ChildActivityEvidence evidence = new ChildActivityEvidence(Map.of(PANTS_ID, 9), Map.of(PANTS_ID, 1),
+            Map.of(), Set.of(BRAND), Set.of(PANTS_ID));
+
+        assertThat(evidence.labelsFor(null, null, BRAND)).containsExactly("산 적 있는 브랜드: 데님하우스");
     }
 }
