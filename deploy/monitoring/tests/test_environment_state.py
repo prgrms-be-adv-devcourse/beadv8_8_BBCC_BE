@@ -177,6 +177,20 @@ class EnvironmentStateTests(unittest.TestCase):
             state.control('dev', 'stop')
         self.assertFalse(any(call.args[0][0] == 'kubectl' for call in run.call_args_list))
 
+    def test_everything_on_k3s_needs_no_compose_up_and_keeps_kafka_expected(self):
+        (self.root / 'dev/.env').write_text(
+            'COMPOSE_PROFILES=\nK3S_PROFILES=member,gateway,kafka-monitoring\nGATEWAY_NODE_PORT=30200\nKAFKA_EXPORTER_PORT=9308\n')
+        self.assertEqual(state.k3s_workloads('dev'), [
+            ('gateway', 'gateway', 'gateway', 30200, 'kidly-gateway'),
+            ('member-service', 'member', 'member', None, 'kidly-member'),
+            ('kafka-exporter', 'kafka-monitoring', 'kafka-exporter', None, 'kidly-kafka')])
+        with patch.object(state, 'run', return_value='') as run:
+            running = state.control('dev', 'resume')
+        self.assertFalse(any(call.args[0][:2] == ['docker', 'compose'] for call in run.call_args_list))
+        self.assertEqual(running['jobs'], ['kidly-gateway', 'kidly-member'])
+        self.assertTrue(running['kafka_exporter_expected'])
+        self.assertFalse((self.root / 'monitoring/targets/kafka/dev.yml').exists())
+
     def test_service_in_both_compose_and_k3s_is_rejected(self):
         (self.root / 'dev/.env').write_text(
             'COMPOSE_PROFILES=recommend\nK3S_PROFILES=recommend\nRECOMMEND_PORT=8087\n')
