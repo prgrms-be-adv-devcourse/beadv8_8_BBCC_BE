@@ -60,12 +60,13 @@ public class OpenAiHomePreviewPicker implements HomePreviewPicker {
     private String userText(HomePreviewAiRequest request) {
         HomePreviewAiRequest.Child child = request.child();
         StringBuilder text = new StringBuilder();
+        text.append("오늘 날짜: ").append(valueOrUnknown(request.today())).append("\n");
         text.append("자녀: 개월 수 ").append(valueOrUnknown(child.ageMonths()))
             .append(", 키(cm) ").append(valueOrUnknown(child.heightCm()))
             .append(", 몸무게(kg) ").append(valueOrUnknown(child.weightKg()))
             .append(", 체형 ").append(valueOrUnknown(child.bodyType()))
             .append(", 선호 핏 ").append(valueOrUnknown(child.preferredFit()))
-            .append("\n\n후보 상품(ID | 이름 | 브랜드 | 카테고리 | 최저가 | 추천 사이즈):\n");
+            .append("\n\n후보 상품(ID | 이름 | 브랜드 | 카테고리 | 최저가 | 추천 사이즈 | 자녀 활동 근거 | 색상 | 상품 정보):\n");
         for (HomePreviewAiRequest.Candidate candidate : request.candidates()) {
             text.append(candidate.productId())
                 .append(" | ").append(oneLine(candidate.name()))
@@ -73,6 +74,9 @@ public class OpenAiHomePreviewPicker implements HomePreviewPicker {
                 .append(" | ").append(categoryText(candidate.categoryPath()))
                 .append(" | ").append(valueOrUnknown(candidate.minPrice()))
                 .append(" | ").append(valueOrUnknown(candidate.recommendedSize()))
+                .append(" | ").append(listText(candidate.evidence()))
+                .append(" | ").append(listText(candidate.colors()))
+                .append(" | ").append(oneLine(candidate.productInfo()))
                 .append('\n');
         }
         return text.toString();
@@ -84,6 +88,18 @@ public class OpenAiHomePreviewPicker implements HomePreviewPicker {
             names.add(oneLine(name));
         }
         return String.join(" > ", names);
+    }
+
+    // 목록의 각 값을 한 줄로 바꿔 쉼표로 잇는다. 목록이 비면 「없음」이다
+    private String listText(List<String> values) {
+        if (values.isEmpty()) {
+            return "없음";
+        }
+        List<String> texts = new ArrayList<>();
+        for (String value : values) {
+            texts.add(oneLine(value));
+        }
+        return String.join(", ", texts);
     }
 
     // 판매자가 입력한 글이 프롬프트의 줄 구조를 깨거나 지시처럼 읽히지 않게,

@@ -76,7 +76,7 @@ public class HomePreviewCandidateReader {
         List<RecommendedProduct> products = selector.candidates(ranking.rank(memberId, child, null, asOf));
         ChildActivityEvidence evidence = readEvidence(child.getChildProfileId(), now);
         HomePreviewAiRequest aiRequest = new HomePreviewAiRequest(
-            toAiChild(child, now.toLocalDate()), toAiCandidates(products, evidence));
+            toAiChild(child, now.toLocalDate()), toAiCandidates(products, evidence), now.toLocalDate());
         return new HomePreviewCandidates(child.getChildProfileId(), products, aiRequest);
     }
 
