@@ -59,6 +59,8 @@ public class JpaSellerProductQuery implements SellerProductQuery {
                 row.get(product.status),
                 row.get(optionCount),
                 row.get(availableQuantity),
+                0L,
+                0L,
                 row.get(minPrice),
                 row.get(product.createdAt)));
         }

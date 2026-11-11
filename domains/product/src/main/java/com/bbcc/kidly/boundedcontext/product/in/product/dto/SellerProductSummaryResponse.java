@@ -16,6 +16,8 @@ public record SellerProductSummaryResponse(
     String status,
     long optionCount,
     long totalAvailableQuantity,
+    long soldOutOptionCount,
+    long lowStockOptionCount,
     Long minPrice,
     LocalDateTime createdAt) {
 
@@ -27,6 +29,8 @@ public record SellerProductSummaryResponse(
             summary.status().name(),
             summary.optionCount(),
             summary.totalAvailableQuantity(),
+            summary.soldOutOptionCount(),
+            summary.lowStockOptionCount(),
             summary.minPrice(),
             summary.createdAt());
     }
