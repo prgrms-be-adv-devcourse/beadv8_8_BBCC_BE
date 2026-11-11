@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduc
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct.SizeMeasurements;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.HemPosition;
 import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
 import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreviewCalculator;
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.GrowthTableConfig;
@@ -64,6 +65,37 @@ class WearPreviewCalculatorTest {
         assertThat(preview.garment()).isEqualTo(expectedGarment);
         assertThat(preview.sizes()).extracting(WearPreview.SizeWear::size, WearPreview.SizeWear::hemCm)
             .containsExactly(tuple("120", expectedHemCm));
+    }
+
+    // 만 6세 여 120cm: 목뒤 99.36 · 허리 72.6 · 엉덩이 57.72 · 샅 52.44 · 무릎 30.6 · 가쪽복사 5.16cm.
+    // 샅과 무릎의 가운데는 41.52cm, 무릎 ± 2cm는 28.6 ~ 32.6cm, 가쪽복사 ± 2cm는 3.16 ~ 7.16cm다
+    @ParameterizedTest(name = "상의 총장 {0}cm(밑단 {1}cm) → {2}")
+    @CsvSource({
+        "25.0, 74.36, ABOVE_WAIST",
+        "26.7, 72.66, ABOVE_WAIST",
+        "26.8, 72.56, WAIST_HIP",
+        "35.0, 64.36, WAIST_HIP",
+        "45.0, 54.36, HIP",
+        "50.0, 49.36, THIGH",
+        "63.0, 36.36, ABOVE_KNEE",
+        "66.7, 32.66, ABOVE_KNEE",
+        "66.8, 32.56, KNEE",
+        "69.0, 30.36, KNEE",
+        "70.7, 28.66, KNEE",
+        "70.8, 28.56, BELOW_KNEE",
+        "80.0, 19.36, BELOW_KNEE",
+        "92.1, 7.26, BELOW_KNEE",
+        "92.3, 7.06, ANKLE",
+        "96.1, 3.26, ANKLE",
+        "96.3, 3.06, FLOOR",
+    })
+    @DisplayName("PRV-03 밑단 위치는 허리 · 엉덩이 · 샅 · 샅과 무릎의 가운데를 넘을 때마다 바뀌고, 무릎 · 가쪽복사 ± 2cm는 KNEE · ANKLE이다")
+    void hemPositionByBodyHeights(String totalLengthCm, double hemCm, HemPosition expected) {
+        FitProduct product = product(TOP_PATH, size("120", totalLengthCm, null));
+
+        WearPreview preview = calculator.preview(product, GIRL_120, TODAY).orElseThrow();
+
+        assertThat(preview.sizes()).extracting(WearPreview.SizeWear::hemAt).containsExactly(expected);
     }
 
     private static FitProduct product(List<String> categoryPathNames, SizeMeasurements... sizes) {
