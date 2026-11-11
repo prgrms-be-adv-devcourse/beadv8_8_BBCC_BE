@@ -123,6 +123,17 @@ class OpenAiCompanionAiPickerTest {
             .doesNotContain("순위 1 | 상품 ID 7001");
     }
 
+    @Test
+    @DisplayName("PAIR-06 AI에 앞 순위를 우선하되 어울리지 않으면 건너뛰고, 짝 종류를 섞어서 고르라고 지시한다")
+    void instructRankAndKindMix() {
+        chatModel.answer = "{\"picks\": []}";
+
+        picker.pick(request());
+
+        assertThat(chatModel.lastPrompt.getSystemMessage().getText())
+            .contains("앞 순위를 우선", "건너뛴다", "섞어서");
+    }
+
     private static CompanionAiRequest request() {
         CompanionAiProduct viewed = new CompanionAiProduct(7001L, "데일리 맨투맨", List.of("의류", "상의"), "키즈랩");
         List<CompanionAiProduct> candidates = List.of(
