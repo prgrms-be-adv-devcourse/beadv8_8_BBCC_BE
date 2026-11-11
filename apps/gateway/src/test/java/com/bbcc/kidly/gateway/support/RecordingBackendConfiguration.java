@@ -18,6 +18,7 @@ public class RecordingBackendConfiguration {
     public static final String ORDER = "orderBackend";
     public static final String COMMUNITY = "communityBackend";
     public static final String NOTIFICATION = "notificationBackend";
+    public static final String CHATBOT = "chatbotBackend";
 
     // 컨텍스트가 닫힐 때 close()로 멈춘다
     @Bean(MEMBER)
@@ -65,6 +66,11 @@ public class RecordingBackendConfiguration {
         return RecordingBackend.start();
     }
 
+    @Bean(CHATBOT)
+    RecordingBackend chatbotBackend() {
+        return RecordingBackend.start();
+    }
+
     @Bean
     DynamicPropertyRegistrar recordingBackendUris(@Qualifier(MEMBER) RecordingBackend memberBackend,
         @Qualifier(SEARCH) RecordingBackend searchBackend,
@@ -74,7 +80,8 @@ public class RecordingBackendConfiguration {
         @Qualifier(PRODUCT) RecordingBackend productBackend,
         @Qualifier(ORDER) RecordingBackend orderBackend,
         @Qualifier(COMMUNITY) RecordingBackend communityBackend,
-        @Qualifier(NOTIFICATION) RecordingBackend notificationBackend) {
+        @Qualifier(NOTIFICATION) RecordingBackend notificationBackend,
+        @Qualifier(CHATBOT) RecordingBackend chatbotBackend) {
         return registry -> {
             registry.add("kidly.gateway.member-uri", () -> "http://127.0.0.1:" + memberBackend.port());
             registry.add("kidly.gateway.search-uri", () -> "http://127.0.0.1:" + searchBackend.port());
@@ -85,6 +92,7 @@ public class RecordingBackendConfiguration {
             registry.add("kidly.gateway.order-uri", () -> "http://127.0.0.1:" + orderBackend.port());
             registry.add("kidly.gateway.community-uri", () -> "http://127.0.0.1:" + communityBackend.port());
             registry.add("kidly.gateway.notification-uri", () -> "http://127.0.0.1:" + notificationBackend.port());
+            registry.add("kidly.gateway.chatbot-uri", () -> "http://127.0.0.1:" + chatbotBackend.port());
         };
     }
 }
