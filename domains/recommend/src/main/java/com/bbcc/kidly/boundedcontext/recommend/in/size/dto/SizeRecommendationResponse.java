@@ -16,6 +16,8 @@ import java.util.List;
  * @param itemJudgements AI 답을 채택했을 때의 항목별 판단. 규칙 결과이거나 판단이 없으면 빈 목록
  * @param growthSpeed 자녀의 키 성장 속도이고 늘 있다. 숫자는 소수 둘째 자리 반올림이고, 최근 속도는 기록이 부족하면 null이다
  * @param wearablePeriods 사이즈별로 앞으로 입을 수 있는 개월 수(24개월 상한). 사이즈 무관 상품이나 모자 · 양말이면 빈 목록이고, 계산할 수 없는 칸은 null
+ * @param wearPreview 자녀가 상품 사이즈를 입은 모습. 사이즈 무관 상품이나 모자 · 양말이면 null이다.
+ *     높이는 바닥에서 잰 cm이고, 프런트는 위치를 cm로 다시 계산하지 않고 hemAt · sleeveAt을 그대로 쓴다
  */
 public record SizeRecommendationResponse(
     String productId,
@@ -30,7 +32,8 @@ public record SizeRecommendationResponse(
     ReferenceFit referenceFit,
     List<ItemJudgement> itemJudgements,
     GrowthSpeed growthSpeed,
-    List<WearablePeriod> wearablePeriods) {
+    List<WearablePeriod> wearablePeriods,
+    WearPreview wearPreview) {
 
     public record Notice(String code, String message) {
     }
@@ -57,6 +60,30 @@ public record SizeRecommendationResponse(
     }
 
     public record WearablePeriod(String size, Integer lengthMonths, Integer widthMonths, Integer months) {
+    }
+
+    /**
+     * @param garment 상품의 옷 종류. TOP, BOTTOM, OUTER, DRESS, SKIRT
+     * @param body 자녀의 몸 높이
+     * @param sizes 상품 사이즈별 착용 결과이고 사이즈 순서는 상품과 같다
+     */
+    public record WearPreview(String garment, Body body, List<SizeWear> sizes) {
+    }
+
+    /**
+     * 바닥에서 잰 높이(cm)이고 소수 첫째 자리까지 반올림한 값이다. 팔은 길이다.
+     */
+    public record Body(double neckCm, double shoulderCm, double waistCm, double hipCm, double crotchCm,
+                       double kneeCm, double ankleCm, double armCm) {
+    }
+
+    /**
+     * @param hemCm 밑단 높이(cm)이고, 밑단이 바닥보다 아래면 0이다. 총장 실측이 없으면 null
+     * @param hemAt 밑단 위치. ABOVE_WAIST, WAIST_HIP, HIP, THIGH, ABOVE_KNEE, KNEE, BELOW_KNEE, ANKLE, FLOOR
+     * @param sleeveCm 소매 끝 길이(cm). 소매길이 실측이 없거나 바지 · 치마 · 원피스면 null
+     * @param sleeveAt 소매 위치. ELBOW(팔꿈치까지 또는 그 위), ABOVE_WRIST, WRIST, HAND
+     */
+    public record SizeWear(String size, Double hemCm, String hemAt, Double sleeveCm, String sleeveAt) {
     }
 
     public static SizeRecommendationResponse from(SizeRecommendationResult result) {
@@ -91,7 +118,23 @@ public record SizeRecommendationResponse(
             referenceFitOf(result.referenceFit()),
             itemJudgements,
             growthSpeedOf(result.growthSpeed()),
-            wearablePeriods);
+            wearablePeriods,
+            wearPreviewOf(result.wearPreview()));
+    }
+
+    private static WearPreview wearPreviewOf(SizeRecommendationResult.WearPreview preview) {
+        if (preview == null) {
+            return null;
+        }
+        SizeRecommendationResult.Body body = preview.body();
+        List<SizeWear> sizes = new ArrayList<>();
+        for (SizeRecommendationResult.SizeWear wear : preview.sizes()) {
+            sizes.add(new SizeWear(wear.size(), wear.hemCm(), wear.hemAt(), wear.sleeveCm(), wear.sleeveAt()));
+        }
+        return new WearPreview(preview.garment(),
+            new Body(body.neckCm(), body.shoulderCm(), body.waistCm(), body.hipCm(), body.crotchCm(),
+                body.kneeCm(), body.ankleCm(), body.armCm()),
+            sizes);
     }
 
     private static GrowthSpeed growthSpeedOf(SizeRecommendationResult.GrowthSpeed growthSpeed) {

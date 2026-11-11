@@ -16,6 +16,7 @@ import java.util.List;
  * @param itemJudgements AI 답을 채택했을 때의 실측 항목별 판단이고, 규칙 결과이거나 판단이 없으면 빈 목록이다
  * @param growthSpeed 자녀의 키 성장 속도이고, 늘 있다
  * @param wearablePeriods 사이즈별로 앞으로 몇 개월 입을 수 있는지이고, 사이즈 무관 상품이나 모자 · 양말처럼 계산하지 않으면 빈 목록이다
+ * @param wearPreview 자녀가 상품 사이즈를 입은 모습의 착용 미리보기이고, 사이즈 무관 상품이나 모자 · 양말이면 null이다
  */
 public record SizeRecommendationResult(
     Long productId,
@@ -30,7 +31,8 @@ public record SizeRecommendationResult(
     ReferenceFit referenceFit,
     List<ItemJudgement> itemJudgements,
     GrowthSpeed growthSpeed,
-    List<WearablePeriod> wearablePeriods) {
+    List<WearablePeriod> wearablePeriods,
+    WearPreview wearPreview) {
 
     /**
      * @param code 안내 종류의 이름이다
@@ -102,5 +104,34 @@ public record SizeRecommendationResult(
      * @param months 길이 기준과 너비 기준 중 짧은 개월 수이고, 계산할 수 없으면 null이다
      */
     public record WearablePeriod(String size, Integer lengthMonths, Integer widthMonths, Integer months) {
+    }
+
+    /**
+     * 높이는 바닥에서 잰 cm이고 소수 첫째 자리까지 반올림한 값이다. 위치 코드는 프런트가 그대로 쓴다.
+     *
+     * @param garment 상품의 옷 종류 이름이다
+     * @param body 자녀의 몸 높이다
+     * @param sizes 상품 사이즈별 착용 결과이고, 사이즈 순서는 상품과 같다
+     */
+    public record WearPreview(String garment, Body body, List<SizeWear> sizes) {
+    }
+
+    /**
+     * 바닥에서 잰 자녀의 몸 높이(cm)다. 팔은 길이다.
+     */
+    public record Body(double neckCm, double shoulderCm, double waistCm, double hipCm, double crotchCm,
+                       double kneeCm, double ankleCm, double armCm) {
+    }
+
+    /**
+     * 총장이나 소매길이 실측이 없으면 그 칸은 null이다.
+     *
+     * @param size 사이즈 이름이다
+     * @param hemCm 밑단 높이(cm)다
+     * @param hemAt 밑단이 닿는 몸의 위치 이름이다
+     * @param sleeveCm 소매 끝 길이(cm)다
+     * @param sleeveAt 소매 끝이 닿는 팔의 위치 이름이다
+     */
+    public record SizeWear(String size, Double hemCm, String hemAt, Double sleeveCm, String sleeveAt) {
     }
 }
