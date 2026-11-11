@@ -43,6 +43,41 @@ class SettlementDailyRunIntegrationTest {
             .isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("정산 Pod가 커밋 뒤 죽으면 재시도가 자동 실행을 닫고 남은 판매자만 정산한다")
+    void retriesAfterPodDiesAfterCommit() {
+        var confirmedAt = LocalDate.now().atStartOfDay().minusHours(1);
+        itemRepository.save(SettlementFixture.item(201L, 10L, 10_000L, confirmedAt));
+        assertThat(runOnce()).isZero();
+        var firstId = jdbcTemplate.queryForObject(
+            "SELECT job_execution_id FROM settlement.batch_job_execution", Long.class);
+        jdbcTemplate.update("""
+            UPDATE settlement.batch_job_execution
+            SET status = 'STARTED', exit_code = 'UNKNOWN', exit_message = '', end_time = NULL, last_updated = now()
+            WHERE job_execution_id = ?
+            """, firstId);
+        jdbcTemplate.update("""
+            UPDATE settlement.batch_step_execution
+            SET status = 'STARTED', exit_code = 'EXECUTING', end_time = NULL, last_updated = now()
+            WHERE job_execution_id = ?
+            """, firstId);
+        itemRepository.save(SettlementFixture.item(202L, 11L, 10_000L, confirmedAt));
+
+        assertThat(runOnce()).isZero();
+        assertThat(count("SELECT count(*) FROM settlement.settlement")).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM settlement.settlement_skip")).isZero();
+        assertThat(PayoutRequests.all(jdbcTemplate)).extracting(PayoutRequests.Request::sellerId)
+            .containsExactly(10L, 11L);
+        var first = jdbcTemplate.queryForMap(
+            "SELECT status, exit_message FROM settlement.batch_job_execution WHERE job_execution_id = ?", firstId);
+        assertThat(first.get("status")).isEqualTo("FAILED");
+        assertThat((String) first.get("exit_message")).contains("자동 실행이 앞 Pod가 남긴 자동 실행을 닫음");
+        assertThat(count("SELECT count(*) FROM settlement.batch_job_execution WHERE status = 'COMPLETED'"))
+            .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM settlement.batch_job_execution")).isEqualTo(2);
+        assertThat(count("SELECT count(DISTINCT job_instance_id) FROM settlement.batch_job_execution")).isEqualTo(1);
+    }
+
     private Integer count(String sql) {
         return jdbcTemplate.queryForObject(sql, Integer.class);
     }

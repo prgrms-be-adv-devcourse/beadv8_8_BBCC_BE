@@ -20,6 +20,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.InvalidJobParametersException;
@@ -41,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 정산 작업을 실행하고 실행 기록(Batch 작업 실행)을 조회한다. 작업은 묶음마다 자기 트랜잭션을 열어야 하므로
  * 트랜잭션을 걸지 않고, 끝날 때까지 기다린다(동기). 서버가 실행 도중 죽어 STARTED로 남은 기록은 진행(step 갱신)이
  * {@link SettlementProperties#staleRunAfter()} 넘게 없으면 다음 실행이 FAILED로 닫고 진행한다(self-heal).
+ * 자동 실행이 보는 남은 자동 실행은 바로 닫는다.
  */
 @Slf4j
 @Service
@@ -119,7 +121,8 @@ public class SettlementRunService {
         if (isCompleted(cutoff)) {
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_ALREADY_RUN);
         }
-        jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME).forEach(this::recoverIfStale);
+        jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME)
+            .forEach(execution -> recoverIfDead(execution, triggerType));
         var builder = new JobParametersBuilder(cutoff)
             .addString(SettlementJobConfig.TRIGGER_TYPE, triggerType.name(), false);
         if (requestedBy != null) {
@@ -146,14 +149,29 @@ public class SettlementRunService {
             .toJobParameters();
     }
 
-    // 진행 없이 staleRunAfter가 지난 실행은 죽은 것으로 보고 FAILED로 닫는다. 아니면 실행 중이다.
-    // 닫는 사이 실제 작업이 step 기록을 갱신했으면 버전 충돌이 나므로 실행 중으로 본다(job 갱신은 버전을 맞추고 쓴다)
-    private void recoverIfStale(JobExecution execution) {
+    // 죽은 실행은 FAILED로 닫고, 살아 있을 수 있으면 실행 중이다.
+    // 자동 실행은 CronJob Pod(SettlementDailyRunner)만 하고, Job은 하나씩(Forbid) · 재시도 Pod는 앞 Pod가 완전히 끝난 뒤에만
+    // 뜬다(podReplacementPolicy Failed). 그래서 자동 실행이 보는 남은 자동 실행은 죽은 것이라 바로 닫는다.
+    // 수동 실행은 살아 있을 수 있어 진행(step 갱신)이 staleRunAfter 넘게 없을 때만 닫는다.
+    // 다시 돌릴 때는 관리자 수동 실행을 쓴다. `kubectl create job --from`은 Forbid를 우회해 살아 있는 실행을 닫는다
+    private void recoverIfDead(JobExecution execution, SettlementTriggerType triggerType) {
+        var leftover = execution.getJobParameters().getString(SettlementJobConfig.TRIGGER_TYPE);
+        if (triggerType == SettlementTriggerType.SCHEDULED && SettlementTriggerType.SCHEDULED.name().equals(leftover)) {
+            markFailed(execution, "자동 실행이 앞 Pod가 남긴 자동 실행을 닫음");
+            return;
+        }
         var lastActivity = lastActivityOf(execution);
         if (!lastActivity.isBefore(LocalDateTime.now().minus(properties.staleRunAfter()))) {
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
         }
-        log.warn("정산 실행 {}이 {} 이후 진행이 없어 죽은 것으로 보고 FAILED로 닫습니다", execution.getId(), lastActivity);
+        markFailed(execution, lastActivity + " 이후 진행이 없어 닫음");
+    }
+
+    // 닫은 이유는 Batch 실행 기록(exit_message)에 남긴다. 닫는 사이 실제 작업이 step 기록을 갱신했으면 버전 충돌이 나므로
+    // 실행 중으로 본다(job 갱신은 버전을 맞추고 쓴다). 겹친 실행이 같은 판매자를 정산하는 것은 정산서 유니크 · 낙관적 락이 막는다
+    private void markFailed(JobExecution execution, String reason) {
+        log.warn("정산 실행 {}을 FAILED로 닫습니다: {}", execution.getId(), reason);
+        execution.setExitStatus(ExitStatus.FAILED.addExitDescription(reason));
         try {
             jobOperator.recover(execution);
         } catch (OptimisticLockingFailureException e) {
