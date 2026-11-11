@@ -183,6 +183,44 @@ class SellerProductQueryIntegrationTest {
         assertThat(page.getTotalElements()).isZero();
     }
 
+    @Test
+    @DisplayName("SALE-09 품절 · 재고 적은 옵션 수는 판매중 옵션만 세고, 재고 행이 없는 판매중 옵션은 품절로 센다")
+    void findBySellerCountsSoldOutAndLowStockOptionsOfOnSaleOptions() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        // 옵션 여섯 개: 품절 2(재고 0 · 재고 행 없음), 재고 적음 2(1 · 5), 넉넉함 1(6), 판매중지(0) · 보관(3)은 세지 않는다
+        Product product = saveProduct(saved, SELLER_ID, "상품 A", 0, 0, 1, 5);
+        Product other = saveProduct(saved, SELLER_ID, "상품 B", 6, 0, 3);
+        deleteInventory(product.getOptions().get(1).getId());
+        changeOption(other.getOptions().get(1).getId(), "STOPPED", CLOTHING_PRICE);
+        changeOption(other.getOptions().get(2).getId(), "ARCHIVED", CLOTHING_PRICE);
+
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10));
+
+        assertThat(page.getContent())
+            .extracting(SellerProductSummary::productId, SellerProductSummary::optionCount,
+                SellerProductSummary::soldOutOptionCount, SellerProductSummary::lowStockOptionCount)
+            .containsExactly(
+                tuple(other.getId(), 2L, 0L, 0L),
+                tuple(product.getId(), 4L, 2L, 2L));
+    }
+
+    @Test
+    @DisplayName("SALE-09 lowStock이면 재고 행이 없는 판매중 옵션도 수량 0으로 보고 포함한다")
+    void findBySellerLowStockIncludesOnSaleOptionWithoutInventoryRow() {
+        SavedClothingTop saved = clothingTopSaver.save();
+        Product product = saveProduct(saved, SELLER_ID, "상품 A", 100, 100);
+        saveProduct(saved, SELLER_ID, "재고 넉넉한 상품", 100);
+        deleteInventory(product.getOptions().get(1).getId());
+
+        Page<SellerProductSummary> page = sellerProductQuery.findBySeller(
+            SELLER_ID, new SellerProductFilter(null, true), PageRequest.of(0, 10));
+
+        assertThat(page.getContent())
+            .extracting(SellerProductSummary::productId)
+            .containsExactly(product.getId());
+    }
+
     // 판매자의 판매대기 상품 하나를 저장하고 옵션마다 재고를 연다.
     // 옵션은 네이비 110 · 네이비 120 · 오트밀 110 · 오트밀 120 순서로 재고 수만큼 만들고, 판매가는 모두 25,000원이다
     private Product saveProduct(SavedClothingTop saved, long sellerId, String name, int... stocks) {
@@ -214,6 +252,11 @@ class SellerProductQueryIntegrationTest {
     // 판매중지로 바꾸는 업무 메서드가 아직 없고, 판매 시작은 실측까지 넣어야 해서 표를 직접 고친다
     private void changeStatus(Product product, String status) {
         jdbcTemplate.update("update product.product set status = ? where id = ?", status, product.getId());
+    }
+
+    // 재고 행이 없는 옵션을 만든다. 재고를 여는 업무 메서드는 옵션마다 행을 만들어서 표를 직접 지운다
+    private void deleteInventory(Long optionId) {
+        jdbcTemplate.update("delete from product.inventory where product_option_id = ?", optionId);
     }
 
     // 옵션의 판매 상태와 판매가를 바꾸는 업무 메서드가 아직 없어 표를 직접 고친다.
