@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
@@ -174,6 +175,34 @@ class WearablePeriodCalculatorTest {
             new WearInfo(sizes, categoryPathNames, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), null));
 
         assertThat(periods).isEmpty();
+    }
+
+    static Stream<Arguments> nullInputs() {
+        ChildSizeInput child = child(HEIGHT_CM);
+        GrowthVelocity velocity = velocity(CM_PER_MONTH);
+        return Stream.of(
+            Arguments.of(Named.of("입력", (WearInfo) null), "info는 필수입니다"),
+            Arguments.of(Named.of("사이즈", new WearInfo(null, TOP_PATH, child, TODAY, velocity, null)), "sizes는 필수입니다"),
+            Arguments.of(Named.of("카테고리 경로", new WearInfo(LONG_SIZES, null, child, TODAY, velocity, null)),
+                "categoryPathNames는 필수입니다"),
+            Arguments.of(Named.of("자녀", new WearInfo(LONG_SIZES, TOP_PATH, null, TODAY, velocity, null)), "child는 필수입니다"),
+            Arguments.of(Named.of("성별", new WearInfo(LONG_SIZES, TOP_PATH,
+                ChildSizeInput.of(HEIGHT_CM, 21.0, null, BIRTH_DATE_AGE_6, BodyType.NORMAL, PreferredFit.REGULAR),
+                TODAY, velocity, null)), "gender는 필수입니다"),
+            Arguments.of(Named.of("오늘 날짜", new WearInfo(LONG_SIZES, TOP_PATH, child, null, velocity, null)),
+                "today는 필수입니다"),
+            Arguments.of(Named.of("성장 속도", new WearInfo(LONG_SIZES, TOP_PATH, child, TODAY, null, null)),
+                "velocity는 필수입니다")
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nullInputs")
+    @DisplayName("WEAR-01 입을 수 있는 기간 계산에 필요한 값이 null이면 계산하지 않는다")
+    void rejectNullInputs(WearInfo info, String expectedMessage) {
+        assertThatThrownBy(() -> calculator.calculate(info))
+            .isInstanceOf(NullPointerException.class)
+            .hasMessage(expectedMessage);
     }
 
     private static ChildSizeInput child(double heightCm) {

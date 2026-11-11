@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
@@ -204,25 +205,57 @@ class GrowthVelocityCalculatorTest {
             Arguments.of(Named.of("12개월 전 날짜(작년 11월 12일) 기록은 넣음", List.of(
                 record(TODAY.minusMonths(12), "115.0"),
                 record(TODAY.minusDays(182), "118.0"),
-                record(TODAY, "121.0"))), 3, 0.831763, 0.500284),
+                record(TODAY, "121.0"))), 3, 11.991786, 0.831763, 0.500284),
             Arguments.of(Named.of("12개월 전 날짜 하루 전 기록은 뺌", List.of(
                 record(TODAY.minusMonths(12).minusDays(1), "105.0"),
                 record(TODAY.minusDays(182), "115.0"),
-                record(TODAY, "121.0"))), 2, 0.551415, 0.777601)
+                record(TODAY, "121.0"))), 2, 5.979466, 0.551415, 0.777601),
+            Arguments.of(Named.of("오늘보다 뒤 날짜 기록은 뺌", List.of(
+                record(TODAY.minusDays(182), "115.0"),
+                record(TODAY, "121.0"),
+                record(TODAY.plusDays(30), "200.0"))), 2, 5.979466, 0.551415, 0.777601)
         );
     }
 
     // 사춘기 앞뒤로 성장 속도가 해마다 크게 바뀌어, 몇 년 치 기록으로 그은 직선은 지금 속도와 다르다
     @ParameterizedTest(name = "{0}")
     @MethodSource("recordsAroundTwelveMonths")
-    @DisplayName("GROW-03 성장 속도는 오늘부터 12개월 안의 기록만으로 계산한다")
+    @DisplayName("GROW-03 성장 속도는 12개월 전 날짜부터 오늘까지의 기록만으로 계산하고, 기록 기간은 첫 기록과 마지막 기록 사이 개월 수다")
     void useRecordsWithinTwelveMonths(List<RecommendGrowthRecord> records, int expectedRecordCount,
-        double expectedChildShare, double expectedCmPerMonth) {
+        double expectedRecordMonths, double expectedChildShare, double expectedCmPerMonth) {
         GrowthVelocity speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
 
         assertThat(speed.recordCount()).isEqualTo(expectedRecordCount);
+        assertThat(speed.recordMonths()).isCloseTo(expectedRecordMonths, within(0.000001));
         assertThat(speed.childShare()).isCloseTo(expectedChildShare, within(0.000001));
         assertThat(speed.cmPerMonth()).isCloseTo(expectedCmPerMonth, within(0.000001));
+    }
+
+    static Stream<Arguments> nullInputs() {
+        List<RecommendGrowthRecord> noRecords = List.of();
+        return Stream.of(
+            Arguments.of(Named.of("성별", (Runnable) () -> new GrowthVelocityCalculator(
+                new GrowthTableConfig().growthVelocityTable()).calculate(null, BIRTH_DATE_AGE_6, noRecords, TODAY)),
+                "gender는 필수입니다"),
+            Arguments.of(Named.of("생년월일", (Runnable) () -> new GrowthVelocityCalculator(
+                new GrowthTableConfig().growthVelocityTable()).calculate(Gender.FEMALE, null, noRecords, TODAY)),
+                "birthDate는 필수입니다"),
+            Arguments.of(Named.of("기록 목록", (Runnable) () -> new GrowthVelocityCalculator(
+                new GrowthTableConfig().growthVelocityTable()).calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, null, TODAY)),
+                "records는 필수입니다"),
+            Arguments.of(Named.of("오늘 날짜", (Runnable) () -> new GrowthVelocityCalculator(
+                new GrowthTableConfig().growthVelocityTable()).calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, noRecords, null)),
+                "today는 필수입니다")
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nullInputs")
+    @DisplayName("GROW-01 성장 속도 계산에 필요한 값이 null이면 계산하지 않는다")
+    void rejectNullInputs(Runnable calculation, String expectedMessage) {
+        assertThatThrownBy(calculation::run)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessage(expectedMessage);
     }
 
     private static RecommendGrowthRecord record(LocalDate recordedOn, String heightCm) {
