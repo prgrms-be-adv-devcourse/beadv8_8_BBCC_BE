@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -50,7 +51,10 @@ class AiResponseServiceTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-10T15:30:00Z"), SEOUL);
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 11, 0, 30);
     private static final int DAILY_LIMIT = 2_000;
-    private static final Duration CALL_TIMEOUT = Duration.ofMillis(300);
+    private static final Map<AiResponseType, Duration> CALL_TIMEOUTS = Map.of(
+        AiResponseType.HOME_PREVIEW, Duration.ofMillis(300),
+        AiResponseType.BOUGHT_TOGETHER, Duration.ofMillis(300),
+        AiResponseType.SIZE_RECOMMENDATION, Duration.ofMillis(300));
     private static final Duration REUSE_PERIOD = Duration.ofHours(24);
     private static final AiResponseType TYPE = AiResponseType.HOME_PREVIEW;
     private static final AiResponseKey.Input INPUT = new AiResponseKey.Input(
@@ -69,7 +73,7 @@ class AiResponseServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUT, REUSE_PERIOD);
+        service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUTS, REUSE_PERIOD);
     }
 
     @Test
