@@ -38,7 +38,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 
 ## 이미지 정리 권한
 
-k3s 이미지는 containerd 에 있어 `docker rmi` 로 지울 수 없고, deploy 유저는 sudo 와 containerd 소켓 권한이 없습니다. 그래서 `deploy-crictl.sudoers` 로 crictl 의 `images -q` · `inspecti -o json` · `rmi` 만 비밀번호 없이 허용합니다(#1267). k3s 의 기본 정리(kubelet image GC)는 디스크 85% 에서 시작해 80% 에서 멈춰, 서버 디스크 알림 기준(80%)보다 늦습니다.
+k3s 이미지는 containerd 에 있어 `docker rmi` 로 지울 수 없고, deploy 유저는 sudo 와 containerd 소켓 권한이 없습니다. 그래서 `deploy-crictl.sudoers` 로 crictl 의 `images -q` · `inspecti -o json` · `rmi sha256:<이미지 ID>` 만 비밀번호 없이 허용합니다(#1267). `rmi --prune` · `--all` 처럼 이미지를 한꺼번에 지우는 인자는 막습니다. k3s 의 기본 정리(kubelet image GC)는 디스크 85% 에서 시작해 80% 에서 멈춰, 서버 디스크 알림 기준(80%)보다 늦습니다.
 
 서버를 새로 만들면 한 번 넣습니다. ec2-user 로, 배포가 한 번 돌아 `/opt/app/dev/k3s` 가 있는 상태에서:
 

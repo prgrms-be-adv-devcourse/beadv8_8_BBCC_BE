@@ -1,3 +1,4 @@
 # deploy.sh 가 k3s 의 오래된 배포 이미지를 지우게 deploy 유저에게 crictl 의 조회 · 삭제만 비밀번호 없이 허용한다(#1267)
 # 서버에 /etc/sudoers.d/kidly-deploy-crictl 로 넣는다. 넣는 법은 deploy/k3s/README.md 「이미지 정리 권한」
-deploy ALL=(root) NOPASSWD: /usr/local/bin/k3s crictl images -q, /usr/local/bin/k3s crictl inspecti -o json *, /usr/local/bin/k3s crictl rmi *
+# rmi 는 첫 인자가 이미지 ID(sha256:…)일 때만 허용한다. 쓰지 않는 이미지를 모두 지우는 rmi --prune · --all 은 막는다
+deploy ALL=(root) NOPASSWD: /usr/local/bin/k3s crictl images -q, /usr/local/bin/k3s crictl inspecti -o json *, /usr/local/bin/k3s crictl rmi sha256\:*
