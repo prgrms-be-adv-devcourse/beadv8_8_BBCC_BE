@@ -78,10 +78,25 @@ kidly:
       outbox-wait: ${ORDER_STUCK_OUTBOX_WAIT:PT5M}
 
     # ===== 조르기 컨텍스트(boundedcontext.wish) =====
-    # 조르기(#640): 부모 · 자녀 공용 장바구니(/api/v1/wish · /api/v1/wish/items, 조르기 /api/v1/wish/requests, #718). 팀이 정책을 확정하지 않아 통째로 끌 수 있게 둔다
+    # 조르기(#640 · #999): 자녀가 장바구니 칸으로 보내는 구매 요청(/api/v1/wish/requests). 팀이 정책을 확정하지 않아 통째로 끌 수 있게 둔다
     wish:
       # false면 조르기 API · 빈이 뜨지 않는다(표는 그대로 남는다). 기본 true
       enabled: ${ORDER_WISH_ENABLED:true}
+      # 조르기 기한 만료(#1008, BEG-05). 만료 기한은 저장하지 않고 보낸 시각 + 지금 ttl로 계산한다: ttl을 바꾸면 대기 중인 조르기에도
+      # 바로 적용되고, 끄면 만료되지 않는다(응답 expiresAt도 null)
+      expiry:
+        # false면 만료 주기 작업이 뜨지 않고 기한 지난 조르기도 그대로 둔다. 기본 true
+        enabled: ${ORDER_WISH_EXPIRY_ENABLED:true}
+        # 보낸 뒤 이 기간 동안 응답(결제 · 거절)이 없으면 만료(1초 이상). 기본 7일. 시연 때는 PT2M 정도로 줄인다
+        ttl: ${ORDER_WISH_EXPIRY_TTL:P7D}
+        # 만료 검사 주기(1초 이상, 이전 실행이 끝난 뒤부터 잰다). 처음 실행도 기동 한 주기 뒤다. 기본 1시간.
+        # 검사 전이라도 기한 지난 조르기의 거절 · 철회는 409다(예약 해제는 검사 때)
+        interval: ${ORDER_WISH_EXPIRY_INTERVAL:PT1H}
+        # 기한이 지난 뒤 만료 작업이 만료하기까지 더 기다리는 시간(0 이상). 기한 전에 만든 주문의 결제 완료가 늦게 와도 PAID로 반영되게
+        # 결제 마감(kidly.order.payment-timeout, 기본 10분)보다 길게 둔다(짧으면 기동 때 WARN). 기본 15분.
+        # 유예는 결제 마감 + 결제 완료 전달(Kafka) 지연 여유보다 길게 둔다
+        # 기한 판정(응답 expiresAt · 거절/철회 409 · 예약 결제 가능 기한 = 새 주문 409)은 바꾸지 않는다
+        grace: ${ORDER_WISH_EXPIRY_GRACE:PT15M}
 
     # ===== 배송 컨텍스트(boundedcontext.delivery) =====
     # 택배 조회 스케줄러(배송 컨텍스트, #650). 발송 중인 배송을 Delivery Tracker에 조회해 완료된 건을 배송 완료한다
@@ -120,5 +135,39 @@ kidly:
       enabled: ${ORDER_MCP_ENABLED:false}
       # 도구 한 번이 돌려주는 목록 줄 수 상한(1~100). 더 큰 size는 이 값으로 줄인다
       max-results: 50
+    # 멈춘 주문 AI 진단 메모(#926). AI는 원인 요약 · 권장 조치를 메모로 남기기만 하고 조치는 관리자가 한다.
+    # 기본 꺼짐. 켜도 openai-compatible에 키(ORDER_AI_API_KEY)가 없으면 꺼진다. provider · base-url · model만 바꿔 OpenAI 호환 제공자를 바꾼다
+    ai:
+      enabled: ${ORDER_AI_ENABLED:false}
+      # openai-compatible(Groq · OpenAI 등) · fake(외부 호출 없음)
+      provider: ${ORDER_AI_PROVIDER:openai-compatible}
+      # 기본 Groq(OpenAI 호환 주소 · 프로덕션 모델, 11/06 문서 기준)
+      base-url: ${ORDER_AI_BASE_URL:https://api.groq.com/openai/v1}
+      model: ${ORDER_AI_MODEL:openai/gpt-oss-20b}
+      api-key: ${ORDER_AI_API_KEY:}
+      connect-timeout: PT3S
+      # 읽기 제한 시간(소켓 읽기 한 번마다, 응답 전체 시간이 아님). 넘으면 실패(TIMEOUT)로 남기고 다음 건으로.
+      # 느리게 조금씩 오는 응답은 서킷브레이커의 느린 호출 기준(slow-call-duration-threshold)이 잡는다. 응답 본문은 64KB까지만 읽는다
+      timeout: PT15S
+      # 모델 출력 상한(요청의 max_completion_tokens)
+      max-output-tokens: 800
+      # 진단 주기. 실행은 전용 스레드 하나라 다른 주기 작업을 막지 않는다
+      interval: PT5M
+      # 하루 요청 상한(성공 · 실패 모두, DB 기준이라 서버가 여러 대여도 합). Groq 무료 한도(모델별 하루 1K 요청)보다 작게
+      daily-limit: ${ORDER_AI_DAILY_LIMIT:200}
+      # 한 실행 요청 상한. 실행 동안 잠금 연결을 대략 max-per-run × timeout(10 × 15초) 잡는다
+      max-per-run: 10
+      # 종류마다 오래된 것부터 scan-size씩, 요청 상한이 남으면 다음 페이지를 max-scan-pages까지 읽는다
+      scan-size: 50
+      max-scan-pages: 20
+      # 서킷브레이커(#708 방식). 실패가 많으면 열림 동안 부르지 않고 다음 실행에서 다시 본다
+      circuit-breaker:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: PT10S
+        slow-call-rate-threshold: 50
+        wait-duration-in-open-state: PT10M
+        permitted-number-of-calls-in-half-open-state: 2
 
     # 장바구니(boundedcontext.cart) 컨텍스트는 아직 설정이 없다

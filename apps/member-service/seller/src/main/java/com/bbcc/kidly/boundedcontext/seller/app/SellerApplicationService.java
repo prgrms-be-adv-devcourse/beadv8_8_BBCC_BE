@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 판매자 신청 · 조회 · 승인 · 거절.
  * 승인은 한 트랜잭션에서 신청을 APPROVED로 바꾸고, 판매자를 만들고, SellerChangedEvent를 발행한다.
  * 거절은 신청을 REJECTED로 바꾸고, SellerApplicationRejectedEvent를 발행한다.
- * 회원이 닉네임을 바꾸면 그 회원의 신청에 반영한다.
+ * 회원이 닉네임을 바꾸면 그 회원의 신청에 반영하고, 탈퇴하면 그 회원의 신청에서 개인정보를 비운다.
  */
 @Slf4j
 @Service
@@ -104,5 +104,12 @@ public class SellerApplicationService {
     public void changeApplicantNickname(Long applicantId, String nickname, LocalDateTime changedAt) {
         sellerApplicationRepository.findAllByApplicantId(applicantId)
             .forEach(application -> application.changeApplicantNickname(nickname, changedAt));
+    }
+
+    @Transactional
+    public void clearApplicantPersonalInfo(Long applicantId, LocalDateTime withdrawnAt) {
+        var applications = sellerApplicationRepository.findAllByApplicantId(applicantId);
+        applications.forEach(application -> application.clearPersonalInfo(withdrawnAt));
+        log.info("탈퇴 회원 신청 개인정보 비움: applicantId={} count={}", applicantId, applications.size());
     }
 }

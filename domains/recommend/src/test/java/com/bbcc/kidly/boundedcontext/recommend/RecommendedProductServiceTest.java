@@ -16,12 +16,18 @@ import static org.assertj.core.api.Assertions.tuple;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.BUSINESS_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSnapshotStore;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.TasteSimilarityReader;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.recommended.RecommendExcludedProducts;
+import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductRanking;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductService;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
+import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
@@ -74,17 +80,29 @@ class RecommendedProductServiceTest {
     @Mock
     private RecommendReplicaSellerRepository replicaSellerRepository;
 
+    @Mock
+    private PreferenceSnapshotStore snapshotStore;
+
+    @Mock
+    private TasteSimilarityReader tasteSimilarityReader;
+
+    @Mock
+    private RecommendExcludedProducts excludedProducts;
+
     @Captor
     private ArgumentCaptor<Iterable<Long>> sellerIdsCaptor;
 
     private RecommendedProductService service;
 
-    // 서비스가 체형표로 사이즈 계산기를 만들므로 @InjectMocks 대신 직접 만든다
+    // 정렬이 체형표로 사이즈 계산기를 만들므로 @InjectMocks 대신 직접 만든다.
+    // 저장된 선호가 없는 자녀라 목록은 판매 시작 최신순이다
     @BeforeEach
     void setUp() {
-        service = new RecommendedProductService(
-            replicaProductRepository, replicaChildRepository, replicaSellerRepository,
-            RecommendFixture.growthChart());
+        lenient().when(snapshotStore.findChild(any())).thenReturn(PreferenceSnapshot.empty());
+        lenient().when(snapshotStore.findMember(any())).thenReturn(PreferenceSnapshot.empty());
+        RecommendedProductRanking ranking = new RecommendedProductRanking(replicaProductRepository, snapshotStore,
+            tasteSimilarityReader, RecommendFixture.growthChart(), excludedProducts);
+        service = new RecommendedProductService(replicaChildRepository, replicaSellerRepository, ranking);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -93,7 +111,7 @@ class RecommendedProductServiceTest {
     void rejectUnavailableChild(Optional<RecommendReplicaChild> foundChild, Long memberId) {
         given(replicaChildRepository.findById(CHILD_1_ID)).willReturn(foundChild);
 
-        assertThatThrownBy(() -> service.list(memberId, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, PAGE_SIZE))
+        assertThatThrownBy(() -> service.list(memberId, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, PAGE_SIZE, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(RecommendErrorCode.CHILD_NOT_FOUND);
         verifyNoInteractions(replicaProductRepository, replicaSellerRepository);
@@ -105,7 +123,7 @@ class RecommendedProductServiceTest {
         givenVisibleChildAndThreeProducts();
 
         Page<RecommendedProductResult> result =
-            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2);
+            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2, null).page();
 
         // 자녀는 키 115cm · 몸무게 20.0kg · 체형 보통이고 선호 핏이 여유라, 110과 120 두 후보 중 큰 120을 추천한다
         // 세 상품 모두 옵션 110과 120의 판매가가 25,000원이라 최저가도 25,000원이다
@@ -127,7 +145,7 @@ class RecommendedProductServiceTest {
         givenVisibleChildAndThreeProducts();
 
         Page<RecommendedProductResult> result =
-            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, 1, 2);
+            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, 1, 2, null).page();
 
         assertThat(result.getContent())
             .extracting(RecommendedProductResult::productId)
@@ -144,7 +162,7 @@ class RecommendedProductServiceTest {
             .willReturn(List.of(RecommendReplicaSeller.create(RecommendReplicaSellerFixture.sellerApproved())));
 
         Page<RecommendedProductResult> result =
-            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2);
+            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2, null).page();
 
         // 두 상품 모두 상품 A의 판매자가 팔고, 그 판매자 복사본의 상호명은 소소한옷장이다
         assertThat(result.getContent())
@@ -163,7 +181,7 @@ class RecommendedProductServiceTest {
             .willReturn(List.of(RecommendReplicaSeller.create(RecommendReplicaSellerFixture.sellerApproved())));
 
         Page<RecommendedProductResult> result =
-            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2);
+            service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2, null).page();
 
         assertThat(result.getContent())
             .extracting(RecommendedProductResult::productId, RecommendedProductResult::businessName)
@@ -178,7 +196,7 @@ class RecommendedProductServiceTest {
         // 첫 페이지의 두 상품은 같은 판매자가 팔고, 다음 페이지로 밀린 가장 오래된 상품만 다른 판매자가 판다
         givenVisibleChildAndProductsSoldBy(OTHER_SELLER_ID, PRODUCT_A_SELLER_ID, PRODUCT_A_SELLER_ID);
 
-        service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2);
+        service.list(MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, 2, null).page();
 
         // 다음 페이지 상품의 판매자는 읽지 않고, 같은 판매자 ID는 한 번만 넘긴다
         verify(replicaSellerRepository, times(1)).findAllById(sellerIdsCaptor.capture());

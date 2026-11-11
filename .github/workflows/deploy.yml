@@ -9,6 +9,7 @@
 # Elasticsearch 는 앱 서버가 아니라 t3.medium k3s(deploy/search)에 뜬다. 검색이 켜진 환경이면 elasticsearch job 이 앱보다 먼저 올린다.
 # Kafka 브로커(Redpanda)도 t3.medium k3s(deploy/kafka)에 환경마다 하나씩 뜬다. kafka job 이 앱보다 먼저 올린다.
 # PostgreSQL 도 t3.medium k3s(deploy/postgres)에 인스턴스 하나로 뜨고 dev · prod 가 database · 계정을 나눠 쓴다. postgres job 이 앱보다 먼저 올린다.
+# .env.<환경> 에 <PROFILE>_NODE_PORT 가 있는 서비스(지금 dev 의 서비스 9개)는 compose 대신 t3.large 의 단독 k3s(deploy/k3s)에 뜬다. deploy.sh 가 compose 앱보다 먼저 하나씩 올린다(#1142).
 # 검색 서비스 이미지가 없는 커밋(검색 배포 전)으로는 검색이 켜진 환경(dev)을 SHA 롤백할 수 없다.
 # 같은 이유로 Gateway 이미지가 없는 커밋(Gateway 배포 전)으로는 Gateway 가 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
 # 같은 이유로 추천 서비스 이미지가 없는 커밋(#704 배포 전)으로는 추천이 켜진 환경(dev · prod)을 SHA 롤백할 수 없다.
@@ -55,7 +56,37 @@ concurrency:
   queue: max
 
 jobs:
+  # 이 배포 뒤에 같은 브랜치의 더 새 배포(push)가 줄 서 있으면 건너뛴다(#1169). 배포는 매번 그 커밋의 전체 코드를 올리므로 새 배포가 이 커밋까지 포함한다
+  # "브랜치 최신 커밋인가"로 보지 않는다. 문서만 바꾼 커밋은 배포를 띄우지 않아(paths-ignore) 그게 최신이면 아무것도 배포되지 않는다
+  # 수동 실행(롤백 등)은 건너뛰지 않는다. 대기열(concurrency)은 그대로라 서버 동시 변경 · 끄기 · 켜기 요청 취소는 계속 막는다
+  superseded:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != push ]]; then echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          newer=$(.github/scripts/newer-deploy.sh)
+          if (( newer > 0 )); then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=배포 건너뜀::이 배포보다 새 배포가 ${newer}건 있어 건너뜁니다. 이 커밋은 새 배포에 포함됩니다"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   monitoring-location:
+    needs: superseded
+    if: needs.superseded.outputs.skip != 'true'
     runs-on: ubuntu-latest
     environment: dev
     outputs:
@@ -72,20 +103,24 @@ jobs:
           echo "known_hosts=$(printf '%s' "$MONITORING_KNOWN_HOSTS" | base64 -w0)" >> "$GITHUB_OUTPUT"
   # PR 때 돈 CI 는 그때의 develop 기준이라, 머지된 커밋을 다시 검사한다. 롤백이면 이미 배포됐던 커밋이라 생략한다
   ci:
-    if: inputs.sha == ''
+    needs: superseded
+    if: inputs.sha == '' && needs.superseded.outputs.skip != 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml
 
   build:
-    # 롤백이면 이미지가 이미 있으므로 빌드를 생략한다
-    if: inputs.sha == ''
+    needs: superseded
+    # 롤백이면 이미지가 이미 있으므로 빌드를 생략한다. 뒤에 더 새 배포가 있으면 건너뛴다
+    if: inputs.sha == '' && needs.superseded.outputs.skip != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     # 앱 모듈(apps/ 아래 폴더)마다 따로 빌드한다. 하나라도 실패하면 배포하지 않는다
+    # 한 서비스가 실패해도 나머지 빌드는 끝까지 돌려, 실패한 서비스만 실패로 보이게 한다
     strategy:
+      fail-fast: false
       matrix:
         app: [search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service, order-service, community-service]
     steps:
@@ -100,16 +135,32 @@ jobs:
       # jar 는 Dockerfile 의 멀티스테이지 빌드가 만든다.
       # GHCR 이미지 이름은 소문자여야 하는데 github.repository 에는 대문자가 있을 수 있다
       # source 라벨로 GHCR 패키지를 이 저장소에 연결한다 (새 패키지도 GITHUB_TOKEN 으로 받을 수 있게)
+      # 빌드 시작 직후 기반 이미지를 받다 일시적으로 실패하는 일이 있어(#1101) 3번까지 다시 시도한다
+      # 그 앱에 들어가는 소스로 키를 만든다(.github/scripts/image-key.sh). 같은 키의 이미지(src-<키>)가 있으면 빌드하지 않고 커밋 태그만 붙인다
+      # 태그만 붙이면 digest 가 그대로라, 배포가 digest 로 올리는 k3s 는 그 서비스를 다시 띄우지 않는다(#1169)
+      # 커밋 태그(<SHA>)는 늘 붙어 SHA 롤백은 그대로 된다
       - name: 이미지 빌드 · 푸시
         env:
           APP: ${{ matrix.app }}
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           IMAGE="$IMAGE-$APP"
-          docker build --build-arg APP="$APP" \
-            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
-            -t "$IMAGE:$GITHUB_SHA" .
+          KEY=$(.github/scripts/image-key.sh "$APP")
+          if docker buildx imagetools inspect "$IMAGE:src-$KEY" > /dev/null 2>&1; then
+            echo "::notice title=$APP 빌드 생략::소스가 같은 이미지(src-${KEY:0:12})가 있어 커밋 태그만 붙인다"
+            docker buildx imagetools create -t "$IMAGE:$GITHUB_SHA" "$IMAGE:src-$KEY"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            docker build --build-arg APP="$APP" \
+              --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:src-$KEY" . && break
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            echo "이미지 빌드 실패 ($attempt/3). $((attempt * 15))초 뒤 다시 시도한다"
+            sleep $((attempt * 15))
+          done
           docker push "$IMAGE:$GITHUB_SHA"
+          docker push "$IMAGE:src-$KEY"
 
       # 태그가 docker/elasticsearch 의 트리 해시라 폴더가 그대로면 이미 있는 이미지를 쓴다
       - name: Elasticsearch 이미지 빌드 · 푸시 (없을 때만)
@@ -142,13 +193,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # 검색이 꺼진 환경(.env.<환경> 의 COMPOSE_PROFILES 에 search 없음)이면 아무것도 하지 않는다. deploy job 도 이 값을 쓴다
+      # 검색이 꺼진 환경(.env.<환경> 의 COMPOSE_PROFILES · K3S_PROFILES 어디에도 search 없음)이면 아무것도 하지 않는다. deploy job 도 이 값을 쓴다
       - name: 검색이 켜진 환경인지 확인
         id: search
         env:
           APP_ENV: ${{ vars.APP_ENV }}
         run: |
-          profiles=$(sed -n 's/^COMPOSE_PROFILES=//p' "deploy/.env.$APP_ENV" | tail -n 1)
+          # 검색이 k3s 에 뜨는 환경(K3S_PROFILES, #1142)도 Elasticsearch 가 필요하다
+          profiles=$(sed -n 's/^COMPOSE_PROFILES=//p; s/^K3S_PROFILES=//p' "deploy/.env.$APP_ENV" | paste -sd, -)
           if [[ ",$profiles," == *,search,* ]]; then on=true; else on=false; fi
           echo "on=$on" >> "$GITHUB_OUTPUT"
           echo "검색: $on"
@@ -339,6 +391,7 @@ jobs:
     if: ${{ !cancelled() && needs.monitoring-location.result == 'success' && (inputs.sha != '' || (needs.ci.result == 'success' && needs.build.result == 'success')) && needs.elasticsearch.result != 'failure' && needs.kafka.result == 'success' && needs.postgres.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       packages: read
     environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
@@ -347,8 +400,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 서버를 바꾸기 직전에 더 새 배포가 있는지 한 번 더 본다(#1169). 앞의 superseded job 은 "Re-run failed jobs" 때 다시 돌지 않아,
+      # 실패한 옛 배포를 다시 돌리면 그 사이 끝난 더 새 배포를 옛 코드로 덮을 수 있다. 이 step 은 deploy job 과 함께 다시 돈다
+      - name: 최신 배포인지 확인
+        id: newer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT" != push ]]; then echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          newer=$(.github/scripts/newer-deploy.sh)
+          if (( newer > 0 )); then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=배포 건너뜀::이 배포보다 새 배포가 ${newer}건 있어 서버를 바꾸지 않습니다"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # 잘못된 SHA 면 서버 파일을 바꾸기 전에 멈춘다
       - name: 배포할 커밋 확인
+        if: steps.newer.outputs.skip != 'true'
         env:
           SHA: ${{ inputs.sha || github.sha }}
         run: |
@@ -356,6 +427,7 @@ jobs:
 
       # deploy-notify.yml 이 이 step 이름으로 "18시 이후 서버 꺼짐" 안내를 붙인다
       - name: 서버 접속 확인 · SSH 키 준비
+        if: steps.newer.outputs.skip != 'true'
         uses: ./.github/actions/server-ssh
         with:
           host: ${{ env.SSH_HOST }}
@@ -364,6 +436,7 @@ jobs:
 
       # 서버의 DB 데이터와 로그 말고는 전부 레포와 Environment Secret 에서 매번 새로 만든다. 비밀 값은 출력하지 않는다
       - name: 서버 설정 파일 만들기
+        if: steps.newer.outputs.skip != 'true'
         env:
           APP_ENV: ${{ vars.APP_ENV }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -375,27 +448,35 @@ jobs:
           JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
           JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           HOLIDAY_API_SERVICE_KEY: ${{ secrets.HOLIDAY_API_SERVICE_KEY }}
           KIDLY_ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.KIDLY_ADMIN_BOOTSTRAP_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           SEARCH_ON: ${{ needs.elasticsearch.outputs.search }}
           MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
         run: |
           umask 077
           out="$RUNNER_TEMP/deploy-files"
-          mkdir -p "$out/jwt"
+          mkdir -p "$out/jwt" "$out/k3s"
           cp -p deploy/docker-compose.yml deploy/deploy.sh deploy/environment-state.py "$out/"
+          # k3s 에 뜨는 서비스의 매니페스트를 compose 설정에서 만든다(#1142)
+          cp -p deploy/k3s/k3s.py "$out/k3s/"
 
           # 한 줄짜리 비밀. .env 뒤에 붙인다
           keys=(DB_PASSWORD KAKAO_CLIENT_SECRET PORTONE_API_SECRET IDENTITY_KEY_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)
           # 없어도 되는 비밀. 있으면 붙이고 없으면 건너뛴다 (MAIL_PASSWORD 가 없으면 메일은 보내지 않고 로그만 남긴다)
           [[ -z "$MAIL_PASSWORD" ]] || keys+=(MAIL_PASSWORD)
+          # FIREBASE_CREDENTIALS(서비스 계정 키 JSON의 Base64)가 없으면 웹 푸시는 보내지 않고 로그만 남긴다(#1017)
+          [[ -z "$FIREBASE_CREDENTIALS" ]] || keys+=(FIREBASE_CREDENTIALS)
           # HOLIDAY_API_SERVICE_KEY 가 없으면 영업일 판단(공휴일 조회)이 실패한다
           [[ -z "$HOLIDAY_API_SERVICE_KEY" ]] || keys+=(HOLIDAY_API_SERVICE_KEY)
           # KIDLY_ADMIN_BOOTSTRAP_PASSWORD 가 없으면 첫 관리자를 만들지 않는다. 단 .env 에 이메일이 있는데 비어 있으면 앱이 기동에 실패한다
           [[ -z "$KIDLY_ADMIN_BOOTSTRAP_PASSWORD" ]] || keys+=(KIDLY_ADMIN_BOOTSTRAP_PASSWORD)
           # OPENAI_API_KEY 가 없으면 검색 서비스가 의미 검색을 끄고 키워드로만 찾는다(#797)
           [[ -z "$OPENAI_API_KEY" ]] || keys+=(OPENAI_API_KEY)
+          # GROQ_API_KEY 가 없으면 커뮤니티 리뷰 검사가 AI 를 빼고 금칙어만 쓴다(#1002)
+          [[ -z "$GROQ_API_KEY" ]] || keys+=(GROQ_API_KEY)
           # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
           secret_lines=$(.github/scripts/env-lines.sh "$APP_ENV" "${keys[@]}")
 
@@ -429,15 +510,38 @@ jobs:
 
       # 파일 이름을 나열해 올린다 (. 을 통째로 올리면 /opt/app/<환경> 자체의 권한이 바뀐다)
       - name: 서버에 설정 파일 올리기
+        if: steps.newer.outputs.skip != 'true'
         env:
           APP_ENV: ${{ vars.APP_ENV }}
         run: |
           dir="/opt/app/$APP_ENV"
-          tar -C "$RUNNER_TEMP/deploy-files" -czf - docker-compose.yml deploy.sh environment-state.py .env jwt \
+          tar -C "$RUNNER_TEMP/deploy-files" -czf - docker-compose.yml deploy.sh environment-state.py .env jwt k3s \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
               "mkdir -p $dir && tar -xzf - --no-same-owner -C $dir && chmod 700 $dir/jwt && chmod 600 $dir/.env $dir/jwt/private.pem"
 
+      - uses: docker/login-action@v3
+        if: steps.newer.outputs.skip != 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 서버에는 태그가 아니라 digest 로 넘긴다(#1169). 소스가 안 바뀐 서비스는 digest 가 같아 k3s 가 다시 띄우지 않는다
+      - name: 이미지 digest 확인
+        id: images
+        if: steps.newer.outputs.skip != 'true'
+        env:
+          SHA: ${{ inputs.sha || github.sha }}
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          for app in search-service gateway recommend-service settlement-service member-service payment-service product-service notification-service order-service community-service; do
+            digest=$(docker buildx imagetools inspect "$IMAGE-$app:$SHA" --format '{{json .Manifest}}' | jq -r .digest)
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::$IMAGE-$app:$SHA 의 digest 를 읽지 못했습니다"; exit 1; }
+            echo "${app%-service}=$IMAGE-$app@$digest" >> "$GITHUB_OUTPUT"
+          done
+
       - name: 배포
+        if: steps.newer.outputs.skip != 'true'
         id: deploy
         env:
           SHA: ${{ inputs.sha || github.sha }}
@@ -449,22 +553,22 @@ jobs:
           # (dev · prod 가 같은 서버를 쓸 때 공유 ~/.docker/config.json 을 서로 지우지 않도록)
           # 기동 실패 원인을 다음 단계에서 뽑도록 출력을 파일에도 남긴다
           set -o pipefail
-          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          # 이미지는 앞 step 이 digest 로 정했다(SHA 롤백이면 그 커밋 태그의 digest)
           printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
             export DOCKER_CONFIG=\$(mktemp -d)
             trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
             docker login ghcr.io -u $GHCR_USER --password-stdin > /dev/null || exit 1
-            APP_ENV=$APP_ENV SEARCH_IMAGE=$IMAGE-search-service:$SHA \
-              GATEWAY_IMAGE=$IMAGE-gateway:$SHA \
-              RECOMMEND_IMAGE=$IMAGE-recommend-service:$SHA SETTLEMENT_IMAGE=$IMAGE-settlement-service:$SHA \
-              MEMBER_IMAGE=$IMAGE-member-service:$SHA PAYMENT_IMAGE=$IMAGE-payment-service:$SHA \
-              PRODUCT_IMAGE=$IMAGE-product-service:$SHA NOTIFICATION_IMAGE=$IMAGE-notification-service:$SHA \
-              ORDER_IMAGE=$IMAGE-order-service:$SHA COMMUNITY_IMAGE=$IMAGE-community-service:$SHA \
+            APP_ENV=$APP_ENV SEARCH_IMAGE=${{ steps.images.outputs.search }} \
+              GATEWAY_IMAGE=${{ steps.images.outputs.gateway }} \
+              RECOMMEND_IMAGE=${{ steps.images.outputs.recommend }} SETTLEMENT_IMAGE=${{ steps.images.outputs.settlement }} \
+              MEMBER_IMAGE=${{ steps.images.outputs.member }} PAYMENT_IMAGE=${{ steps.images.outputs.payment }} \
+              PRODUCT_IMAGE=${{ steps.images.outputs.product }} NOTIFICATION_IMAGE=${{ steps.images.outputs.notification }} \
+              ORDER_IMAGE=${{ steps.images.outputs.order }} COMMUNITY_IMAGE=${{ steps.images.outputs.community }} \
               /opt/app/$APP_ENV/deploy.sh
           " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
 
       - name: 운영 대상 목록 동기화
-        if: success()
+        if: success() && steps.newer.outputs.skip != 'true'
         env:
           APP_SSH_HOST: ${{ vars.SSH_HOST }}
           MONITORING_SSH_HOST: ${{ needs.monitoring-location.outputs.host }}

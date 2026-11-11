@@ -16,8 +16,16 @@ public record SearchResultClickedEvent(UUID eventId, LocalDateTime occurredAt, D
      * @param productId 누른 상품 ID
      * @param rank 보여 준 목록에서 누른 상품의 위치. 첫 페이지 첫 상품이 1이다
      * @param sort 그 목록의 정렬(NEWEST · PRICE_ASC · PRICE_DESC · RELEVANCE). 순위가 정렬에 따라 달라서 함께 담는다
+     * @param childId 보호자가 고른 자녀 프로필 ID. 고르지 않았으면 null (#1089, 추가 칸)
      */
-    public record Data(Long memberId, String keyword, Long productId, int rank, String sort) {
+    public record Data(Long memberId, String keyword, Long productId, int rank, String sort, Long childId) {
+
+        /**
+         * 자녀 칸이 없던 예전 모양(#1004).
+         */
+        public Data(Long memberId, String keyword, Long productId, int rank, String sort) {
+            this(memberId, keyword, productId, rank, sort, null);
+        }
     }
 
     @Override

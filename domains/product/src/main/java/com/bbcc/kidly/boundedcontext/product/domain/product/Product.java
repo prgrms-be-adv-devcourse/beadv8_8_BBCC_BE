@@ -26,6 +26,8 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -167,6 +169,10 @@ public class Product extends BaseTimeEntity {
     @ColumnDefault("false")
     @Column(name = "is_stopped_by_admin", nullable = false)
     private boolean stoppedByAdmin;
+
+    // 처음 판매중이 된 시각이다. 추천이 상품의 최신성을 재는 데 쓴다
+    @Column(name = "sale_started_at")
+    private LocalDateTime saleStartedAt;
 
     // 같은 상품을 동시에 바꾸면 나중 쪽이 실패한다
     @Version
@@ -378,17 +384,18 @@ public class Product extends BaseTimeEntity {
      * 판매를 시작해 판매중으로 바꾸고, 상태가 바뀌었는지 돌려준다. 판매중지 상품도 판매 시작 조건을 다시 검사해
      * 판매중으로 바꾼다(판매 재개). 관리자가 판매중지한 상품은 판매자가 다시 열 수 없다.
      */
-    public boolean startSale(Long sellerId, Category category, ProductType productType) {
+    public boolean startSale(Long sellerId, Category category, ProductType productType, LocalDateTime now) {
         requireNonNull(sellerId, "sellerId는 필수입니다");
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(now, "now는 필수입니다");
         validateOwner(sellerId);
         validateNotDelisted();
         // 관리자가 운영 정책을 어긴 상품을 판매중지하면 판매자는 다시 열 수 없다 (SALE-11)
         if (stoppedByAdmin) {
             throw new BusinessException(ProductErrorCode.SALE_STOPPED_BY_ADMIN);
         }
-        return openSale(category, productType);
+        return openSale(category, productType, now);
     }
 
     /**
@@ -433,11 +440,12 @@ public class Product extends BaseTimeEntity {
     }
 
     /** 관리자가 상품의 판매를 시작하거나 다시 열고, 판매 상태가 바뀌었는지 돌려준다. 관리자 판매중지 표시도 끈다. */
-    public boolean startSaleByAdmin(Category category, ProductType productType) {
+    public boolean startSaleByAdmin(Category category, ProductType productType, LocalDateTime now) {
         requireNonNull(category, "category는 필수입니다");
         requireNonNull(productType, "productType은 필수입니다");
+        requireNonNull(now, "now는 필수입니다");
         validateNotDelisted();
-        boolean changed = openSale(category, productType);
+        boolean changed = openSale(category, productType, now);
         stoppedByAdmin = false;
         return changed;
     }
@@ -479,13 +487,19 @@ public class Product extends BaseTimeEntity {
         status = ProductStatus.STOPPED;
     }
 
-    // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
-    private boolean openSale(Category category, ProductType productType) {
+    // 판매 시작 조건을 검사해 판매중으로 바꾼다. 이미 판매중이면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다.
+    // 판매 시작 시각은 처음 판매중이 될 때만 넣는다. 상태가 아니라 값이 비었는지로 보는 까닭은, 판매대기에서 바로 등록 취소한 상품을
+    // 관리자가 판매중지로 되돌린 뒤 처음 판매를 시작하는 경우도 그때 처음 판매중이 되는 것이기 때문이다.
+    // DB 칸이 마이크로초까지라 이벤트 값과 저장 값을 맞추려고 마이크로초 아래는 자른다
+    private boolean openSale(Category category, ProductType productType, LocalDateTime now) {
         if (status == ProductStatus.ON_SALE) {
             return false;
         }
         SaleStartConditions.requireMet(options, sizeSpecs, category, productType);
         status = ProductStatus.ON_SALE;
+        if (saleStartedAt == null) {
+            saleStartedAt = now.truncatedTo(ChronoUnit.MICROS);
+        }
         return true;
     }
 

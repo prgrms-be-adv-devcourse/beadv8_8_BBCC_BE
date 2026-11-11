@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
@@ -18,6 +19,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -81,7 +83,8 @@ class OrderSchedulerBatchIntegrationTest {
         OrderService failingFirst = mock(OrderService.class, delegatesTo(orderService));
         doThrow(new IllegalStateException("계속 실패")).when(failingFirst).cancelForPaymentExpiry(ids.getFirst());
 
-        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate, jobRunner)
+        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate, jobRunner,
+            new OrderOperationMetrics(new SimpleMeterRegistry()))
             .expireOverduePayments();
 
         assertThat(statusOf(ids.getFirst())).isEqualTo("PENDING_PAYMENT");
@@ -95,7 +98,7 @@ class OrderSchedulerBatchIntegrationTest {
     void stopsAtMaxPerRunAndContinuesNextRun() {
         List<Long> ids = overdueOrders(5);
         OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS,
-            paymentExpiryGate, jobRunner);
+            paymentExpiryGate, jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
 
         scheduler.expireOverduePayments();
 
@@ -116,7 +119,8 @@ class OrderSchedulerBatchIntegrationTest {
         doThrow(new IllegalStateException("계속 실패")).when(failingFirst)
             .confirmAutomatically(orderIds.getFirst(), firstItemId);
 
-        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate, jobRunner)
+        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate, jobRunner,
+            new OrderOperationMetrics(new SimpleMeterRegistry()))
             .autoConfirm();
 
         assertThat(itemStatusOf(orderIds.getFirst())).isEqualTo("ORDERED");
@@ -130,7 +134,7 @@ class OrderSchedulerBatchIntegrationTest {
     void autoConfirmStopsAtMaxPerRun() {
         List<Long> orderIds = deliveredLongAgo(5);
         OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS,
-            paymentExpiryGate, jobRunner);
+            paymentExpiryGate, jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
 
         scheduler.autoConfirm();
 
@@ -240,7 +244,7 @@ class OrderSchedulerBatchIntegrationTest {
 
     private OrderScheduler instance() {
         return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate,
-            jobRunner);
+            jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
     }
 
     // 진 쪽이 남긴 건별 실패 WARN 줄의 주문 ID(한 줄 = 한 건)

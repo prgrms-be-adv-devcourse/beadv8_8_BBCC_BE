@@ -19,9 +19,18 @@ public record SearchPerformedEvent(UUID eventId, LocalDateTime occurredAt, Data 
      * @param categoryId 고른 카테고리 ID. 고르지 않았으면 null
      * @param attributeValueIds 고른 항목 값 ID를 항목 code별로 묶은 것(예: COLOR → [3, 5]). 없으면 빈 맵
      * @param resultCount 조건에 맞는 전체 상품 수. 0건도 보낸다
+     * @param childId 보호자가 고른 자녀 프로필 ID. 고르지 않았으면 null (#1089, 추가 칸)
      */
     public record Data(Long memberId, String keyword, Long categoryId, Map<String, List<Long>> attributeValueIds,
-                       long resultCount) {
+                       long resultCount, Long childId) {
+
+        /**
+         * 자녀 칸이 없던 예전 모양(#611).
+         */
+        public Data(Long memberId, String keyword, Long categoryId, Map<String, List<Long>> attributeValueIds,
+                    long resultCount) {
+            this(memberId, keyword, categoryId, attributeValueIds, resultCount, null);
+        }
     }
 
     @Override

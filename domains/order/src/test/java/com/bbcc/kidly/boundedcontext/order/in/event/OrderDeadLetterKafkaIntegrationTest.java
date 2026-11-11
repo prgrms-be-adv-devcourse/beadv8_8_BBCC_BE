@@ -47,7 +47,8 @@ class OrderDeadLetterKafkaIntegrationTest {
     private static final String PRODUCT_TOPIC = "kidly.product.events";
     private static final List<String> DEAD_LETTER_TOPICS = List.of("kidly.product.events.order.dlt",
         "kidly.seller.events.order.dlt", "kidly.childprofile.events.order.dlt", "kidly.payment.events.order.dlt",
-        "kidly.auth.events.order.dlt");
+        "kidly.auth.events.order.dlt", "kidly.order.events.order.dlt",
+        "kidly.member.events.order.dlt");
     private static final String PAYMENT_DLT = "kidly.payment.events.order.dlt";
     private static final String HIDDEN_TABLE = "order_dead_letter_hidden";
     private static final String BODY_MARKER = "본문-표식-DLT";

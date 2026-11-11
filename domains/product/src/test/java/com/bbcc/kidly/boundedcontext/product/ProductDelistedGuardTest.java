@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProductFixture.NOW;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.CLOTHING_PRICE;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
@@ -73,7 +74,7 @@ class ProductDelistedGuardTest {
         product.stopSaleByAdmin();
         product.delist(SELLER_ID);
 
-        assertRejected(() -> product.startSale(SELLER_ID, productA.top(), productA.clothing().type()),
+        assertRejected(() -> product.startSale(SELLER_ID, productA.top(), productA.clothing().type(), NOW),
             ProductErrorCode.PRODUCT_DELISTED);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
         assertThat(product.isStoppedByAdmin()).isTrue();
@@ -81,7 +82,7 @@ class ProductDelistedGuardTest {
 
     static Stream<Named<Function<ProductA, ThrowingCallable>>> callsFromOtherSeller() {
         return Stream.of(
-            Named.of("판매 시작", a -> () -> a.product().startSale(OTHER_SELLER_ID, a.top(), a.clothing().type())),
+            Named.of("판매 시작", a -> () -> a.product().startSale(OTHER_SELLER_ID, a.top(), a.clothing().type(), NOW)),
             Named.of("판매 중지", a -> () -> a.product().stopSale(OTHER_SELLER_ID)),
             Named.of("상품 수정", a -> () -> a.product().update(updateFromOtherSeller(a.sameUpdate()))),
             Named.of("옵션 추가", a -> () -> a.product().addOptions(new Product.AddOptionsInfo(OTHER_SELLER_ID,
@@ -98,9 +99,9 @@ class ProductDelistedGuardTest {
 
     static Stream<Named<Function<ProductA, ThrowingCallable>>> guardedCalls() {
         return Stream.of(
-            Named.of("판매자의 판매 시작", a -> () -> a.product().startSale(SELLER_ID, a.top(), a.clothing().type())),
+            Named.of("판매자의 판매 시작", a -> () -> a.product().startSale(SELLER_ID, a.top(), a.clothing().type(), NOW)),
             Named.of("판매자의 판매 중지", a -> () -> a.product().stopSale(SELLER_ID)),
-            Named.of("관리자의 판매 시작", a -> () -> a.product().startSaleByAdmin(a.top(), a.clothing().type())),
+            Named.of("관리자의 판매 시작", a -> () -> a.product().startSaleByAdmin(a.top(), a.clothing().type(), NOW)),
             Named.of("관리자의 판매중지", a -> () -> a.product().stopSaleByAdmin()),
             Named.of("상품 정보 수정", a -> () -> a.product().update(
                 a.updateWith(ProductUpdateFixture.VERSION, a.top(), "새 상품명"))),

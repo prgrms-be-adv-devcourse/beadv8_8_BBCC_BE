@@ -9,6 +9,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -17,6 +19,12 @@ import org.springframework.data.repository.Repository;
  * 주문 저장소 포트를 Spring Data JPA로 구현한다. 포트에 선언한 메서드만 노출한다.
  */
 public interface JpaOrderRepository extends Repository<Order, Long>, OrderRepository {
+
+    // 주문상품의 판매자 ID(order_item.seller_id) · 상태 인덱스(idx_order_item_seller_status, #1120)로 찾고 주문 상태로 거른다
+    @Override
+    @Query("select count(i) from Order o join o.items i where i.product.sellerId = :sellerId "
+        + "and i.status = :itemStatus and o.status <> :excludedOrderStatus")
+    long countSellerItems(Long sellerId, OrderItem.Status itemStatus, Order.Status excludedOrderStatus);
 
     /**
      * SELECT … FOR UPDATE. 잠금 대기 시간은 따로 두지 않는다(앞 트랜잭션이 끝나면 바로 풀림).
@@ -97,4 +105,20 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
         """)
     List<AutoConfirmRow> findAutoConfirmTargets(
         OrderItem.Status status, LocalDateTime deliveredBefore, Long afterId, Limit limit);
+
+    // 자녀 칸 · 가격 · 배송지는 고르지 않는다(projection, #1000). 결제된 적 있는 주문 = paidAt 있음(주문의 기존 판단)
+    @Override
+    @Query(value = """
+        select i.id as orderItemId, o.id as orderId, o.createdAt as orderedAt, i.product.productId as productId,
+            i.product.sellerId as sellerId, i.product.productName as productName,
+            i.product.optionName as optionName, i.quantity as quantity, i.status as itemStatus,
+            o.status as orderStatus, i.deliveredAt as deliveredAt
+        from OrderItem i join i.order o
+        where i.child.childId = :childId and o.paidAt is not null
+        order by o.createdAt desc, i.id desc
+        """, countQuery = """
+        select count(i) from OrderItem i join i.order o
+        where i.child.childId = :childId and o.paidAt is not null
+        """)
+    Page<ChildPurchaseRow> findChildPurchases(Long childId, Pageable pageable);
 }

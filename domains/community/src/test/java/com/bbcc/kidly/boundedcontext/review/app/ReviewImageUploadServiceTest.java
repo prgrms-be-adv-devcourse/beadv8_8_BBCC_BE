@@ -141,5 +141,10 @@ class ReviewImageUploadServiceTest {
         public String ownImageUrlPrefix(long memberId) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public java.util.Set<String> findNotUploaded(List<String> imageUrls) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

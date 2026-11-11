@@ -24,6 +24,27 @@ MCP 설정은 host/deploy user/Keychain 참조/검증된 known_hosts 경로만 �
 `mcp_server.py --config <설정 JSON>`을 stdio로 실행합니다. macOS 외 자격증명 transport는 별도 구현하되 분석 계약은 유지합니다.
 해제: PC MCP 비활성화 → 해당 공개키 한 줄 제거 → 전용 Keychain 항목 폐기. 다른 키/데이터는 삭제하지 않습니다.
 
+## 주문 MCP 함께 쓰기(#1041)
+
+AI 클라이언트에 MCP 두 개를 함께 등록합니다. ai-notes(지표 문맥·게시, SSH stdio, `ai-notes/connection.example.json`)와 주문 운영 조회(HTTP, Codex `config.toml` 형식 `ai-notes/order-mcp.example.toml`)입니다.
+주문 MCP는 Gateway 관리자 경로 `/api/v1/admin/orders/mcp`의 읽기 전용 Streamable HTTP(세션 없음)이며 dev에서만 켭니다(`.env.dev`의 `ORDER_MCP_ENABLED=true`). 조작 도구는 없습니다.
+
+- 인증: 관리자 로그인(`POST /api/v1/auth/admin/login`)으로 받은 access 토큰을 환경변수 `KIDLY_ADMIN_TOKEN`에 두고 Codex가 `bearer_token_env_var`로 읽습니다. 설정 파일·저장소·채팅에 토큰 값을 쓰지 않습니다
+- 토큰은 관리자 전체 권한입니다. 셸 프로필(`~/.zshrc` 등)에 두지 말고 시연·분석하는 터미널 세션에서만 설정하고, 끝나면 `unset KIDLY_ADMIN_TOKEN`으로 지웁니다
+- 만료: access 토큰은 30분 뒤 만료됩니다(회원 서비스 `auth.yml`의 `access-token-validity`). 만료되면 주문 MCP가 401을 돌려줍니다. 다시 로그인해 환경변수만 바꿉니다. Gateway 관리자 검사는 그대로입니다
+- 해제: AI 클라이언트에서 주문 MCP 항목을 지우고 환경변수를 지웁니다. dev 스위치를 끄면(`ORDER_MCP_ENABLED=false`) 경로가 없어집니다(404)
+
+분석 순서:
+
+1. `get_analysis_context(environment)`로 지표 문맥과 deadline을 받습니다(300초 안에 게시)
+2. 주문 MCP 도구로 운영 상태를 조회합니다: `stuck_orders_summary` → 건수가 있는 종류만 `stuck_orders(kind)` → 필요하면 `order_timeline(orderId)`. 수신 실패는 `dead_letters` · `dead_letter_detail(deadLetterId)`, 보내기 실패는 `outbox_quarantined`, 그 밖에 `event_failures` · `payment_recoveries`
+3. 조회 결과를 `AnalysisReport` 근거에 넣습니다. 도구 이름과 건수·종류·ID처럼 확인한 사실만 쓰고 원인 가설과 구분합니다. 개인정보는 주문 MCP 응답에 없지만 근거에도 넣지 않습니다
+4. `publish_analysis(context_id, report)`로 게시하고 `get_publication_status`로 확인합니다
+
+멈춘 주문 AI 진단 메모(#926, `ORDER_AI_ENABLED=true`, 키는 deploy 워크플로가 붙이는 `GROQ_API_KEY`)는 주문 서비스가 따로 남깁니다. 검증되지 않은 모델 문구라 주문 MCP는 `aiMemo`를 내보내지 않습니다(null). 사람이 관리자 멈춘 주문 API로 확인만 하고 메모 본문을 분석 근거에 옮기지 않습니다. 근거에는 "메모 있음 · confidence" 같은 사실만 씁니다.
+`GROQ_API_KEY`는 커뮤니티 리뷰 검사(#1002)와 Groq 무료 시험도 같이 씁니다. 키를 바꾸거나 폐기하면 커뮤니티 · 주문 · 시험 모두 영향을 받습니다(무료 한도는 모델별).
+서버에서 compose 값을 확인할 때는 `docker compose ... config -q`로 문법만 봅니다(`config`는 키 값을 화면에 찍습니다). 시연 순서는 [주문 AI 시연 대본](order-ai-demo.md)을 봅니다.
+
 ## 데이터·오류
 
 - localhost Prometheus 고정 쿼리만 허용하며 env/서비스명과 집계 숫자만 발급합니다. 원본 라벨·업무 로그·식별값은 읽지 않습니다

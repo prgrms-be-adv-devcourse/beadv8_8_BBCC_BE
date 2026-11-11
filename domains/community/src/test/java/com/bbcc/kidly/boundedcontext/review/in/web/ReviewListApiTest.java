@@ -41,7 +41,8 @@ class ReviewListApiTest {
             + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, '110', ?, ?, ?)",
             ME, CREATED_AT, CREATED_AT, CREATED_AT);
         jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, fit, created_at, updated_at) values (11, 14, ?, '닉', 4, '좋아요', 'LARGE', ?, ?)",
+            + "content, fit, created_at, updated_at, moderation_status) "
+            + "values (11, 14, ?, '닉', 4, '좋아요', 'LARGE', ?, ?, 'PASSED')",
             ME, CREATED_AT, CREATED_AT);
         jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, fit_small, "
             + "fit_true_to_size, fit_large, created_at, updated_at) values (14, 3, 13, 1, 0, 2, ?, ?)",
@@ -78,7 +79,8 @@ class ReviewListApiTest {
     @DisplayName("탈퇴한 회원의 리뷰는 남고 nickname \"탈퇴한 회원\" · authorWithdrawn true로 보인다")
     void withdrawnAuthorReview() {
         jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, author_withdrawn_at) values (12, 14, 99, null, 5, '탈퇴 전 리뷰', ?, ?, ?)",
+            + "content, created_at, updated_at, author_withdrawn_at, moderation_status) values (12, 14, 99, null, 5, "
+            + "'탈퇴 전 리뷰', ?, ?, ?, 'PASSED')",
             CREATED_AT.plusMinutes(1), CREATED_AT.plusMinutes(1), CREATED_AT.plusMinutes(2));
 
         client.get().uri(PATH + "?productId=14")

@@ -63,14 +63,15 @@ class ProductChangedDataTest {
     @DisplayName("SALE-08 옵션마다 옵션 이름 · 사이즈 · 판매가 · 그 사이즈의 권장 키 · 품절 · 판매 상태를 담는다")
     void carryOptionsWithHeightsAndSoldOut() {
         withOptionsAndSizeSpecs110And120();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
         ProductChangedEvent.Data data = ProductChangedData.of(product, top,
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 0));
 
-        // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로는 다른 테스트가 확인하므로 여기서는 비교하지 않는다
+        // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 · 판매 시작 시각은 다른 테스트가 확인하므로 여기서는 비교하지 않는다
         assertThat(data).usingRecursiveComparison()
-            .ignoringFields("infoValues", "options.values", "brand", "description", "sizeSpecs", "categoryPath")
+            .ignoringFields("infoValues", "options.values", "brand", "description", "sizeSpecs", "categoryPath",
+                "saleStartedAt")
             .isEqualTo(new ProductChangedEvent.Data(
                 PRODUCT_ID, SELLER_ID, "상품 A", CATEGORY_ID, ProductStatus.ON_SALE, product.getThumbnailUrl(),
                 REGISTERED_AT, false, List.of(
@@ -172,7 +173,7 @@ class ProductChangedDataTest {
     @DisplayName("SALE-02 보관한 옵션은 담지 않고, 판매중지 옵션은 판매중지로 담는다")
     void skipArchivedAndCarryStoppedOptions() {
         withOptionsAndSizeSpecs110And120();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
         // 옵션 상태를 바꾸는 업무 메서드가 아직 없어 칸을 직접 바꾼다
         ReflectionTestUtils.setField(product.getOptions().get(0), "saleStatus", ProductOptionStatus.ARCHIVED);
         ReflectionTestUtils.setField(product.getOptions().get(1), "saleStatus", ProductOptionStatus.STOPPED);
@@ -220,10 +221,19 @@ class ProductChangedDataTest {
     }
 
     @Test
+    @DisplayName("이벤트 data의 판매 시작 시각은 상품의 판매 시작 시각이다")
+    void carrySaleStartedAt() {
+        withOptionsAndSizeSpecs110And120();
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
+
+        assertThat(ProductChangedData.of(product, top, Map.of()).saleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
+    @Test
     @DisplayName("SALE-11 관리자가 판매중지한 상품이면 관리자 판매중지를 true로 담고, 판매자가 판매중지한 상품이면 false로 담는다")
     void carryStoppedByAdmin() {
         withOptionsAndSizeSpecs110And120();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
         product.stopSale(SELLER_ID);
 
         assertThat(ProductChangedData.of(product, top, Map.of()).stoppedByAdmin()).isFalse();

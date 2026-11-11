@@ -9,20 +9,24 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * 상품의 뜻을 비교하려고 임베딩 API에 보내는 글이다. 이름 · 브랜드 · 상품 정보 값 · 설명 순으로 줄을 잇는다.
+ * 상품의 뜻을 비교하려고 임베딩 API에 보내는 글이다. 이름 · 카테고리 경로 · 브랜드 · 상품 정보 값 · 설명 순으로 줄을 잇는다.
+ * 카테고리 줄이 앞쪽에 있어서 글이 너무 길어 끝이 잘려도 카테고리는 남고 설명이 먼저 잘린다.
  */
 public record ProductEmbeddingText(String value) {
 
     public static final int MAX_LENGTH = 4_000;
 
+    private static final String CATEGORY_SEPARATOR = " > ";
+
     public record InfoValue(String code, String value) {
     }
 
-    public static ProductEmbeddingText compose(String name, String brand, List<InfoValue> infoValues,
-        String description) {
+    public static ProductEmbeddingText compose(String name, List<String> categoryPath, String brand,
+        List<InfoValue> infoValues, String description) {
         requireNonNull(name, "name은 필수입니다");
         List<String> lines = new ArrayList<>();
         lines.add("상품명: " + name);
+        addIfPresent(lines, "카테고리", joinCategoryNames(categoryPath));
         addIfPresent(lines, "브랜드", brand);
         lines.addAll(infoValueLines(infoValues == null ? List.of() : infoValues));
         addIfPresent(lines, "설명", description);
@@ -34,6 +38,19 @@ public record ProductEmbeddingText(String value) {
             return text;
         }
         return text.substring(0, text.offsetByCodePoints(0, MAX_LENGTH));
+    }
+
+    private static String joinCategoryNames(List<String> categoryPath) {
+        if (categoryPath == null) {
+            return null;
+        }
+        List<String> names = new ArrayList<>();
+        for (String name : categoryPath) {
+            if (name != null && !name.isBlank()) {
+                names.add(name);
+            }
+        }
+        return String.join(CATEGORY_SEPARATOR, names);
     }
 
     // 이벤트 안의 순서가 달라도 같은 글이 나오도록 code와 값을 모두 오름차순으로 쓴다

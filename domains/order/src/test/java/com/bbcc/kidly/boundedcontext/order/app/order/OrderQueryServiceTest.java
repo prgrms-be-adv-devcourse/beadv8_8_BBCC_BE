@@ -67,7 +67,7 @@ class OrderQueryServiceTest {
 
     @BeforeEach
     void setUp() {
-        ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository);
+        ProvidedOrderService provided = new ProvidedOrderService(orderRepository, historyRepository, POLICY);
         DeliveryService delivery = new DeliveryService(deliveryRepository,
             new DeliveryOrdersAdapter(provided, provided, null), new PartialCancelProperties(false), event -> {
             });

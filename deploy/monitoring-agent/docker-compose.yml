@@ -35,6 +35,9 @@ services:
       - /:/rootfs:ro
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
+      # k3s 서비스 Pod(#1142)를 찾고 로그를 읽는 kubeconfig. 파일이 아니라 폴더를 마운트한다(k3s 설치 전에 뜨면 docker 가 파일 자리에 폴더를 만든다)
+      # 관리자 kubeconfig 지만 docker.sock 을 이미 가진 터라 권한이 더 넓어지는 건 아니다
+      - /etc/rancher/k3s:/etc/rancher/k3s:ro
     restart: unless-stopped
     logging: *logging
 

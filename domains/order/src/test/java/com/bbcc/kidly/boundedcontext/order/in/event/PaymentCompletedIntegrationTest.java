@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartItemRepository;
 import com.bbcc.kidly.boundedcontext.cart.domain.CartItem;
@@ -89,9 +90,9 @@ class PaymentCompletedIntegrationTest {
         productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
             2L, 2L, OTHER_SELLER_ID, "상품 B", null, "120", 30_000L, 2L, "ON_SALE", null, false, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
-        cartService.addItem(BUYER_ID, 1L, 1L, 2);
-        cartService.addItem(BUYER_ID, 2L, null, 1);
-        cartService.addItem(BUYER_ID, 1L, null, 1);
+        cartService.addItem(CartOwners.member(BUYER_ID), 1L, 1L, 2);
+        cartService.addItem(CartOwners.member(BUYER_ID), 2L, null, 1);
+        cartService.addItem(CartOwners.member(BUYER_ID), 1L, null, 1);
 
         OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
@@ -108,7 +109,8 @@ class PaymentCompletedIntegrationTest {
         assertThat(deliveries).extracting(Delivery::getSellerId).containsExactly(SELLER_ID, OTHER_SELLER_ID);
         assertThat(deliveries)
             .allSatisfy(delivery -> assertThat(delivery.getStatus()).isEqualTo(Delivery.Status.READY));
-        List<CartItem> remaining = cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID);
+        List<CartItem> remaining = cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(
+            CartItem.OwnerType.MEMBER, BUYER_ID);
         assertThat(remaining).hasSize(1);
         assertThat(remaining.get(0).getOptionId()).isEqualTo(1L);
         assertThat(remaining.get(0).getChildId()).isNull();
@@ -120,7 +122,8 @@ class PaymentCompletedIntegrationTest {
         assertThat(orderRepository.findById(order.orderId())).get()
             .extracting(Order::getStatus).isEqualTo(Order.Status.PAID);
         assertThat(orderRows.versionOf(order.orderId())).as("다시 온 쪽은 주문을 바꾸지 않음").isEqualTo(version);
-        assertThat(cartItemRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID)).hasSize(1);
+        assertThat(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(CartItem.OwnerType.MEMBER,
+            BUYER_ID)).hasSize(1);
         assertThat(orderRows.historyRows(order.orderId()))
             .containsExactly(PLACED, "ORDER PENDING_PAYMENT>PAID payment.completed",
                 "DELIVERY null>READY payment.completed", "DELIVERY null>READY payment.completed");

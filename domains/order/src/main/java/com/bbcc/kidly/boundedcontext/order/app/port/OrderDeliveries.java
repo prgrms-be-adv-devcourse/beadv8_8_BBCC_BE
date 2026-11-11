@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,11 @@ public interface OrderDeliveries {
      * 주문의 배송들. 만든 순서대로.
      */
     List<Delivery> findByOrder(Long orderId);
+
+    /**
+     * 여러 주문의 배송들(#1000). 빈 목록이면 빈 목록.
+     */
+    List<Delivery> findByOrders(Collection<Long> orderIds);
 
     /**
      * 구매자 취소로 주문의 배송들을 취소한다(발송 전만, 이미 취소면 그대로). 발송 여부는 부른 쪽이 먼저 확인한다.

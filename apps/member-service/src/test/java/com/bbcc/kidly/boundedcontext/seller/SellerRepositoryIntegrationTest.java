@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplication;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationSubmitInfo;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.boundedcontext.seller.out.JpaSellerRepository;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,17 @@ class SellerRepositoryIntegrationTest {
 
         assertThat(sellerRepository.existsById(MEMBER_ID)).isTrue();
         assertThat(sellerRepository.existsById(2L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("탈퇴로 닫힌 판매자를 저장할 수 있다")
+    void saveClosed() {
+        var seller = SellerFixture.activeSeller(MEMBER_ID);
+        seller.close();
+
+        sellerRepository.save(seller);
+
+        assertThat(sellerRepository.getById(MEMBER_ID).getStatus()).isEqualTo(SellerStatus.CLOSED);
     }
 
     @Test

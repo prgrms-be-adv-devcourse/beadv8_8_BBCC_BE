@@ -2,13 +2,17 @@ package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxCleanupService;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,10 +47,31 @@ class OrderOutboxCleanupSchedulerTest {
         verify(cleanupService, times(1)).cleanUp();
     }
 
+    private MeterRegistry registry;
+
     @BeforeEach
     void setUp() {
+        registry = new SimpleMeterRegistry();
         scheduler = new OrderOutboxCleanupScheduler(cleanupService,
-            new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7)), jobRunner);
+            new OrderOutboxProperties(Duration.ofSeconds(1), 100, Duration.ofDays(7)), jobRunner,
+            new OrderOperationMetrics(registry));
+    }
+
+    @Test
+    @DisplayName("마지막 성공 시각(#1067): 정리가 끝나면 갱신, 예외면 갱신 안 함")
+    void lastSuccess() {
+        when(cleanupService.cleanUp()).thenThrow(new IllegalStateException("DB 끊김"));
+        scheduler.cleanUp();
+        assertThat(lastSuccessValue()).isNaN();
+
+        org.mockito.Mockito.reset(cleanupService);
+        when(cleanupService.cleanUp()).thenReturn(0);
+        scheduler.cleanUp();
+        assertThat(lastSuccessValue()).isCloseTo(System.currentTimeMillis() / 1000.0, within(5.0));
+    }
+
+    private double lastSuccessValue() {
+        return registry.get("kidly.order.scheduler.last.success.seconds").tag("job", "outbox_cleanup").gauge().value();
     }
 
     @Test

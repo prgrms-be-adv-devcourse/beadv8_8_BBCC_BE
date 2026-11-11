@@ -34,7 +34,9 @@
 | 검색용 표 | ProductSearchDocument | 상품의 되돌리기용 검색 표 (목록 검색은 검색 서비스로 옮김) |
 | 적합도 | `Fit` | ROOMY(여유 있음) · PROPER(적정) · TIGHT(작을 가능성 있음) |
 | 안내 코드 | `SizeNotice` | SIZE_FREE · NO_MATCHING_SIZE · BODY_TYPE_ADJUSTED · PREFERRED_FIT_NOT_APPLIED · HEIGHT_ONLY |
-| 후보 사이즈 | `candidateSizes` | 추천 규칙의 후보가 된 사이즈 목록 |
+| 후보 사이즈 | `candidateSizes` | 추천 규칙의 후보가 된 사이즈 목록 (AI가 고른 사이즈는 이 목록 밖의 상품 사이즈일 수 있음) |
+| 근거 종류 | `SizeReasonType` | 사이즈 추천 근거의 종류. HEIGHT · BODY_TYPE · PREFERRED_FIT · MEASUREMENT · RULE_RESULT · GROWTH |
+| 추천 출처 | `source` | 사이즈 추천 답을 누가 골랐는지. AI · RULE(규칙) |
 | 지급 요청 | payout | 정산서 금액을 판매자 지갑에 적립해 달라는 요청, 결제가 처리 |
 | 영업일 일정산 | - | 주말 · 공휴일을 뺀 날마다 하루 한 번 정산. 공휴일은 특일 정보 API로 판단 |
 | 원장 | WalletLedger | 지갑 잔액이 바뀔 때마다 남기는 기록. 종류 CHARGE · CHARGE_CANCEL · CHARGE_CANCEL_REVERT · PAYMENT · REFUND · SETTLEMENT |
@@ -52,13 +54,15 @@
 | 처음 채우기 | - | 새로 만든 색인이 비어 있어, 상품 · 판매자가 전체를 이벤트로 다시 보내 채우는 것 |
 | 형태소 분석 | nori | 한글 검색어를 뜻 단위로 나눠, 띄어쓰기 · 조사 · 어순이 달라도 찾게 하는 Elasticsearch 분석기 |
 | 활동 기록 | ActivityRecord | 추천이 받는 사용자 행동 4종(상세 진입 · 검색어 · 장바구니 담기와 빼기 · 구매자 취소)의 저장 단위 |
-| 선호 점수 | ChildPreference | 활동 기록으로 자녀마다 카테고리 · 브랜드에 매긴 점수. 더보기 목록 정렬과 AI 후보 선정에 씀 |
+| 선호 점수 | PreferenceSnapshot | 자녀(또는 회원)마다 하루 한 번 계산하는 카테고리 · 브랜드 친밀도와 취향 벡터. 요청 때 자녀 몫에 회원 몫을 0.5배로 합쳐 상품 점수를 매기고, 더보기 목록 정렬과 AI 후보 선정에 씀 |
+| 친밀도 | CategoryAffinity · BrandAffinity | 최근 활동이 한 카테고리 · 브랜드에 얼마나 몰렸는지(0 ~ 1). 활동 무게 = 강도 × 최근성이고, 친밀도 = 1 − Π(1 − 무게). 브랜드에는 구매확정도 넣음 |
+| 취향 벡터 | TasteVector | 최근 30일에 보고 담은 상품의 임베딩을 활동 무게로 더해 길이 1로 맞춘 벡터. 후보 상품 임베딩과의 코사인 유사도가 상품 점수의 주 신호 |
 | 후보 | candidates | AI에게 주는 고를 수 있는 목록. 사이즈는 상품의 실제 사이즈, 상품은 규칙과 벡터로 거른 20개 |
 | 출처 | source | 응답을 AI가 만들었는지(AI) 규칙으로 대신했는지(RULE) |
 | 임베딩 | embedding | 상품 글을 숫자 벡터로 바꾼 값. 뜻이 비슷한 상품끼리 가까운 값이 됨 |
 | 벡터 저장소 | vector store | 임베딩을 저장하고 가까운 순으로 찾는 저장소 |
-| AI 응답 저장 | RecommendationResponse | 입력 해시를 키로 AI 응답을 저장한 표. 같은 입력이면 재사용하고, 입력 스냅샷 로그를 겸함 |
-| 기준 옷 | ReferenceGarment | 자녀가 지금 잘 맞게 입는 옷. 자녀마다 상의 · 하의 한 벌씩, 실측을 cm로 저장(2순위) |
+| AI 응답 저장 | AiResponse (`ai_response`) | 응답 종류와 입력 해시를 키로 AI 응답을 저장한 표. 같은 종류 · 같은 입력이면 24시간 재사용하고, 덮어쓰지 않고 줄을 더해 응답 로그를 겸함. 30일이 지난 줄은 매일 지움 |
+| 기준 옷 | ReferenceGarment | 자녀가 지금 잘 맞게 입는 옷. 자녀마다 상의 · 바지 · 아우터 · 원피스 · 치마 칸에 한 벌씩, 실측을 cm로 저장(2순위) |
 | 기준 핏 | - | 기준 옷의 실측과 상품 실측의 차이(예: 가슴 +2cm)(2순위) |
 | 상품 실측 | SizeSpec.measurements | 판매자가 사이즈마다 적은 옷 치수(세미에 이미 있음) |
 | 공용 장바구니 | Wish (주문 wish 컨텍스트) | 부모 · 자녀가 같이 보는 자녀별 장바구니. 개인 장바구니와 별도 |
@@ -68,3 +72,6 @@
 | 작성 자격 | ReviewEligibility | 리뷰를 쓸 수 있는 주문상품. 구매확정 이벤트로 만든다 |
 | 찜 | favorite | 회원이 관심 상품을 표시해 둔 것. 회원 × 상품마다 1개 (조르기와 다름) |
 | 표시 상태 | displayStatus | ON_SALE(판매 중) · SOLD_OUT(품절) · SALE_ENDED(판매 종료). 커뮤니티 화면용 |
+| 사이즈 핏 | fit | SMALL(작다) · TRUE_TO_SIZE(맞다) · LARGE(크다). 리뷰에 남기는 크기 의견(선택, 구매 사이즈가 있는 주문상품만) |
+| 검사 상태 | moderationStatus | PENDING(검사 대기 · 공개) · PASSED(통과 · 공개) · HIDDEN(검사에서 숨김, 관리자 판단 대기) · CONFIRMED_HIDDEN(관리자 숨김 확정) · RESTORED(관리자 다시 공개) |
+| 노출 | visibility | 리뷰 목록 항목의 PUBLIC(공개) · UNDER_REVIEW(숨겨짐: 검사 숨김 · 숨김 확정, 작성자의 내 리뷰에만 보임) |

@@ -106,6 +106,20 @@ class RecommendReplicaProductTest {
     }
 
     @Test
+    @DisplayName("카테고리 경로가 있는 상품 변경으로 임베딩 글의 상품명 다음 줄에 카테고리 경로가 들어간다")
+    void createEmbeddingTextWithCategoryPath() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(productAChangeWithTopsPath());
+
+        assertThat(replica.getEmbeddingText()).isEqualTo("""
+            상품명: 데일리 맨투맨
+            카테고리: 상의 > 티셔츠
+            브랜드: 키들리
+            material: cotton
+            season: fall, spring
+            설명: 상품 설명""");
+    }
+
+    @Test
     @DisplayName("더 늦게 일어난 상품 변경으로 설명이 바뀌면 임베딩 글도 바뀐다")
     void rewriteEmbeddingTextWithLaterChange() {
         RecommendReplicaProduct replica = RecommendReplicaProduct.create(RecommendFixture.productAChange());
@@ -583,6 +597,47 @@ class RecommendReplicaProductTest {
         return new RecommendReplicaProduct.ChangeInfo(base.productId(), base.sellerId(), base.categoryId(), base.name(),
             base.status(), base.thumbnailUrl(), base.registeredAt(), base.sizeFree(), base.options(), base.brand(),
             base.description(), base.sizeSpecs(), base.infoValues(), base.occurredAt(), TOPS_PATH);
+    }
+
+    @Test
+    @DisplayName("PREF-05 상품 정보의 판매 시작 시각을 복사본에 남긴다")
+    void createWithSaleStartedAt() {
+        LocalDateTime saleStartedAt = PRODUCT_A_REGISTERED_AT.plusDays(3);
+
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithSaleStartedAt(saleStartedAt, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.getSaleStartedAt()).isEqualTo(saleStartedAt);
+    }
+
+    @Test
+    @DisplayName("PREF-05 판매 시작 시각이 없는 예전 메시지의 상품 정보로도 복사본을 만들고, 판매 시작 시각은 비워 둔다")
+    void createWithoutSaleStartedAt() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithSaleStartedAt(null, PRODUCT_CHANGED_AT));
+
+        assertThat(replica.getSaleStartedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("PREF-05 판매 시작 시각이 비어 있던 복사본도 더 늦게 일어난 상품 변경으로 판매 시작 시각을 채운다")
+    void fillSaleStartedAtWithLaterChange() {
+        RecommendReplicaProduct replica = RecommendReplicaProduct.create(
+            changeWithSaleStartedAt(null, PRODUCT_CHANGED_AT));
+        LocalDateTime saleStartedAt = PRODUCT_A_REGISTERED_AT.plusDays(3);
+
+        replica.applyIfNewer(changeWithSaleStartedAt(saleStartedAt, LATER));
+
+        assertThat(replica.getSaleStartedAt()).isEqualTo(saleStartedAt);
+    }
+
+    private static RecommendReplicaProduct.ChangeInfo changeWithSaleStartedAt(
+        LocalDateTime saleStartedAt, LocalDateTime occurredAt) {
+        RecommendReplicaProduct.ChangeInfo base = changeWithCategoryPath(List.of(), occurredAt);
+        return new RecommendReplicaProduct.ChangeInfo(base.productId(), base.sellerId(), base.categoryId(),
+            base.name(), base.status(), base.thumbnailUrl(), base.registeredAt(), base.sizeFree(), base.options(),
+            base.brand(), base.description(), base.sizeSpecs(), base.infoValues(), base.occurredAt(),
+            base.categoryPath(), saleStartedAt);
     }
 
     private static RecommendReplicaProduct.ChangeInfo changeWithCategoryPath(

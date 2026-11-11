@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.delivery.app.port;
 
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
@@ -24,6 +25,11 @@ public interface DeliveryRepository {
      * 주문의 배송들. 만든 순서대로.
      */
     List<Delivery> findAllByOrderIdOrderByIdAsc(Long orderId);
+
+    /**
+     * 여러 주문의 배송들(#1000). 주문 ID · 만든 순서대로.
+     */
+    List<Delivery> findAllByOrderIdInOrderByOrderIdAscIdAsc(Collection<Long> orderIds);
 
     /**
      * 판매자의 배송 목록. 최근 것부터.

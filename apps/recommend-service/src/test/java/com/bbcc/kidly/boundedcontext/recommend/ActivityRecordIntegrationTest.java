@@ -161,7 +161,7 @@ class ActivityRecordIntegrationTest {
         activityRecordService.recordSearch(ActivityRecordFixture.searchPerformedEvent());
         activityRecordService.recordCartItemAdded(ActivityRecordFixture.cartItemAddedEvent());
         activityRecordService.recordCartItemRemoved(ActivityRecordFixture.cartItemRemovedEvent());
-        activityRecordService.recordProductViewed(MEMBER_1_ID, PRODUCT_A_ID);
+        activityRecordService.recordProductViewed(MEMBER_1_ID, PRODUCT_A_ID, null);
         ActivityRecord others = activityRecordRepository.saveAndFlush(otherMemberSearch());
 
         activityRecordService.deleteActivityRecordsOfWithdrawnMember(
@@ -206,6 +206,6 @@ class ActivityRecordIntegrationTest {
 
     private static ActivityRecord otherMemberSearch() {
         return ActivityRecord.searched(new ActivityRecord.SearchInfo(UUID.randomUUID(), OTHER_MEMBER_ID, KEYWORD,
-            PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT));
+            PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT, null));
     }
 }

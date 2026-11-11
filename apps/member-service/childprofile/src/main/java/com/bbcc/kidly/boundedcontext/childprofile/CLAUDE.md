@@ -18,7 +18,8 @@
 - 자녀는 첫 로그인 안내 확인 여부를 조회하고 확인 시각을 기록한다 (#889)
 
 ## Kafka 발행 (아웃박스, #548 · #562)
-- 자녀 프로필이 발행한 이벤트(`child.changed`)를 토픽 `kidly.childprofile.events`로 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
+- 자녀 프로필이 발행한 이벤트(`child.changed` · `child.growth-recorded`)를 토픽 `kidly.childprofile.events`로 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
+- 등록과 키 · 체형 수정으로 성장 이력이 생기면 `child.changed` 다음에 `child.growth-recorded`를 보낸다. `occurredAt`은 이력의 `recordedAt`과 같다
 - 키 = `correlationId`(자녀 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
 - 받는 쪽(인증 · 주문 · 추천)은 모두 Kafka로 받는다
 - 저장(`app/outbox/ChildProfileOutboxRecorder`): 커밋 직전(`BEFORE_COMMIT`)에 자녀 프로필이 발행한 이벤트만 `childprofile.child_profile_outbox`에 저장한다
@@ -35,6 +36,16 @@
 - 정리: 보낸 지 7일(브로커 보존 기간) 지난 행을 매일 04:00에 지운다. 보내지 않은 행은 지우지 않는다. 릴레이와 같은 스케줄러가 부르므로 Kafka 보내기를 끄면 정리도 돌지 않는다(보낸 행도 생기지 않는다)
 - 본문에 아이의 키 · 몸무게 · 생년월일 · 성별이 있으므로 로그에 남기지 않는다. 실패 로그는 `eventType` · `eventId` · 키 · 원인만, 스케줄러 예외는 예외 종류만 남긴다
 - 설정은 자녀 프로필 안에만 둔다: `out/outbox/ChildProfileKafkaConfig`(토픽 선언 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초 · `delivery.timeout.ms` 10초, 본문을 찍는 기본 실패 로그 끔), `childprofile.yml`(`kidly.childprofile.outbox.*`)
+
+## 자녀 변경 이벤트 다시 보내기 (`app/ChildChangedRepublishService`, #1055)
+- 관리자 `POST /api/v1/admin/children/changed-events`: 삭제되지 않은 자녀마다 지금 값으로 `child.changed`(`deleted=false`)를 새 `eventId` · 지금 `occurredAt`으로 다시 보내고 `publishedCount`를 돌려준다. 자녀는 바꾸지 않는다
+- 받는 쪽이 `latest`로 붙기 전에 나간 이벤트를 따라잡게 한다(예: 인증의 자녀 복사본이 비어 자녀 계정 생성이 404). 회원 `member.registered` · 판매자 `seller.changed` 재발행과 같은 방식이다
+- 보내는 길은 평소와 같은 아웃박스다. 스키마 · 토픽 · 키는 그대로다
+- 받는 쪽은 여러 번 받아도 결과가 같다: 인증은 `insertIfAbsent`(있으면 그대로), 주문 · 추천은 `occurredAt`이 늦으면 같은 값으로 덮는다
+- 한계: 다시 보내는 중에 같은 자녀가 삭제되면, 삭제 이벤트보다 늦은 `occurredAt`의 다시 보낸 이벤트가 받는 쪽 복사본을 되살릴 수 있다. 사용이 적은 때 한 번 부른다
+
+## 성장 기록 이벤트 다시 보내기 (`app/ChildGrowthRecordedRepublishService`, #1110)
+- 관리자 `POST /api/v1/admin/children/growth-recorded-events`: 삭제되지 않은 자녀의 성장 이력마다 `child.growth-recorded`를 다시 보내고 `publishedCount`(이력 수)를 돌려준다. `eventId`만 새로 정하고 `occurredAt` · `recordedAt`은 원래 값이다. 받는 쪽(추천)은 `growthRecordId`로 중복을 거른다
 
 ## 회원 서비스의 자녀 프로필 모듈 (#809)
 - 자녀 API, 자녀 이벤트 발행과 회원 탈퇴 수신은 회원 서비스에서 실행한다. 도메인 간 통신은 Kafka를 쓴다.

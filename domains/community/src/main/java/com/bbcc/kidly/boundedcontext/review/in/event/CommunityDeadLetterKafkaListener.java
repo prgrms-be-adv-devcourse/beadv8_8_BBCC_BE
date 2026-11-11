@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.review.in.event;
 
 import com.bbcc.kidly.boundedcontext.review.app.CommunityDeadLetterService;
+import com.bbcc.kidly.boundedcontext.review.app.CommunityMetrics;
 import com.bbcc.kidly.boundedcontext.review.in.config.CommunityKafkaListenerConfig;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ public class CommunityDeadLetterKafkaListener {
 
     public static final String ID = "communityDeadLetterKafkaListener";
     private final CommunityDeadLetterService service;
+    private final CommunityMetrics metrics;
     private final AtomicReference<String> failingPosition = new AtomicReference<>();
 
     @KafkaListener(id = ID, groupId = CommunityKafkaListenerConfig.GROUP,
@@ -32,8 +34,11 @@ public class CommunityDeadLetterKafkaListener {
                     CommunityKafkaMessages.header(record, CommunityKafkaMessages.EVENT_TYPE),
                     CommunityKafkaMessages.header(record, CommunityKafkaMessages.EVENT_ID));
             }
+            // 새로 넣었거나 이미 있었거나 모두 보관 성공이다(보관 트랜잭션이 끝난 뒤)
+            metrics.recordDeadLetterStored();
             failingPosition.compareAndSet(position, null);
         } catch (RuntimeException e) {
+            metrics.recordDeadLetterStoreFailure();
             String type = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
             if (position.equals(failingPosition.getAndSet(position))) {
                 log.debug("커뮤니티 DLT 보관 재시도: position={} exception={}", position, type);

@@ -135,7 +135,7 @@ class ReviewListQueryIntegrationTest {
 
     private long review(long orderItemId, long productId, long memberId, LocalDateTime createdAt) {
         jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at) values (?, ?, ?, '닉', 4, '본문', ?, ?)",
+            + "content, created_at, updated_at, moderation_status) values (?, ?, ?, '닉', 4, '본문', ?, ?, 'PASSED')",
             orderItemId, productId, memberId, createdAt, createdAt);
         return jdbcTemplate.queryForObject("select id from community.review where order_item_id = ?", Long.class,
             orderItemId);

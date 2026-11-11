@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.outbox;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventSender;
@@ -32,6 +33,7 @@ public class OrderOutboxRelayService {
     private final OrderOutboxRepository outboxRepository;
     private final OrderEventSender sender;
     private final OrderOutboxProperties properties;
+    private final OrderOperationMetrics metrics;
 
     /**
      * 한 트랜잭션에서 안 보낸 메시지를 id 순서로 batch-size건 보낸다. 한 번에 한 서버에서만 도는 것은 스케줄러가 맡는다
@@ -59,6 +61,8 @@ public class OrderOutboxRelayService {
                     String error = e.getClass().getSimpleName() + ": " + e.getMessage();
                     if (sender.isPermanentFailure(e)) {
                         OutboxMessage failed = outboxRepository.quarantine(message.id(), error, LocalDateTime.now());
+                        metrics.countOutboxSendFailure(message.eventType(),
+                            OrderOperationMetrics.SendFailure.QUARANTINED);
                         quarantined = true;
                         blocked.add(stream);
                         log.warn("아웃박스 영구 실패 격리: outboxId={} eventId={} eventType={} attempt={}",
@@ -66,6 +70,7 @@ public class OrderOutboxRelayService {
                         continue;
                     }
                     OutboxMessage failed = outboxRepository.recordFailure(message.id(), error);
+                    metrics.countOutboxSendFailure(message.eventType(), OrderOperationMetrics.SendFailure.RETRY);
                     log.warn("아웃박스 전송 실패: outboxId={} eventId={} eventType={} attempt={} error={}",
                         failed.id(), failed.eventId(), failed.eventType(), failed.attemptCount(), failed.lastError());
                     return new OutboxRelayResult(OutboxRelayResult.Outcome.STOPPED, unsent.size(), sent);

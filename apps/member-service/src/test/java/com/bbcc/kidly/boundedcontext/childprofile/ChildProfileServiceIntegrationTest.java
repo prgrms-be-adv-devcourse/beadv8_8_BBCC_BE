@@ -16,14 +16,21 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordedEvent;
+import com.bbcc.kidly.support.CommittedEventRecorder;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 
@@ -38,6 +45,7 @@ class ChildProfileServiceIntegrationTest {
         verifications.save(GuardianVerificationFixture.verification(2L));
     }
 
+    private static final int THREAD_COUNT = 10;
     private static final Long MEMBER_ID = 1L;
     private static final Long OTHER_MEMBER_ID = 2L;
     private static final ChildProfileRequest REQUEST = new ChildProfileRequest(
@@ -55,6 +63,29 @@ class ChildProfileServiceIntegrationTest {
 
     @Autowired
     private ApplicationEvents events;
+
+    @Autowired
+    private CommittedEventRecorder recorder;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Test
+    @DisplayName("등록 · 키 수정으로 생긴 성장 이력마다 실제 행 ID로 이벤트가 나가고, 이름만 바꾸거나 삭제하면 나가지 않는다")
+    void growthEventsUsePersistedRecordIds() {
+        var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
+        childProfileService.update(MEMBER_ID, childId, new ChildProfileUpdateRequest("첫째", LocalDate.of(2019, 1, 15),
+            Gender.MALE, new BigDecimal("118.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE));
+        var ids = jdbc.queryForList("SELECT id FROM childprofile.growth_record WHERE child_profile_id = ? ORDER BY id",
+            Long.class, childId);
+        assertThat(ids).hasSize(2);
+        assertThat(events.stream(ChildGrowthRecordedEvent.class).map(event -> event.data().growthRecordId()))
+            .containsExactlyElementsOf(ids);
+        childProfileService.update(MEMBER_ID, childId, new ChildProfileUpdateRequest("둘째", LocalDate.of(2019, 1, 15),
+            Gender.MALE, new BigDecimal("118.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE));
+        childProfileService.delete(MEMBER_ID, childId);
+        assertThat(events.stream(ChildGrowthRecordedEvent.class)).hasSize(2);
+    }
 
     @Test
     @DisplayName("등록하면 자녀가 저장되고 전체 값을 담은 자녀 변경 이벤트가 발행된다")
@@ -167,6 +198,34 @@ class ChildProfileServiceIntegrationTest {
                 assertThat(event.data().memberId()).isEqualTo(MEMBER_ID);
                 assertThat(event.data().deleted()).isTrue();
             })
+            .extracting(event -> event.data().childId())
+            .containsExactlyInAnyOrder(first, second);
+    }
+
+    @Test
+    @DisplayName("같은 회원의 자녀 전체 삭제를 동시에 처리해도 자녀마다 삭제 이벤트는 한 번만 발행한다")
+    void concurrentDeleteAll() throws Exception {
+        var first = childProfileService.register(MEMBER_ID, REQUEST).id();
+        var second = childProfileService.register(MEMBER_ID, REQUEST).id();
+        recorder.clear();
+        var start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(THREAD_COUNT)) {
+            var futures = new ArrayList<Future<?>>();
+            for (var i = 0; i < THREAD_COUNT; i++) {
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    childProfileService.deleteAll(MEMBER_ID);
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (var future : futures) {
+                future.get();
+            }
+        }
+
+        assertThat(recorder.events(ChildChangedEvent.class))
             .extracting(event -> event.data().childId())
             .containsExactlyInAnyOrder(first, second);
     }

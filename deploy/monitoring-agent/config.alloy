@@ -182,7 +182,7 @@ prometheus.scrape "kidly_gateway" {
 }
 
 // 추천 서비스(apps/recommend-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// 추천 서비스가 켜진 환경만 앱 배포가 targets/recommend/<환경>.yml 로 써 둔다
+// compose 에 뜨는 환경은 앱 배포가 targets/recommend/<환경>.yml 로 써 둔다
 discovery.file "kidly_recommend" {
 	files = ["/etc/alloy/targets/recommend/*.yml"]
 }
@@ -190,6 +190,132 @@ discovery.file "kidly_recommend" {
 prometheus.scrape "kidly_recommend" {
 	job_name        = "kidly-recommend"
 	targets         = discovery.file.kidly_recommend.targets
+	metrics_path    = "/actuator/prometheus"
+	scrape_interval = "15s"
+	forward_to      = [prometheus.remote_write.medium.receiver]
+}
+
+// k3s 에 뜨는 서비스(namespace kidly-<환경>, deploy/k3s, #1142)는 이 서버의 단독 k3s API 로 Pod 를 찾는다
+// kubeconfig 는 docker-compose.yml 이 마운트한다. 호스트 네트워크라 API(127.0.0.1:6443)와 Pod IP 에 바로 닿는다
+// Pod 라벨 kidly/job(deploy/k3s/k3s.py 가 붙임)을 job · service_name 으로 쓴다. compose 때와 같은 kidly-<서비스> · kidly-kafka 다
+discovery.kubernetes "kidly_pods" {
+	role            = "pod"
+	kubeconfig_file = "/etc/rancher/k3s/k3s.yaml"
+
+	namespaces {
+		names = ["kidly-dev", "kidly-prod"]
+	}
+}
+
+discovery.relabel "kidly_pods" {
+	targets = discovery.kubernetes.kidly_pods.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_phase"]
+		regex         = "Running|Succeeded|Failed"
+		action        = "keep"
+	}
+
+	// kidly/job 라벨이 없는 Pod(이 라벨 전에 뜬 Pod)는 kidly-<app> 으로 둔다. 모니터링 배포가 앱 배포보다 먼저 끝나도 끊기지 않게 한다
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_app"]
+		regex         = "(.+)"
+		target_label  = "__kidly_job"
+		replacement   = "kidly-$1"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_kidly_job"]
+		regex         = "(kidly-.+)"
+		target_label  = "__kidly_job"
+	}
+
+	rule {
+		source_labels = ["__kidly_job"]
+		regex         = "kidly-.+"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		regex         = "kidly-(dev|prod)"
+		target_label  = "env"
+	}
+}
+
+// 메트릭은 Pod 마다 따로 긁는다(NodePort 로 긁으면 매번 다른 Pod 에 닿는다). instance 는 Pod 이름이다
+discovery.relabel "kidly_pod_metrics" {
+	targets = discovery.relabel.kidly_pods.output
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_phase"]
+		regex         = "Running"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_port_name"]
+		regex         = "http"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__kidly_job"]
+		target_label  = "job"
+	}
+}
+
+// 종료된 Job Pod 의 마지막 로그도 모은다. 로그에는 compose 컨테이너와 같은 service_name 을 붙인다. instance(Pod) · job 은 loki.source.kubernetes 가 붙인다
+// k3s.yaml 이 없으면 이 컴포넌트들이 만들어지지 않아 Alloy 가 뜨지 않는다. deploy.sh 가 미리 확인한다
+discovery.relabel "kidly_pod_logs" {
+	targets = discovery.relabel.kidly_pods.output
+
+	rule {
+		source_labels = ["__kidly_job"]
+		target_label  = "service_name"
+	}
+}
+
+loki.source.kubernetes "kidly_pods" {
+	targets    = discovery.relabel.kidly_pod_logs.output
+	forward_to = [loki.process.kidly_app.receiver]
+
+	client {
+		kubeconfig_file = "/etc/rancher/k3s/k3s.yaml"
+	}
+}
+
+// 앱 서비스 Pod. kafka-exporter(kidly-kafka)는 아래 kidly_kafka 가 지표를 걸러 긁는다
+// Redis(kidly-redis)는 /actuator/prometheus 가 없어 지표를 긁지 않는다. 로그는 위 kidly_pod_logs 가 모은다
+discovery.relabel "kidly_app_pods" {
+	targets = discovery.relabel.kidly_pod_metrics.output
+
+	rule {
+		source_labels = ["job"]
+		regex         = "kidly-kafka|kidly-redis"
+		action        = "drop"
+	}
+}
+
+discovery.relabel "kidly_kafka_pods" {
+	targets = discovery.relabel.kidly_pod_metrics.output
+
+	rule {
+		source_labels = ["job"]
+		regex         = "kidly-kafka"
+		action        = "keep"
+	}
+}
+
+// job 은 위에서 Pod 마다 붙였다. job_name 은 job 이 없을 때만 쓰인다
+prometheus.scrape "kidly_pods" {
+	job_name        = "kidly-k3s"
+	targets         = discovery.relabel.kidly_app_pods.output
 	metrics_path    = "/actuator/prometheus"
 	scrape_interval = "15s"
 	forward_to      = [prometheus.remote_write.medium.receiver]
@@ -319,6 +445,57 @@ prometheus.scrape "containers" {
 	scrape_interval = "15s"
 }
 
+// k3s Pod 컨테이너 CPU · 메모리. 위 cAdvisor 는 docker 컨테이너만 본다(docker_only). k3s 의 Pod 는 kubelet 이 내장한 cAdvisor 에서 읽는다
+// 토큰은 deploy.sh 가 적용한 k3s-metrics.yaml 의 ServiceAccount(nodes/metrics get 만)의 Secret 을 k3s API 로 읽는다. Secret 이 없으면 Alloy 가 뜨지 않으므로 deploy.sh 가 먼저 확인한다
+remote.kubernetes.secret "kidly_metrics_reader" {
+	namespace = "kube-system"
+	name      = "kidly-metrics-reader-token"
+
+	client {
+		kubeconfig_file = "/etc/rancher/k3s/k3s.yaml"
+	}
+}
+
+// instance 는 docker 컨테이너 지표와 같은 호스트 이름이라 Kidly 서버 대시보드의 서버 선택으로 함께 거른다
+prometheus.scrape "k3s_cadvisor" {
+	job_name        = "integrations/kubelet-cadvisor"
+	targets         = [{"__address__" = "127.0.0.1:10250", "instance" = constants.hostname}]
+	scheme          = "https"
+	metrics_path    = "/metrics/cadvisor"
+	scrape_interval = "15s"
+	bearer_token    = remote.kubernetes.secret.kidly_metrics_reader.data["token"]
+
+	// kubelet 은 자체 서명 인증서를 쓴다. 이 서버 안(127.0.0.1)에서만 붙는다
+	tls_config {
+		insecure_skip_verify = true
+	}
+
+	forward_to = [prometheus.relabel.k3s_cadvisor.receiver]
+}
+
+// 시계열을 줄인다: CPU · 메모리 · 메모리 상한만, 컨테이너 줄만(Pod 합계 줄 container="" · pause 는 뺀다), 라벨은 namespace · pod · container 만
+prometheus.relabel "k3s_cadvisor" {
+	forward_to = [prometheus.remote_write.medium.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "container_(cpu_usage_seconds_total|memory_working_set_bytes|spec_memory_limit_bytes)"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["container"]
+		regex         = "|POD"
+		action        = "drop"
+	}
+
+	// 재시작마다 바뀌는 cgroup 경로(id) · 이미지 · containerd 이름은 뺀다
+	rule {
+		regex  = "id|image|name"
+		action = "labeldrop"
+	}
+}
+
 prometheus.remote_write "medium" {
 	endpoint {
 		url = string.format("http://%s:30090/api/v1/write", sys.env("MONITORING_HOST"))
@@ -349,7 +526,7 @@ discovery.file "kidly_kafka" {
 }
 prometheus.scrape "kidly_kafka" {
     job_name = "kidly-kafka"
-    targets = discovery.file.kidly_kafka.targets
+    targets = array.concat(discovery.file.kidly_kafka.targets, discovery.relabel.kidly_kafka_pods.output)
     scrape_interval = "30s"
     forward_to = [prometheus.relabel.kafka_metrics.receiver]
 }

@@ -60,7 +60,7 @@ class ActivityRecordTest {
     @DisplayName("카테고리와 항목 값을 고르지 않은 검색도 활동 기록을 만든다")
     void createSearchWithoutFilters() {
         ActivityRecord record = ActivityRecord.searched(new ActivityRecord.SearchInfo(SEARCH_EVENT_ID, MEMBER_1_ID,
-            KEYWORD, null, null, RESULT_COUNT, SEARCHED_AT));
+            KEYWORD, null, null, RESULT_COUNT, SEARCHED_AT, null));
 
         assertThat(record.getCategoryId()).isNull();
         assertThat(record.getAttributeValueIds()).isNull();
@@ -80,16 +80,17 @@ class ActivityRecordTest {
         return Stream.of(
             Named.of("검색 값", () -> ActivityRecord.searched(null)),
             Named.of("이벤트 ID", () -> ActivityRecord.searched(new ActivityRecord.SearchInfo(
-                null, MEMBER_1_ID, KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT))),
+                null, MEMBER_1_ID, KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, SEARCHED_AT,
+                null))),
             Named.of("회원 ID", () -> ActivityRecord.searched(new ActivityRecord.SearchInfo(
                 SEARCH_EVENT_ID, null, KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT,
-                SEARCHED_AT))),
+                SEARCHED_AT, null))),
             Named.of("검색어", () -> ActivityRecord.searched(new ActivityRecord.SearchInfo(
                 SEARCH_EVENT_ID, MEMBER_1_ID, null, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT,
-                SEARCHED_AT))),
+                SEARCHED_AT, null))),
             Named.of("검색 시각", () -> ActivityRecord.searched(new ActivityRecord.SearchInfo(
                 SEARCH_EVENT_ID, MEMBER_1_ID, KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT,
-                null))));
+                null, null))));
     }
 
     // 자녀를 고르지 않은 담기도 회원의 활동이라 남긴다
@@ -213,26 +214,27 @@ class ActivityRecordTest {
                 REMOVED_QTY, null))));
     }
 
-    @Test
-    @DisplayName("상세 진입 값으로 상세 진입 종류의 활동 기록을 만들고 자녀 · 장바구니 · 수량 · 검색 칸은 비운다")
-    void createProductViewed() {
-        ActivityRecord record = ActivityRecord.productViewed(ActivityRecordFixture.productViewed());
+    @ParameterizedTest(name = "자녀 ID {0}")
+    @MethodSource("childProfileIds")
+    @DisplayName("상세 진입 값으로 상세 진입 종류의 활동 기록을 만들고 고른 자녀를 그대로 담으며 장바구니 · 수량 · 검색 칸은 비운다")
+    void createProductViewed(Long childProfileId) {
+        ActivityRecord record = ActivityRecord.productViewed(ActivityRecordFixture.productViewedFor(childProfileId));
 
         assertThat(record)
             .extracting(
                 ActivityRecord::getType,
                 ActivityRecord::getEventId,
                 ActivityRecord::getMemberId,
+                ActivityRecord::getChildProfileId,
                 ActivityRecord::getProductId,
                 ActivityRecord::getOccurredAt,
-                ActivityRecord::getChildProfileId,
                 ActivityRecord::getCartItemId,
                 ActivityRecord::getProductOptionId,
                 ActivityRecord::getAddedQty,
                 ActivityRecord::getCartQty,
                 ActivityRecord::getKeyword)
-            .containsExactly(ActivityType.PRODUCT_VIEWED, VIEW_EVENT_ID, MEMBER_1_ID, PRODUCT_A_ID, VIEWED_AT,
-                null, null, null, null, null, null);
+            .containsExactly(ActivityType.PRODUCT_VIEWED, VIEW_EVENT_ID, MEMBER_1_ID, childProfileId, PRODUCT_A_ID,
+                VIEWED_AT, null, null, null, null, null);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -248,12 +250,12 @@ class ActivityRecordTest {
         return Stream.of(
             Named.of("상세 진입 값", () -> ActivityRecord.productViewed(null)),
             Named.of("이벤트 ID", () -> ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
-                null, MEMBER_1_ID, PRODUCT_A_ID, VIEWED_AT))),
+                null, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, VIEWED_AT))),
             Named.of("회원 ID", () -> ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
-                VIEW_EVENT_ID, null, PRODUCT_A_ID, VIEWED_AT))),
+                VIEW_EVENT_ID, null, CHILD_1_ID, PRODUCT_A_ID, VIEWED_AT))),
             Named.of("상품 ID", () -> ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
-                VIEW_EVENT_ID, MEMBER_1_ID, null, VIEWED_AT))),
+                VIEW_EVENT_ID, MEMBER_1_ID, CHILD_1_ID, null, VIEWED_AT))),
             Named.of("진입 시각", () -> ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
-                VIEW_EVENT_ID, MEMBER_1_ID, PRODUCT_A_ID, null))));
+                VIEW_EVENT_ID, MEMBER_1_ID, CHILD_1_ID, PRODUCT_A_ID, null))));
     }
 }

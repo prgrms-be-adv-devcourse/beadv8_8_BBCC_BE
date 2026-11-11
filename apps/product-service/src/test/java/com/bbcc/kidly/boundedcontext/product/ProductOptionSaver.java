@@ -121,7 +121,7 @@ class ProductOptionSaver {
         product.addSizeSpecs(addSizeSpecs(List.of(
             spec(clothing.size110(), 105, 115, top110Measurements()),
             spec(clothing.size120(), 115, 125, top120Measurements()))), info.category(), clothing.type());
-        product.startSale(ProductFixture.SELLER_ID, info.category(), clothing.type());
+        product.startSale(ProductFixture.SELLER_ID, info.category(), clothing.type(), ProductFixture.NOW);
         return product;
     }
 

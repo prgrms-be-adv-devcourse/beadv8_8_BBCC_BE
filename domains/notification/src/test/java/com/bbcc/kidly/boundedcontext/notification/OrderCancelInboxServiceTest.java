@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
+import com.bbcc.kidly.boundedcontext.notification.app.NotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.OrderCancelInboxService;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderCancelledCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderItemCancelledCommand;
@@ -28,11 +29,14 @@ class OrderCancelInboxServiceTest {
     @Mock
     private InboxNotificationService inboxNotificationService;
 
+    @Mock
+    private NotificationService notificationService;
+
     private OrderCancelInboxService orderCancelInboxService;
 
     @BeforeEach
     void setUp() {
-        orderCancelInboxService = new OrderCancelInboxService(inboxNotificationService);
+        orderCancelInboxService = new OrderCancelInboxService(inboxNotificationService, notificationService);
     }
 
     @Test
@@ -64,6 +68,7 @@ class OrderCancelInboxServiceTest {
         orderCancelInboxService.addOrderCancelled(new OrderCancelledCommand(3L, 1L, reason));
 
         verify(inboxNotificationService, never()).add(any());
+        verify(notificationService, never()).createPush(any());
     }
 
     @Test
@@ -82,6 +87,8 @@ class OrderCancelInboxServiceTest {
     private InboxNotificationInfo captured() {
         var info = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService).add(info.capture());
+        // 알림함과 같은 내용을 푸시로도 보낸다
+        verify(notificationService).createPush(info.getValue());
         return info.getValue();
     }
 }

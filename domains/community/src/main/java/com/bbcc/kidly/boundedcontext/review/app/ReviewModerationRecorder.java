@@ -3,7 +3,9 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationService.Candidate;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.FailureCause;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Result;
+import com.bbcc.kidly.boundedcontext.review.app.port.ReviewActivityLog;
 import com.bbcc.kidly.boundedcontext.review.app.port.Reviews;
+import com.bbcc.kidly.boundedcontext.review.domain.ModerationStatus;
 import com.bbcc.kidly.boundedcontext.review.domain.Review;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewTimes;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ public class ReviewModerationRecorder {
 
     private final Reviews reviews;
     private final ReviewStatsShare statsShare;
+    private final ReviewActivityLog activityLog;
 
     @Transactional
     public Recorded record(Candidate candidate, Result result) {
@@ -31,11 +34,15 @@ public class ReviewModerationRecorder {
         return switch (result.verdict()) {
             case PASSED -> {
                 review.pass(ReviewTimes.now());
+                activityLog.moderationDecided(review.getId(), review.getProductId(), false,
+                    ModerationStatus.PASSED.name(), null);
                 yield Recorded.PASSED;
             }
             case FLAGGED -> {
                 review.hideByModeration(result.reason(), ReviewTimes.now());
                 statsShare.remove(review);
+                activityLog.moderationDecided(review.getId(), review.getProductId(), false,
+                    ModerationStatus.HIDDEN.name(), result.reason() == null ? null : result.reason().name());
                 yield Recorded.HIDDEN;
             }
             case UNDECIDED -> {

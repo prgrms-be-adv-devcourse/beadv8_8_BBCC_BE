@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.delivery.app.port.in.DeliveryOperations.Del
 import com.bbcc.kidly.boundedcontext.delivery.app.port.in.ShippingDelays;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -35,6 +36,11 @@ public class OrderDeliveriesAdapter implements OrderDeliveries {
     @Override
     public List<Delivery> findByOrder(Long orderId) {
         return deliveryOperations.findByOrder(orderId).stream().map(OrderDeliveriesAdapter::toDelivery).toList();
+    }
+
+    @Override
+    public List<Delivery> findByOrders(Collection<Long> orderIds) {
+        return deliveryOperations.findByOrders(orderIds).stream().map(OrderDeliveriesAdapter::toDelivery).toList();
     }
 
     @Override

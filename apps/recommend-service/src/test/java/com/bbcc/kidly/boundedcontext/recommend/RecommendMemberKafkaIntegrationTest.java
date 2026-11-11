@@ -4,11 +4,20 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendKafkaMessages.RET
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendKafkaMessages.TIMEOUT;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarment;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.boundedcontext.recommend.out.activity.JpaActivityRecordRepository;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -38,6 +48,15 @@ class RecommendMemberKafkaIntegrationTest {
 
     @Autowired
     private JpaActivityRecordRepository activityRecordRepository;
+
+    @Autowired
+    private RecommendReplicaChildService replicaChildService;
+
+    @Autowired
+    private ReferenceGarmentRepository referenceGarmentRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -77,6 +96,29 @@ class RecommendMemberKafkaIntegrationTest {
 
         AsyncWait.until(TIMEOUT, () -> recordsOf(memberId).isEmpty());
         assertThat(recordsOf(otherMemberId)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("회원 탈퇴를 회원 토픽에서 받아 삭제된 자녀를 포함한 그 회원 자녀의 기준 옷만 지운다")
+    void deleteGarmentsOfWithdrawnMember() throws Exception {
+        Long memberId = newId();
+        Long childId = newId();
+        Long deletedChildId = newId();
+        Long otherMemberChildId = newId();
+        replicaChildService.applyChildChanged(childChanged(childId, memberId, false));
+        replicaChildService.applyChildChanged(childChanged(deletedChildId, memberId, true));
+        replicaChildService.applyChildChanged(childChanged(otherMemberChildId, newId(), false));
+        transactionTemplate.executeWithoutResult(status -> {
+            referenceGarmentRepository.save(ReferenceGarmentFixture.top(childId));
+            referenceGarmentRepository.save(ReferenceGarmentFixture.bottom(childId));
+            referenceGarmentRepository.save(ReferenceGarmentFixture.top(deletedChildId));
+            referenceGarmentRepository.save(ReferenceGarmentFixture.top(otherMemberChildId));
+        });
+
+        messages.send(MEMBER_TOPIC, withdrawn(memberId));
+
+        AsyncWait.until(TIMEOUT, () -> garmentsOf(childId).isEmpty() && garmentsOf(deletedChildId).isEmpty());
+        assertThat(garmentsOf(otherMemberChildId)).hasSize(1);
     }
 
     @Test
@@ -161,13 +203,23 @@ class RecommendMemberKafkaIntegrationTest {
             .toList();
     }
 
+    private List<ReferenceGarment> garmentsOf(Long childId) {
+        return transactionTemplate.execute(status -> referenceGarmentRepository.findAllByChildProfileId(childId));
+    }
+
+    private static ChildChangedEvent childChanged(Long childId, Long memberId, boolean deleted) {
+        return new ChildChangedEvent(UUID.randomUUID(), WITHDRAWN_AT.minusDays(1), new ChildChangedEvent.Data(childId,
+            memberId, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, LocalDate.of(2020, 5, 1),
+            BodyType.NORMAL, PreferredFit.LOOSE, deleted));
+    }
+
     private static Long newId() {
         return ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     }
 
     private static ActivityRecord search(Long memberId) {
         return ActivityRecord.searched(new ActivityRecord.SearchInfo(UUID.randomUUID(), memberId, "맨투맨", 52L,
-            Map.of("COLOR", List.of(3L, 5L)), 12L, SEARCHED_AT));
+            Map.of("COLOR", List.of(3L, 5L)), 12L, SEARCHED_AT, null));
     }
 
     private static MemberWithdrawnEvent withdrawn(Long memberId) {

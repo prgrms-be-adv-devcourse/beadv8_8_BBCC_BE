@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.ChildAccountService;
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
 import com.bbcc.kidly.boundedcontext.notification.app.ProductNameService;
 import com.bbcc.kidly.boundedcontext.notification.app.WishInboxService;
+import com.bbcc.kidly.boundedcontext.notification.app.dto.ChildWishCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WishRejectedCommand;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.WishSentCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
@@ -105,6 +106,50 @@ class WishInboxServiceTest {
         given(childAccountService.findActiveAccountId(3L)).willReturn(Optional.empty());
 
         wishInboxService.addWishRejected(new WishRejectedCommand(7L, 3L, List.of(10L), "NEXT_TIME"));
+
+        verify(inboxNotificationService, never()).add(any());
+    }
+
+    @Test
+    @DisplayName("결제 완료는 자녀 활성 계정 알림함에 조른 상품과 함께 넣고, 조르기 ID 중복 키를 둔다")
+    void addWishPaid() {
+        given(childAccountService.findActiveAccountId(3L)).willReturn(Optional.of(30L));
+        given(productNameService.findName(10L)).willReturn(Optional.of("무지 티셔츠"));
+
+        wishInboxService.addWishPaid(new ChildWishCommand(7L, 3L, List.of(10L)));
+
+        var info = captured();
+        assertThat(info.recipient()).isEqualTo(InboxRecipient.child(30L));
+        assertThat(info.type()).isEqualTo(NotificationType.WISH_PAID);
+        assertThat(info.title()).isEqualTo("조르기를 들어줬어요!");
+        assertThat(info.body()).isEqualTo("부모님이 결제했어요. 조른 상품: 무지 티셔츠");
+        assertThat(info.linkPath()).isEqualTo("/child/wishes/7");
+        assertThat(info.dedupKey()).isEqualTo("wish.paid:7");
+    }
+
+    @Test
+    @DisplayName("만료는 자녀 활성 계정 알림함에 조른 상품과 함께 넣고, 조르기 ID 중복 키를 둔다")
+    void addWishExpired() {
+        given(childAccountService.findActiveAccountId(3L)).willReturn(Optional.of(30L));
+        given(productNameService.findName(10L)).willReturn(Optional.empty());
+
+        wishInboxService.addWishExpired(new ChildWishCommand(7L, 3L, List.of(10L, 11L)));
+
+        var info = captured();
+        assertThat(info.recipient()).isEqualTo(InboxRecipient.child(30L));
+        assertThat(info.type()).isEqualTo(NotificationType.WISH_EXPIRED);
+        assertThat(info.title()).isEqualTo("조르기 기한이 지났어요");
+        assertThat(info.body()).isEqualTo("부모님 답을 받지 못하고 기한이 지났어요. 조른 상품 2개");
+        assertThat(info.dedupKey()).isEqualTo("wish.expired:7");
+    }
+
+    @Test
+    @DisplayName("자녀 프로필에 활성 계정이 없으면 결제 완료 · 만료 알림도 넣지 않는다")
+    void skipWishPaidAndExpiredWithoutAccount() {
+        given(childAccountService.findActiveAccountId(3L)).willReturn(Optional.empty());
+
+        wishInboxService.addWishPaid(new ChildWishCommand(7L, 3L, List.of(10L)));
+        wishInboxService.addWishExpired(new ChildWishCommand(7L, 3L, List.of(10L)));
 
         verify(inboxNotificationService, never()).add(any());
     }

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.childprofile.domain;
 
 import com.bbcc.kidly.member.support.entity.BaseTimeEntity;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordedEvent;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -17,6 +18,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -54,5 +57,11 @@ public class GrowthRecord extends BaseTimeEntity {
         this.heightCm = heightCm;
         this.bodyType = bodyType;
         this.recordedAt = recordedAt;
+    }
+
+    public ChildGrowthRecordedEvent toRecordedEvent() {
+        return new ChildGrowthRecordedEvent(UUID.randomUUID(), recordedAt,
+            new ChildGrowthRecordedEvent.Data(Objects.requireNonNull(id, "growthRecord id"), childProfile.getId(),
+                heightCm.setScale(1), bodyType, recordedAt));
     }
 }

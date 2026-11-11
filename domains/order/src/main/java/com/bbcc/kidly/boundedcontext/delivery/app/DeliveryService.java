@@ -18,8 +18,11 @@ import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
 import com.bbcc.kidly.shared.order.event.DeliveryShippedEvent;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -95,6 +98,17 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<DeliveryView> findByOrders(Collection<Long> orderIds) {
+        if (orderIds.isEmpty()) {
+            return List.of();
+        }
+        return deliveryRepository.findAllByOrderIdInOrderByOrderIdAscIdAsc(orderIds).stream()
+            .map(DeliveryService::toView)
+            .toList();
+    }
+
+    @Override
     public Page<ShippingDelayedView> findShippingDelayed(LocalDateTime before, Pageable pageable) {
         return deliveryRepository.findShippingDelayed(before, pageable)
             .map(row -> new ShippingDelayedView(row.getOrderId(), row.getDeliveryId(), row.getCreatedAt()));
@@ -152,14 +166,15 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
         } catch (DeliveryRuleViolationException e) {
             throw DeliveryErrors.toBusiness(e);
         }
-        deliveryOrders.recordDelivered(delivery.getOrderId(), delivery.getSellerId(), delivery.getDeliveredAt());
+        List<DeliveryOrders.DeliveredItem> deliveredItems = deliveryOrders.recordDelivered(delivery.getOrderId(),
+            delivery.getSellerId(), delivery.getDeliveredAt());
         if (alreadyDelivered) {
             log.debug("요청 무시: event=deliver orderId={} deliveryId={} result=ALREADY_DONE",
                 delivery.getOrderId(), delivery.getId());
         } else {
             deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SELLER,
                 memberId, SELLER_DELIVER), from.name(), delivery.getStatus().name(), null, now);
-            publishDelivered(delivery, now);
+            publishDelivered(delivery, deliveredItems, now);
             log.info("배송 완료: orderId={} deliveryId={} sellerId={}",
                 delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
         }
@@ -229,11 +244,12 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
                 delivery.getOrderId(), deliveryId, from);
             return false;
         }
-        deliveryOrders.recordDelivered(delivery.getOrderId(), delivery.getSellerId(), delivery.getDeliveredAt());
+        List<DeliveryOrders.DeliveredItem> deliveredItems = deliveryOrders.recordDelivered(delivery.getOrderId(),
+            delivery.getSellerId(), delivery.getDeliveredAt());
         LocalDateTime now = LocalDateTime.now();
         deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SYSTEM, null,
             DELIVERY_TRACKING), from.name(), delivery.getStatus().name(), null, now);
-        publishDelivered(delivery, now);
+        publishDelivered(delivery, deliveredItems, now);
         log.info("배송 완료: orderId={} deliveryId={} sellerId={} by=tracking",
             delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
         return true;
@@ -250,13 +266,21 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     }
 
     /**
-     * 배송 완료 이벤트(delivery.delivered, #900). 처음 완료될 때만 부른다(이미 완료면 부르지 않는다).
+     * 배송 완료 이벤트(delivery.delivered, #900). 처음 완료될 때만 부른다(이미 완료면 부르지 않는다). 판매자 수동 완료 · 택배 조회 완료가
+     * 모두 여기서 채운다: 주문상품은 주문이 돌려준 그 판매자 몫(취소 제외), 자동 구매확정 예정 시각은 주문상품의 예정 시각(#1061, 주문의
+     * 자동 확정과 같은 기준. 한 배송의 주문상품은 같은 배송 완료 시각이라 같다 — 다르면 가장 이른 시각, 주문상품이 없으면 null).
      */
-    private void publishDelivered(Delivery delivery, LocalDateTime now) {
+    private void publishDelivered(Delivery delivery, List<DeliveryOrders.DeliveredItem> deliveredItems,
+        LocalDateTime now) {
+        LocalDateTime autoConfirmAt = deliveredItems.stream().map(DeliveryOrders.DeliveredItem::autoConfirmAt)
+            .filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(null);
+        List<DeliveryDeliveredEvent.Item> items = deliveredItems.stream()
+            .map(item -> new DeliveryDeliveredEvent.Item(item.orderItemId(), item.productId(), item.quantity()))
+            .toList();
         publishForBuyer(delivery, DELIVERED, memberId -> new DeliveryDeliveredEvent(
             UUID.randomUUID(), now, new DeliveryDeliveredEvent.Data(delivery.getId(), delivery.getOrderId(), memberId,
                 delivery.getSellerId(), delivery.getCarrier().name(), delivery.getCarrier().getDisplayName(),
-                delivery.getTrackingNumber(), delivery.getDeliveredAt())));
+                delivery.getTrackingNumber(), delivery.getDeliveredAt(), autoConfirmAt, items)));
     }
 
     /**

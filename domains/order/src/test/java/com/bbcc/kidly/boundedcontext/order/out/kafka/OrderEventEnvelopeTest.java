@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.out.kafka;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
+import com.bbcc.kidly.shared.order.event.DeliveryDeliveredEvent;
 import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import java.time.LocalDateTime;
@@ -66,7 +67,7 @@ class OrderEventEnvelopeTest {
             + "\"eventType\":\"cart.item-added\",\"schemaVersion\":1,\"occurredAt\":\"2026-10-29T17:30:00.123456\","
             + "\"producer\":\"order\",\"aggregateId\":\"40\",\"correlationId\":\"1\","
             + "\"data\":{\"cartItemId\":40,\"memberId\":1,\"childId\":null,\"productId\":10,\"optionId\":301,"
-            + "\"quantity\":2,\"cartQuantity\":5}}");
+            + "\"quantity\":2,\"cartQuantity\":5,\"ownerType\":null,\"ownerId\":null}}");
     }
 
     @Test
@@ -81,6 +82,22 @@ class OrderEventEnvelopeTest {
 
         assertThat(data).isEqualTo(new OrderItemPurchaseConfirmedEvent.Data(70L, 7L, 1L, 2L, null, 10L, 3L, "110", 2,
             50_000L, LocalDateTime.of(2026, 10, 30, 9, 0), null));
+    }
+
+    @Test
+    @DisplayName("배송 완료 data에 autoConfirmAt · items 키가 없는 예전 메시지(#1061 전)도 읽히고 두 칸은 null이다")
+    void readsDeliveredWithoutAutoConfirmAtAndItems() {
+        String legacy = "{\"deliveryId\":30,\"orderId\":1024,\"memberId\":1,\"sellerId\":2,\"carrier\":\"CJ\","
+            + "\"carrierName\":\"CJ대한통운\",\"trackingNumber\":\"1234567890\","
+            + "\"deliveredAt\":\"2026-11-05T19:00:00\"}";
+
+        DeliveryDeliveredEvent.Data data = JsonMapper.builder().build()
+            .readValue(legacy, DeliveryDeliveredEvent.Data.class);
+
+        assertThat(data).isEqualTo(new DeliveryDeliveredEvent.Data(30L, 1024L, 1L, 2L, "CJ", "CJ대한통운", "1234567890",
+            LocalDateTime.of(2026, 11, 5, 19, 0)));
+        assertThat(data.autoConfirmAt()).isNull();
+        assertThat(data.items()).isNull();
     }
 
     private static OrderCreatedEvent orderCreated() {

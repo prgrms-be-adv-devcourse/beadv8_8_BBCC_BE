@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 
 import com.bbcc.kidly.boundedcontext.notification.domain.MemberContact;
 import com.bbcc.kidly.boundedcontext.notification.domain.MemberContactRepository;
+import com.bbcc.kidly.boundedcontext.notification.domain.WithdrawnMemberRepository;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,11 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberContactService {
 
     private final MemberContactRepository memberContactRepository;
+    private final WithdrawnMemberRepository withdrawnMemberRepository;
 
-    // 이메일 없이 가입한 회원은 저장하지 않는다. 이미 있으면 그대로 둔다(이메일은 바뀌지 않는다)
+    // 이메일 없이 가입한 회원 · 탈퇴한 회원은 저장하지 않는다. 이미 있으면 그대로 둔다(이메일은 바뀌지 않는다)
     @Transactional
     public void save(Long memberId, String email) {
-        if (email == null || email.isBlank() || memberContactRepository.existsById(memberId)) {
+        if (email == null || email.isBlank() || memberContactRepository.existsById(memberId)
+            || withdrawnMemberRepository.exists(memberId)) {
             return;
         }
         memberContactRepository.save(MemberContact.of(memberId, email));

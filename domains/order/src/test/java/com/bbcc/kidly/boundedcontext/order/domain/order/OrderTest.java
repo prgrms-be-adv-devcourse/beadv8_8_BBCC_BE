@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
 import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException.Rule;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * Order 상태 전이 규칙(주문 정리 5.1 · 5.2).
@@ -929,6 +931,68 @@ class OrderTest {
             order.recordDelivered(SELLER_A_ID, DELIVERED_AT.plusHours(1));
 
             assertThat(itemOf(order, SELLER_A_ID).getDeliveredAt()).isEqualTo(DELIVERED_AT);
+        }
+
+        @Test
+        @DisplayName("배송된 주문상품(그 판매자 몫, #1061)을 돌려준다. 다시 와도 같은 주문상품 · 처음 시각")
+        void returnsSellersDeliveredItems() {
+            Order order = OrderFixture.paidOrder();
+            OrderItem itemA = itemOf(order, SELLER_A_ID);
+
+            List<OrderItem> first = order.recordDelivered(SELLER_A_ID, DELIVERED_AT);
+            List<OrderItem> again = order.recordDelivered(SELLER_A_ID, DELIVERED_AT.plusHours(1));
+
+            assertThat(first).containsExactly(itemA);
+            assertThat(again).containsExactly(itemA);
+            assertThat(itemA.getDeliveredAt()).isEqualTo(DELIVERED_AT);
+        }
+
+        @Test
+        @DisplayName("취소된 주문상품은 돌려주지 않는다: 몫 전체가 취소면 빈 목록, 몫 일부가 취소면 나머지만(#1061)")
+        void excludesCancelledItems() {
+            Order wholeShareCancelled = OrderFixture.paidOrder();
+            wholeShareCancelled.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OUT_OF_STOCK, 90L, NOW);
+            assertThat(wholeShareCancelled.recordDelivered(SELLER_A_ID, DELIVERED_AT)).isEmpty();
+
+            Order twoLinesOfA = OrderFixture.place(List.of(line(productOfSellerA(), child(), 1),
+                line(OrderFixture.product(4L, 4001L, SELLER_A_ID, "후드 집업", "110", 30_000L, true), null, 1)));
+            twoLinesOfA.requestPayment(NOW);
+            OrderFixture.pay(twoLinesOfA, PAYMENT_ID, PAID_AT);
+            OrderItem cancelled = twoLinesOfA.getItems().getFirst();
+            OrderItem kept = twoLinesOfA.getItems().get(1);
+            // 몫 일부만 취소된 상태는 지금 흐름(판매자 몫 전체 취소)으로는 생기지 않지만, 생겨도 배송된 주문상품에서 빠진다
+            ReflectionTestUtils.setField(cancelled, "status", OrderItem.Status.CANCELLED);
+
+            assertThat(twoLinesOfA.recordDelivered(SELLER_A_ID, DELIVERED_AT)).containsExactly(kept);
+            assertThat(cancelled.getDeliveredAt()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("자동 구매확정 예정 시각 (#1061)")
+    class AutoConfirmAt {
+
+        @Test
+        @DisplayName("배송 완료 시각 + 자동 구매확정 기간(기본 15일 · 줄인 기간 모두). 그 시각부터 자동 확정되고 1초 전은 아니다")
+        void sameBasisAsAutoConfirm() {
+            for (Duration after : List.of(AUTO_CONFIRM_AFTER, Duration.ofMinutes(3))) {
+                Order.Policy policy = new Order.Policy(PAYMENT_TIMEOUT, after);
+                Order order = OrderFixture.withItemIds(OrderFixture.deliveredToSellerA());
+                OrderItem item = itemOf(order, SELLER_A_ID);
+                LocalDateTime autoConfirmAt = item.autoConfirmAt(after);
+
+                assertThat(autoConfirmAt).as("기간 %s", after).isEqualTo(DELIVERED_AT.plus(after));
+                assertThat(order.autoConfirmItem(item.getId(), policy, autoConfirmAt.minusSeconds(1)))
+                    .as("기간 %s, 1초 전", after).isEqualTo(TransitionResult.NOT_APPLICABLE);
+                assertThat(order.autoConfirmItem(item.getId(), policy, autoConfirmAt))
+                    .as("기간 %s, 예정 시각", after).isEqualTo(TransitionResult.APPLIED);
+            }
+        }
+
+        @Test
+        @DisplayName("배송 전이면 null")
+        void nullBeforeDelivery() {
+            assertThat(itemOf(OrderFixture.paidOrder(), SELLER_A_ID).autoConfirmAt(AUTO_CONFIRM_AFTER)).isNull();
         }
     }
 

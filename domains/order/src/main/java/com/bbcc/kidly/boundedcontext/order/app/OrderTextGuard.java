@@ -42,12 +42,15 @@ public final class OrderTextGuard {
     //   kidly.seller.events      seller.changed · seller.application-rejected   → 기본(seller.)
     //   kidly.product.events     product.changed · stock.deducted · stock.deduction-failed → product. · stock.
     //   kidly.childprofile.events child.changed(보낸 도메인 childprofile)         → child.
+    //   kidly.member.events      member.withdrawn(#1001)                         → 기본(member.)
     //   kidly.auth.events        child-account.changed(auth.tokens-revoked는 주문이 건너뛰므로 허용하지 않음) → child-account.
+    //   kidly.order.events       cart.item-purchased(자기 토픽, 조르기 결제 완료 #999. 다른 종류는 건너뛰므로 실패하지 않음) → cart.
     // 구독 토픽 · shared 이벤트가 늘면 여기에 더한다
     private static final Map<String, Set<String>> RECEIVED_EVENT_PREFIXES = Map.of(
         "kidly.product.events", Set.of("product.", "stock."),
         "kidly.childprofile.events", Set.of("child."),
-        "kidly.auth.events", Set.of("child-account."));
+        "kidly.auth.events", Set.of("child-account."),
+        "kidly.order.events", Set.of("cart."));
     private static final int CLASS_MAX = 200;
     private static final int CODE_MAX = 64;
     private static final int SOURCE_MAX = 200;

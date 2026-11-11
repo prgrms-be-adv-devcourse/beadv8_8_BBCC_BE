@@ -2,7 +2,9 @@ package com.bbcc.kidly.boundedcontext.settlement.app;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementJobConfig;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementRunResult;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementAdminActions;
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementAdminActionType;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementPeriod;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
@@ -29,6 +31,7 @@ import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.batch.core.launch.JobRestartException;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.StepExecution;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -50,11 +53,22 @@ public class SettlementRunService {
     private final SettlementSkipRepository settlementSkipRepository;
     private final SettlementRepository settlementRepository;
     private final SettlementProperties properties;
+    private final SettlementAdminActions settlementAdminActions;
 
     // 기준일은 오늘 또는 지난 날짜. 그 날 0시 전에 확정된 대기 항목을 정산한다
     public SettlementRunResult runManually(LocalDate cutoffOn, Long adminId) {
         var period = SettlementPeriod.manual(cutoffOn, LocalDate.now());
-        return run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
+        var result = run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
+        // 실행 ID는 실행 뒤에야 생기고 작업은 Batch가 이미 커밋했으므로 기록과 묶을 수 없다. 기록이 DB 오류로 실패해도 결과는
+        // 돌려준다(500 뒤 다시 시도하면 SETTLEMENT_ALREADY_RUN으로 거절된다). 관리자 ID는 Batch 파라미터 requestedBy에도 남아 있다
+        try {
+            settlementAdminActions.record(adminId, SettlementAdminActionType.RUN_MANUAL, result.runId(),
+                LocalDateTime.now());
+        } catch (DataAccessException e) {
+            log.error("정산 관리자 행위 기록 실패: adminId={} action={} runId={}", adminId,
+                SettlementAdminActionType.RUN_MANUAL, result.runId());
+        }
+        return result;
     }
 
     /**
@@ -85,11 +99,13 @@ public class SettlementRunService {
     // 서버가 작업 도중 죽어 실행 중으로 남은 작업을 FAILED로 정리해, 같은 기준일로 다시 실행할 수 있게 한다.
     // 보통은 다음 실행이 진행 없는 기록을 스스로 닫는다(run). 이것은 그 시간을 기다리지 않고 닫을 때 쓰며,
     // 실제로 도는 작업과 구분하지 못하므로 서버를 다시 띄운 뒤에만 쓴다
-    public SettlementRunResult recover(Long runId) {
+    public SettlementRunResult recover(Long runId, Long adminId) {
         var execution = findRun(runId);
         if (!execution.getStatus().isRunning()) {
             throw new BusinessException(SettlementErrorCode.SETTLEMENT_RUN_NOT_RECOVERABLE);
         }
+        // 기록을 먼저 남겨, 기록 없이 정리되지 않게 한다. 기록 뒤 정리가 실패하면(버전 충돌 등) 시도 기록으로 남는다
+        settlementAdminActions.record(adminId, SettlementAdminActionType.RUN_RECOVER, runId, LocalDateTime.now());
         return resultOf(jobOperator.recover(execution));
     }
 

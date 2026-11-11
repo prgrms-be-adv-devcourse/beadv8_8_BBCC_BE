@@ -49,6 +49,7 @@ class ReviewServiceTest {
     private final FakeStats stats = new FakeStats();
     private final FakeEligibility eligibility = new FakeEligibility();
     private final FakeReviewImages images = new FakeReviewImages();
+    private final OwnPrefixStorage storage = new OwnPrefixStorage();
     private final ReviewService service = service(5);
 
     @Test
@@ -401,9 +402,94 @@ class ReviewServiceTest {
         assertThat(stats.deltas).isEqualTo(afterWrite);
     }
 
+    @Test
+    @DisplayName("업로드 확인(작성): 하나라도 올리지 않았으면 IMAGE_NOT_UPLOADED, 확인 불가면 IMAGE_STORAGE_UNAVAILABLE, 둘 다 저장 안 함")
+    void writeChecksUpload() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        storage.missing.add(own(1, "png"));
+
+        assertError(() -> writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg"), own(1, "png")))),
+            ReviewErrorCode.IMAGE_NOT_UPLOADED);
+        assertThat(storage.checks).containsExactly(List.of(own(0, "jpg"), own(1, "png")));
+        storage.unavailable = true;
+        assertError(() -> writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg")))),
+            ReviewErrorCode.IMAGE_STORAGE_UNAVAILABLE);
+
+        assertThat(reviews.saves).isZero();
+        assertThat(images.rows).isEmpty();
+        assertThat(stats.deltas).isEmpty();
+    }
+
+    @Test
+    @DisplayName("업로드 확인(작성): 사진이 없으면 부르지 않고, 형식 · 장수 · 자격 오류가 먼저다(확인 호출 없음)")
+    void writeChecksAfterOtherRules() {
+        storage.missing.add(own(0, "jpg"));
+
+        assertError(() -> writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg")))),
+            ReviewErrorCode.REVIEW_NOT_ELIGIBLE);
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        assertError(() -> writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of("https://evil.example.com/a.jpg"))),
+            ReviewErrorCode.INVALID_IMAGE_URL);
+        assertError(() -> writeWith(ORDER_ITEM, ImageUrlsInput.of(ownUrls(6))), ReviewErrorCode.TOO_MANY_IMAGES);
+        service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요");
+
+        assertThat(storage.checks).isEmpty();
+    }
+
+    @Test
+    @DisplayName("업로드 확인(수정): 새로 붙는 주소만 확인하고, 사진 키가 없거나 빈 목록 · 이미 붙은 주소만이면 부르지 않는다")
+    void updateChecksOnlyNewUrls() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        long id = writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg")))).reviewId();
+        storage.checks.clear();
+
+        service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(0, "jpg"), own(1, "png")))));
+        assertThat(storage.checks).containsExactly(List.of(own(1, "png")));
+        storage.checks.clear();
+
+        service.update(ME, id, new ReviewService.ReviewChange(true, 2, false, null));
+        service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(1, "png"), own(0, "jpg")))));
+        service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of())));
+        assertThat(storage.checks).isEmpty();
+    }
+
+    @Test
+    @DisplayName("업로드 확인(수정): 새 주소가 없거나 확인 불가면 아무것도 바뀌지 않고, 작성자 · 값 오류가 확인보다 먼저다")
+    void updateUploadFailureChangesNothing() {
+        eligibility.mine(ORDER_ITEM, ME, PRODUCT);
+        long id = writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg")))).reviewId();
+        List<Delta> afterWrite = List.copyOf(stats.deltas);
+        storage.checks.clear();
+        storage.missing.add(own(2, "png"));
+
+        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(true, 1, true, "바꿈",
+            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of(own(2, "png"))))),
+            ReviewErrorCode.IMAGE_NOT_UPLOADED);
+        storage.unavailable = true;
+        assertError(() -> service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(3, "png"))))),
+            ReviewErrorCode.IMAGE_STORAGE_UNAVAILABLE);
+        int checksBefore = storage.checks.size();
+        assertError(() -> service.update(ME + 1, id, imagesChange(ImageUrlsInput.of(List.of(own(3, "png"))))),
+            ReviewErrorCode.REVIEW_FORBIDDEN);
+        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(true, 9, false, null,
+            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of(own(3, "png"))))),
+            ReviewErrorCode.INVALID_RATING);
+        assertError(() -> service.update(ME, 999L, imagesChange(ImageUrlsInput.of(List.of(own(3, "png"))))),
+            ReviewErrorCode.REVIEW_NOT_FOUND);
+
+        assertThat(storage.checks).hasSize(checksBefore);
+        Review review = reviews.findForUpdate(id).orElseThrow();
+        assertThat(review.getRating()).isEqualTo(4);
+        assertThat(review.getContent()).isEqualTo("좋아요");
+        assertThat(images.urlsOf(id)).containsExactly(own(0, "jpg"));
+        assertThat(stats.deltas).isEqualTo(afterWrite);
+    }
+
     private ReviewService service(int maxImages) {
         return new ReviewService(reviews, stats, eligibility, new ReviewSeparateTransaction(), images,
-            new OwnPrefixStorage(), new ReviewImageProperties(maxImages, DataSize.ofMegabytes(10)));
+            storage, new ReviewImageProperties(maxImages, DataSize.ofMegabytes(10)),
+            org.mockito.Mockito.mock(ReviewImageCleanupQueue.class), org.mockito.Mockito.mock(CommunityMetrics.class),
+            org.mockito.Mockito.mock(com.bbcc.kidly.boundedcontext.review.app.port.ReviewActivityLog.class));
     }
 
     private ReviewView writeWith(long orderItemId, ImageUrlsInput imageUrls) {
@@ -447,9 +533,24 @@ class ReviewServiceTest {
 
     private static final class OwnPrefixStorage implements ReviewImageStorage {
 
+        // 업로드 확인에 넘어온 주소(호출마다 한 묶음)와, 없음 · 확인 불가로 볼 주소
+        private final List<List<String>> checks = new ArrayList<>();
+        private final java.util.Set<String> missing = new java.util.HashSet<>();
+        private boolean unavailable;
+
         @Override
         public UploadUrl issueUploadUrl(ReviewImageUpload upload, long memberId) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public java.util.Set<String> findNotUploaded(List<String> imageUrls) {
+            checks.add(List.copyOf(imageUrls));
+            if (unavailable) {
+                throw new CheckUnavailableException();
+            }
+            return imageUrls.stream().filter(missing::contains)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
         }
 
         @Override
@@ -490,6 +591,16 @@ class ReviewServiceTest {
             int before = rows.size();
             rows.removeIf(image -> image.getReviewId().equals(reviewId));
             return before - rows.size();
+        }
+
+        @Override
+        public boolean existsByImageUrl(String imageUrl) {
+            return rows.stream().anyMatch(image -> image.getImageUrl().equals(imageUrl));
+        }
+
+        @Override
+        public List<String> findAttachedUrls(Collection<String> imageUrls) {
+            return rows.stream().map(ReviewImage::getImageUrl).filter(imageUrls::contains).distinct().toList();
         }
     }
 
@@ -587,6 +698,11 @@ class ReviewServiceTest {
 
         @Override
         public Optional<Review> findForUpdate(Long reviewId) {
+            return Optional.ofNullable(rows.get(reviewId));
+        }
+
+        @Override
+        public Optional<Review> findById(Long reviewId) {
             return Optional.ofNullable(rows.get(reviewId));
         }
 

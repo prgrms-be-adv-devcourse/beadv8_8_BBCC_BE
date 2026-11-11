@@ -25,12 +25,13 @@ final class OrderMcpViews {
     private OrderMcpViews() {
     }
 
+    // AI 진단 메모(#926, aiMemo)는 모델이 쓴 자유 문구라 MCP로는 내보내지 않는다(null)
     static StuckOrderResponse stuck(StuckOrderResponse row) {
         StuckOrderResponse.Outbox outbox = row.outbox();
         return new StuckOrderResponse(row.kind(), row.orderId(), row.targetType(), row.targetId(), row.status(),
             row.since(), outbox == null ? null : new StuckOrderResponse.Outbox(outbox.outboxId(), outbox.eventType(),
                 outbox.eventId(), outbox.attemptCount(), outbox.createdAt(), exceptionClassOnly(outbox.lastError()),
-                outbox.backlogCount(), outbox.quarantinedAt()));
+                outbox.backlogCount(), outbox.quarantinedAt()), null);
     }
 
     static OrderStatusHistoryResponse history(OrderStatusHistoryResponse row) {

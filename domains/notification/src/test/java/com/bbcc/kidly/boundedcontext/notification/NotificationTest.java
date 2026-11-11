@@ -194,4 +194,16 @@ class NotificationTest {
     void deliverableRecipient(String recipient) {
         assertThat(NotificationFixture.welcomeEmail(recipient).hasDeliverableRecipient()).isTrue();
     }
+
+    @Test
+    @DisplayName("푸시 알림은 받는 주소 없이 회원 ID와 누르면 이동할 경로로 PENDING으로 만든다")
+    void push() {
+        var notification = NotificationFixture.deliveryPush(1L, "/orders/3");
+
+        assertThat(notification.getChannel()).isEqualTo(NotificationChannel.PUSH);
+        assertThat(notification.getMemberId()).isEqualTo(1L);
+        assertThat(notification.getRecipient()).isNull();
+        assertThat(notification.getLinkPath()).isEqualTo("/orders/3");
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+    }
 }

@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.order.app.stuck;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.config.StuckOrderThresholds;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
+import com.bbcc.kidly.boundedcontext.order.app.port.StuckOrderDiagnosisRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.StuckOrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.stuck.dto.StuckOrderResult;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -10,9 +11,11 @@ import com.bbcc.kidly.global.error.BusinessException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -37,6 +40,7 @@ public class StuckOrderService {
     private static final List<String> ORDER_KEYED_EVENT_TYPES = List.of("order.", "order-item.", "delivery.");
 
     private final StuckOrderRepository stuckOrderRepository;
+    private final StuckOrderDiagnosisRepository diagnosisRepository;
     private final OrderDeliveries orderDeliveries;
     private final StuckOrderThresholds thresholds;
     private final Order.Policy orderPolicy;
@@ -59,6 +63,30 @@ public class StuckOrderService {
      * @param kindName 종류 이름. 대문자 그대로만 받는다(아니면 INVALID_STUCK_KIND)
      */
     public Page<StuckOrderResult> getStuckOrders(String kindName, LocalDateTime now, int page, int size) {
+        Page<StuckOrderResult> rows = findStuckOrders(kindName, now, page, size);
+        return withAiMemos(rows);
+    }
+
+    // 그 페이지 주문들의 (주문, 종류)별 최근 AI 진단 메모를 한 번에 읽어 붙인다(#926). 없으면 null
+    private Page<StuckOrderResult> withAiMemos(Page<StuckOrderResult> rows) {
+        List<Long> orderIds = rows.getContent().stream().map(StuckOrderResult::orderId).filter(Objects::nonNull)
+            .distinct().toList();
+        if (orderIds.isEmpty()) {
+            return rows;
+        }
+        Map<String, StuckOrderResult.AiMemo> memos = new HashMap<>();
+        diagnosisRepository.findLatestDiagnosed(orderIds).forEach(memo -> memos.put(
+            memo.getOrderId() + ":" + memo.getStuckKind(), new StuckOrderResult.AiMemo(memo.getSummary(),
+                memo.getRecommendedAction(), memo.getConfidence().name(), memo.getProvider(), memo.getModel(),
+                memo.getCreatedAt())));
+        return rows.map(row -> row.orderId() == null ? row
+            : row.withAiMemo(memos.get(row.orderId() + ":" + row.kind())));
+    }
+
+    /**
+     * 관리자 목록과 같은 대상 · 순서이되 AI 메모는 붙이지 않는다(#926 진단 작업용).
+     */
+    public Page<StuckOrderResult> findStuckOrders(String kindName, LocalDateTime now, int page, int size) {
         StuckOrderKind kind = toKind(kindName);
         if (kind == StuckOrderKind.OUTBOX_STUCK) {
             return getStuckOutbox(now, PageRequest.of(page, size));

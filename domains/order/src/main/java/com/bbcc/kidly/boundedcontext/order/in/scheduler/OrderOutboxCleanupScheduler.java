@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxCleanupService;
 import com.bbcc.kidly.boundedcontext.order.app.port.SingleServerJobRunner;
@@ -24,6 +25,7 @@ public class OrderOutboxCleanupScheduler {
     // 보관 기간의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌아 키 이름이 나오는 오류로 실패하게 하려고 주입한다
     private final OrderOutboxProperties properties;
     private final SingleServerJobRunner jobRunner;
+    private final OrderOperationMetrics metrics;
 
     @Scheduled(cron = "${kidly.order.outbox.cleanup-cron}")
     public void cleanUp() {
@@ -31,6 +33,7 @@ public class OrderOutboxCleanupScheduler {
             int[] deleted = new int[1];
             // 한 번에 한 서버에서만(#564). 다른 서버가 돌고 있으면 러너가 DEBUG 한 줄 남기고 건너뛴다
             if (jobRunner.run(CLEANUP_JOB, () -> deleted[0] = cleanupService.cleanUp())) {
+                metrics.markJobSuccess(OrderOperationMetrics.Job.OUTBOX_CLEANUP);
                 log.info("아웃박스 정리: deleted={} retention={}", deleted[0], properties.retention());
             }
         } catch (RuntimeException e) {

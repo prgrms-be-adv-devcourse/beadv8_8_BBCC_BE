@@ -44,14 +44,36 @@ class ProductEventsTest {
     }
 
     @Test
-    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 · 관리자 판매 중지 순서로 담고, 실측은 사이즈 · 권장 키 · 실측 맵이다")
+    @DisplayName("상품 정보 변경 이벤트는 기존 칸 뒤에 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 · 관리자 판매 중지 · 판매 시작 시각 순서로 담고, "
+        + "실측은 사이즈 · 권장 키 · 실측 맵이다")
     void dataCarriesBrandDescriptionAndSizeSpecs() {
         assertThat(ProductChangedEvent.Data.class.getRecordComponents()).extracting(RecordComponent::getName)
             .containsExactly("productId", "sellerId", "name", "categoryId", "status", "thumbnailUrl", "createdAt",
                 "sizeFree", "options", "infoValues", "brand", "description", "sizeSpecs", "categoryPath",
-                "stoppedByAdmin");
+                "stoppedByAdmin", "saleStartedAt");
         assertThat(ProductChangedEvent.SizeSpec.class.getRecordComponents()).extracting(RecordComponent::getName)
             .containsExactly("size", "minHeightCm", "maxHeightCm", "measurements");
+    }
+
+    @Test
+    @DisplayName("판매 시작 시각 칸이 생기기 전의 생성자로 만들면 판매 시작 시각은 null이다")
+    void constructorWithoutSaleStartedAtFillsNull() {
+        ProductChangedEvent.Data data = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of(), null, null,
+            List.of(), List.of(), false);
+
+        assertThat(data.saleStartedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("판매 시작 시각을 넣어 만들면 판매 시작 시각이 그 값이다")
+    void carriesSaleStartedAt() {
+        LocalDateTime saleStartedAt = NOW.minusDays(3);
+        ProductChangedEvent.Data data = new ProductChangedEvent.Data(
+            1L, 2L, "데일리 맨투맨", 1L, ProductStatus.ON_SALE, null, NOW, false, List.of(), List.of(), null, null,
+            List.of(), List.of(), false, saleStartedAt);
+
+        assertThat(data.saleStartedAt()).isEqualTo(saleStartedAt);
     }
 
     @Test

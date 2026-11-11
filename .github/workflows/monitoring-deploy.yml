@@ -125,7 +125,7 @@ jobs:
         run: |
           out="$RUNNER_TEMP/monitoring-agent"
           mkdir -p "$out"
-          cp deploy/monitoring-agent/{docker-compose.yml,config.alloy,deploy.sh} "$out/"
+          cp deploy/monitoring-agent/{docker-compose.yml,config.alloy,deploy.sh,k3s-metrics.yaml} "$out/"
           printf "MONITORING_HOST='%s'\n" "$MONITORING_PRIVATE_IP" > "$out/.env"
 
       # 이 서버에서 Prometheus · Loki · Grafana 를 돌리던 때의 설정 폴더를 지운다. 옛 docker-compose.yml · deploy.sh · .env(비밀이 들어 있던)는 새것으로 덮인다
@@ -134,7 +134,7 @@ jobs:
       - name: 서버에 설정 파일 올리기
         run: |
           dir=/opt/app/monitoring
-          tar -C "$RUNNER_TEMP/monitoring-agent" -czf - docker-compose.yml config.alloy deploy.sh .env \
+          tar -C "$RUNNER_TEMP/monitoring-agent" -czf - docker-compose.yml config.alloy deploy.sh k3s-metrics.yaml .env \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
               set -e
               mkdir -p $dir/targets

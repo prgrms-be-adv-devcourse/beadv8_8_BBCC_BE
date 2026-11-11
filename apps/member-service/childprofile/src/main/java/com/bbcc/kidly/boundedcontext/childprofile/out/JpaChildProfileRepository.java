@@ -4,12 +4,19 @@ import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import java.util.List;
 import java.util.Optional;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface JpaChildProfileRepository extends JpaRepository<ChildProfile, Long>, ChildProfileRepository {
+
+    @Override
+    @EntityGraph(attributePaths = "growthRecords")
+    @Query("SELECT c FROM ChildProfile c ORDER BY c.id")
+    List<ChildProfile> findAllWithGrowthRecords();
 
     @Override
     @EntityGraph(attributePaths = "growthRecords")
@@ -19,4 +26,9 @@ public interface JpaChildProfileRepository extends JpaRepository<ChildProfile, L
     @EntityGraph(attributePaths = "growthRecords")
     @Query("SELECT c FROM ChildProfile c WHERE c.memberId = :memberId ORDER BY c.id")
     List<ChildProfile> findAllByMemberId(@Param("memberId") Long memberId);
+
+    @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM ChildProfile c WHERE c.memberId = :memberId ORDER BY c.id")
+    List<ChildProfile> findAllByMemberIdForUpdate(@Param("memberId") Long memberId);
 }

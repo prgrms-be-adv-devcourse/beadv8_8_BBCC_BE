@@ -18,6 +18,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -31,7 +32,9 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(schema = "orders", name = "order_item", indexes = {
     @Index(name = "idx_order_item_order_id", columnList = "order_id"),
-    @Index(name = "idx_order_item_status_delivered_at", columnList = "status, delivered_at")})
+    @Index(name = "idx_order_item_status_delivered_at", columnList = "status, delivered_at"),
+    // 판매자 미종결 주문상품 수(#1120, V202611101300)
+    @Index(name = "idx_order_item_seller_status", columnList = "seller_id, status")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderItem extends OrderTimeEntity {
@@ -110,6 +113,11 @@ public class OrderItem extends OrderTimeEntity {
     @AttributeOverride(name = "name", column = @Column(name = "child_name"))
     private ChildSnapshot child;
 
+    /**
+     * 이 주문상품을 산 장바구니 칸(#998). 주문하기 요청에 주지 않았으면 null. 결제완료 정리 때 장바구니에 넘긴다.
+     */
+    private Long cartItemId;
+
     @Column(nullable = false)
     private int quantity;
 
@@ -155,9 +163,14 @@ public class OrderItem extends OrderTimeEntity {
      * 주문상품을 만든다. 주문상품 금액 = 주문 당시 단가 × 수량.
      */
     static OrderItem create(ProductSnapshot product, ChildSnapshot child, int quantity) {
+        return create(product, child, quantity, null);
+    }
+
+    static OrderItem create(ProductSnapshot product, ChildSnapshot child, int quantity, Long cartItemId) {
         OrderItem item = new OrderItem();
         item.product = product;
         item.child = child;
+        item.cartItemId = cartItemId;
         item.quantity = quantity;
         item.amount = Math.multiplyExact(product.unitPrice(), quantity);
         item.status = Status.ORDERED;
@@ -170,6 +183,14 @@ public class OrderItem extends OrderTimeEntity {
 
     void markUnavailable(String reason) {
         this.unavailableReason = reason;
+    }
+
+    /**
+     * 자동 구매확정 예정 시각 = 배송 완료 시각 + 자동 구매확정 기간(#1061). 이 시각부터(포함) 자동 확정 대상이다
+     * ({@link Order#autoConfirmItem}과 같은 기준). 배송 전이면 null.
+     */
+    public LocalDateTime autoConfirmAt(Duration autoConfirmAfter) {
+        return deliveredAt == null ? null : deliveredAt.plus(autoConfirmAfter);
     }
 
     void markDelivered(LocalDateTime at) {

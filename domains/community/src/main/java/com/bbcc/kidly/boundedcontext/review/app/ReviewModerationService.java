@@ -36,6 +36,7 @@ public class ReviewModerationService {
     private final ReviewModerationRecorder recorder;
     private final ModerationRunLock runLock;
     private final ReviewModerationProperties properties;
+    private final CommunityMetrics metrics;
 
     public ModerationRun processPending() {
         AtomicReference<ModerationRun> run = new AtomicReference<>();
@@ -73,6 +74,8 @@ public class ReviewModerationService {
         boolean rateLimited = false;
         for (Candidate candidate : pendingBatch()) {
             Result result = moderate(candidate);
+            // 검사기 호출마다 센다(반영 여부와 상관없다)
+            metrics.recordModerationCheck(result);
             Recorded recorded = recorder.record(candidate, result);
             log.info("리뷰 검사 reviewId={} recorded={} reason={} cause={}", candidate.reviewId(), recorded,
                 result.reason(), result.cause());

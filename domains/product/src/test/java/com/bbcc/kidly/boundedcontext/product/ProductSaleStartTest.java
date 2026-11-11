@@ -24,6 +24,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,19 +50,51 @@ class ProductSaleStartTest {
     void startSaleOfReadyProduct() {
         withOptionsAndSizeSpecs110And120();
 
-        boolean started = product.startSale(SELLER_ID, top, clothing.type());
+        boolean started = product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
         assertThat(started).isTrue();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
     @Test
+    @DisplayName("판매대기 상품을 판매 시작하면 판매 시작 시각이 넘긴 시각이다")
+    void startSaleRecordsSaleStartedAt() {
+        withOptionsAndSizeSpecs110And120();
+
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
+    @Test
+    @DisplayName("나노초 자리가 있는 시각으로 판매를 시작하면 판매 시작 시각은 마이크로초까지만 남는다")
+    void startSaleTruncatesSaleStartedAtToMicros() {
+        withOptionsAndSizeSpecs110And120();
+
+        product.startSale(SELLER_ID, top, clothing.type(), LocalDateTime.of(2026, 11, 10, 11, 4, 5, 123_456_789));
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(LocalDateTime.of(2026, 11, 10, 11, 4, 5, 123_456_000));
+    }
+
+    @Test
+    @DisplayName("판매중지한 상품을 다시 판매 시작해도 판매 시작 시각은 처음 값 그대로다")
+    void restartSaleKeepsSaleStartedAt() {
+        withOptionsAndSizeSpecs110And120();
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
+        product.stopSale(SELLER_ID);
+
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW.plusDays(1));
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
+    }
+
+    @Test
     @DisplayName("이미 판매중인 상품에 다시 판매를 시작하면 아무것도 바꾸지 않는다 (재시도 대비)")
     void startSaleAgainChangesNothing() {
         withOptionsAndSizeSpecs110And120();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
-        boolean started = product.startSale(SELLER_ID, top, clothing.type());
+        boolean started = product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
         assertThat(started).isFalse();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
@@ -124,7 +157,7 @@ class ProductSaleStartTest {
         product.addSizeSpecs(addSizeSpecs(List.of(
             spec(clothing.sizeFree(), null, null, top110Measurements()))), top, clothing.type());
 
-        assertThat(product.startSale(SELLER_ID, top, clothing.type())).isTrue();
+        assertThat(product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW)).isTrue();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
@@ -150,7 +183,7 @@ class ProductSaleStartTest {
         Product bottle = Product.register(ProductFixture.productAWith(container, List.of()));
         bottle.addOptions(addOptions(List.of(option(navy))), container);
 
-        assertThat(bottle.startSale(SELLER_ID, top, container)).isTrue();
+        assertThat(bottle.startSale(SELLER_ID, top, container, ProductFixture.NOW)).isTrue();
         assertThat(bottle.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
@@ -160,10 +193,10 @@ class ProductSaleStartTest {
     void rejectStartSaleFromOtherSeller(ProductStatus status) {
         withOptionsAndSizeSpecs110And120();
         if (status == ProductStatus.ON_SALE) {
-            product.startSale(SELLER_ID, top, clothing.type());
+            product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
         }
 
-        assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type()),
+        assertRejected(() -> product.startSale(OTHER_SELLER_ID, top, clothing.type(), ProductFixture.NOW),
             ProductErrorCode.NOT_PRODUCT_OWNER);
         assertThat(product.getStatus()).isEqualTo(status);
     }
@@ -214,9 +247,10 @@ class ProductSaleStartTest {
         Category top = CategoryFixture.top(CategoryFixture.clothing(), clothing.type());
         ProductType type = clothing.type();
         return Stream.of(
-            Named.of("판매 시작의 판매자", () -> productA(clothing).startSale(null, top, type)),
-            Named.of("판매 시작의 카테고리", () -> productA(clothing).startSale(SELLER_ID, null, type)),
-            Named.of("판매 시작의 상품 유형", () -> productA(clothing).startSale(SELLER_ID, top, null)),
+            Named.of("판매 시작의 판매자", () -> productA(clothing).startSale(null, top, type, ProductFixture.NOW)),
+            Named.of("판매 시작의 카테고리", () -> productA(clothing).startSale(SELLER_ID, null, type, ProductFixture.NOW)),
+            Named.of("판매 시작의 상품 유형", () -> productA(clothing).startSale(SELLER_ID, top, null, ProductFixture.NOW)),
+            Named.of("판매 시작의 시각", () -> productA(clothing).startSale(SELLER_ID, top, type, null)),
             Named.of("입력 검사의 카테고리", () -> productA(clothing).validateSaleStartInputs(null, type)),
             Named.of("입력 검사의 상품 유형", () -> productA(clothing).validateSaleStartInputs(top, null)));
     }
@@ -240,12 +274,13 @@ class ProductSaleStartTest {
 
     // 판매 시작이 409로 거절되고 빠진 항목이 detail에 적히며, 상품은 판매대기로 남는지 확인한다
     private void assertSaleStartRejected(String detail) {
-        assertThatThrownBy(() -> product.startSale(SELLER_ID, top, clothing.type()))
+        assertThatThrownBy(() -> product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW))
             .isInstanceOfSatisfying(BusinessException.class, e -> {
                 assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.SALE_START_CONDITION_NOT_MET);
                 assertThat(e.getDetail()).isEqualTo(detail);
             });
         assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
+        assertThat(product.getSaleStartedAt()).isNull();
     }
 
     // 상품 A에 네이비 110 · 120 옵션을 붙인다

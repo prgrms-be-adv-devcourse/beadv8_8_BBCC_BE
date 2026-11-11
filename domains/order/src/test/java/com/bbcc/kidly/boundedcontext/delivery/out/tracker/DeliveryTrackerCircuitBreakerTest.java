@@ -17,6 +17,8 @@ import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.out.config.DeliveryTrackerCircuitBreakerProperties;
 import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Clock;
@@ -244,6 +246,32 @@ class DeliveryTrackerCircuitBreakerTest {
             clock.advance(Duration.ofSeconds(6));
             return withSuccess(inTransit(), MediaType.APPLICATION_JSON).createResponse(request);
         };
+    }
+
+    @Test
+    @DisplayName("서킷 상태 게이지(#1067): 상태마다 한 시계열, 지금 상태만 1. 닫힘 → 열림 → 반열림 시험 중 → 닫힘을 따라간다")
+    void circuitStateGauge() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        checker.bindCircuitState(registry);
+        assertThat(states(registry)).containsExactly(1.0, 0.0, 0.0);
+
+        open();
+        assertThat(states(registry)).as("열림").containsExactly(0.0, 1.0, 0.0);
+
+        clock.advance(Duration.ofSeconds(61));
+        server.expect(times(3), requestTo(URL)).andRespond(withSuccess(inTransit(), MediaType.APPLICATION_JSON));
+        check();
+        assertThat(states(registry)).as("반열림 시험 중").containsExactly(0.0, 0.0, 1.0);
+        check(2);
+        assertThat(states(registry)).as("닫힘").containsExactly(1.0, 0.0, 0.0);
+        assertThat(registry.find(DeliveryTrackerChecker.CIRCUIT_STATE).gauges()).hasSize(3);
+    }
+
+    // closed · open · half_open 순서의 게이지 값
+    private static List<Double> states(MeterRegistry registry) {
+        return Stream.of("closed", "open", "half_open")
+            .map(state -> registry.get(DeliveryTrackerChecker.CIRCUIT_STATE).tag("state", state).gauge().value())
+            .toList();
     }
 
     private void open() {

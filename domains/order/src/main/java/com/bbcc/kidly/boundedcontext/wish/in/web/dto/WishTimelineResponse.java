@@ -5,34 +5,34 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 조르기 타임라인(#702). ID는 문자열(장바구니와 같음). 칸은 추가만 한다.
+ * 조르기 타임라인(#702 · #999). ID는 문자열(장바구니와 같음). 칸은 추가만 한다.
  *
- * @param status 조르기 상태(REQUESTED · APPROVED · REJECTED · CANCELLED)
- * @param checkout ORDER · CART. 처리 전 · 거절이면 null
+ * @param status 조르기 상태(REQUESTED · PAID · REJECTED · CANCELLED · EXPIRED)
  * @param rejectReason 거절이 아니면 null
- * @param orderId 바로 결제로 만든 주문 ID. 없으면 null
- * @param steps SENT → APPROVED · REJECTED · CANCELLED → (주문이 있으면) 주문 타임라인 단계
- * @param cancelledBy 철회한 사람 종류(보낸 사람, PARENT · CHILD, #968). 철회가 아니면 null
+ * @param cancelReason 철회 원인. 철회가 아니면 null
+ * @param orderIds 조르기로 산 주문 ID(먼저 산 것부터)
+ * @param steps SENT → PAID · REJECTED · CANCELLED · EXPIRED(시스템 만료, #1008)
+ * @param cancelledBy 직접 철회한 사람 종류(보낸 사람, MEMBER · CHILD, #968). 직접 철회가 아니면 null
  */
 public record WishTimelineResponse(
     String requestId,
     String status,
-    String checkout,
     String rejectReason,
-    String orderId,
+    String cancelReason,
+    List<String> orderIds,
     List<Step> steps,
     String cancelledBy) {
 
     /**
-     * @param status DONE · PARTIAL · WAITING · NOT_APPLICABLE
+     * @param status DONE · WAITING
      * @param at DONE이면 완료 시각, 그 밖 null
      */
     public record Step(String step, String status, LocalDateTime at) {
     }
 
     public static WishTimelineResponse from(WishTimelineView view) {
-        return new WishTimelineResponse(String.valueOf(view.requestId()), view.status(), view.checkout(),
-            view.rejectReason(), view.orderId() == null ? null : String.valueOf(view.orderId()),
+        return new WishTimelineResponse(String.valueOf(view.requestId()), view.status(), view.rejectReason(),
+            view.cancelReason(), view.orderIds().stream().map(String::valueOf).toList(),
             view.steps().stream().map(step -> new Step(step.step(), step.status(), step.at())).toList(),
             view.cancelledBy());
     }

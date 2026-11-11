@@ -1,5 +1,6 @@
 package com.bbcc.kidly;
 
+import com.bbcc.kidly.boundedcontext.settlement.app.SettlementDailyRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -10,6 +11,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class SettlementServiceApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(SettlementServiceApplication.class, args);
+        var context = SpringApplication.run(SettlementServiceApplication.class, args);
+        if (context.getEnvironment().matchesProfiles(SettlementDailyRunner.PROFILE)) {
+            // 일회 실행(CronJob)은 정산이 끝나면 종료 코드로 끝낸다
+            System.exit(SpringApplication.exit(context));
+        }
     }
 }

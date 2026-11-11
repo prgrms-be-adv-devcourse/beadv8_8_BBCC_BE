@@ -18,6 +18,18 @@ class ChildProfileEventsTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 12, 9, 30);
 
     @Test
+    @DisplayName("성장 기록 이벤트는 child.growth-recorded이고 발행 도메인은 childprofile, 대상은 자녀다")
+    void childGrowthRecorded() {
+        var event = new ChildGrowthRecordedEvent(EVENT_ID, NOW,
+            new ChildGrowthRecordedEvent.Data(20L, 10L, new BigDecimal("115.0"), null, NOW));
+
+        assertThat(event.eventType()).isEqualTo("child.growth-recorded");
+        assertThat(event.producer()).isEqualTo("childprofile");
+        assertThat(event.aggregateId()).isEqualTo("10");
+        assertThat(event.correlationId()).isEqualTo("10");
+    }
+
+    @Test
     @DisplayName("자녀 변경 이벤트는 child.changed이고 발행 도메인은 childprofile, 대상은 자녀다")
     void childChanged() {
         var event = new ChildChangedEvent(EVENT_ID, NOW, new ChildChangedEvent.Data(10L, 1L,

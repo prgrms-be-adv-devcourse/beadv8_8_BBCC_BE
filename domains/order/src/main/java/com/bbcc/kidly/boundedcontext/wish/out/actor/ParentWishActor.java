@@ -1,17 +1,16 @@
 package com.bbcc.kidly.boundedcontext.wish.out.actor;
 
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishActor;
-import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog;
-import com.bbcc.kidly.boundedcontext.wish.domain.WishItem.AddedBy;
+import com.bbcc.kidly.boundedcontext.wish.domain.PrincipalType;
 
 /**
- * 로그인한 부모(#640). 자녀 복사본의 보호자 회원 ID가 자기인 자녀의 공용 장바구니만 쓴다.
+ * 로그인한 회원(보호자, #640 · #999). 자기 자녀가 보낸 조르기의 승인자다(WishApprovers).
  */
 public record ParentWishActor(Long memberId) implements WishActor {
 
     @Override
-    public AddedBy type() {
-        return AddedBy.PARENT;
+    public PrincipalType type() {
+        return PrincipalType.MEMBER;
     }
 
     @Override
@@ -20,7 +19,7 @@ public record ParentWishActor(Long memberId) implements WishActor {
     }
 
     @Override
-    public boolean canUse(WishCatalog.Child child) {
-        return !child.deleted() && child.memberId().equals(memberId);
+    public Long familyId() {
+        return memberId;
     }
 }

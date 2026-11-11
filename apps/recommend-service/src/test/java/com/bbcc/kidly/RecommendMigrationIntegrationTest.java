@@ -2,6 +2,7 @@ package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Properties;
 import java.util.stream.Stream;
@@ -29,6 +30,8 @@ class RecommendMigrationIntegrationTest {
     private static final String INIT_VERSION = "202610160256";
     private static final String LAST_KIDLY_APP_VERSION = "202611021557";
     private static final String PRODUCT_DETAILS_IF_MISSING_VERSION = "202611030905";
+    private static final String BEFORE_PRODUCT_VIEW_UNIQUE_VERSION = "202611061217";
+    private static final String BEFORE_GARMENT_PART_SPLIT_VERSION = "202611102156";
 
     @Test
     @DisplayName("추천 init 테이블만 있는 DB에서 baseline을 잡아도 상품 복사본의 브랜드 · 설명 칸과 사이즈별 실측 표를 만든다")
@@ -83,6 +86,109 @@ class RecommendMigrationIntegrationTest {
 
             assertThat(recommendTables(jdbc)).contains("activity_record");
         }
+    }
+
+    @Test
+    @DisplayName("PREF-15 같은 날 같은 상세 진입이 쌓인 DB에 마이그레이션하면 가장 먼저 쌓인 한 줄만 남기고 다른 줄은 그대로 둔다")
+    void keepFirstProductViewOfSameDay() {
+        try (var postgres = new PostgreSQLContainer(
+            DockerImageName.parse("pgvector/pgvector:pg18-trixie").asCompatibleSubstituteFor("postgres"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            serviceFlyway(dataSource).target(BEFORE_PRODUCT_VIEW_UNIQUE_VERSION).load().migrate();
+            LocalDateTime tenAm = LocalDateTime.of(2026, 11, 10, 10, 0);
+            insertActivity(jdbc, 1, "PRODUCT_VIEWED", 1L, null, 31L, tenAm);
+            insertActivity(jdbc, 2, "PRODUCT_VIEWED", 1L, null, 31L, tenAm.withHour(23).withMinute(59));
+            insertActivity(jdbc, 3, "PRODUCT_VIEWED", 1L, null, 31L, tenAm.plusDays(1));
+            insertActivity(jdbc, 4, "PRODUCT_VIEWED", 1L, 11L, 31L, tenAm.minusHours(1));
+            insertActivity(jdbc, 5, "PRODUCT_VIEWED", 1L, 11L, 31L, tenAm);
+            insertActivity(jdbc, 6, "PRODUCT_VIEWED", 2L, null, 31L, tenAm);
+            insertActivity(jdbc, 7, "PRODUCT_VIEWED", 1L, null, 32L, tenAm);
+            insertActivity(jdbc, 8, "CART_ITEM_ADDED", 1L, null, 31L, tenAm);
+            insertActivity(jdbc, 9, "CART_ITEM_ADDED", 1L, null, 31L, tenAm);
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(jdbc.queryForList("SELECT id FROM recommend.activity_record ORDER BY id", Long.class))
+                .containsExactly(1L, 3L, 4L, 6L, 7L, 8L, 9L);
+            assertThat(jdbc.queryForList(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = 'recommend' AND tablename = 'activity_record'",
+                String.class)).contains("idx_activity_record_product_viewed_per_day");
+        }
+    }
+
+    @Test
+    @DisplayName("상의 칸의 원피스 · 아우터와 바지 칸의 치마 기준 옷은 원피스 · 아우터 · 치마 칸으로 옮기고, "
+        + "세부 종류와 실측은 그대로 둔다. 같은 종류 칸의 것과 카테고리 경로를 모르는 것은 옮기지 않는다")
+    void moveReferenceGarmentsToTheirOwnParts() {
+        try (var postgres = new PostgreSQLContainer(
+            DockerImageName.parse("pgvector/pgvector:pg18-trixie").asCompatibleSubstituteFor("postgres"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            serviceFlyway(dataSource).target(BEFORE_GARMENT_PART_SPLIT_VERSION).load().migrate();
+            insertProductOfCategory(jdbc, 31L, 7L, "상의");
+            insertProductOfCategory(jdbc, 32L, 8L, "아우터");
+            insertProductOfCategory(jdbc, 33L, 9L, "원피스");
+            insertProductOfCategory(jdbc, 34L, 70L, "하의");
+            insertProductOfCategory(jdbc, 35L, 71L, "치마");
+            insertGarment(jdbc, 1, 1L, "TOP", 9L,
+                "{\"TOTAL_LENGTH\": 60.0, \"CHEST_WIDTH\": 31.0, \"SLEEVE_LENGTH\": 30.0}");
+            insertGarment(jdbc, 2, 2L, "TOP", 8L, "{\"TOTAL_LENGTH\": 48.0, \"CHEST_WIDTH\": 38.0}");
+            insertGarment(jdbc, 3, 3L, "TOP", 7L, "{\"TOTAL_LENGTH\": 42.0, \"CHEST_WIDTH\": 34.5}");
+            insertGarment(jdbc, 4, 1L, "BOTTOM", 71L, "{\"TOTAL_LENGTH\": 32.0, \"WAIST_WIDTH\": 24.0}");
+            insertGarment(jdbc, 5, 2L, "BOTTOM", 70L, "{\"TOTAL_LENGTH\": 55.5, \"WAIST_WIDTH\": 26.0}");
+            insertGarment(jdbc, 6, 3L, "BOTTOM", 999L, "{\"TOTAL_LENGTH\": 55.5, \"WAIST_WIDTH\": 26.0}");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(jdbc.queryForList("""
+                SELECT id || ' ' || part || ' ' || category_id || ' ' || measurements::text
+                FROM recommend.reference_garment ORDER BY id
+                """, String.class)).containsExactly(
+                "1 DRESS 9 {\"CHEST_WIDTH\": 31.0, \"TOTAL_LENGTH\": 60.0, \"SLEEVE_LENGTH\": 30.0}",
+                "2 OUTER 8 {\"CHEST_WIDTH\": 38.0, \"TOTAL_LENGTH\": 48.0}",
+                "3 TOP 7 {\"CHEST_WIDTH\": 34.5, \"TOTAL_LENGTH\": 42.0}",
+                "4 SKIRT 71 {\"WAIST_WIDTH\": 24.0, \"TOTAL_LENGTH\": 32.0}",
+                "5 BOTTOM 70 {\"WAIST_WIDTH\": 26.0, \"TOTAL_LENGTH\": 55.5}",
+                "6 BOTTOM 999 {\"WAIST_WIDTH\": 26.0, \"TOTAL_LENGTH\": 55.5}");
+        }
+    }
+
+    // 상품 복사본 하나와 그 카테고리 경로(의류 > 말단)를 넣는다
+    private static void insertProductOfCategory(JdbcTemplate jdbc, Long productId, Long categoryId,
+        String categoryName) {
+        LocalDateTime at = LocalDateTime.of(2026, 11, 10, 10, 0);
+        jdbc.update("""
+            INSERT INTO recommend.replica_product (product_id, seller_id, name, category_id, status, is_size_free,
+                product_registered_at, event_occurred_at, created_at, updated_at)
+            VALUES (?, 1, '상품', ?, 'ON_SALE', false, ?, ?, ?, ?)
+            """, productId, categoryId, at, at, at, at);
+        jdbc.update("""
+            INSERT INTO recommend.replica_product_category_path (product_id, position, category_id, category_name)
+            VALUES (?, 0, 1, '의류'), (?, 1, ?, ?)
+            """, productId, productId, categoryId, categoryName);
+    }
+
+    private static void insertGarment(JdbcTemplate jdbc, long id, Long childProfileId, String part, Long categoryId,
+        String measurements) {
+        jdbc.update("""
+            INSERT INTO recommend.reference_garment
+                (id, child_profile_id, part, category_id, measurements, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?::jsonb, now(), now())
+            """, id, childProfileId, part, categoryId, measurements);
+    }
+
+    private static void insertActivity(JdbcTemplate jdbc, long id, String type, Long memberId, Long childProfileId,
+        Long productId, LocalDateTime occurredAt) {
+        jdbc.update("""
+            INSERT INTO recommend.activity_record
+                (id, event_id, type, member_id, child_profile_id, product_id, occurred_at, created_at, updated_at)
+            VALUES (?, gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?)
+            """, id, type, memberId, childProfileId, productId, occurredAt, occurredAt, occurredAt);
     }
 
     // kidly-app이 적용한 추천 마이그레이션은 이 서비스의 것과 같다. target 버전까지 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다

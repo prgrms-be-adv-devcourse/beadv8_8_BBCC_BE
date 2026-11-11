@@ -2,6 +2,9 @@ package com.bbcc.kidly.boundedcontext.order.out.persistence;
 
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
+import java.util.Collection;
+import java.util.List;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
 /**
@@ -9,4 +12,9 @@ import org.springframework.data.repository.Repository;
  */
 public interface JpaOrderStatusHistoryRepository
     extends Repository<OrderStatusHistory, Long>, OrderStatusHistoryRepository {
+
+    @Override
+    @Query("select h.orderId as orderId, max(h.id) as lastHistoryId from OrderStatusHistory h"
+        + " where h.orderId in :orderIds group by h.orderId")
+    List<LastHistory> findLastHistoryIds(Collection<Long> orderIds);
 }

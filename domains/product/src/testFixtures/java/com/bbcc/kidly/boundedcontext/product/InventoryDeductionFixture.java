@@ -70,7 +70,7 @@ final class InventoryDeductionFixture {
             spec(clothing.size110(), 105, 115, top110Measurements()),
             spec(clothing.size120(), 115, 125, top120Measurements()))), top, clothing.type());
         if (startSale) {
-            product.startSale(SELLER_ID, top, clothing.type());
+            product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
         }
         ProductOption navy110 = product.getOptions().get(0);
         ProductOption navy120 = product.getOptions().get(1);

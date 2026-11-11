@@ -5,6 +5,10 @@
 # MAIL_PASSWORD   실제로 보내려면 필수 (없으면 로그만)   Gmail 앱 비밀번호 16자리 (공백 없이). 비밀 값: 로컬 .env · GitHub Secret에만 둔다
 # MAIL_ENABLED    선택 (기본 true)                       false면 계정이 있어도 보내지 않고 로그만 남긴다
 # MAIL_FROM       선택 (기본 MAIL_USERNAME)              받는 사람에게 보이는 보내는 주소
+#
+# 웹 푸시 환경 변수           필수 여부                                    뜻
+# FIREBASE_CREDENTIALS  실제로 보내려면 필수 (없으면 SKIPPED · 로그만)   FCM 서비스 계정 키 JSON 파일 전체를 Base64로 감싼 값
+#                                                                        (base64 -i key.json). 비밀 값: 로컬 .env · GitHub Secret에만 둔다
 
 # 알림 메일 발송용 Gmail SMTP. 팀 공용 계정과 앱 비밀번호(2단계 인증을 켠 뒤 발급)를 쓴다
 spring:
@@ -29,7 +33,7 @@ management:
 
 kidly:
   mail:
-    # 기본 켬. false면 보내지 않고 받는 사람 · 제목만 로그로 남긴다.
+    # 기본 켬. false면 보내지 않고 제목만 로그로 남긴다.
     # 켜져 있어도 계정(MAIL_USERNAME · MAIL_PASSWORD)이 없으면 보내지 않고 로그만 남긴다 (앱은 뜬다)
     enabled: ${MAIL_ENABLED:true}
     # 보내는 주소. 없으면 MAIL_USERNAME
@@ -41,3 +45,9 @@ kidly:
     retry-interval: PT1M
     # 보존 기간(90일)이 지난 알림함 알림을 지우는 시각(cron, 초 분 시 일 월 요일, KST). "-"면 정리하지 않는다
     inbox-cleanup-cron: "0 0 4 * * *"
+    # 보존 기간(1년)이 지난 끝난 발송 기록(이메일 · 푸시)을 지우는 시각(cron, KST). "-"면 정리하지 않는다
+    notification-cleanup-cron: "0 5 4 * * *"
+    # 웹 푸시 FCM 서비스 계정 키(JSON의 Base64). 없으면 푸시를 보내지 않는다(앱은 뜬다)
+    firebase-credentials: ${FIREBASE_CREDENTIALS:}
+    # 270일 동안 다시 등록되지 않은 푸시 FID를 지우는 시각(cron, KST). "-"면 정리하지 않는다
+    push-token-cleanup-cron: "0 10 4 * * *"

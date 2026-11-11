@@ -39,8 +39,10 @@ public class DeliveryOrdersAdapter implements DeliveryOrders {
     }
 
     @Override
-    public void recordDelivered(Long orderId, Long sellerId, LocalDateTime deliveredAt) {
-        deliveryRecorder.recordDelivered(orderId, sellerId, deliveredAt);
+    public List<DeliveredItem> recordDelivered(Long orderId, Long sellerId, LocalDateTime deliveredAt) {
+        return deliveryRecorder.recordDelivered(orderId, sellerId, deliveredAt).stream()
+            .map(item -> new DeliveredItem(item.orderItemId(), item.productId(), item.quantity(), item.autoConfirmAt()))
+            .toList();
     }
 
     @Override

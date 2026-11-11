@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
@@ -41,6 +42,8 @@ public class OrderScheduler {
     private final OrderScheduleIntervals intervals;
     private final PaymentExpiryGate paymentExpiryGate;
     private final SingleServerJobRunner jobRunner;
+    // 마지막 성공 시각(#1067): 이 서버가 잠금을 잡고 끝까지 돌았을 때만(건별 실패는 작업 실패가 아니다). 예외로 끝나면 갱신하지 않는다
+    private final OrderOperationMetrics metrics;
     private final RotatingCursor autoConfirmCursor = new RotatingCursor();
     private final RotatingCursor paymentExpiryCursor = new RotatingCursor();
 
@@ -50,7 +53,9 @@ public class OrderScheduler {
      */
     @Scheduled(fixedDelayString = "${kidly.order.auto-confirm.interval}")
     public void autoConfirm() {
-        jobRunner.run(AUTO_CONFIRM_JOB, this::autoConfirmTargets);
+        if (jobRunner.run(AUTO_CONFIRM_JOB, this::autoConfirmTargets)) {
+            metrics.markJobSuccess(OrderOperationMetrics.Job.AUTO_CONFIRM);
+        }
     }
 
     private void autoConfirmTargets() {
@@ -78,13 +83,18 @@ public class OrderScheduler {
      */
     @Scheduled(fixedDelayString = "${kidly.order.payment-expiry-interval}")
     public void expireOverduePayments() {
-        jobRunner.run(PAYMENT_EXPIRY_JOB, this::expireOverduePaymentTargets);
+        boolean[] ran = new boolean[1];
+        // 결제 이벤트 대기분 때문에 건너뛴 실행은 성공으로 세지 않는다(대기가 계속되면 마지막 성공 시각이 늙는다)
+        if (jobRunner.run(PAYMENT_EXPIRY_JOB, () -> ran[0] = expireOverduePaymentTargets()) && ran[0]) {
+            metrics.markJobSuccess(OrderOperationMetrics.Job.PAYMENT_EXPIRY);
+        }
     }
 
     // 잠금을 잡은 서버만 실행 조건(Kafka 대기량)을 본다: 서버마다 확인 · 건너뜀 로그가 겹치지 않는다
-    private void expireOverduePaymentTargets() {
+    // 실행 조건 때문에 건너뛰었으면 false
+    private boolean expireOverduePaymentTargets() {
         if (!paymentExpiryGate.allowsRun()) {
-            return;
+            return false;
         }
         LocalDateTime now = LocalDateTime.now();
         RotatingCursor.Run run = runInBatches(paymentExpiryCursor,
@@ -101,6 +111,7 @@ public class OrderScheduler {
                 }
             });
         logRun("payment-expiry", run, paymentExpiryCursor, intervals.paymentExpiryInterval());
+        return true;
     }
 
     /**

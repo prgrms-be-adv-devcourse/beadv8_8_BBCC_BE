@@ -113,9 +113,45 @@ class SellerStatusServiceTest {
         verifyNoInteractions(notificationService);
     }
 
-    private void givenCopy(SellerStatus status) {
-        given(sellerStatusCopyRepository.findById(5L))
-            .willReturn(Optional.of(SellerStatusCopy.create(5L, status, OCCURRED_AT)));
+    @Test
+    @DisplayName("ACTIVE에서 CLOSED(탈퇴)로 바뀌면 복사본만 CLOSED로 바꾸고 메일을 만들지 않는다")
+    void closedFromActive() {
+        var copy = givenCopy(SellerStatus.ACTIVE);
+
+        sellerStatusService.apply(command(SellerStatus.CLOSED, OCCURRED_AT.plusSeconds(1)));
+
+        assertThat(copy.getStatus()).isEqualTo(SellerStatus.CLOSED);
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("SUSPENDED에서 CLOSED(탈퇴)로 바뀌면 복사본만 CLOSED로 바꾸고 메일을 만들지 않는다")
+    void closedFromSuspended() {
+        var copy = givenCopy(SellerStatus.SUSPENDED);
+
+        sellerStatusService.apply(command(SellerStatus.CLOSED, OCCURRED_AT.plusSeconds(1)));
+
+        assertThat(copy.getStatus()).isEqualTo(SellerStatus.CLOSED);
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("복사본이 없는 판매자의 CLOSED는 복사본만 CLOSED로 만들고 메일을 만들지 않는다")
+    void firstClosed() {
+        given(sellerStatusCopyRepository.findById(5L)).willReturn(Optional.empty());
+
+        sellerStatusService.apply(command(SellerStatus.CLOSED, OCCURRED_AT));
+
+        var saved = ArgumentCaptor.forClass(SellerStatusCopy.class);
+        verify(sellerStatusCopyRepository).save(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(SellerStatus.CLOSED);
+        verifyNoInteractions(notificationService, memberContactService);
+    }
+
+    private SellerStatusCopy givenCopy(SellerStatus status) {
+        var copy = SellerStatusCopy.create(5L, status, OCCURRED_AT);
+        given(sellerStatusCopyRepository.findById(5L)).willReturn(Optional.of(copy));
+        return copy;
     }
 
     private static SellerChangedCommand command(SellerStatus status, LocalDateTime occurredAt) {

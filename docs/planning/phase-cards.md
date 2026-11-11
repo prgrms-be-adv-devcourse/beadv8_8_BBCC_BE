@@ -62,8 +62,7 @@ v1.1: 단계 연결이 끝나 v1.0의 「혼자 시작하기」 칸과 7.1 「�
 | `PATCH /api/v1/members/me/addresses/{addressId}/default` | 기본 배송지 변경 |
 
 - **완료 기준** 카카오로 로그인하면 회원과 지갑이 생기고, 자녀를 등록해 목록에서 볼 수 있다. 배송지를 등록하고 기본 배송지를 바꿀 수 있고, Refresh Token으로 재발급 · 로그아웃할 수 있다.
-- **최종** 결제가 `member.withdrawn`을 받아 지갑을 동결한다(잔액은 운영자가 환급). 로그인 회원 확인은 Gateway가 하고, 판매자 자격을 잃으면 `member.tokens-revoked`로 토큰이 무효화된다.
-- **최종(2순위) 기준 옷** 넘기는 것에 「③ 추천: 기준 옷 변경됨」. 만들 API `POST · GET /api/v1/children/{childId}/reference-garments` · `PATCH · DELETE .../reference-garments/{garmentId}`(자녀 프로필 서비스). 완료 기준: 자녀마다 상의 · 하의 기준 옷을 등록하고 고칠 수 있다.
+- **최종** 결제가 `member.withdrawn`을 받아 지갑을 동결한다(잔액은 운영자가 환급). 로그인 회원 확인은 Gateway가 하고, 판매자 자격을 잃으면 `auth.tokens-revoked`로 토큰이 무효화된다.
 
 ## ② 상품 등록
 
@@ -103,17 +102,21 @@ v1.1: 단계 연결이 끝나 v1.0의 「혼자 시작하기」 칸과 7.1 「�
 
 | 받는 것 | 넘기는 것 |
 |---|---|
-| ① **자녀 정보 변경됨** · ② **상품 정보 변경됨**(브랜드 · 설명 · 사이즈별 실측 포함) · ⑥ **구매확정됨**(구매 기록) · 판매자: 판매자 정보 변경됨 · ④ 주문: **장바구니 담김 · 빠짐**, 주문 취소됨(구매자 취소) · 검색: **검색어 기록됨** · 회원: 회원탈퇴됨 · 화면: **상품 상세 진입 기록** · ①(2순위) 기준 옷 변경됨 | ④ 주문: 보호자가 고른 **상품 · 옵션 · 자녀** (화면을 거쳐 장바구니로) |
+| ① **자녀 정보 변경됨** · ② **상품 정보 변경됨**(브랜드 · 설명 · 사이즈별 실측 포함) · ⑥ **구매확정됨**(구매 기록) · 판매자: 판매자 정보 변경됨 · ④ 주문: **장바구니 담김 · 빠짐**, 주문 취소됨(구매자 취소) · 검색: **검색어 기록됨** · 회원: 회원탈퇴됨 · 화면: **상품 상세 진입 기록** | ④ 주문: 보호자가 고른 **상품 · 옵션 · 자녀** (화면을 거쳐 장바구니로) |
 
 | 만들 API |  |
 |---|---|
 | `GET /api/v1/recommendations/size?productId=&childId=` | 사이즈 추천(기존 7칸 + `reasons` + `source`) |
 | `GET /api/v1/recommendations/products?childId=&categoryId=&page=&size=&asOf=` | 자녀 맞춤 상품 목록(기존 6칸 + `reason` + `source`). 홈 맛보기 4개는 AI, 더보기는 선호 점수 순 |
 | `GET /api/v1/recommendations/companions?productId=&childId=` | 함께 사면 좋은 상품 4개(새 API) |
-| `POST /api/v1/recommendations/product-views` | 상품 상세 진입 기록(화면이 호출, 본문: productId) |
+| `POST /api/v1/recommendations/product-views` | 상품 상세 진입 기록(화면이 호출, 본문: productId와 선택 칸 childId(고른 자녀). 같은 회원 · 자녀 · 상품 · 날짜는 한 번만 기록) |
+| `GET /api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(2순위). 상의, 바지, 아우터, 원피스, 치마 순서이고 없으면 `[]` |
+| `PUT /api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(2순위). `{part}`는 `TOP` · `BOTTOM` · `OUTER` · `DRESS` · `SKIRT`, 본문: `categoryId`(상품 말단 카테고리)와 `measurements`(실측 항목 코드별 cm). 같은 구분을 다시 저장하면 교체 |
+| `DELETE /api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 삭제(2순위). 이미 없어도 204 |
 
 - **완료 기준** 자녀를 고르면 상품 상세에 추천 사이즈 · 적합도 · 근거가 나오고 아래에 함께 사면 좋은 상품 4개가 나온다. 홈 자녀 맞춤 상품 4개는 장바구니 · 최근 활동이 반영된 AI 선택과 이유로 나오고, 더보기 목록은 활동 선호 순서로 나오며 넘기는 동안 순서가 바뀌지 않는다. 추천 서비스를 멈춰도 상품 상세 · 장바구니 담기 · 주문이 된다. 기준 옷이 있으면 기준 옷과의 cm 차이가 함께 나온다(2순위).
 - **응답** 사이즈 추천: 추천 사이즈 · 적합도 · 안내(code · message) · 후보 사이즈 목록 · 지난번 산 사이즈 · 근거 목록(`reasons`) · 출처(`source`). 상품 추천 한 줄: productId · name · thumbnailUrl · businessName · minPrice · recommendedSize · 이유(`reason`) · 출처(`source`). 맞춤 목록 1쪽 응답에 기준 시각(`asOf`).
+- **최종(2순위) 기준 옷** 추천이 자녀별 기준 옷을 직접 저장한다(자녀 프로필은 저장하지 않고 이벤트도 보내지 않는다). 칸은 상의 · 바지 · 아우터 · 원피스 · 치마 5개이고, 상의 · 아우터는 총장 · 가슴단면(선택: 어깨너비 · 소매길이), 원피스는 총장 · 가슴단면(선택: 어깨너비), 바지는 총장 · 허리단면(선택: 밑위), 치마는 총장 · 허리단면(선택: 엉덩이단면)을 cm로 받고, 로그인한 보호자의 자녀만 다룬다(남의 자녀 403, 없는 · 삭제된 자녀 404). 완료 기준: 자녀마다 칸별 기준 옷을 등록하고 고칠 수 있다.
 
 ## ④ 주문과 결제
 
@@ -344,23 +347,27 @@ v2.0: 정산 담당 보강본으로 바꿨습니다. 월 정산 → **영업일 
 
 | 받는 것 | 넘기는 것 |
 |---|---|
-| ⑥ **구매확정됨** → 리뷰 작성 자격 · ② **상품 정보 변경됨** → 상품 복사본(이름 · 썸네일 · 표시 상태) · 회원: 회원탈퇴됨(예정, #663) | 없음 (리뷰 작성됨 `review.created`는 받을 도메인이 정해지면, K28) |
+| ⑥ **구매확정됨** → 리뷰 작성 자격 · ② **상품 정보 변경됨** → 상품 복사본(이름 · 썸네일 · 표시 상태) · 회원: **회원탈퇴됨** → 찜 삭제 · 리뷰 작성자 닉네임 지움(#663) | 없음 (리뷰 작성됨 `review.created`는 받을 도메인이 정해지면, K28) |
 
 | 만들 API |  |
 |---|---|
 | `GET /api/v1/reviews/eligible` | 작성할 수 있는 주문상품 (로그인, 커서 목록). 400 `INVALID_PAGE_SIZE` · `INVALID_CURSOR` |
-| `POST /api/v1/reviews` | 리뷰 작성 `{orderItemId, rating, content}` → 201 + Location. 400 `INVALID_RATING` · `INVALID_CONTENT` / 403 `REVIEW_NOT_ELIGIBLE` / 409 `REVIEW_ALREADY_WRITTEN` |
-| `PATCH /api/v1/reviews/{reviewId}` | 리뷰 수정 (보낸 필드만, 작성자만). 400 `NO_FIELDS_TO_UPDATE` / 403 `REVIEW_FORBIDDEN` / 404 `REVIEW_NOT_FOUND` |
+| `POST /api/v1/reviews/images/upload-urls` | 리뷰 사진 업로드 주소(Presigned PUT) 발급 (로그인, 1~5장, jpg · png · webp 1장 10MB 이하, 5분 뒤 만료). 400 `INVALID_IMAGE_FILE` · `TOO_MANY_IMAGES` |
+| `POST /api/v1/reviews` | 리뷰 작성 `{orderItemId, rating, content, fit, imageUrls}`(`fit` · `imageUrls`는 선택) → 201 + Location. 400 `INVALID_RATING` · `INVALID_CONTENT` · `INVALID_FIT` · `FIT_NOT_APPLICABLE` · `INVALID_IMAGE_URL` · `TOO_MANY_IMAGES` · `IMAGE_NOT_UPLOADED` / 403 `REVIEW_NOT_ELIGIBLE` / 409 `REVIEW_ALREADY_WRITTEN` / 503 `IMAGE_STORAGE_UNAVAILABLE` |
+| `PATCH /api/v1/reviews/{reviewId}` | 리뷰 수정 (보낸 필드만, 작성자만. `fit` null은 핏 지우기, `imageUrls`는 목록 교체 · 빈 목록은 모두 삭제). 400 `NO_FIELDS_TO_UPDATE` / 403 `REVIEW_FORBIDDEN` / 404 `REVIEW_NOT_FOUND` / 503 `IMAGE_STORAGE_UNAVAILABLE` |
 | `DELETE /api/v1/reviews/{reviewId}` | 리뷰 삭제 (작성자만) → 204. 403 · 404 |
-| `GET /api/v1/reviews?productId=` | 상품별 리뷰 목록 (로그인 없이, 최신순). 400 `INVALID_PRODUCT_ID` |
-| `GET /api/v1/reviews/me` | 내 리뷰 |
-| `GET /api/v1/reviews/summary?productId=` | 리뷰 요약 `{productId, reviewCount, averageRating}` (로그인 없이) |
-| `PUT /api/v1/favorites/{productId}` | 찜 (다시 해도 1건, 판매 종료 · 없는 상품 거절) — 진행 중 |
-| `DELETE /api/v1/favorites/{productId}` | 찜 취소 (없어도 204) — 진행 중 |
-| `GET /api/v1/favorites?productIds=` | 내 찜 목록. productIds를 주면 그중 내가 찜한 것만 (목록 하트 표시) — 진행 중 |
-| `GET /api/v1/favorites/summary?productId=` | 찜 요약 `{productId, favoriteCount}` (로그인 없이) — 진행 중 |
+| `GET /api/v1/reviews?productId=` | 상품별 리뷰 목록 (로그인 없이, 최신순, 공개 리뷰만). 400 `INVALID_PRODUCT_ID` |
+| `GET /api/v1/reviews/me` | 내 리뷰 (숨겨진 리뷰는 `visibility: UNDER_REVIEW`) |
+| `GET /api/v1/reviews/summary?productId=` | 리뷰 요약 `{productId, reviewCount, averageRating, fitSummary}` (로그인 없이, 공개 리뷰만) |
+| `PUT /api/v1/favorites/{productId}` | 찜 (다시 해도 1건, 판매 종료 · 없는 상품 거절) |
+| `DELETE /api/v1/favorites/{productId}` | 찜 취소 (없어도 204) |
+| `GET /api/v1/favorites?productIds=` | 내 찜 목록. productIds를 주면 그중 내가 찜한 것만 (목록 하트 표시) |
+| `GET /api/v1/favorites/summary?productId=` | 찜 요약 `{productId, favoriteCount}` (로그인 없이) |
+| `GET /api/v1/admin/community/reviews?status=` | 관리자 검사 상태별 리뷰 목록(`PENDING` · `PASSED` · `HIDDEN` · `CONFIRMED_HIDDEN` · `RESTORED`). 400 `INVALID_MODERATION_STATUS` |
+| `PATCH /api/v1/admin/community/reviews/{reviewId}/visibility` | 관리자 숨김 확정(`HIDDEN`) · 다시 공개(`VISIBLE`), 같은 값을 다시 보내도 200. 400 `INVALID_VISIBILITY` / 404 `REVIEW_NOT_FOUND` |
+| `POST /api/v1/admin/community/mcp` | 커뮤니티 운영 조회 MCP 창구 (관리자, 읽기 전용, 기본 꺼짐). 413 `MCP_REQUEST_TOO_LARGE` |
 
 - **완료 기준** 구매확정한 주문상품이 작성 가능 목록에 나오고, 리뷰를 쓰면 상품 상세의 리뷰 수 · 평균 별점이 바뀐다. 상품을 찜하면 찜 수가 늘고 내 찜 목록에 보인다.
 - **화면** 상품 상세는 상품 API와 커뮤니티 API(리뷰 요약 · 목록 · 찜 요약 · 내 찜)를 각각 불러 합친다. 목록 화면의 하트는 `GET /favorites?productIds=`로 한 번에 확인한다.
 - **운영** 처음 배포한 뒤 환경마다 한 번 상품 전체 재발행(`POST /api/v1/admin/products/changed-events`, 상품 기능)으로 복사본을 채운다(주문 · 추천 · 검색도 같은 이벤트를 다시 받으므로 팀에 알림). 배포 전에 구매확정된 주문상품은 작성 자격이 없어, 시연은 배포 뒤 구매확정한 주문으로 한다.
-- **추가 예정** 리뷰 댓글(판매자 답글 포함) · AI 욕설 검사 · `review.created` · 상품 문의 · 좋아요 · 사진 리뷰 · 사이즈 핏 리뷰 · 공지 · FAQ · 챗봇(별도 모듈 검토) 순서.
+- **추가 예정** 리뷰 댓글(판매자 답글 포함) · `review.created` · 상품 문의 · 좋아요 · 공지 · FAQ · 챗봇(별도 모듈 검토) 순서.

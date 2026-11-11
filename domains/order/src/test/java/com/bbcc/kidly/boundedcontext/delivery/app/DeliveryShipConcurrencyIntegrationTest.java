@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
@@ -100,7 +101,7 @@ class DeliveryShipConcurrencyIntegrationTest {
     }
 
     private Long placeAndPay(Long buyerId) {
-        cartService.addItem(buyerId, 1L, null, 1);
+        cartService.addItem(CartOwners.member(buyerId), 1L, null, 1);
         Long orderId = orderService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"))).orderId();

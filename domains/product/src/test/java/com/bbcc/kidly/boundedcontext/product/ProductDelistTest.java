@@ -121,9 +121,22 @@ class ProductDelistTest {
         product.delist(SELLER_ID);
         product.revertDelistByAdmin();
 
-        assertRejected(() -> product.startSale(SELLER_ID, top, clothing.type()),
+        assertRejected(() -> product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW),
             ProductErrorCode.SALE_STOPPED_BY_ADMIN);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.STOPPED);
+    }
+
+    @Test
+    @DisplayName("판매대기에서 등록 취소한 상품을 관리자가 되돌린 뒤 판매를 시작하면 그때 판매 시작 시각이 들어간다")
+    void startSaleAfterRevertOfPendingDelistRecordsSaleStartedAt() {
+        withSaleStartInputs();
+        product.delist(SELLER_ID);
+        product.revertDelistByAdmin();
+        assertThat(product.getSaleStartedAt()).isNull();
+
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
+
+        assertThat(product.getSaleStartedAt()).isEqualTo(ProductFixture.NOW);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -182,7 +195,7 @@ class ProductDelistTest {
 
     private void withSaleStarted() {
         withSaleStartInputs();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
     }
 
     private void withSaleStartInputs() {

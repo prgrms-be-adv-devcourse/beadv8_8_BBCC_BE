@@ -1,9 +1,12 @@
 package com.bbcc.kidly.boundedcontext.notification;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -268,11 +271,10 @@ class NotificationServiceTest {
             new OrderPaidCommand.Item(5L, "곰돌이 티셔츠", "네이비 / 110", 1, 10_000L),
             new OrderPaidCommand.Item(5L, "공룡 운동화", null, 1, 15_000L))));
 
-        var saved = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationRepository).save(saved.capture());
-        assertThat(saved.getValue().getType()).isEqualTo(NotificationType.ORDER_PAID);
-        assertThat(saved.getValue().getRecipient()).isEqualTo("parent@kidly.co.kr");
-        assertThat(saved.getValue().getBody())
+        var email = saved(NotificationChannel.EMAIL);
+        assertThat(email.getType()).isEqualTo(NotificationType.ORDER_PAID);
+        assertThat(email.getRecipient()).isEqualTo("parent@kidly.co.kr");
+        assertThat(email.getBody())
             .contains("- 곰돌이 티셔츠 (네이비 / 110) × 1: 10,000원")
             .contains("- 공룡 운동화 × 1: 15,000원")
             .contains("총 결제 금액: 25,000원")
@@ -289,26 +291,25 @@ class NotificationServiceTest {
         notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 9_999_999_999L,
             Collections.nCopies(30, item)));
 
-        var saved = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationRepository).save(saved.capture());
-        assertThat(saved.getValue().getBody()).hasSizeLessThanOrEqualTo(4000).contains("- 외 25건");
+        assertThat(saved(NotificationChannel.EMAIL).getBody()).hasSizeLessThanOrEqualTo(4000).contains("- 외 25건");
     }
 
     @Test
-    @DisplayName("구매자의 이메일 복사본이 없으면 주문 확인 메일을 만들지 않는다")
+    @DisplayName("구매자의 이메일 복사본이 없으면 주문 확인 메일은 만들지 않고 푸시만 만든다")
     void skipOrderPaidWithoutContact() {
         given(memberContactService.findEmail(1L)).willReturn(Optional.empty());
+        givenSaved();
 
         notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of(
             new OrderPaidCommand.Item(5L, "곰돌이 티셔츠", null, 1, 10_000L))));
 
-        verify(notificationRepository, never()).save(any());
+        assertThat(allSaved()).extracting(Notification::getChannel).containsExactly(NotificationChannel.PUSH);
     }
 
     @Test
-    @DisplayName("같은 주문 결제완료 이벤트를 다시 받으면 주문 확인 메일을 다시 만들지 않는다")
+    @DisplayName("같은 주문 결제완료 이벤트를 다시 받으면 주문 확인 메일 · 푸시를 다시 만들지 않는다")
     void skipDuplicateOrderPaid() {
-        given(notificationRepository.existsByEventIdAndChannel(EVENT_ID, NotificationChannel.EMAIL)).willReturn(true);
+        given(notificationRepository.existsByEventIdAndChannel(any(), any())).willReturn(true);
 
         notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of(
             new OrderPaidCommand.Item(5L, "곰돌이 티셔츠", null, 1, 10_000L))));
@@ -324,7 +325,8 @@ class NotificationServiceTest {
 
         notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of()));
 
-        verify(notificationRepository).save(any());
+        assertThat(allSaved()).extracting(Notification::getChannel)
+            .containsExactly(NotificationChannel.PUSH, NotificationChannel.EMAIL);
         var added = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService).add(added.capture());
         assertThat(added.getValue().body()).isEqualTo("주문의 결제가 끝났어요. 총 결제 금액은 10,000원이에요.");
@@ -448,6 +450,61 @@ class NotificationServiceTest {
             NotificationType.PRODUCT_STOPPED_BY_ADMIN,
             "상품 판매가 중지됐어요", "관리자가 운영 정책에 따라 곰돌이 티셔츠 상품의 판매를 중지했어요.", "/center/products/9",
             "product.changed:" + EVENT_ID + ":stopped-by-admin"));
+    }
+
+    @Test
+    @DisplayName("주문 확인은 알림함과 같은 제목 · 본문 · 경로로 구매자 푸시를 만들고, 알림함 중복 키로 정한 키로 커밋 뒤 보낸다")
+    void createOrderPaidPush() {
+        given(memberContactService.findEmail(1L)).willReturn(Optional.empty());
+        givenSaved();
+
+        notificationService.createOrderPaidEmail(new OrderPaidCommand(EVENT_ID, 3L, 1L, 10_000L, List.of(
+            new OrderPaidCommand.Item(5L, "곰돌이 티셔츠", null, 1, 10_000L))));
+
+        var push = saved(NotificationChannel.PUSH);
+        assertThat(push.getMemberId()).isEqualTo(1L);
+        assertThat(push.getType()).isEqualTo(NotificationType.ORDER_PAID);
+        assertThat(push.getTitle()).isEqualTo("주문이 결제됐어요");
+        assertThat(push.getBody()).isEqualTo("곰돌이 티셔츠 주문의 결제가 끝났어요. 총 결제 금액은 10,000원이에요.");
+        assertThat(push.getLinkPath()).isEqualTo("/orders/3");
+        assertThat(push.getRecipient()).isNull();
+        assertThat(push.getEventId())
+            .isEqualTo(UUID.nameUUIDFromBytes("push:order.paid:3".getBytes(UTF_8)));
+        verify(notificationDispatcher, never()).dispatchAsync(any());
+        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+        verify(notificationDispatcher).dispatchAsync(10L);
+    }
+
+    @Test
+    @DisplayName("같은 알림함 키의 푸시가 이미 있으면 다시 만들지 않는다")
+    void skipDuplicatePush() {
+        given(notificationRepository.existsByEventIdAndChannel(any(), any())).willReturn(true);
+
+        notificationService.createPush(new InboxNotificationInfo(InboxRecipient.member(1L),
+            NotificationType.DELIVERY_SHIPPED, "제목", "본문", "/orders/3", "delivery.shipped:7"));
+
+        verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("자녀 계정 알림은 푸시로 보내지 않는다")
+    void rejectChildPush() {
+        var childInbox = new InboxNotificationInfo(InboxRecipient.child(1L),
+            NotificationType.WISH_REJECTED, "제목", "본문", null, "wish.rejected:1");
+
+        assertThatThrownBy(() -> notificationService.createPush(childInbox))
+            .isInstanceOf(IllegalArgumentException.class);
+        verify(notificationRepository, never()).save(any());
+    }
+
+    private List<Notification> allSaved() {
+        var saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository, atLeastOnce()).save(saved.capture());
+        return saved.getAllValues();
+    }
+
+    private Notification saved(NotificationChannel channel) {
+        return allSaved().stream().filter(n -> n.getChannel() == channel).findFirst().orElseThrow();
     }
 
     private void givenSaved() {

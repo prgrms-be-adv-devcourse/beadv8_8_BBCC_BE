@@ -31,7 +31,7 @@ class ProductOptionPurchasableTest {
     @DisplayName("SALE-04 판매중 상품의 판매중 옵션은 살 수 있다")
     void optionOfProductOnSaleIsPurchasable() {
         withOptionsAndSizeSpecs110And120();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
 
         assertThat(product.getOptions())
             .extracting(ProductOption::isPurchasable)
@@ -52,7 +52,7 @@ class ProductOptionPurchasableTest {
     @DisplayName("SALE-16 등록 취소한 상품의 옵션은 살 수 없다")
     void optionOfDelistedProductIsNotPurchasable() {
         withOptionsAndSizeSpecs110And120();
-        product.startSale(SELLER_ID, top, clothing.type());
+        product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
         product.delist(SELLER_ID);
 
         assertThat(product.getOptions())

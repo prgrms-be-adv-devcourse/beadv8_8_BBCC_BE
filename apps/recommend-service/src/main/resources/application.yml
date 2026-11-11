@@ -18,6 +18,17 @@ spring:
     baseline-version: 202611021557
     # 버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있으므로 옛 버전도 적용한다
     out-of-order: true
+  batch:
+    job:
+      # 기동할 때 작업을 저절로 돌리지 않는다. 스케줄러만 실행한다
+      enabled: false
+    jdbc:
+      # Batch 실행 기록 테이블은 recommend 스키마에 둔다
+      table-prefix: recommend.BATCH_
+      # 실행 기록 테이블은 Flyway가 만든다 (db/migration/recommend/V202611101059__spring_batch_schema.sql)
+      initialize-schema: never
+      # Batch 기본(SERIALIZABLE)은 이 서비스의 Hibernate 연결 설정이 거부한다
+      isolation-level-for-create: default
   jpa:
     open-in-view: false
     hibernate:
@@ -61,6 +72,10 @@ spring:
         reasoning-effort: low
         # 추론 토큰도 이 상한에 들어간다
         max-completion-tokens: 2048
+        # 한 번 부를 때 기다리는 시간과 다시 부르는 횟수다. 일시적인 오류(429 · 5xx 등)는 한 번만 다시 부른다.
+        # 화면이 기다리는 시간은 AI 공통 서비스의 제한 시간이 따로 정한다
+        timeout: 4s
+        max-retries: 1
       embedding:
         model: text-embedding-3-small
 

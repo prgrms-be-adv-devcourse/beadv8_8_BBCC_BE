@@ -1,29 +1,32 @@
 package com.bbcc.kidly.boundedcontext.wish.app;
 
-import com.bbcc.kidly.boundedcontext.wish.app.dto.ApproveWishCommand;
-import com.bbcc.kidly.boundedcontext.wish.app.dto.WishTimelineView;
 import com.bbcc.kidly.boundedcontext.wish.app.dto.WishRequestView;
+import com.bbcc.kidly.boundedcontext.wish.app.dto.WishTimelineView;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishActor;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishApprovers;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishApprovers.Principal;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishCart;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCatalog.ProductOption;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishEvents;
-import com.bbcc.kidly.boundedcontext.wish.app.port.WishItemRepository;
-import com.bbcc.kidly.boundedcontext.wish.app.port.WishOrders;
-import com.bbcc.kidly.boundedcontext.wish.app.port.WishParentCart;
+import com.bbcc.kidly.boundedcontext.wish.app.port.WishPurchaseRepository;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishRequestRepository;
-import com.bbcc.kidly.boundedcontext.wish.domain.WishItem;
+import com.bbcc.kidly.boundedcontext.wish.domain.PrincipalType;
+import com.bbcc.kidly.boundedcontext.wish.domain.WishPurchase;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest;
-import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.Checkout;
+import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.CancelReason;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.RejectReason;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRequestLine;
 import com.bbcc.kidly.boundedcontext.wish.domain.WishRuleViolationException;
 import com.bbcc.kidly.global.error.BusinessException;
-import com.bbcc.kidly.shared.order.event.WishApprovedEvent;
 import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
 import com.bbcc.kidly.shared.order.event.WishRejectedEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,20 +42,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 조르기 보내기 · 보기 · 승인 · 거절(#701) · 철회(#968). 쓸 수 없는 자녀(남의 자녀 · 삭제된 자녀 · 없는 자녀)의 조르기는 없는 것으로 본다(404).
+ * 구매 요청(조르기) 보내기 · 보기 · 거절 · 철회(#999). 대기 중인 조르기는 기한(보낸 시각 + 설정 기한)이 지나면 만료된다(#1008,
+ * {@link WishExpiryService}). 기한 지난 조르기의 거절 · 철회는 409다. 승인 = 결제라 승인 API는 없다: 승인자는 예약된 칸으로 주문하기를 부르고
+ * (장바구니 주문 확인, #998), 결제가 끝나면 장바구니 구매 이벤트로 결제 완료가 된다({@link WishPurchaseService}).
+ * 조르기는 주문을 모르고 장바구니 칸 예약 입구({@link WishCart})만 부른다.
  * <ul>
- *   <li>보내기: 그 자녀의 공용 장바구니 줄 여러 개 + 메시지(선택). 진행 중인 조르기에 든 줄은 넣을 수 없다(409). 줄은 공용 장바구니에 남는다</li>
- *   <li>승인 · 거절: 보호자만({@link WishPolicy#canDecide}), 한 번만(조르기 @Version — 승인 · 거절을 먼저 DB에 써서 동시에 처리하는
- *       쪽이 주문 · 장바구니를 건드리기 전에 버전 충돌로 진다)</li>
- *   <li>바로 결제: 주문하기와 같은 길로 보호자 주문을 만들고(주문상품 자녀 = 조른 자녀) 주문 ID를 기록한다. 결제가 끝나면 승인한 줄이
- *       공용 장바구니에서 빠진다({@link WishOrderSettlement}). 보호자 장바구니로 옮기기: 장바구니 담기와 같은 길로 담는다</li>
- *   <li>철회: 보낸 사람만({@link WishPolicy#canCancel}), 처리 전에만(승인 · 거절과 같은 @Version 조건 전이 — 동시에 오면 먼저 저장한
- *       쪽만 남고 진 쪽은 409). 잠금만 풀고 줄은 공용 장바구니에 남는다(#968)</li>
+ *   <li>보내기: 로그인한 자녀가 자기 장바구니 칸을 골라 보낸다. 진행 중인 조르기에 든 칸은 넣을 수 없다(409, BEG-02).
+ *       칸을 예약하고(결제 허용 = 승인자들, 예약 ID = 조르기 ID) wish.sent를 낸다</li>
+ *   <li>볼 수 있는 사람: 보낸 사람 + 승인자({@link WishApprovers}). 같은 가족의 다른 사람(형제 자녀)은 403, 그 밖은 없는 조르기(404)</li>
+ *   <li>거절(승인자) · 철회(보낸 사람, #968): 처리 전에만(@Version 조건 전이 — 동시에 오면 먼저 저장한 쪽만 남고 진 쪽은 409).
+ *       예약을 풀고 wish.rejected · wish.cancelled(원인 DIRECT)를 낸다. 칸은 장바구니에 남는다</li>
  * </ul>
- * 주문 · 장바구니가 거절하면(가격 바뀜 · 판매 중 아님 등) 그 오류가 그대로 나가고 승인도 롤백된다.
- * 보내기 · 승인 · 거절 · 철회가 성공하면 같은 트랜잭션에서 wish.sent · wish.approved ·
- * wish.rejected · wish.cancelled를 낸다(#702, {@link WishEvents}, 키 = 자녀
- * 프로필 ID). 실패 · 롤백 · 동시 처리에서 진 쪽은 이벤트도 남지 않는다.
+ * 이벤트는 같은 트랜잭션에서 낸다(#702, {@link WishEvents}, 키 = 자녀 프로필 ID). 실패 · 롤백 · 동시 처리에서 진 쪽은 이벤트도 남지 않는다.
  */
 @Slf4j
 @Service
@@ -62,133 +63,116 @@ import org.springframework.transaction.annotation.Transactional;
 public class WishRequestService {
 
     private final WishRequestRepository wishRequestRepository;
-    private final WishItemRepository wishItemRepository;
+    private final WishPurchaseRepository wishPurchaseRepository;
     private final WishCatalog wishCatalog;
-    private final WishOrders wishOrders;
-    private final WishParentCart wishParentCart;
+    private final WishApprovers wishApprovers;
+    private final WishCart wishCart;
     private final WishPolicy wishPolicy;
-    private final WishOrderSettlement wishOrderSettlement;
     private final WishEvents wishEvents;
+    private final WishExpiry wishExpiry;
 
     /**
-     * 확인 순서: 자녀 → 줄 고르기(비었거나 겹침 400) → 줄(그 자녀의 공용 장바구니에 없으면 404) → 메시지 · 잠금(400 · 409).
+     * 확인 순서: 자녀 로그인(403) → 칸 고르기(비었거나 겹침 400) → 자녀 프로필 · 승인자(404) → 진행 중 칸(409) → 메시지(400)
+     * → 칸 예약(남의 칸 404 · 예약된 칸 409, 장바구니 오류).
      */
-    public WishRequestView send(WishActor actor, Long childId, List<Long> wishItemIds, String message) {
-        WishCatalog.Child child = requireUsableChild(actor, childId, WishErrorCode.CHILD_NOT_FOUND);
-        if (wishItemIds == null || wishItemIds.isEmpty() || wishItemIds.stream().anyMatch(Objects::isNull)
-            || new HashSet<>(wishItemIds).size() != wishItemIds.size()) {
+    public WishRequestView send(WishActor actor, List<Long> cartItemIds, String message) {
+        if (!wishPolicy.canSend(actor)) {
+            throw new BusinessException(WishErrorCode.WISH_REQUEST_SEND_FORBIDDEN);
+        }
+        if (cartItemIds == null || cartItemIds.isEmpty() || cartItemIds.stream().anyMatch(Objects::isNull)
+            || new HashSet<>(cartItemIds).size() != cartItemIds.size()) {
             throw new BusinessException(WishErrorCode.INVALID_WISH_REQUEST);
         }
-        wishOrderSettlement.settle(childId);
-        Map<Long, WishItem> found = wishItemRepository.findAllByIdIn(wishItemIds).stream()
-            .filter(item -> item.getChildId().equals(childId) && item.getStatus() == WishItem.Status.ACTIVE)
-            .collect(Collectors.toMap(WishItem::getId, Function.identity()));
-        if (found.size() != wishItemIds.size()) {
-            throw new BusinessException(WishErrorCode.WISH_ITEM_NOT_FOUND);
+        Principal requester = new Principal(actor.type(), actor.id());
+        WishCatalog.Child child = wishCatalog.findChild(actor.id())
+            .filter(found -> !found.deleted() && found.memberId().equals(actor.familyId()))
+            .orElseThrow(() -> new BusinessException(WishErrorCode.CHILD_NOT_FOUND));
+        List<Principal> approvers = wishApprovers.approversOf(requester);
+        if (approvers.isEmpty()) {
+            throw new BusinessException(WishErrorCode.CHILD_NOT_FOUND);
         }
-        List<WishItem> items = wishItemIds.stream().map(found::get).toList();
+        if (wishRequestRepository.existsByStatusAndLinesCartItemIdIn(WishRequest.Status.REQUESTED, cartItemIds)) {
+            throw new BusinessException(WishErrorCode.WISH_ITEM_IN_REQUEST);
+        }
         WishRequest request;
         try {
-            request = wishRequestRepository.save(WishRequest.send(childId, actor.type(), actor.id(), message,
-                wishPolicy.maxMessageLength(), items));
-            request.lockItems(items);
+            request = wishRequestRepository.save(WishRequest.send(actor.type(), actor.id(), child.childId(), message,
+                wishPolicy.maxMessageLength()));
         } catch (WishRuleViolationException e) {
             throw WishErrors.toBusiness(e);
         }
-        Map<Long, Long> productIds = productIdsOf(request.getLines());
+        // 장바구니 예약에 결제 가능 기한(= 만료 기한 사본, 꺼져 있으면 null)을 둔다: 만료 작업 전이라도 기한 지난 결제는 409(#1008)
+        List<WishCart.ReservedLine> reserved = wishCart.reserveOwned(requester, cartItemIds, approvers,
+            request.reservationId(), wishExpiry.reservationValidUntil(request));
+        Map<Long, Long> productIds = productIdsOf(reserved.stream().map(WishCart.ReservedLine::optionId).toList());
+        try {
+            request.addLines(reserved.stream()
+                .map(line -> new WishRequest.LineValue(line.cartItemId(), productIds.get(line.optionId()),
+                    line.optionId(), line.quantity()))
+                .toList());
+        } catch (WishRuleViolationException e) {
+            throw WishErrors.toBusiness(e);
+        }
         wishEvents.publish(new WishSentEvent(UUID.randomUUID(), LocalDateTime.now(), new WishSentEvent.Data(
-            request.getId(), childId, child.memberId(), request.getLines().stream()
-                .map(line -> new WishSentEvent.Item(productIds.get(line.getOptionId()), line.getOptionId(),
-                    line.getRequestedQuantity()))
+            request.getId(), child.childId(), child.memberId(), request.getLines().stream()
+                .map(line -> new WishSentEvent.Item(line.getProductId(), line.getOptionId(), line.getQuantity()))
                 .toList())));
-        log.info("조르기 보냄: requestId={} childId={} itemCount={}", request.getId(), childId, items.size());
+        log.info("조르기 보냄: requestId={} childId={} itemCount={}", request.getId(), child.childId(),
+            reserved.size());
         return toViews(List.of(request)).getFirst();
     }
 
     /**
-     * 그 자녀의 조르기를 최근 것부터. 바로 결제한 조르기는 결제 결과를 반영해 본다(저장하지 않음).
+     * 내가 볼 수 있는 조르기를 최근 것부터: 내가 보낸 것 + 내가 승인자인 것.
+     *
+     * @param childId 받는 자녀로 거른다. 없으면(null) 모두
      */
     @Transactional(readOnly = true)
     public List<WishRequestView> getRequests(WishActor actor, Long childId) {
-        requireUsableChild(actor, childId, WishErrorCode.CHILD_NOT_FOUND);
-        wishOrderSettlement.settle(childId);
-        return toViews(wishRequestRepository.findAllByChildIdOrderByIdDesc(childId));
+        Principal me = new Principal(actor.type(), actor.id());
+        Map<PrincipalType, Set<Long>> requesters = new EnumMap<>(PrincipalType.class);
+        requesters.computeIfAbsent(me.type(), type -> new HashSet<>()).add(me.id());
+        wishApprovers.requestersApprovedBy(me).forEach(requester ->
+            requesters.computeIfAbsent(requester.type(), type -> new HashSet<>()).add(requester.id()));
+        List<WishRequest> requests = new ArrayList<>();
+        requesters.forEach((type, ids) -> requests.addAll(
+            wishRequestRepository.findAllByRequestedByTypeAndRequestedByIdInOrderByIdDesc(type, ids)));
+        return toViews(requests.stream()
+            .filter(request -> childId == null || childId.equals(request.getChildId()))
+            .sorted(Comparator.comparing(WishRequest::getId).reversed())
+            .toList());
     }
 
     @Transactional(readOnly = true)
     public WishRequestView getRequest(WishActor actor, Long requestId) {
-        WishRequest request = findUsable(actor, requestId);
-        wishOrderSettlement.settle(request.getChildId());
-        return toViews(List.of(request)).getFirst();
+        return toViews(List.of(findVisible(actor, requestId))).getFirst();
     }
 
     /**
-     * 확인 순서: 조르기(404) → 보호자(403) → 구매 방법 · 바로 결제 값(400) → 처리 전(409) · 고른 줄(400).
-     */
-    public WishRequestView approve(WishActor actor, Long requestId, ApproveWishCommand command) {
-        WishRequest request = findUsable(actor, requestId);
-        WishCatalog.Child child = childOf(request);
-        requireDecider(actor);
-        Checkout checkout = checkoutOf(command);
-        List<WishRequest.Approval> approvals = command.items().stream()
-            .map(item -> new WishRequest.Approval(item.wishItemId(), item.quantity()))
-            .toList();
-        List<WishRequestLine> approved;
-        try {
-            approved = request.approve(approvals, checkout, actor.id(), itemsOf(request), LocalDateTime.now());
-        } catch (WishRuleViolationException e) {
-            throw WishErrors.toBusiness(e);
-        }
-        wishRequestRepository.flush();
-
-        if (checkout == Checkout.ORDER) {
-            Map<Long, Long> unitPrices = command.items().stream()
-                .collect(Collectors.toMap(ApproveWishCommand.Item::wishItemId, ApproveWishCommand.Item::unitPrice));
-            ApproveWishCommand.ShippingAddress address = command.shippingAddress();
-            Long orderId = wishOrders.place(actor.id(), request.getChildId(),
-                approved.stream()
-                    .map(line -> new WishOrders.Line(line.getOptionId(), line.getApprovedQuantity(),
-                        unitPrices.get(line.getWishItemId())))
-                    .toList(),
-                new WishOrders.ShippingAddress(address.recipientName(), address.phone(), address.zipCode(),
-                    address.address()));
-            request.recordOrder(orderId);
-        } else {
-            approved.forEach(line -> wishParentCart.put(actor.id(), line.getOptionId(), request.getChildId(),
-                line.getApprovedQuantity()));
-        }
-        Map<Long, Long> productIds = productIdsOf(approved);
-        wishEvents.publish(new WishApprovedEvent(UUID.randomUUID(), LocalDateTime.now(), new WishApprovedEvent.Data(
-            request.getId(), request.getChildId(), child.memberId(), approved.stream()
-                .map(line -> new WishApprovedEvent.Item(productIds.get(line.getOptionId()), line.getOptionId(),
-                    line.getApprovedQuantity()))
-                .toList())));
-        log.info("조르기 승인: requestId={} checkout={} approvedCount={} orderId={}",
-            request.getId(), checkout, approved.size(), request.getOrderId());
-        return toViews(List.of(request)).getFirst();
-    }
-
-    /**
-     * 확인 순서: 조르기(404) → 보호자(403) → 사유(정책 목록에 없으면 400) → 처리 전(409).
+     * 확인 순서: 조르기(404 · 같은 가족 403) → 승인자(403) → 사유(정책 목록에 없으면 400) → 기한(지났거나 만료면 409
+     * WISH_REQUEST_EXPIRED, #1008) → 결제 반영 중(409) → 처리 전(409).
      */
     public WishRequestView reject(WishActor actor, Long requestId, String reason) {
-        WishRequest request = findUsable(actor, requestId);
-        WishCatalog.Child child = childOf(request);
-        requireDecider(actor);
+        WishRequest request = findVisible(actor, requestId);
+        if (!wishPolicy.canReject(actor, approversOf(request))) {
+            throw new BusinessException(WishErrorCode.WISH_REQUEST_DECIDE_FORBIDDEN);
+        }
         RejectReason rejectReason = wishPolicy.rejectReasons().stream()
             .filter(candidate -> candidate.name().equals(reason))
             .findFirst()
             .orElseThrow(() -> new BusinessException(WishErrorCode.INVALID_REJECT_REASON));
+        requireNotExpired(request);
+        requireNoPurchaseInProgress(request);
         try {
-            request.reject(rejectReason, actor.id(), itemsOf(request), LocalDateTime.now());
+            request.reject(rejectReason, actor.type(), actor.id(), LocalDateTime.now());
         } catch (WishRuleViolationException e) {
             throw WishErrors.toBusiness(e);
         }
-        Map<Long, Long> productIds = productIdsOf(request.getLines());
+        wishRequestRepository.flush();
+        wishCart.release(request.reservationId());
         wishEvents.publish(new WishRejectedEvent(UUID.randomUUID(), LocalDateTime.now(), new WishRejectedEvent.Data(
-            request.getId(), request.getChildId(), child.memberId(), request.getLines().stream()
-                .map(line -> new WishRejectedEvent.Item(productIds.get(line.getOptionId()), line.getOptionId(),
-                    line.getRequestedQuantity()))
+            request.getId(), request.getChildId(), guardianOf(request), request.getLines().stream()
+                .map(line -> new WishRejectedEvent.Item(line.getProductId(), line.getOptionId(), line.getQuantity()))
                 .toList(),
             rejectReason.name())));
         log.info("조르기 거절: requestId={} reason={}", request.getId(), rejectReason);
@@ -196,108 +180,108 @@ public class WishRequestService {
     }
 
     /**
-     * 보낸 사람이 처리 전에 철회한다(#968). 확인 순서: 조르기(404) → 다른 자녀(403) → 보낸 사람(403) → 처리 전(409).
-     * 승인 · 거절처럼 먼저 DB에 써서(flush) 동시에 처리하는 쪽과 버전으로 겨룬다. 진 쪽은 409이고 이벤트도 남지 않는다.
+     * 보낸 사람이 처리 전에 철회한다(#968). 확인 순서: 조르기(404 · 같은 가족 403) → 보낸 사람(403) → 기한(지났거나 만료면 409
+     * WISH_REQUEST_EXPIRED, #1008) → 결제 반영 중(409) → 처리 전(409).
      */
     public WishRequestView cancel(WishActor actor, Long requestId) {
-        WishRequest request = findUsable(actor, requestId);
-        WishCatalog.Child child = childOf(request);
+        WishRequest request = findVisible(actor, requestId);
         if (!wishPolicy.canCancel(actor, request)) {
             throw new BusinessException(WishErrorCode.WISH_REQUEST_CANCEL_FORBIDDEN);
         }
+        requireNotExpired(request);
+        requireNoPurchaseInProgress(request);
         try {
-            request.cancel(itemsOf(request), LocalDateTime.now());
+            request.cancel(CancelReason.DIRECT, LocalDateTime.now());
         } catch (WishRuleViolationException e) {
             throw WishErrors.toBusiness(e);
         }
         wishRequestRepository.flush();
-        Map<Long, Long> productIds = productIdsOf(request.getLines());
+        wishCart.release(request.reservationId());
         wishEvents.publish(new WishCancelledEvent(UUID.randomUUID(), LocalDateTime.now(), new WishCancelledEvent.Data(
-            request.getId(), request.getChildId(), child.memberId(), request.getLines().stream()
-                .map(line -> new WishCancelledEvent.Item(productIds.get(line.getOptionId()), line.getOptionId(),
-                    line.getRequestedQuantity()))
-                .toList())));
+            request.getId(), request.getChildId(), guardianOf(request), request.getLines().stream()
+                .map(line -> new WishCancelledEvent.Item(line.getProductId(), line.getOptionId(), line.getQuantity()))
+                .toList(),
+            CancelReason.DIRECT.name())));
         log.info("조르기 철회: requestId={} by={}", request.getId(), actor.type());
         return toViews(List.of(request)).getFirst();
     }
 
     /**
-     * 조르기 타임라인(#702): 조르기 단계(보냄 → 승인 · 거절 · 철회)에 바로 결제한 주문의 주문 타임라인을 이어 붙인다. 새 이력 없이
-     * 조르기의 시각 · 사유 · 주문 ID로 조립하고, 주문 쪽은 {@link WishOrders}(주문 컨텍스트)로 읽는다. 주문은 보호자 이름으로 만들었으므로
-     * 그 자녀의 보호자 회원으로 읽는다.
+     * 조르기 타임라인(#702 · #999): 조르기 단계(보냄 → 결제 완료 · 거절 · 철회 · 만료(시스템, #1008))와 조르기로 산 주문 ID.
      */
     @Transactional(readOnly = true)
     public WishTimelineView getTimeline(WishActor actor, Long requestId) {
-        WishRequest request = findUsable(actor, requestId);
-        WishOrders.OrderTimeline order = request.getOrderId() == null ? null
-            : wishOrders.findTimeline(childOf(request).memberId(), request.getOrderId()).orElse(null);
-        return WishTimelineView.of(request, order);
+        WishRequest request = findVisible(actor, requestId);
+        return WishTimelineView.of(request, wishPurchaseRepository.findAllByRequestIdInOrderByIdAsc(
+            List.of(request.getId())));
     }
 
     /**
-     * 바로 결제는 고른 줄마다 가격과 배송지가 있어야 한다. 구매 방법을 모르면 400.
+     * 기한이 지난 조르기의 거절 · 철회는 409(#1008, WISH_REQUEST_EXPIRED): 이미 만료됐거나, 주기 작업 전이라도 대기 중이고 기한이 지났으면.
+     * 주기 작업이 돌았는지와 상관없이 같은 응답이다.
      */
-    private static Checkout checkoutOf(ApproveWishCommand command) {
-        Checkout checkout;
-        try {
-            checkout = Checkout.valueOf(command.checkout());
-        } catch (IllegalArgumentException | NullPointerException e) {
-            throw new BusinessException(WishErrorCode.INVALID_APPROVAL);
-        }
-        if (command.items() == null || command.items().isEmpty()
-            || command.items().stream().anyMatch(item -> item == null || item.wishItemId() == null)) {
-            throw new BusinessException(WishErrorCode.INVALID_APPROVAL);
-        }
-        if (checkout == Checkout.ORDER && (command.shippingAddress() == null
-            || command.items().stream().anyMatch(item -> item.unitPrice() == null))) {
-            throw new BusinessException(WishErrorCode.INVALID_APPROVAL);
-        }
-        return checkout;
-    }
-
-    private void requireDecider(WishActor actor) {
-        if (!wishPolicy.canDecide(actor)) {
-            throw new BusinessException(WishErrorCode.WISH_REQUEST_DECIDE_FORBIDDEN);
+    private void requireNotExpired(WishRequest request) {
+        if (request.getStatus() == WishRequest.Status.EXPIRED || wishExpiry.isOverdue(request, LocalDateTime.now())) {
+            throw new BusinessException(WishErrorCode.WISH_REQUEST_EXPIRED);
         }
     }
 
-    private WishRequest findUsable(WishActor actor, Long requestId) {
+    /**
+     * 결제 정리가 커밋됐지만 조르기가 아직 구매 사실을 받지 못한 사이(Kafka 지연)에는 거절 · 철회를 막는다(409): 예약 칸은 주인이 뺄 수
+     * 없으므로, 남은 예약 칸이 줄보다 적으면 결제로 빠진 칸이 있다. 칸이 남는 일부 수량 결제는 칸 수로 알 수 없으므로 장바구니가 예약에
+     * 남긴 결제 정리 표시(hasPurchase)로도 본다. 처리된 조르기는 여기서 보지 않는다(도메인이 409).
+     * 주문한 뒤 결제 전의 거절 · 철회는 막지 않는다(결제되면 칸은 정리되고 조르기는 그 상태로 남는다).
+     */
+    private void requireNoPurchaseInProgress(WishRequest request) {
+        if (request.getStatus() == WishRequest.Status.REQUESTED
+            && (wishCart.reservedCartItemIds(request.reservationId()).size() < request.getLines().size()
+                || wishCart.hasPurchase(request.reservationId()))) {
+            throw new BusinessException(WishErrorCode.WISH_REQUEST_PURCHASE_IN_PROGRESS);
+        }
+    }
+
+    /**
+     * 볼 수 있는 조르기: 보낸 사람 · 승인자. 같은 가족(같은 보호자)의 다른 사람이면 403, 그 밖(없음 포함)은 404.
+     */
+    private WishRequest findVisible(WishActor actor, Long requestId) {
         WishRequest request = wishRequestRepository.findById(requestId)
             .orElseThrow(() -> new BusinessException(WishErrorCode.WISH_REQUEST_NOT_FOUND));
-        requireUsableChild(actor, request.getChildId(), WishErrorCode.WISH_REQUEST_NOT_FOUND);
-        return request;
+        if (request.isRequestedBy(actor.type(), actor.id())
+            || approversOf(request).contains(new Principal(actor.type(), actor.id()))) {
+            return request;
+        }
+        if (actor.familyId().equals(guardianOf(request))) {
+            throw new BusinessException(WishErrorCode.OTHER_CHILD_FORBIDDEN);
+        }
+        throw new BusinessException(WishErrorCode.WISH_REQUEST_NOT_FOUND);
     }
 
-    private WishCatalog.Child childOf(WishRequest request) {
-        return wishCatalog.findChild(request.getChildId())
-            .orElseThrow(() -> new BusinessException(WishErrorCode.WISH_REQUEST_NOT_FOUND));
+    private List<Principal> approversOf(WishRequest request) {
+        return wishApprovers.approversOf(new Principal(request.getRequestedByType(), request.getRequestedById()));
     }
 
     /**
-     * 옵션 ID → 상품 ID(주문이 받아 둔 상품 정보). 없는 옵션은 빠진다(이벤트의 productId는 null).
+     * 받는 자녀의 보호자 회원 ID(이벤트 memberId · 가족 판단). 자녀 복사본이 없으면 null.
      */
-    private Map<Long, Long> productIdsOf(List<WishRequestLine> lines) {
-        return wishCatalog.findProductOptions(lines.stream().map(WishRequestLine::getOptionId).toList()).stream()
+    private Long guardianOf(WishRequest request) {
+        return wishCatalog.findChild(request.getChildId()).map(WishCatalog.Child::memberId).orElse(null);
+    }
+
+    /**
+     * 옵션 ID → 상품 ID(주문이 받아 둔 상품 정보). 없는 옵션은 빠진다(줄의 productId는 null).
+     */
+    private Map<Long, Long> productIdsOf(Collection<Long> optionIds) {
+        return wishCatalog.findProductOptions(optionIds).stream()
             .collect(Collectors.toMap(ProductOption::optionId, ProductOption::productId));
     }
 
-    private List<WishItem> itemsOf(WishRequest request) {
-        return wishItemRepository.findAllByIdIn(request.wishItemIds());
-    }
-
-    private WishCatalog.Child requireUsableChild(WishActor actor, Long childId, WishErrorCode notFound) {
-        if (wishPolicy.forbidsOtherChild(actor, childId)) {
-            throw new BusinessException(WishErrorCode.OTHER_CHILD_FORBIDDEN);
-        }
-        return wishCatalog.findChild(childId)
-            .filter(actor::canUse)
-            .orElseThrow(() -> new BusinessException(notFound));
-    }
-
     /**
-     * 상품 · 판매자 복사본은 한 번씩 읽어 합친다(줄마다 조회하지 않음).
+     * 상품 · 판매자 복사본 · 산 것은 한 번씩 읽어 합친다(줄마다 조회하지 않음).
      */
     private List<WishRequestView> toViews(List<WishRequest> requests) {
+        if (requests.isEmpty()) {
+            return List.of();
+        }
         Set<Long> optionIds = requests.stream()
             .flatMap(request -> request.getLines().stream().map(WishRequestLine::getOptionId))
             .collect(Collectors.toSet());
@@ -305,16 +289,32 @@ public class WishRequestService {
             : wishCatalog.findProductOptions(optionIds).stream()
                 .collect(Collectors.toMap(ProductOption::optionId, Function.identity()));
         Map<Long, String> sellerNames = sellerNamesOf(products.values());
+        Map<Long, List<WishPurchase>> purchases = wishPurchaseRepository.findAllByRequestIdInOrderByIdAsc(
+                requests.stream().map(WishRequest::getId).toList()).stream()
+            .collect(Collectors.groupingBy(WishPurchase::getRequestId));
         return requests.stream()
-            .map(request -> new WishRequestView(request.getId(), request.getChildId(), request.getStatus().name(),
-                request.getRequestedByType().name(), request.getMessage(), request.getRequestedAt(),
-                nameOf(request.getCheckout()), request.getOrderId(), nameOf(request.getOrderResult()),
-                nameOf(request.getRejectReason()), request.getDecidedAt(),
-                request.getLines().stream()
-                    .map(line -> toLine(line, products.get(line.getOptionId()), sellerNames))
-                    .toList(),
-                request.getCancelledAt()))
+            .map(request -> toView(request, products, sellerNames, purchases.getOrDefault(request.getId(), List.of())))
             .toList();
+    }
+
+    private WishRequestView toView(WishRequest request, Map<Long, ProductOption> products,
+        Map<Long, String> sellerNames, List<WishPurchase> purchases) {
+        Set<Long> purchased = purchases.stream().map(WishPurchase::getCartItemId).collect(Collectors.toSet());
+        return new WishRequestView(request.getId(), request.getType().name(), request.getChildId(),
+            request.getStatus().name(), request.getRequestedByType().name(), request.getRequestedById(),
+            request.getMessage(), request.getRequestedAt(), nameOf(request.getPayerType()), request.getPayerId(),
+            request.getPaidAt(), nameOf(request.getRejectReason()), request.getRejectedAt(),
+            nameOf(request.getCancelReason()), request.getCancelledAt(),
+            request.getLines().stream()
+                .map(line -> toLine(line, products.get(line.getOptionId()), sellerNames,
+                    purchased.contains(line.getCartItemId())))
+                .toList(),
+            purchases.stream()
+                .map(purchase -> new WishRequestView.Purchase(purchase.getOrderId(), purchase.getCartItemId(),
+                    purchase.getQuantity(), purchase.getCreatedAt()))
+                .toList(),
+            purchases.stream().map(WishPurchase::getOrderItemId).filter(Objects::nonNull).distinct().toList(),
+            wishExpiry.expiresAt(request).orElse(null), request.getExpiredAt());
     }
 
     private Map<Long, String> sellerNamesOf(Collection<ProductOption> products) {
@@ -326,15 +326,15 @@ public class WishRequestService {
     }
 
     private static WishRequestView.Line toLine(WishRequestLine line, ProductOption product,
-        Map<Long, String> sellerNames) {
+        Map<Long, String> sellerNames, boolean purchased) {
         if (product == null) {
-            return new WishRequestView.Line(line.getWishItemId(), line.getOptionId(), null, null, null, null, null,
-                null, line.getRequestedQuantity(), line.getApprovedQuantity(), null, false, null);
+            return new WishRequestView.Line(line.getCartItemId(), line.getOptionId(), line.getProductId(), null,
+                null, null, null, null, line.getQuantity(), null, false, null, purchased);
         }
-        return new WishRequestView.Line(line.getWishItemId(), line.getOptionId(), product.productId(),
+        return new WishRequestView.Line(line.getCartItemId(), line.getOptionId(), product.productId(),
             product.sellerId(), product.productName(), product.optionName(), product.size(),
-            sellerNames.get(product.sellerId()), line.getRequestedQuantity(), line.getApprovedQuantity(),
-            product.unitPrice(), product.purchasable(), product.saleStatus());
+            sellerNames.get(product.sellerId()), line.getQuantity(), product.unitPrice(), product.purchasable(),
+            product.saleStatus(), purchased);
     }
 
     private static String nameOf(Enum<?> value) {

@@ -28,6 +28,10 @@ final class OrderRequestFingerprint {
             append(canonical, item.childId());
             append(canonical, item.quantity());
             append(canonical, item.unitPrice());
+            // 장바구니 칸(#998)은 준 경우에만 이어 붙인다(칸 없는 요청은 예전과 같은 값)
+            if (item.cartItemId() != null) {
+                append(canonical, "cart:" + item.cartItemId());
+            }
         });
         PlaceOrderCommand.ShippingAddress address = command.shippingAddress();
         append(canonical, address.recipientName());

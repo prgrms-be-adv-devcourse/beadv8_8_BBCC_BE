@@ -25,6 +25,17 @@ public interface JpaChildProfileReplicaRepository extends JpaRepository<ChildPro
     void insertIfAbsent(@Param("id") Long id, @Param("guardianId") Long guardianId, @Param("now") LocalDateTime now);
 
     @Override
+    @Transactional
+    @Modifying
+    @Query(value = """
+        INSERT INTO auth.child_profile_replica (id, guardian_id, created_at, updated_at, deleted_at)
+        VALUES (:id, :guardianId, :now, :now, :now) ON CONFLICT (id) DO UPDATE
+        SET deleted_at = COALESCE(child_profile_replica.deleted_at, EXCLUDED.deleted_at),
+            updated_at = EXCLUDED.updated_at
+        """, nativeQuery = true)
+    void markDeleted(@Param("id") Long id, @Param("guardianId") Long guardianId, @Param("now") LocalDateTime now);
+
+    @Override
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from ChildProfileReplica r where r.id = :id")
     Optional<ChildProfileReplica> findByIdForUpdate(@Param("id") Long id);

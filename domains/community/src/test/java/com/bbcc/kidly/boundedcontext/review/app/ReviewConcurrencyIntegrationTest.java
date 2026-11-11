@@ -73,7 +73,8 @@ class ReviewConcurrencyIntegrationTest {
         CountDownLatch release = new CountDownLatch(1);
         CompletableFuture<Void> other = CompletableFuture.runAsync(() -> transactionTemplate.executeWithoutResult(s -> {
             jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-                + "content, created_at, updated_at) values (12, ?, ?, '먼저', 3, '먼저 쓴 리뷰', now(), now())",
+                + "content, created_at, updated_at, moderation_status) values (12, ?, ?, '먼저', 3, '먼저 쓴 리뷰', "
+                + "now(), now(), 'PASSED')",
                 PRODUCT, ME);
             inserted.countDown();
             await(release);

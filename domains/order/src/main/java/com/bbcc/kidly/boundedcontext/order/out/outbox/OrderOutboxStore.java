@@ -56,6 +56,16 @@ public class OrderOutboxStore implements OrderOutboxRepository {
     }
 
     @Override
+    public long countUnsent() {
+        return jpaRepository.countBySentAtIsNullAndQuarantinedAtIsNull();
+    }
+
+    @Override
+    public Optional<LocalDateTime> findOldestUnsentCreatedAt() {
+        return jpaRepository.findUnsentCreatedAt(Limit.of(1)).stream().findFirst();
+    }
+
+    @Override
     public Optional<OutboxStatus> findStatus(Long id) {
         return jpaRepository.findStatusById(id);
     }

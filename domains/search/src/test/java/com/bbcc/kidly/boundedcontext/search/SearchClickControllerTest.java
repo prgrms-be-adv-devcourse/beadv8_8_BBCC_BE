@@ -54,7 +54,22 @@ class SearchClickControllerTest {
 
         var request = ArgumentCaptor.forClass(SearchClickRequest.class);
         verify(searchClickService).record(request.capture(), eq(7L));
-        assertThat(request.getValue()).isEqualTo(new SearchClickRequest("원피스", 31L, 3, "RELEVANCE"));
+        assertThat(request.getValue()).isEqualTo(new SearchClickRequest("원피스", 31L, 3, "RELEVANCE", null));
+    }
+
+    @Test
+    @DisplayName("자녀 ID를 보내면 요청에 담기고, 양수가 아니면 400이다(#1089)")
+    void childId() throws Exception {
+        click("7", """
+            {"keyword": "원피스", "productId": 31, "rank": 3, "childId": 11}""")
+            .andExpect(status().isNoContent());
+        var request = ArgumentCaptor.forClass(SearchClickRequest.class);
+        verify(searchClickService).record(request.capture(), eq(7L));
+        assertThat(request.getValue().childId()).isEqualTo(11L);
+
+        click("7", """
+            {"keyword": "원피스", "productId": 31, "rank": 3, "childId": 0}""")
+            .andExpect(status().isBadRequest());
     }
 
     @Test

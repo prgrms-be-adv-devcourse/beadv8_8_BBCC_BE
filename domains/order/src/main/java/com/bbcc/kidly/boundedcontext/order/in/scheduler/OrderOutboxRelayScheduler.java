@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderOutboxProperties;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.OrderOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
@@ -28,6 +29,7 @@ public class OrderOutboxRelayScheduler {
     // 주기의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌아 키 이름이 나오는 오류로 실패하게 하려고 주입한다
     private final OrderOutboxProperties properties;
     private final SingleServerJobRunner jobRunner;
+    private final OrderOperationMetrics metrics;
 
     /**
      * 보냈거나 멈췄으면 INFO, 보낼 것이 없으면 DEBUG. 다른 서버가 돌고 있으면 건너뛴다(러너의 DEBUG 한 줄).
@@ -43,6 +45,10 @@ public class OrderOutboxRelayScheduler {
         } catch (RuntimeException e) {
             log.warn("아웃박스 릴레이 실패: error={}", e.getClass().getSimpleName());
             return;
+        }
+        // 전송 실패로 멈춘 실행(STOPPED)은 성공으로 세지 않는다(#1067). 보냈거나 · 보낼 것이 없거나 · 격리하고 계속했으면 성공
+        if (result[0].outcome() != OutboxRelayResult.Outcome.STOPPED) {
+            metrics.markJobSuccess(OrderOperationMetrics.Job.OUTBOX_RELAY);
         }
         if (result[0].targets() == 0) {
             log.debug("아웃박스 릴레이: outcome={} targets=0 interval={}", result[0].outcome(),

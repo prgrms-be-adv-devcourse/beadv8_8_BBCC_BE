@@ -167,7 +167,8 @@ class CommunityDeadLetterIntegrationTest {
         jdbc.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
             + "values (14, 1, now(), now())");
         jdbc.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, content, "
-            + "created_at, updated_at) values (501, 14, ?, '닉', 4, '본문', now(), now())", member);
+            + "created_at, updated_at, moderation_status) values (501, 14, ?, '닉', 4, '본문', now(), now(), 'PASSED')",
+            member);
         var event = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123),
             new MemberWithdrawnEvent.Data(member));
         service.receive(memberMessage(event, 11L));

@@ -24,7 +24,7 @@ public class SellerStateService {
 
     @Transactional
     public void apply(Long sellerId, SellerStatus status, LocalDateTime occurredAt) {
-        var member = memberRepository.findById(sellerId)
+        var member = memberRepository.findByIdForUpdate(sellerId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         // SELLER 역할을 잃었으면 지금 토큰의 SELLER도 바로 막는다
         if (member.applySellerState(status, occurredAt)) {

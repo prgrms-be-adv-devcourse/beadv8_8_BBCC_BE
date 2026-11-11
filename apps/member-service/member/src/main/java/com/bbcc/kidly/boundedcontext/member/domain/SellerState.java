@@ -22,6 +22,10 @@ public record SellerState(
         return status == SellerStatus.ACTIVE;
     }
 
+    public boolean isClosed() {
+        return status == SellerStatus.CLOSED;
+    }
+
     // 이벤트 순서가 뒤바뀔 수 있어서 더 늦게 일어난 변경만 반영한다
     public boolean isOlderThan(SellerState other) {
         return changedAt.isBefore(other.changedAt);

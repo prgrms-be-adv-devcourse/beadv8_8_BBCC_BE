@@ -135,6 +135,10 @@ public class Member extends BaseTimeEntity {
         return sellerState != null && sellerState.isActive();
     }
 
+    public boolean requiresSellerWithdrawalCheck() {
+        return sellerState != null && !sellerState.isClosed();
+    }
+
     // 판매자가 아니면 null. 마이페이지가 정지 상태를 보여 주는 데 쓴다
     public SellerStatus sellerStatus() {
         return sellerState == null ? null : sellerState.status();

@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
+import com.bbcc.kidly.boundedcontext.order.app.port.OrderCartLines;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries.CancelledDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries.Delivery;
@@ -72,6 +73,7 @@ public class OrderService {
     private final Order.Policy orderPolicy;
     private final WaitingRecordCloser waitingRecordCloser;
     private final OrderQueryService orderQueries;
+    private final OrderCartLines orderCartLines;
 
     /**
      * 복사본이 없는 옵션 · 자녀는 여기서 404. 나머지 검사(빈 항목 · 중복 · 수량 · 가격 · 판매 중 · 자기 상품 · 자녀)는
@@ -113,6 +115,15 @@ public class OrderService {
 
     private OrderDetail create(Long memberId, PlaceOrderCommand command, String idempotencyKey, String requestHash) {
         LocalDateTime now = LocalDateTime.now();
+        // 장바구니 칸으로 사면(#998) 그 칸이 구매자 칸이거나 구매자가 허용된 예약 칸인지 장바구니가 확인한다(아니면 403 · 404)
+        List<OrderCartLines.Line> cartLines = command.items().stream()
+            .filter(item -> item.cartItemId() != null)
+            .map(item -> new OrderCartLines.Line(item.cartItemId(), item.optionId(), item.childId(),
+                item.quantity()))
+            .toList();
+        if (!cartLines.isEmpty()) {
+            orderCartLines.requireOrderable(memberId, cartLines);
+        }
         List<Order.RequestedItem> requested = command.items().stream().map(this::toRequestedItem).toList();
         PlaceOrderCommand.ShippingAddress address = command.shippingAddress();
 
@@ -420,6 +431,39 @@ public class OrderService {
     }
 
     /**
+     * 회원 탈퇴(#1001): 그 회원의 결제대기 주문을 구매자 취소와 같은 전이(사유 BUYER_CANCELLED)로 취소하고 order.cancelled를 낸다.
+     * 주체는 SYSTEM · 출처 member.withdrawn(상태 이력). 결제된 주문 · 배송 중 주문은 건드리지 않는다. 이미 취소된 주문은 대상이 아니므로
+     * 같은 이벤트가 여러 번 와도 결과 · 이벤트는 한 번분이다.
+     *
+     * @return 이번에 취소한 주문 수
+     */
+    public int cancelPendingForMemberWithdrawal(Long memberId) {
+        LocalDateTime now = LocalDateTime.now();
+        OrderActor actor = OrderActor.system(OrderActor.MEMBER_WITHDRAWN);
+        int cancelled = 0;
+        for (Order order : orderRepository.findAllByMemberIdAndStatusOrderByIdAsc(memberId,
+            Order.Status.PENDING_PAYMENT)) {
+            Order.Status from = order.getStatus();
+            TransitionResult result = order.cancelByBuyer(false);
+            if (result != TransitionResult.APPLIED) {
+                logIgnored("member-withdrawn", order, result);
+                continue;
+            }
+            String reason = order.getCancelReason().name();
+            historyRepository.save(actor.history(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(),
+                from, order.getStatus(), reason, now));
+            for (CancelledDelivery change : orderDeliveries.cancelByOrder(order.getId())) {
+                historyRepository.save(OrderStatusHistory.of(order.getId(), OrderStatusHistory.TargetType.DELIVERY,
+                    change.delivery().deliveryId(), change.from(), change.delivery().status(), reason, actor.type(),
+                    actor.id(), actor.source(), now));
+            }
+            publishCancelled(order, actor, null, now);
+            cancelled++;
+        }
+        return cancelled;
+    }
+
+    /**
      * 주문이 없으면 무시. 이번에 취소했을 때만 order.cancelled를 발행한다(사유는 주문에 기록된 값,
      * 주문상품 순서 그대로).
      *
@@ -553,7 +597,8 @@ public class OrderService {
             product.isPurchasable(),
             child,
             item.quantity(),
-            item.unitPrice());
+            item.unitPrice(),
+            item.cartItemId());
     }
 
     private Order.RequestedChild toRequestedChild(Long childId) {

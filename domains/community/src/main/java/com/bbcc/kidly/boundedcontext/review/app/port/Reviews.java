@@ -26,6 +26,11 @@ public interface Reviews {
      */
     Optional<Review> findForUpdate(Long reviewId);
 
+    /**
+     * 잠그지 않고 읽는다(수정 전 미리 확인용). 반영은 findForUpdate로 다시 읽어 한다.
+     */
+    Optional<Review> findById(Long reviewId);
+
     void delete(Review review);
 
     /**

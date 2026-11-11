@@ -15,7 +15,9 @@ import org.springframework.http.HttpStatus;
 public enum NotificationErrorCode implements ErrorCode {
 
     // 남의 알림도 같은 404로 답해 있는지 없는지 알리지 않는다
-    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다", "없거나 내 알림이 아닙니다. 알림 목록을 새로고침해 주세요.");
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다", "없거나 내 알림이 아닙니다. 알림 목록을 새로고침해 주세요."),
+    DEAD_LETTER_NOT_FOUND(HttpStatus.NOT_FOUND, "DLT 메시지를 찾을 수 없습니다", "DLT 목록을 새로고침해 주세요."),
+    INVALID_DEAD_LETTER_STATE(HttpStatus.BAD_REQUEST, "잘못된 DLT 상태입니다", "상태는 OPEN 또는 REPROCESSED입니다.");
 
     private final HttpStatus status;
     private final String title;

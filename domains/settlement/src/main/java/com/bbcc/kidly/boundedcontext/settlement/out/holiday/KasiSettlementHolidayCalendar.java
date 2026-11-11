@@ -2,14 +2,16 @@ package com.bbcc.kidly.boundedcontext.settlement.out.holiday;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayCalendar;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementHoliday;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -50,7 +52,7 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
     }
 
     @Override
-    public Set<LocalDate> holidaysIn(Year year) {
+    public List<SettlementHoliday> holidaysIn(Year year) {
         if (!StringUtils.hasText(serviceKey)) {
             throw new SettlementHolidayLookupException("공휴일 API 인증키가 없습니다");
         }
@@ -77,7 +79,7 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
         }
     }
 
-    private static Set<LocalDate> parse(byte[] body) {
+    private static List<SettlementHoliday> parse(byte[] body) {
         Document document;
         try {
             var factory = DocumentBuilderFactory.newInstance();
@@ -96,15 +98,17 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
         if (!NORMAL.equals(resultCode)) {
             throw new SettlementHolidayLookupException("공휴일 조회 결과가 정상이 아닙니다: resultCode " + resultCode);
         }
-        Set<LocalDate> holidays = new HashSet<>();
+        Map<LocalDate, String> holidays = new TreeMap<>();
         NodeList items = root.getElementsByTagName("item");
         for (int i = 0; i < items.getLength(); i++) {
             var item = (Element) items.item(i);
             if (HOLIDAY.equals(text(item, "isHoliday"))) {
-                holidays.add(locdate(text(item, "locdate")));
+                holidays.merge(locdate(text(item, "locdate")), text(item, "dateName"),
+                    (first, second) -> first + ", " + second);
             }
         }
-        return Set.copyOf(holidays);
+        return holidays.entrySet().stream()
+            .map(entry -> new SettlementHoliday(entry.getKey(), entry.getValue())).toList();
     }
 
     private static String text(Element parent, String tag) {

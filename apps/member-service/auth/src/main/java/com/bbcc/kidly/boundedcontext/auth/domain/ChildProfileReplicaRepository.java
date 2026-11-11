@@ -7,7 +7,7 @@ public interface ChildProfileReplicaRepository {
 
     void insertIfAbsent(Long id, Long guardianId, LocalDateTime now);
 
-    void deleteById(Long id);
+    void markDeleted(Long id, Long guardianId, LocalDateTime now);
 
     Optional<ChildProfileReplica> findByIdForUpdate(Long id);
 }

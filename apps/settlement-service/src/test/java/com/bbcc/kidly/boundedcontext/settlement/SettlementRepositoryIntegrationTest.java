@@ -18,12 +18,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @IntegrationTest
 class SettlementRepositoryIntegrationTest {
 
     @Autowired
     private SettlementRepository settlementRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("저장한 정산서의 금액 · 수수료율 · 상태를 다시 읽는다")
@@ -137,6 +141,30 @@ class SettlementRepositoryIntegrationTest {
             SettlementStatus.COMPLETED, NOW.plusSeconds(1))).isEqualTo(2);
         assertThat(settlementRepository.countByStatusAndCompletedAtBefore(
             SettlementStatus.COMPLETED, NOW)).isZero();
+    }
+
+    @Test
+    @DisplayName("지급액이 판매 합계 - 수수료와 다르거나 금액 · 수수료율 · 항목 판매금액이 범위를 벗어나면 DB가 거부한다")
+    void rejectsBrokenAmounts() {
+        long id = settlementRepository.save(SettlementFixture.settlement(10_000L)).getId();
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "update settlement.settlement set settlement_amount = settlement_amount + 1 where id = ?", id))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "update settlement.settlement set total_sales_amount = -1, fee_amount = 0, settlement_amount = -1"
+                + " where id = ?", id))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "update settlement.settlement set fee_rate = 1.0001 where id = ?", id))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+            insert into settlement.settlement_item
+                (order_item_id, order_id, seller_id, sales_amount, status, confirmed_at,
+                 created_at, updated_at, version)
+            values (1, 1, 1, -1, 'PENDING', now(), now(), now(), 0)
+            """))
+            .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private Settlement saveCompleted(Long sellerId) {

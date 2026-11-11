@@ -22,14 +22,14 @@
 
 | 모듈 | 담당 | 한 줄 책임 |
 |---|---|---|
-| 회원 | maruhxn | 로그인 · 가입 · 탈퇴 · 정지, 자녀 프로필, 판매자 승인, 가입 환영 메일 — member · childprofile · seller · notification 모듈. 자녀 프로필은 childprofile-service로 분리(dev), 인증은 auth 도메인으로 분리 중(#686) |
+| 회원 | maruhxn | 로그인 · 가입 · 탈퇴 · 정지, 자녀 프로필, 판매자 승인, 가입 환영 메일 — member · childprofile · seller · notification 모듈. 인증(auth) · 자녀 프로필(childprofile)은 회원 서비스(member-service) 안의 모듈(#686 · #809) |
 | 상품 | heojungseok | 상품 · 옵션 · 재고, 상품 상세, 카테고리 · 상품 유형 · 항목 · 실측 항목 기준 데이터, 이미지 업로드 주소 (목록 · 검색은 검색 모듈로) |
 | 추천 | heojungseok | 사이즈 추천 · AI 상품 추천 · 함께 사면 좋은 상품, 활동 기록 · 선호 점수, 기준 옷 비교(2순위). recommend-service로 분리 중(#704) |
 | 주문 | L2J92 | 장바구니 · 공용 장바구니(조르기), 주문, 배송(택배 조회), 구매확정, 판매자 부분 취소 — order · cart · delivery · wish 4개 컨텍스트(포트로만 연결, ArchUnit으로 고정) |
 | 결제 | codes-gy | 지갑(동결 포함), 충전 · 충전 취소, 주문 결제 · 환불, 정산금 입금, 토스 웹훅. payment-service로 분리 중 |
 | 검색 | codes-gy | 상품 목록 검색(Elasticsearch), 상품 · 판매자 이벤트로 색인, 검색어 이벤트 발행. search-service로 따로 뜸 |
 | 정산 | baiees | 정산 대상, 영업일 일정산(Spring Batch), 지급 요청 · 결과 반영 (지갑 적립은 결제) |
-| 커뮤니티 | L2J92 | 리뷰(작성 자격 · 작성 · 목록 · 요약) · 찜 — review · favorite 컨텍스트. 상품 · 주문 · 회원 이벤트만 받고 보내는 이벤트는 없음 |
+| 커뮤니티 | L2J92 | 리뷰(작성 자격 · 작성 · 목록 · 요약 · 사이즈 핏 · 사진) · 찜 · 부적절 리뷰 검사 · 쓰이지 않는 사진 정리 · 운영 조회(MCP) — review · favorite 컨텍스트. 상품 · 주문 · 회원 이벤트만 받고 보내는 이벤트는 없음 |
 | 공통 | 팀 | 오류 응답, 이벤트 형식(`shared` 계약), 이벤트 발행 · Kafka 규칙, 공통 설정, 요청 로그 · 모니터링, FE 동작 설정(setting 모듈). API Gateway(apps/gateway, maruhxn) |
 
 ### 주문 모듈 구조 변경 (세미 → 최종)
@@ -52,9 +52,10 @@
 
 | 보내는 쪽 | 토픽 | 이벤트 → 받는 쪽 (구독 그룹 `kidly.{받는도메인}`) |
 |---|---|---|
-| 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 자녀 프로필 · 결제 (추천 · 커뮤니티 예정) · `member.tokens-revoked` → Gateway |
+| 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.suspended` → 자녀 프로필 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 인증 · 자녀 프로필 · 커뮤니티 · 회원(배송지) · 알림 · 주문 · 결제 · 추천 · 판매자 |
+| 인증 | `kidly.auth.events` | `auth.tokens-revoked` → Gateway · `child-account.changed` → 자녀 프로필 · 알림 · 주문 |
 | 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 |
-| 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 주문 · 추천 |
+| 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 인증 · 주문 · 추천 · `child.growth-recorded` → 추천 |
 | 상품 | `kidly.product.events` | `product.changed` → 주문 · 추천 · 검색 · 커뮤니티 · `stock.deducted` · `stock.deduction-failed` → 주문 |
 | 주문 | `kidly.order.events` | `order.created` → 상품 · `order.payment-requested` → 결제 · `order.cancelled` → 상품 · 결제 · `order-item.purchase-confirmed` → 정산 · 추천 · 커뮤니티 · `order-item.cancelled` → 결제 · 상품 · `cart.item-added` → (추천 예정) |
 | 결제 | `kidly.payment.events` | `payment.completed` · `payment.failed` → 주문 · `payment.payout-completed` · `payment.payout-failed` → 정산 |
@@ -97,7 +98,7 @@
 ![그림](images/25.svg)
 
 - 주문 · 결제 경로에는 추천 서비스가 없습니다. 추천 서비스가 멈추면 Gateway가 3초 뒤 끊고 화면은 추천 영역만 비웁니다.
-- 계산은 이벤트가 올 때 합니다(복사본 · 임베딩 · 선호 점수). 요청이 올 때는 저장된 것을 읽고, AI 호출은 홈 맛보기와 함께 사면 좋은 상품에만, 같은 입력이면 저장된 응답을 재사용합니다.
+- 복사본은 이벤트가 올 때, 임베딩은 주기 작업으로 계산합니다. 선호 점수(친밀도 · 취향 벡터)는 이벤트 때 갱신하지 않고 하루 한 번 03:00 배치가 계산합니다. 요청이 올 때는 저장된 것을 읽고, AI 호출은 홈 맛보기와 함께 사면 좋은 상품에만, 같은 입력이면 저장된 응답을 재사용합니다.
 
 ## 3.7 결제 서비스 이벤트 흐름
 

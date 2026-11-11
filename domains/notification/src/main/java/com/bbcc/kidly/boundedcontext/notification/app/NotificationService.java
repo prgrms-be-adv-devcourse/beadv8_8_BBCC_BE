@@ -10,10 +10,14 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.WelcomeEmailCommand;
 import com.bbcc.kidly.boundedcontext.notification.domain.EmailNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
+import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipientType;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
+import com.bbcc.kidly.boundedcontext.notification.domain.NotificationPolicy;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
+import com.bbcc.kidly.boundedcontext.notification.domain.PushNotificationInfo;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * 커밋 전에 넘기면 다른 스레드가 아직 저장되지 않은 알림을 찾지 못한다.
  * 계정 정지를 뺀 메일은 같은 일을 받는 사람 알림함에도 한 건 남긴다(같은 트랜잭션). 알림함은 이메일이 필요 없어
  * 이메일 복사본이 없어 메일을 못 만들어도 남긴다. 계정 정지는 로그인이 막혀 알림함을 볼 수 없어 메일만 만든다.
+ * 회원이 사이트를 떠난 뒤 일어나는 일(주문 확인 · 주문 취소 · 배송 · 새 주문)은 같은 알림함 알림을 웹 푸시로도 보낸다(createPush).
  */
 @Service
 @RequiredArgsConstructor
@@ -73,12 +78,14 @@ public class NotificationService {
         });
     }
 
-    // 주문 결제완료는 주문마다 한 번만 나가므로 이벤트 ID로 한 통만 만든다
+    // 주문 결제완료는 주문마다 한 번만 나가므로 이벤트 ID로 한 통만 만든다. 알림함과 같은 내용을 푸시로도 보낸다
     @Transactional
     public void createOrderPaidEmail(OrderPaidCommand command) {
-        inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
+        var inbox = new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
             NotificationType.ORDER_PAID, "주문이 결제됐어요", orderPaidInboxBody(command), "/orders/" + command.orderId(),
-            "order.paid:" + command.orderId()));
+            "order.paid:" + command.orderId());
+        inboxNotificationService.add(inbox);
+        createPush(inbox);
         if (exists(command.eventId())) {
             return;
         }
@@ -190,6 +197,33 @@ public class NotificationService {
         });
     }
 
+    /**
+     * 알림함 알림과 같은 제목 · 본문 · 경로로 회원 웹 푸시를 만든다. 알림함 중복 키로 만든 고정 키로 한 건만 만든다.
+     * 자녀 계정 푸시는 보호자 동의 정책이 정해지지 않아 보내지 않는다.
+     */
+    @Transactional
+    public void createPush(InboxNotificationInfo inbox) {
+        if (inbox.recipient().type() != InboxRecipientType.MEMBER) {
+            throw new IllegalArgumentException("푸시는 회원에게만 보냅니다: " + inbox.recipient().type());
+        }
+        var key = pushKey(inbox.dedupKey());
+        if (notificationRepository.existsByEventIdAndChannel(key, NotificationChannel.PUSH)) {
+            return;
+        }
+        var notification = notificationRepository.save(Notification.push(new PushNotificationInfo(key,
+            inbox.recipient().id(), inbox.type(), inbox.title(), inbox.body(), inbox.linkPath())));
+        dispatchAfterCommit(notification.getId());
+    }
+
+    /**
+     * 보존 기간(NotificationPolicy.HISTORY_RETENTION)이 지난 끝난 발송 기록을 지운다. 아직 보낼 것은 남긴다. 지운 개수.
+     */
+    @Transactional
+    public int deleteExpired() {
+        return notificationRepository.deleteFinishedCreatedBefore(
+            LocalDateTime.now().minus(NotificationPolicy.HISTORY_RETENTION));
+    }
+
     private void createEmail(EmailNotificationInfo info) {
         if (exists(info.eventId())) {
             return;
@@ -218,6 +252,11 @@ public class NotificationService {
     // 정산서 하나에 하나로 정해지는 키. 지급 완료 이벤트의 ID와 겹치지 않게 이름을 붙여 만든다
     static UUID payoutKey(Long settlementId) {
         return UUID.nameUUIDFromBytes(("payment.payout-completed:" + settlementId).getBytes(UTF_8));
+    }
+
+    // 알림함 중복 키 하나에 하나로 정해지는 키. 이메일 키(이벤트 ID · 정산서 키)와 채널이 달라 겹쳐도 상관없다
+    static UUID pushKey(String inboxDedupKey) {
+        return UUID.nameUUIDFromBytes(("push:" + inboxDedupKey).getBytes(UTF_8));
     }
 
     private void dispatchAfterCommit(Long notificationId) {

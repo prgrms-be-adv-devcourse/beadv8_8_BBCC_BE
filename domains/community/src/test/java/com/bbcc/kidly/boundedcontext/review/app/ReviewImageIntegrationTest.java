@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
+import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
@@ -36,8 +37,15 @@ class ReviewImageIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private FakeReviewImageUploadChecker uploadChecker;
+
+    @Autowired
+    private ReviewModerationAdminService adminService;
+
     @BeforeEach
     void eligibility() {
+        uploadChecker.reset();
         jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
             + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, null, now(), now(), "
             + "now())", ME);
@@ -71,6 +79,37 @@ class ReviewImageIntegrationTest {
 
         assertThat(rows(id)).containsExactly(own(0), own(1));
         assertThat(review(id)).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("끼어들기: 미리 확인 뒤 업로드 확인 중에 리뷰가 지워지면 404이고 사진 행 · 집계가 남지 않는다")
+    void deletedDuringCheck() {
+        long id = write(List.of(own(0)));
+        uploadChecker.duringNextCheck(() -> reviewService.delete(ME, id));
+
+        assertThatThrownBy(() -> reviewService.update(ME, id, imagesChange(List.of(own(0), own(1)))))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ReviewErrorCode.REVIEW_NOT_FOUND));
+        assertThat(jdbcTemplate.queryForObject("select count(*) from community.review", Long.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from community.review_image", Long.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("select review_count from community.review_stats where product_id = 14",
+            Long.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("끼어들기: 미리 확인 뒤 업로드 확인 중에 관리자가 숨기면 수정은 반영되지만 숨김 리뷰라 집계는 그대로다")
+    void hiddenDuringCheck() {
+        long id = write(List.of(own(0)));
+        uploadChecker.duringNextCheck(() -> adminService.changeVisibility(99L, id, "HIDDEN"));
+
+        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 1, false, null,
+            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of(own(1), own(0)))));
+
+        assertThat(rows(id)).containsExactly(own(1), own(0));
+        assertThat(jdbcTemplate.queryForMap("select moderation_status, rating from community.review where id = ?", id))
+            .containsEntry("moderation_status", "CONFIRMED_HIDDEN").containsEntry("rating", 1);
+        assertThat(jdbcTemplate.queryForMap("select review_count, rating_sum from community.review_stats "
+            + "where product_id = 14")).containsEntry("review_count", 0L).containsEntry("rating_sum", 0L);
     }
 
     @Test
@@ -112,8 +151,12 @@ class ReviewImageIntegrationTest {
             ImageUrlsInput.of(urls));
     }
 
+    // 올린 것으로 친 본인 주소(가짜 업로드 확인기에 등록)
     private String own(int index) {
-        return imageStorage.ownImageUrlPrefix(ME) + String.format("0b6f3c1e-8a2d-4c5b-9e7f-%012d", index) + ".jpg";
+        String url = imageStorage.ownImageUrlPrefix(ME) + String.format("0b6f3c1e-8a2d-4c5b-9e7f-%012d", index)
+            + ".jpg";
+        uploadChecker.markUploaded(url);
+        return url;
     }
 
     private List<String> rows(long reviewId) {

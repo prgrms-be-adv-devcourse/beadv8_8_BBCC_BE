@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewErrorCode;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
+import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import java.util.ArrayList;
@@ -39,8 +40,12 @@ class ReviewImageApiTest {
     @Autowired
     private ReviewImageStorage imageStorage;
 
+    @Autowired
+    private FakeReviewImageUploadChecker uploadChecker;
+
     @BeforeEach
     void eligibility() {
+        uploadChecker.reset();
         jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
             + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, '110', now(), now(), "
             + "now())", ME);
@@ -161,7 +166,53 @@ class ReviewImageApiTest {
         assertThat(jdbcTemplate.queryForObject("select count(*) from community.review_image", Long.class)).isZero();
     }
 
+    @Test
+    @DisplayName("업로드 확인: 올리지 않은 주소는 400 IMAGE_NOT_UPLOADED, 확인 불가는 503, 둘 다 리뷰 · 사진 행이 생기지 않는다")
+    void uploadCheckOnWrite() {
+        String notUploaded = issueOnly(1).getFirst();
+        String unavailable = issue(1).getFirst();
+        uploadChecker.markUnavailable(unavailable);
+
+        expectProblem(write(Map.of("orderItemId", "11", "rating", 5, "content", "좋아요",
+            "imageUrls", List.of(issue(1).getFirst(), notUploaded))), ReviewErrorCode.IMAGE_NOT_UPLOADED);
+        write(Map.of("orderItemId", "11", "rating", 5, "content", "좋아요", "imageUrls", List.of(unavailable)))
+            .expectStatus().isEqualTo(503)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody().jsonPath("$.title").isEqualTo(ReviewErrorCode.IMAGE_STORAGE_UNAVAILABLE.title());
+
+        assertThat(jdbcTemplate.queryForObject("select count(*) from community.review", Long.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from community.review_image", Long.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("업로드 확인(PATCH): 새로 붙는 주소만 확인해 올리지 않았으면 400이고 기존 사진 그대로, 올렸으면 200")
+    void uploadCheckOnPatch() {
+        List<String> uploaded = issue(2);
+        String notUploaded = issueOnly(1).getFirst();
+        String reviewId = write(Map.of("orderItemId", "11", "rating", 5, "content", "좋아요",
+            "imageUrls", List.of(uploaded.getFirst())))
+            .expectStatus().isCreated()
+            .returnResult(Map.class).getResponseBody().get("reviewId").toString();
+
+        expectProblem(patch(reviewId, Map.of("imageUrls", List.of(uploaded.getFirst(), notUploaded))),
+            ReviewErrorCode.IMAGE_NOT_UPLOADED);
+        assertThat(jdbcTemplate.queryForList("select image_url from community.review_image order by position",
+            String.class)).containsExactly(uploaded.getFirst());
+
+        patch(reviewId, Map.of("imageUrls", List.of(uploaded.get(1), uploaded.getFirst())))
+            .expectStatus().isOk()
+            .expectBody().jsonPath("$.imageUrls").isEqualTo(List.of(uploaded.get(1), uploaded.getFirst()));
+    }
+
+    // 업로드 주소를 받고 S3에 올린 것으로 친다(가짜 확인기에 등록)
     private List<String> issue(int count) {
+        List<String> urls = issueOnly(count);
+        urls.forEach(uploadChecker::markUploaded);
+        return urls;
+    }
+
+    // 업로드 주소만 받고 올리지 않는다
+    private List<String> issueOnly(int count) {
         List<Map<String, Object>> files = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             files.add(file("image/png", 1));

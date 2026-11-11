@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderKafkaConsumerProperties;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
+import com.bbcc.kidly.boundedcontext.wish.in.event.WishCartEventKafkaListener;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +22,7 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 
 /**
- * 주문 Kafka 수신 설정(#541)이 실제 앱 컨텍스트에서: DLT 토픽 4개를 선언한다. 테스트 설정은 스위치를 끄므로(application-test.yml)
+ * 주문 Kafka 수신 설정(#541)이 실제 앱 컨텍스트에서: DLT 토픽(받는 토픽마다, 자기 토픽 #999 포함)을 선언한다. 테스트 설정은 스위치를 끄므로(application-test.yml)
  * 주문은 Spring 이벤트로 받고(다른 도메인 테스트가 지금처럼 Spring 경로로 돈다), 주문 Kafka 리스너 6개(DLT 포함, 자녀 계정 #906)는 자동 시작하지 않는다.
  */
 @KafkaIntegrationTest
@@ -29,11 +30,13 @@ class OrderKafkaListenerIntegrationTest {
 
     private static final List<String> DEAD_LETTER_TOPICS = List.of(
         "kidly.product.events.order.dlt", "kidly.seller.events.order.dlt", "kidly.childprofile.events.order.dlt",
-        "kidly.payment.events.order.dlt", "kidly.auth.events.order.dlt");
+        "kidly.payment.events.order.dlt", "kidly.auth.events.order.dlt", "kidly.order.events.order.dlt",
+        "kidly.member.events.order.dlt");
 
     private static final List<String> LISTENER_IDS = List.of(ProductEventKafkaListener.ID,
         SellerEventKafkaListener.ID, ChildProfileEventKafkaListener.ID, PaymentEventKafkaListener.ID,
-        AuthEventKafkaListener.ID, OrderDeadLetterKafkaListener.ID);
+        AuthEventKafkaListener.ID, OrderDeadLetterKafkaListener.ID, WishCartEventKafkaListener.ID,
+        MemberEventKafkaListener.ID);
 
     @Autowired
     private KafkaContainer kafka;
@@ -55,7 +58,7 @@ class OrderKafkaListenerIntegrationTest {
     private ConcurrentKafkaListenerContainerFactory<?, ?> orderFactory;
 
     @Test
-    @DisplayName("기동하면 주문 DLT 토픽 4개가 파티션 1 · 복제 1로 생긴다")
+    @DisplayName("기동하면 주문 DLT 토픽 7개가 파티션 1 · 복제 1로 생긴다")
     void deadLetterTopicsDeclared() throws Exception {
         try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
             kafka.getBootstrapServers()))) {
