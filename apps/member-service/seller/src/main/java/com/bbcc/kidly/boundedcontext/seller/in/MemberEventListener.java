@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.seller.in;
 
 import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
+import com.bbcc.kidly.boundedcontext.seller.app.SellerService;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import tools.jackson.databind.json.JsonMapper;
 public class MemberEventListener {
 
     private final SellerApplicationService sellerApplicationService;
+    private final SellerService sellerService;
     private final JsonMapper jsonMapper;
 
     @KafkaListener(id = "sellerMemberEventListener", topics = SellerKafkaListenerConfig.MEMBER_EVENTS,
@@ -40,5 +42,6 @@ public class MemberEventListener {
 
     private void onWithdrawn(MemberWithdrawnEvent event) {
         sellerApplicationService.clearApplicantPersonalInfo(event.data().memberId(), event.occurredAt());
+        sellerService.closeIfOpen(event.data().memberId());
     }
 }
