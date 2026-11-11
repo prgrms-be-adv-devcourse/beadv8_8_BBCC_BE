@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductFilte
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductQuery;
 import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSummary;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -38,7 +39,7 @@ public class JpaSellerProductQuery implements SellerProductQuery {
             .leftJoin(productOption)
             .on(productOption.product.eq(product).and(productOption.saleStatus.ne(ProductOptionStatus.ARCHIVED)))
             .leftJoin(inventory).on(inventory.productOption.eq(productOption))
-            .where(product.sellerId.eq(sellerId))
+            .where(conditions(sellerId, filter))
             .groupBy(product.id)
             .orderBy(product.id.desc())
             .offset(pageable.getOffset())
@@ -59,7 +60,16 @@ public class JpaSellerProductQuery implements SellerProductQuery {
         var countQuery = queryFactory
             .select(product.count())
             .from(product)
-            .where(product.sellerId.eq(sellerId));
+            .where(conditions(sellerId, filter));
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
+    }
+
+    // 목록과 전체 건수가 같은 조건을 쓰도록 한 곳에서 만든다
+    private BooleanBuilder conditions(Long sellerId, SellerProductFilter filter) {
+        BooleanBuilder where = new BooleanBuilder(product.sellerId.eq(sellerId));
+        if (filter.status() != null) {
+            where.and(product.status.eq(filter.status()));
+        }
+        return where;
     }
 }
