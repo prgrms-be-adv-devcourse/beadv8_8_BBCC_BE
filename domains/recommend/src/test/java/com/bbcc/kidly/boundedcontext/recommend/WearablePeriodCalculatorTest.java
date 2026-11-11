@@ -81,6 +81,59 @@ class WearablePeriodCalculatorTest {
             .containsExactly(tuple("120", 10), tuple("130", null));
     }
 
+    @Test
+    @DisplayName("WEAR-03 길이 기준과 너비 기준이 둘 다 있으면 짧은 쪽을 쓴다")
+    void monthsIsShorterOfLengthAndWidth() {
+        // 120: 길이 (125 − 120) ÷ 0.5 = 10, 가슴 +3cm → 40 → 24 / 130: 길이 40 → 24, 가슴 +1cm → 13
+        ProductSizes sizes = ProductSizes.of(false, List.of(
+            SizeRange.of("120", 115, 125),
+            SizeRange.of("130", 125, 140)));
+        ReferenceFit fit = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
+            new Item("CHEST_WIDTH", new BigDecimal("30.0"), List.of(
+                new SizeDiff("120", new BigDecimal("33.0"), new BigDecimal("3.0")),
+                new SizeDiff("130", new BigDecimal("31.0"), new BigDecimal("1.0"))))));
+
+        List<WearablePeriod> periods = calculator.calculate(
+            new WearInfo(sizes, TOP_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, CM_PER_MONTH, fit));
+
+        assertThat(periods).containsExactly(
+            new WearablePeriod("120", 10, 24, 10),
+            new WearablePeriod("130", 24, 13, 13));
+    }
+
+    @Test
+    @DisplayName("WEAR-03 개월 수가 0 이하면 0, 24개월을 넘으면 24개월로 맞춘다")
+    void clampMonthsBetweenZeroAndTwentyFour() {
+        // 110: 길이 (118 − 120) ÷ 0.5 = −4 → 0, 가슴 −1cm → −13.3 → 0 / 140: 길이 40 → 24, 너비 없음
+        ProductSizes sizes = ProductSizes.of(false, List.of(
+            SizeRange.of("110", 105, 118),
+            SizeRange.of("140", 125, 140)));
+        ReferenceFit fit = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
+            new Item("CHEST_WIDTH", new BigDecimal("30.0"), List.of(
+                new SizeDiff("110", new BigDecimal("29.0"), new BigDecimal("-1.0"))))));
+
+        List<WearablePeriod> periods = calculator.calculate(
+            new WearInfo(sizes, TOP_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, CM_PER_MONTH, fit));
+
+        assertThat(periods).containsExactly(
+            new WearablePeriod("110", 0, 0, 0),
+            new WearablePeriod("140", 24, null, 24));
+    }
+
+    @Test
+    @DisplayName("WEAR-03 한 달 성장량이 0이면 길이 · 너비 기준을 계산하지 않는다")
+    void noMonthsWhenNotGrowing() {
+        ReferenceFit fit = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
+            item("CHEST_WIDTH", "30.0", "31.0")));
+
+        List<WearablePeriod> periods = calculator.calculate(
+            new WearInfo(LONG_SIZES, TOP_PATH, Gender.FEMALE, AGE_6_MONTHS, HEIGHT_CM, 0.0, fit));
+
+        assertThat(periods).containsExactly(
+            new WearablePeriod("120", null, null, null),
+            new WearablePeriod("130", null, null, null));
+    }
+
     // 120 사이즈 하나의 차이만 담은 항목이다
     private static Item item(String code, String garmentCm, String productCm) {
         BigDecimal garment = new BigDecimal(garmentCm);
