@@ -15,6 +15,8 @@ import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendati
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
@@ -32,6 +34,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SizeRecommendationServiceTest {
@@ -144,6 +148,28 @@ class SizeRecommendationServiceTest {
 
     // AI 응답 서비스가 저장된 답 없이 넘겨받은 호출을 그대로 실행한 것처럼 한다
     @SuppressWarnings("unchecked")
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("FIT-09 · FIT-11 AI 답을 채택하면 프롬프트 판과 항목별 판단을 로그 한 줄로 남기고 자녀 정보는 남기지 않는다")
+    void logAdoptedJudgementsWithPromptVersion(CapturedOutput output) {
+        ReferenceFit referenceFit = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
+            new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
+                new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION,
+            new SizeAiEvidence(referenceFit, Set.of(new BigDecimal("2.0")))));
+        given(aiSizeChooser.choose(QUESTION)).willReturn(new AiSizeAnswer("120", "ROOMY",
+            List.of(new AiSizeAnswer.Reason("MEASUREMENT", "가슴단면이 2cm 넉넉해요.", null)),
+            List.of(new AiSizeAnswer.Judgement("CHEST_WIDTH", new BigDecimal("2.0"), "ROOMY",
+                new BigDecimal("0.0"), new BigDecimal("3.0")))));
+        givenAiResponseServiceCallsChooser();
+
+        service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(output.getOut()).contains("promptVersion=1", "productId=10", "CHEST_WIDTH", "ROOMY")
+            .doesNotContain("childId", "memberId");
+    }
+
     private void givenAiResponseServiceCallsChooser() {
         given(aiResponseService.respond(
             eq(AiResponseType.SIZE_RECOMMENDATION), eq(KEY_INPUT), eq(AiSizeAnswer.class), any()))

@@ -7,18 +7,22 @@ import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendati
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ItemJudgement;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReason;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
  * 사이즈 추천 유스케이스다. AI 호출은 트랜잭션 밖에서 해야 해서 이 클래스에는 {@code @Transactional}을 붙이지 않고,
  * 복사본 읽기는 {@link SizeRecommendationReader}가 트랜잭션 안에서 맡는다.
  */
+@Slf4j
 @Service
 public class SizeRecommendationService {
 
@@ -39,6 +43,7 @@ public class SizeRecommendationService {
         SizeRecommendationDraft draft = reader.read(memberId, productId, childId);
         AiSizeAnswer answer = askAi(draft);
         SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer, draft.aiEvidence());
+        logIfAdopted(draft, recommendation);
         return toResult(draft.productId(), draft.childId(), recommendation);
     }
 
@@ -51,6 +56,20 @@ public class SizeRecommendationService {
         return aiResponseService.respond(
             AiResponseType.SIZE_RECOMMENDATION, draft.aiKeyInput(), AiSizeAnswer.class,
             () -> chooser.choose(draft.aiQuestion())).orElse(null);
+    }
+
+    // 어떤 프롬프트 판에서 어떤 판단을 채택했는지 남긴다. 자녀 ID, 회원 ID, 자녀 몸 정보는 남기지 않는다.
+    private void logIfAdopted(SizeRecommendationDraft draft, SizeRecommendation recommendation) {
+        if (recommendation.getSource() != SizeRecommendationSource.AI) {
+            return;
+        }
+        List<String> judgements = new ArrayList<>();
+        for (ItemJudgement judgement : recommendation.getItemJudgements()) {
+            judgements.add(judgement.code() + " " + judgement.diffCm() + " " + judgement.fit() + " "
+                + judgement.allowanceMinCm() + "~" + judgement.allowanceMaxCm());
+        }
+        log.info("사이즈 AI 답을 채택했습니다. promptVersion={}, productId={}, itemJudgements={}",
+            draft.aiKeyInput().promptVersion(), draft.productId(), judgements);
     }
 
     private SizeRecommendationResult toResult(Long productId, Long childId, SizeRecommendation recommendation) {

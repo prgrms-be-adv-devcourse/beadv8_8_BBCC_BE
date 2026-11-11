@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.out.ai.OpenAiSizeChooser;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
@@ -29,6 +31,14 @@ class OpenAiSizeChooserTest {
         new SizeAiQuestion.RuleResult("110", "TIGHT", List.of("110"), List.of()),
         null, null);
 
+    // 상의 기준 옷 가슴단면 35cm와 상품 110의 가슴단면 34cm를 비교한 기준 핏을 담은 질문이다
+    private static final SizeAiQuestion QUESTION_WITH_FIT = new SizeAiQuestion(
+        QUESTION.child(), QUESTION.sizes(), QUESTION.ruleResult(),
+        new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(new ReferenceFit.Item("CHEST_WIDTH",
+            new BigDecimal("35.0"), List.of(new ReferenceFit.SizeDiff("110", new BigDecimal("34"),
+                new BigDecimal("-1.0")))))),
+        null);
+
     @Test
     @DisplayName("시스템 지시와 질문 JSON을 모델에 보내고, 모델이 준 JSON을 사이즈 답으로 읽는다")
     void askModelAndReadAnswer() {
@@ -54,19 +64,37 @@ class OpenAiSizeChooserTest {
     }
 
     @Test
-    @DisplayName("기준 옷 정보를 받지 않으므로, 가지고 계신 옷과 비교해 보라는 말 대신 상품 실측으로 근거를 쓰라고 지시한다")
-    void instructMeasurementReasonWithoutOwnedGarment() {
+    @DisplayName("FIT-07 규칙 결과와 기준 핏 차이를 함께 보고 고르라고 지시하고, 기준 옷과 비교하지 말라는 지시는 하지 않는다")
+    void instructToWeighReferenceFitWithRuleResult() {
         List<Prompt> prompts = new ArrayList<>();
         ChatModel model = prompt -> {
             prompts.add(prompt);
             return new ChatResponse(List.of(new Generation(new AssistantMessage("""
-                {"recommendedSize":"110","fit":"TIGHT","reasons":[]}
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[],"itemJudgements":[]}
                 """))));
         };
 
-        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION_WITH_FIT);
 
         String system = prompts.getFirst().getSystemMessage().getText();
-        assertThat(system).contains("가지고 계신 옷", "상품 실측");
+        assertThat(system).contains("referenceFit", "ruleResult", "itemJudgements", "allowanceMinCm")
+            .doesNotContain("실측은 받지 않습니다", "다른 옷과 비교해 보라는 말을 쓰지 마세요");
+        assertThat(prompts.getFirst().getUserMessage().getText())
+            .contains("\"comparedPart\":\"TOP\"", "\"diffCm\":-1.0");
+    }
+
+    @Test
+    @DisplayName("FIT-09 모델이 준 항목별 판단(항목 · 차이 · 판단 · 여유 범위)을 읽는다")
+    void readItemJudgements() {
+        ChatModel model = prompt -> new ChatResponse(List.of(new Generation(new AssistantMessage("""
+            {"recommendedSize":"110","fit":"TIGHT","reasons":[],
+             "itemJudgements":[{"code":"CHEST_WIDTH","diffCm":-1.0,"fit":"TIGHT",
+                                "allowanceMinCm":0.0,"allowanceMaxCm":3.0}]}
+            """))));
+
+        AiSizeAnswer answer = new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION_WITH_FIT);
+
+        assertThat(answer.itemJudgements()).containsExactly(new AiSizeAnswer.Judgement(
+            "CHEST_WIDTH", new BigDecimal("-1.0"), "TIGHT", new BigDecimal("0.0"), new BigDecimal("3.0")));
     }
 }
