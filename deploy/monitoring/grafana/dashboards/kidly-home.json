@@ -113,7 +113,7 @@
         "sortOrder": "Descending",
         "dedupStrategy": "none"
       },
-      "description": "최근 24시간에 게시된 운영·prod 메모 중 최신 한 건입니다. 관측 시각과 환경을 확인하세요.",
+      "description": "최근 24시간에 게시된 최신 AI 메모입니다. 메모에 표시된 관측 시각과 환경을 확인하세요.",
       "links": [
         {
           "title": "운영 분석 전문",
