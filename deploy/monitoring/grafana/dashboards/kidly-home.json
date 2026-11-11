@@ -113,10 +113,10 @@
         "sortOrder": "Descending",
         "dedupStrategy": "none"
       },
-      "description": "최근 24시간에 게시된 dev·prod 메모 중 최신 한 건입니다. 관측 시각과 환경을 확인하세요.",
+      "description": "최근 24시간에 게시된 운영·prod 메모 중 최신 한 건입니다. 관측 시각과 환경을 확인하세요.",
       "links": [
         {
-          "title": "dev 분석 전문",
+          "title": "운영 분석 전문",
           "url": "/d/kidly-ai-notes?var-env=dev"
         },
         {
@@ -128,10 +128,84 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "prod 운영 대상",
+      "title": "운영 환경 상태",
       "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
       "gridPos": {
         "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max(kidly_environment_enabled{env=\"dev\"} and (time()-timestamp(kidly_environment_enabled{env=\"dev\"})<60)) + 2 * max(kidly_environment_transition_active{env=\"dev\"} and (time()-timestamp(kidly_environment_transition_active{env=\"dev\"})<60))) or vector(-1)",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "수집 확인 필요",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "중지 설정",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "운영 대상",
+                  "color": "blue"
+                },
+                "2": {
+                  "text": "전환 중",
+                  "color": "yellow"
+                },
+                "3": {
+                  "text": "전환 중",
+                  "color": "yellow"
+                },
+                "-1": {
+                  "text": "수집 확인 필요",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "links": [
+            {
+              "title": "운영 서비스 상태 열기",
+              "url": "/d/kidly-http?var-env=dev"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "prod 환경 상태",
+      "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
+      "gridPos": {
+        "x": 12,
         "y": 14,
         "w": 12,
         "h": 4
@@ -200,80 +274,6 @@
       }
     },
     {
-      "id": 2,
-      "type": "stat",
-      "title": "dev 운영 대상",
-      "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
-      "gridPos": {
-        "x": 12,
-        "y": 14,
-        "w": 12,
-        "h": 4
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "(max(kidly_environment_enabled{env=\"dev\"} and (time()-timestamp(kidly_environment_enabled{env=\"dev\"})<60)) + 2 * max(kidly_environment_transition_active{env=\"dev\"} and (time()-timestamp(kidly_environment_transition_active{env=\"dev\"})<60))) or vector(-1)",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "수집 확인 필요",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "중지 설정",
-                  "color": "gray"
-                },
-                "1": {
-                  "text": "운영 대상",
-                  "color": "blue"
-                },
-                "2": {
-                  "text": "전환 중",
-                  "color": "yellow"
-                },
-                "3": {
-                  "text": "전환 중",
-                  "color": "yellow"
-                },
-                "-1": {
-                  "text": "수집 확인 필요",
-                  "color": "gray"
-                }
-              }
-            }
-          ],
-          "links": [
-            {
-              "title": "dev 서비스 상태 열기",
-              "url": "/d/kidly-http?var-env=dev"
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": false
-        }
-      }
-    },
-    {
       "id": 3,
       "type": "text",
       "title": "1. 장애 확인",
@@ -285,7 +285,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "[활성 알림 전체 보기](/alerting/groups) · [prod 서비스 상태](/d/kidly-http?var-env=prod) · [dev 서비스 상태](/d/kidly-http?var-env=dev)"
+        "content": "[활성 알림 전체 보기](/alerting/groups) · [운영 서비스 상태](/d/kidly-http?var-env=dev) · [prod 서비스 상태](/d/kidly-http?var-env=prod)"
       }
     },
     {
