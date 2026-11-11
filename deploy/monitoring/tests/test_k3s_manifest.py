@@ -144,6 +144,16 @@ class K3sManifestTests(unittest.TestCase):
         self.assertEqual(items['Service']['spec']['ports'][0]['port'], 9308)
         self.assertEqual(items['Deployment']['spec']['template']['metadata']['labels']['kidly/job'], 'kidly-kafka')
 
+    def test_redis_listens_on_exposed_port_inside_cluster_only(self):
+        redis = {'image': 'redis:7.4.12-alpine@sha256:abc', 'mem_limit': str(128 * 1024 * 1024),
+                 'command': ['redis-server', '--maxmemory', '64mb'], 'expose': ['6379']}
+        result = k3s.manifest('dev', 'redis', None, 'kidly-redis', redis, self.project)
+        items = {item['kind']: item for item in result['items']}
+        container = items['Deployment']['spec']['template']['spec']['containers'][0]
+        self.assertEqual(container['ports'], [{'name': 'http', 'containerPort': 6379}])
+        self.assertEqual(items['Service']['spec']['type'], 'ClusterIP')
+        self.assertEqual(items['Service']['spec']['ports'][0]['port'], 6379)
+
     def test_gateway_goes_after_services_that_it_calls(self):
         self.assertEqual([k3s.rank(name) for name in ('member', 'product', 'gateway')], [0, 1, 2])
 

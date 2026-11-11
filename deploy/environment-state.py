@@ -30,7 +30,8 @@ SERVICES = {
 # 메트릭은 monitoring-agent Alloy 가 k3s API 로 Pod 를 찾아 모으므로 대상 파일을 쓰지 않고, 기대 목록에만 넣는다
 KUBECONFIG = Path.home() / '.kube' / 'config'
 # 앱 서비스(SERVICES) 밖에서 k3s 로 옮길 수 있는 compose 서비스: profile → (compose 서비스, Deployment 이름, Prometheus job)
-K3S_EXTRAS = {'kafka-monitoring': ('kafka-exporter', 'kafka-exporter', 'kidly-kafka')}
+K3S_EXTRAS = {'kafka-monitoring': ('kafka-exporter', 'kafka-exporter', 'kidly-kafka'),
+              'redis': ('redis', 'redis', 'kidly-redis')}
 
 
 def node_port_key(profile):
