@@ -215,7 +215,10 @@ class CategoryApiTest {
             .expectBody()
             .jsonPath("$[*].name").isEqualTo(List.of("의류", "여아 전용관"))
             .jsonPath("$[0].children[*].name").isEqualTo(List.of("바지", "원피스"))
-            .jsonPath("$[1].children[*].name").isEqualTo(List.of("블라우스"));
+            .jsonPath("$[1].children[*].name").isEqualTo(List.of("블라우스"))
+            // 보일 성별은 관리자만 정하는 내부 값이라 공개 목록에 내지 않는다
+            .jsonPath("$[0].visibleGender").doesNotExist()
+            .jsonPath("$[0].children[1].visibleGender").doesNotExist();
     }
 
     // 의류 아래에 바지(ALL) · 원피스(GIRL)를, 최상위에 GIRL 중간 카테고리 「여아 전용관」과 그 아래 ALL 말단을 저장한다

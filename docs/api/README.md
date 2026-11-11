@@ -108,7 +108,7 @@
 | POST | `/api/v1/admin/products/changed-events` | 판매를 시작했거나 등록 취소한 상품 전체의 `product.changed` 재발행 | 🛠 |
 | GET | `/api/v1/admin/categories` | 카테고리 목록(평면 배열 + `parentId`, 보일 성별 `visibleGender`) | 🛠 |
 | POST | `/api/v1/admin/categories` | 카테고리 만들기(선택 칸 `visibleGender` `ALL` · `GIRL`, 보내지 않으면 `ALL`) | 🛠 |
-| PUT | `/api/v1/admin/categories/{categoryId}` | 카테고리 수정(선택 칸 `visibleGender`, 보내지 않으면 `ALL`. 상품이 있는 카테고리도 바꿀 수 있음) | 🛠 |
+| PUT | `/api/v1/admin/categories/{categoryId}` | 카테고리 수정(선택 칸 `visibleGender`, 보내지 않으면 지금 값 유지. 상품이 있는 카테고리도 바꿀 수 있음) | 🛠 |
 | DELETE | `/api/v1/admin/categories/{categoryId}` | 카테고리 삭제(논리 삭제) | 🛠 |
 | GET | `/api/v1/admin/product-types` | 상품 유형 목록 | 🛠 |
 | POST | `/api/v1/admin/product-types` | 상품 유형 만들기 | 🛠 |

@@ -13,7 +13,7 @@ import java.util.List;
  * @param parentId 부모 카테고리 ID다. 최상위 카테고리이면 null
  * @param productTypeId 상품 유형 ID다. 말단 카테고리이면 보내고, 중간 카테고리이면 null
  * @param measurementItemIds 말단 카테고리의 필수 실측 항목 ID다. 넣은 순서가 실측 항목 순서가 된다. 없으면 빈 목록을 보낸다
- * @param visibleGender 보일 성별이다. 보내지 않으면 ALL
+ * @param visibleGender 보일 성별이다. 보내지 않으면 ALL이다
  */
 public record CategoryCreateRequest(
     @NotBlank(message = "카테고리 이름을 입력해 주세요.")
