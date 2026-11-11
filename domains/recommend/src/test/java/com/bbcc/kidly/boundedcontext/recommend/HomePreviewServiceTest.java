@@ -82,14 +82,16 @@ class HomePreviewServiceTest {
     @DisplayName("HOME-03 AI가 고른 상품을 AI 답 순서와 이유 그대로 돌려준다")
     void aiPicksWithReasons() {
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요.", 2L, "이유 2이에요.", 6L, "이유 6이에요.", 1L, "이유 1이에요."));
+        RecordingPicker picker = new RecordingPicker(
+            answer(5L, "이유 5이에요.", 2L, "이유 2이에요.", 6L, "이유 6이에요.", 1L, "이유 1이에요."));
 
         HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
 
         assertThat(result.source()).isEqualTo("AI");
         assertThat(result.items())
             .extracting(item -> item.product().productId(), HomePreviewResult.Item::reason)
-            .containsExactly(tuple(5L, "이유 5이에요."), tuple(2L, "이유 2이에요."), tuple(6L, "이유 6이에요."), tuple(1L, "이유 1이에요."));
+            .containsExactly(tuple(5L, "이유 5이에요."), tuple(2L, "이유 2이에요."), tuple(6L, "이유 6이에요."),
+                tuple(1L, "이유 1이에요."));
     }
 
     @Test

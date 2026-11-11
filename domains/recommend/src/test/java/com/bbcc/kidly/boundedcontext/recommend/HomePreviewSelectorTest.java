@@ -92,7 +92,8 @@ class HomePreviewSelectorTest {
     @DisplayName("HOME-04 AI가 고른 것이 4개보다 적으면 빈 자리를 고르지 않은 후보 순서로 채우고 채운 상품의 이유는 없다")
     void fillRemainingSlotsInCandidateOrder() {
         List<RecommendedProduct> candidates = productsWithIds(10);
-        List<HomePreviewPick> aiPicks = List.of(new HomePreviewPick(7L, "이유 7이에요."), new HomePreviewPick(1L, "이유 1이에요."));
+        List<HomePreviewPick> aiPicks = List.of(
+            new HomePreviewPick(7L, "이유 7이에요."), new HomePreviewPick(1L, "이유 1이에요."));
 
         HomePreview preview = selector.select(candidates, aiPicks);
 
@@ -106,7 +107,8 @@ class HomePreviewSelectorTest {
     @DisplayName("HOME-03 후보를 20개보다 많이 넘겨도 앞 20개 밖의 상품을 고른 AI 답은 버린다")
     void dropPicksBeyondTopTwenty() {
         List<RecommendedProduct> candidates = productsWithIds(25);
-        List<HomePreviewPick> aiPicks = List.of(new HomePreviewPick(22L, "이유 22이에요."), new HomePreviewPick(3L, "이유 3이에요."));
+        List<HomePreviewPick> aiPicks = List.of(
+            new HomePreviewPick(22L, "이유 22이에요."), new HomePreviewPick(3L, "이유 3이에요."));
 
         HomePreview preview = selector.select(candidates, aiPicks);
 
