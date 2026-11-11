@@ -10,6 +10,7 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class GrowthTableConfigTest {
 
@@ -64,5 +65,16 @@ class GrowthTableConfigTest {
     @DisplayName("WEAR-02 사이즈코리아 CSV에서 나이 구간(만 0 ~ 6세, 7 ~ 11세, 12세 이상) · 성별 · 부위의 키 1cm당 둘레 증가량을 읽는다")
     void girthRatioByAgeGenderAndPart(Gender gender, long months, GirthPart part, double expectedRatio) {
         assertThat(GIRTH_RATIO_TABLE.ratio(gender, months, part)).isEqualTo(expectedRatio);
+    }
+
+    // 자녀 정보는 생일이 오늘 이후가 될 수 없게 검증된 값이지만, 잘못 들어온 데이터에서도 계산이 멈추지 않게 한다
+    @ParameterizedTest
+    @ValueSource(longs = {-1, -11, -13, -30})
+    @DisplayName("생일이 오늘보다 뒤라 개월 수가 음수면 성장량 표와 둘레 비율 표 모두 0세 값을 쓴다")
+    void useAgeZeroForNegativeMonths(long months) {
+        assertThat(GROWTH_VELOCITY_TABLE.yearlyCm(Gender.MALE, months))
+            .isEqualTo(GROWTH_VELOCITY_TABLE.yearlyCm(Gender.MALE, 0));
+        assertThat(GIRTH_RATIO_TABLE.ratio(Gender.MALE, months, GirthPart.CHEST))
+            .isEqualTo(GIRTH_RATIO_TABLE.ratio(Gender.MALE, 0, GirthPart.CHEST));
     }
 }

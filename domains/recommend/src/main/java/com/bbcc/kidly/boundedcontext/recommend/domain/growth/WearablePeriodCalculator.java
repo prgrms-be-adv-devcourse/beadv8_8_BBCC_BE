@@ -18,7 +18,7 @@ import java.util.List;
 public class WearablePeriodCalculator {
 
     // 아이 옷을 2년 넘게 입는 경우는 드물고, 그 뒤의 성장은 예측하기 어렵다
-    private static final int MAX_MONTHS = 24;
+    public static final int MAX_MONTHS = 24;
 
     // 실수 나눗셈 오차로 딱 떨어지는 값이 정수보다 아주 조금 작게 나와 한 달이 줄어드는 것을 막는 여유값이다
     private static final double FLOOR_EPSILON = 1e-9;

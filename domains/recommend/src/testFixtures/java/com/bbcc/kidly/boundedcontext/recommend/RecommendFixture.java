@@ -170,6 +170,15 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #childChangedEvent()}에서 생일만 바꾼다. 나이에 따라 바뀌는 표 값을 실행하는 날과 상관없이 고정할 때 쓴다.
+     */
+    public static ChildChangedEvent childChangedEventBornOn(LocalDate birthDate) {
+        return new ChildChangedEvent(UUID.randomUUID(), CHILD_CHANGED_AT, new ChildChangedEvent.Data(CHILD_1_ID,
+            MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, birthDate, BodyType.NORMAL,
+            PreferredFit.LOOSE, false));
+    }
+
+    /**
      * 자녀 1을 삭제한 자녀 정보 변경됨 이벤트. 삭제 직전 값(키 115.0cm 등)을 그대로 담는다.
      */
     public static ChildChangedEvent childDeletedEvent(LocalDateTime occurredAt) {

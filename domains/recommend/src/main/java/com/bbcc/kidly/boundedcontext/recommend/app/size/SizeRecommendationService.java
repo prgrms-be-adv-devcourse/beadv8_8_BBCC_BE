@@ -2,10 +2,12 @@ package com.bbcc.kidly.boundedcontext.recommend.app.size;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.dto.SizeRecommendationResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ItemJudgement;
@@ -96,7 +98,26 @@ public class SizeRecommendationService {
             draft.productId(), draft.childId(), recommendation.getRecommendedSize(), fit,
             notices, recommendation.getCandidateSizes(), null,
             recommendation.getSource().name(), reasons,
-            referenceFitOf(draft.aiQuestion().referenceFit()), itemJudgementsOf(recommendation));
+            referenceFitOf(draft.aiQuestion().referenceFit()), itemJudgementsOf(recommendation),
+            growthSpeedOf(draft.aiQuestion().growthSpeed()), wearablePeriodsOf(draft.aiQuestion().wearablePeriods()));
+    }
+
+    private SizeRecommendationResult.GrowthSpeed growthSpeedOf(SizeAiQuestion.GrowthSpeed growthSpeed) {
+        if (growthSpeed == null) {
+            return null;
+        }
+        return new SizeRecommendationResult.GrowthSpeed(growthSpeed.cmPerMonth(), growthSpeed.recentCmPerMonth(),
+            growthSpeed.recordCount(), growthSpeed.recordMonths(), growthSpeed.childSharePercent(),
+            growthSpeed.tableCmPerMonth(), growthSpeed.tableSource());
+    }
+
+    private List<SizeRecommendationResult.WearablePeriod> wearablePeriodsOf(List<WearablePeriod> periods) {
+        List<SizeRecommendationResult.WearablePeriod> results = new ArrayList<>();
+        for (WearablePeriod period : periods) {
+            results.add(new SizeRecommendationResult.WearablePeriod(
+                period.size(), period.lengthMonths(), period.widthMonths(), period.months()));
+        }
+        return results;
     }
 
     private SizeRecommendationResult.ReferenceFit referenceFitOf(ReferenceFit referenceFit) {

@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.recommend.out.growth;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecordRepository;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -9,6 +11,11 @@ import org.springframework.data.repository.query.Param;
 
 public interface JpaRecommendGrowthRecordRepository
     extends JpaRepository<RecommendGrowthRecord, Long>, RecommendGrowthRecordRepository {
+
+    @Override
+    @Query("select r from RecommendGrowthRecord r where r.childProfileId = :childProfileId and r.recordedAt >= :since")
+    List<RecommendGrowthRecord> findRecordedSince(@Param("childProfileId") Long childProfileId,
+        @Param("since") LocalDateTime since);
 
     // 자녀 단위(자녀 삭제 이벤트)와 회원 단위(탈퇴 이벤트)는 같은 기록을 동시에 지울 수 있다.
     // 파생 delete는 기록을 읽은 뒤 지우므로 그사이 다른 트랜잭션이 먼저 지우면 커밋 때 낙관적 락 예외가 난다.

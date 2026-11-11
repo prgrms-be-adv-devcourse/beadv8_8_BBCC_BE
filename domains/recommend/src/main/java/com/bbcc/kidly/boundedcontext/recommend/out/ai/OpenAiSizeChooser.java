@@ -26,7 +26,19 @@ public class OpenAiSizeChooser implements AiSizeChooser {
         - child의 키, 몸무게, 입력 체형(bodyType), 판정 체형(judgedBodyType), 선호 핏(preferredFit)과
           sizes의 사이즈별 권장 키, 실측(cm)을 함께 보고 고르세요.
           judgedBodyType이 null이면 체형을 쓰지 않고 키만 보고 고른 것입니다.
-        - growthSpeed가 null이면 무시하세요.
+        - growthSpeed는 아이의 키 성장 속도(cm/월)입니다. cmPerMonth는 최근 12개월 성장 기록과 나이 · 성별 표 값을 섞은 전체 속도,
+          recentCmPerMonth는 최근 3개월 속도(기록이 부족하면 null), childSharePercent는 전체 속도에서 아이 기록이 차지하는 비중(%),
+          tableCmPerMonth와 tableSource는 표 값과 그 출처입니다. recordCount는 계산에 쓴 기록 개수,
+          recordMonths는 첫 기록과 마지막 기록 사이 개월 수입니다. 최근 속도가 전체 속도보다 빠르면 곧 작아질 수 있으니
+          한 치수 크게 볼 수 있고, 느리면 그렇지 않다는 점을 판단에 쓰세요.
+          recordMonths와 childSharePercent의 나머지 값(100 − 비중)은 문장에 쓰지 마세요.
+          childSharePercent가 0이면 아이 기록 없이 또래 표 값만 쓴 것이니 아이가 실제로 그만큼 자랐다고 쓰지 말고
+          또래 기준으로 설명하세요.
+        - wearablePeriods는 사이즈마다 앞으로 입을 수 있는 개월 수입니다. lengthMonths는 권장 키 상한까지, widthMonths는
+          기준 옷보다 넉넉한 너비를 몸이 채울 때까지, months는 둘 중 짧은 값이고 24가 상한입니다. 계산할 수 없으면 null입니다.
+          너무 짧은 사이즈(예: 0 ~ 2개월)는 곧 작아진다는 점을 판단에 쓰세요.
+        - 성장 속도나 입을 수 있는 기간을 근거로 쓸 때는 reasons의 type을 GROWTH로 하고, detail에 growthSpeed의 tableSource 값을
+          출처로 밝히세요(예: "한국아동패널 기준").
         - fit은 ROOMY, PROPER, TIGHT 중 하나입니다.
         - reasons는 1개에서 3개입니다. type은 HEIGHT, BODY_TYPE, PREFERRED_FIT, MEASUREMENT, RULE_RESULT, GROWTH 중
           하나이고, detail은 보호자에게 그대로 보여 줄 짧은 한국어 존댓말 문장입니다("~요"로 끝냅니다).

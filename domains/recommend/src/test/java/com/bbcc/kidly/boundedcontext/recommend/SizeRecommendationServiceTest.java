@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendati
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
@@ -50,14 +51,18 @@ class SizeRecommendationServiceTest {
     private static final AiResponseKey.Input KEY_INPUT = new AiResponseKey.Input(
         PRODUCT_ID, CHILD_ID, 82, null, null, null, null, null, null, 1);
 
-    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, null);
+    // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
+    private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
+        null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널");
+
+    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of());
 
     private static final ReferenceFit REFERENCE_FIT = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
         new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
             new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
 
     private static final SizeAiQuestion QUESTION_WITH_FIT =
-        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, null);
+        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, GROWTH, List.of());
 
     // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
     private static final SizeAiEvidence EVIDENCE =
@@ -197,6 +202,26 @@ class SizeRecommendationServiceTest {
         assertThat(result.source()).isEqualTo("RULE");
         assertThat(output.getOut()).contains("규칙 결과로 답합니다", "promptVersion=1", "productId=10")
             .doesNotContain("childId", "memberId");
+    }
+
+    @Test
+    @DisplayName("GROW-01 · WEAR-03 AI 모델이 없어 규칙 결과로 답해도 성장 속도와 사이즈별 입을 수 있는 기간을 결과에 담는다")
+    void resultHasGrowthSpeedAndWearablePeriodsWithoutAi() {
+        SizeAiQuestion question = new SizeAiQuestion(null, List.of(), null, null,
+            new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0,
+                new BigDecimal("0.50"), "한국아동패널"),
+            List.of(new WearablePeriod("120", 20, null, 20)));
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, question, EVIDENCE));
+
+        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+            .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(result.growthSpeed()).isEqualTo(new SizeRecommendationResult.GrowthSpeed(
+            new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널"));
+        assertThat(result.wearablePeriods())
+            .containsExactly(new SizeRecommendationResult.WearablePeriod("120", 20, null, 20));
     }
 
     // 상의 기준 옷 가슴단면 34cm와 상품 120의 가슴단면 36cm를 비교한 기준 핏을 넘긴 초안이다

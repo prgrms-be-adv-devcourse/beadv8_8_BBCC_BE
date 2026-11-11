@@ -20,9 +20,9 @@ public class GrowthVelocityCalculator {
     private static final double MEASUREMENT_ERROR_CM = 0.75;
     // 표 값의 2배는 사춘기 후반에 너무 낮아 늦게 크는 아이의 실제 속도를 자른다. 중앙값에서 표준편차 2배까지는 정상 범위로 본다
     private static final double MAX_SD_MULTIPLE = 2.0;
-    private static final int RECENT_MONTHS = 3;
+    public static final int RECENT_MONTHS = 3;
     // 사춘기 앞뒤로 성장 속도가 해마다 크게 바뀌어 1년보다 오래된 기록은 지금 속도를 잘못 알려 준다
-    private static final int WINDOW_MONTHS = 12;
+    public static final int WINDOW_MONTHS = 12;
 
     private final GrowthVelocityTable table;
 
