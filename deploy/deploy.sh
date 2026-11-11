@@ -220,3 +220,27 @@ for image in "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IM
   done
 done
 echo "오래된 이미지 ${removed}개 정리"
+
+# k3s 로 옮긴 서비스(#1142)의 이미지는 containerd 에 쌓여 위의 docker 정리가 닿지 않는다(#1267). 같은 기준으로 저장소마다 최신 3개만 남긴다
+# k3s 가 쓰는 이미지(Pod · Deployment · CronJob · Job)와 이번 배포 이미지는 남긴다(k3s/images.py). 지운 이미지로 롤백할 때는 다음 배포가 GHCR 에서 다시 받는다
+# deploy 유저는 sudoers 규칙으로 crictl 의 images · inspecti · rmi 만 비밀번호 없이 쓴다(deploy/k3s/README.md 「이미지 정리 권한」)
+# 정리가 안 돼도 배포는 이미 끝났으므로 경고만 남긴다. sudo -n 은 규칙이 없으면 비밀번호를 묻지 않고 바로 실패한다
+crictl() { sudo -n /usr/local/bin/k3s crictl "$@"; }
+cleanup_k3s_images() {
+  local ids work stale deleted
+  ids=$(crictl images -q 2> /dev/null) || { echo "::warning::k3s 이미지를 정리하지 못했습니다. 서버의 deploy 유저 sudoers 규칙을 확인하세요(deploy/k3s/README.md)"; return 0; }
+  [[ -n "$ids" ]] || return 0
+  work=$(mktemp -d)
+  # shellcheck disable=SC2086 # 이미지 ID 를 하나씩 인자로 넘긴다
+  crictl inspecti -o json $ids > "$work/images.json" || { rm -rf "$work"; return 1; }
+  kubectl get pods,deployments,cronjobs,jobs -A -o json > "$work/cluster.json" || { rm -rf "$work"; return 1; }
+  stale=$(python3 k3s/images.py stale "$work/images.json" "$work/cluster.json" "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE") || { rm -rf "$work"; return 1; }
+  rm -rf "$work"
+  [[ -n "$stale" ]] || { echo "k3s 오래된 이미지 0개 정리"; return 0; }
+  # shellcheck disable=SC2086
+  deleted=$(crictl rmi $stale 2>&1 | grep -c '^Deleted' || true)
+  echo "k3s 오래된 이미지 ${deleted}개 정리"
+}
+if (( ${#k3s_services[@]} > 0 )) && ! cleanup_k3s_images; then
+  echo "::warning::k3s 이미지 정리 중 실패했습니다. 배포는 끝났습니다"
+fi
