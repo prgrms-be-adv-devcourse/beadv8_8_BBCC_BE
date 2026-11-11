@@ -172,7 +172,7 @@ class ReferenceDataDeleteIntegrationTest {
                 saved.top(), saved.clothing().type(), totalLength)
             .forEach(entity -> managed(entity).delete(NOW)));
 
-        assertThat(categoryService.findTree()).singleElement()
+        assertThat(categoryService.findTree(null)).singleElement()
             .satisfies(clothing -> assertThat(clothing.children()).isEmpty());
         assertThat(categoryService.findAll()).extracting(CategoryResult::name).containsExactly("의류");
         assertThat(productTypeService.findAll()).isEmpty();
@@ -192,7 +192,7 @@ class ReferenceDataDeleteIntegrationTest {
         SavedClothingTop saved = clothingTopSaver.save();
         inTransaction(() -> managed(saved.clothingCategory()).delete(NOW));
 
-        assertThatCode(() -> categoryService.create(new CategoryCreateRequest("의류", null, null, List.of())))
+        assertThatCode(() -> categoryService.create(new CategoryCreateRequest("의류", null, null, List.of(), null)))
             .doesNotThrowAnyException();
     }
 
