@@ -31,6 +31,8 @@ public class OpenAiSizeChooser implements AiSizeChooser {
         - reasons는 1개에서 3개입니다. type은 HEIGHT, BODY_TYPE, PREFERRED_FIT, MEASUREMENT, RULE_RESULT, GROWTH 중
           하나이고, detail은 보호자에게 그대로 보여 줄 짧은 한국어 존댓말 문장입니다("~요"로 끝냅니다).
           sourceId는 null입니다.
+        - 자녀가 가진 옷(기준 옷)의 실측은 받지 않습니다. "가지고 계신 옷과 비교해 보세요"처럼 다른 옷과 비교해 보라는 말을 쓰지 마세요.
+          MEASUREMENT 근거는 상품 실측을 자녀의 키, 체형, 선호 핏과 견주어 설명하세요.
         """;
 
     private final ChatModel chatModel;
