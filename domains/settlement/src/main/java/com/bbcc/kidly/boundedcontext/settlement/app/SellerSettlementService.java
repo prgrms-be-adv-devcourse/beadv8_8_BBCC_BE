@@ -47,6 +47,11 @@ public class SellerSettlementService {
     }
 
     @Transactional(readOnly = true)
+    public long getPendingSalesAmount(Long sellerId) {
+        return settlementTargetQuery.sumPendingSalesAmount(sellerId);
+    }
+
+    @Transactional(readOnly = true)
     public Page<SettlementSummaryRow> getSettlements(
         Long sellerId, SettlementSearchRequest request, Pageable pageable) {
         var status = request.status() == null ? null : SettlementStatus.valueOf(request.status());
