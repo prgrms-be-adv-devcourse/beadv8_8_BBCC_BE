@@ -25,4 +25,14 @@ class GrowthTableConfigTest {
     void yearlyCmByAgeAndGender(Gender gender, long months, double expectedCmPerYear) {
         assertThat(GROWTH_VELOCITY_TABLE.yearlyCm(gender, months)).isEqualTo(expectedCmPerYear);
     }
+
+    @ParameterizedTest(name = "{0}, {1}개월 → {2}cm/년")
+    @CsvSource({
+        "MALE, 180, 2.77",
+        "FEMALE, 216, 0.92",
+    })
+    @DisplayName("GROW-02 만 15세 이상이면 마지막 구간(만 14 ~ 15세)의 1년 키 성장량을 쓴다")
+    void yearlyCmOfLastAgeFromFifteen(Gender gender, long months, double expectedCmPerYear) {
+        assertThat(GROWTH_VELOCITY_TABLE.yearlyCm(gender, months)).isEqualTo(expectedCmPerYear);
+    }
 }
