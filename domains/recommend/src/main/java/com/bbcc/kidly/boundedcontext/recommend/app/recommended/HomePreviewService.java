@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.HomePreviewAiAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.HomePreviewAiRequest;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.HomePreviewPicker;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.HomePreviewResult;
+import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.HomePreviewWithAi;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.support.HomePreviewCandidateReader;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.support.HomePreviewCandidates;
@@ -13,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.HomePreview;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.HomePreviewPick;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.HomePreviewSelector;
+import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.HomePreviewSource;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
@@ -23,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import org.springframework.stereotype.Service;
 
 /**
@@ -54,7 +57,35 @@ public class HomePreviewService {
 
     public HomePreviewResult preview(Long memberId, Long childId) {
         HomePreviewCandidates candidates = candidateReader.read(memberId, childId);
-        HomePreview preview = selector.select(candidates.products(), askAi(candidates));
+        return toResult(selector.select(candidates.products(), askAi(candidates)));
+    }
+
+    /**
+     * AI 답을 기다리지 않는다. 규칙 결과를 바로 담고, AI 결과는 AI 답이 오면 AI가 고른 결과로, 얻지 못하면 빈 값으로 끝난다.
+     */
+    public HomePreviewWithAi previewWithAiLater(Long memberId, Long childId) {
+        HomePreviewCandidates candidates = candidateReader.read(memberId, childId);
+        HomePreviewResult rule = toResult(selector.select(candidates.products(), null));
+        if (picker.isEmpty() || candidates.products().isEmpty()) {
+            return new HomePreviewWithAi(rule, CompletableFuture.completedFuture(Optional.empty()));
+        }
+        HomePreviewAiRequest request = candidates.aiRequest();
+        CompletableFuture<Optional<HomePreviewAiAnswer>> answer = aiResponseService.respondAsync(
+            AiResponseType.HOME_PREVIEW, key(candidates), HomePreviewAiAnswer.class, () -> picker.get().pick(request));
+        return new HomePreviewWithAi(rule, answer.thenApply(found -> toAiResult(found, candidates)));
+    }
+
+    // AI가 고른 상품이 모두 후보 밖이면 규칙 결과와 같으므로 AI 결과가 없는 것으로 본다
+    private Optional<HomePreviewResult> toAiResult(Optional<HomePreviewAiAnswer> answer,
+        HomePreviewCandidates candidates) {
+        HomePreview preview = selector.select(candidates.products(), toPicks(answer));
+        if (preview.source() != HomePreviewSource.AI) {
+            return Optional.empty();
+        }
+        return Optional.of(toResult(preview));
+    }
+
+    private HomePreviewResult toResult(HomePreview preview) {
         Map<Long, String> businessNames = readBusinessNames(preview.items());
         List<HomePreviewResult.Item> items = new ArrayList<>();
         for (HomePreview.Item item : preview.items()) {
@@ -77,6 +108,11 @@ public class HomePreviewService {
         Optional<HomePreviewAiAnswer> answer = aiResponseService.respond(
             AiResponseType.HOME_PREVIEW, key(candidates), HomePreviewAiAnswer.class,
             () -> picker.get().pick(request));
+        return toPicks(answer);
+    }
+
+    // AI 답이 없으면 null이고, 그러면 규칙 결과가 된다
+    private List<HomePreviewPick> toPicks(Optional<HomePreviewAiAnswer> answer) {
         if (answer.isEmpty() || answer.get().picks() == null) {
             return null;
         }
