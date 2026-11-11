@@ -6,6 +6,8 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbedding
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import jakarta.persistence.CollectionTable;
@@ -182,7 +184,19 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
     /**
      * 경로는 대분류부터 종류 순서로 담는다.
      */
-    public record CategoryPathEntryInfo(Long categoryId, String categoryName) {
+    public record CategoryPathEntryInfo(Long categoryId, String categoryName, CategoryVisibleGender visibleGender) {
+
+        // 칸이 없는 예전 메시지는 보일 성별이 null로 오므로 ALL로 바꾼다
+        public CategoryPathEntryInfo {
+            if (visibleGender == null) {
+                visibleGender = CategoryVisibleGender.ALL;
+            }
+        }
+
+        // 테스트 보조 코드만 쓰는 생성자다. 보일 성별이 ALL이 되므로, 운영 코드가 이 생성자로 만들어 반영하면 보일 성별이 ALL로 저장된다
+        public CategoryPathEntryInfo(Long categoryId, String categoryName) {
+            this(categoryId, categoryName, CategoryVisibleGender.ALL);
+        }
     }
 
     /**
@@ -246,7 +260,8 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         List<RecommendReplicaCategoryPathEntry> newCategoryPath = new ArrayList<>();
         List<String> categoryNames = new ArrayList<>();
         for (CategoryPathEntryInfo entry : info.categoryPath()) {
-            newCategoryPath.add(new RecommendReplicaCategoryPathEntry(entry.categoryId(), entry.categoryName()));
+            newCategoryPath.add(new RecommendReplicaCategoryPathEntry(
+                entry.categoryId(), entry.categoryName(), entry.visibleGender()));
             categoryNames.add(entry.categoryName());
         }
         this.embeddingText = ProductEmbeddingText.compose(
@@ -313,6 +328,22 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         List<String> sorted = new ArrayList<>(colors);
         Collections.sort(sorted);
         return sorted;
+    }
+
+    /**
+     * 자녀 성별에게 보여 줄 상품인지 돌려준다. 남아에게는 경로의 어느 단계든 GIRL이면 보여 주지 않는다.
+     * 성별을 모르거나(null) 여아이거나 경로가 비어 있으면 보여 준다.
+     */
+    public boolean isVisibleTo(Gender childGender) {
+        if (childGender != Gender.MALE) {
+            return true;
+        }
+        for (RecommendReplicaCategoryPathEntry entry : categoryPath) {
+            if (entry.getVisibleGender() == CategoryVisibleGender.GIRL) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
