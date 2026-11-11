@@ -6,8 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -28,6 +30,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -106,6 +110,25 @@ class AiResponseServiceTest {
         ArgumentCaptor<String> savedJson = ArgumentCaptor.forClass(String.class);
         verify(store).save(eq(TYPE), eq(KEY), savedJson.capture(), eq(REUSE_PERIOD));
         assertThat(jsonMapper.readValue(savedJson.getValue(), Answer.class)).isEqualTo(freshAnswer());
+    }
+
+    @Test
+    @DisplayName("AI 답을 저장소에 쓰는 동안 기다리지 않고 바로 돌려준다(저장소가 느려도 응답이 늦어지지 않는다)")
+    void returnWithoutWaitingForSave() {
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        CountDownLatch release = new CountDownLatch(1);
+        willAnswer(invocation -> release.await(5, TimeUnit.SECONDS)).given(store).save(any(), any(), any(), any());
+
+        long startedAt = System.nanoTime();
+        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, countingCall(new AtomicInteger(),
+            freshAnswer()));
+        Duration elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
+        release.countDown();
+
+        assertThat(answer).contains(freshAnswer());
+        assertThat(elapsed).isLessThan(Duration.ofSeconds(1));
+        verify(store, timeout(1_000)).save(eq(TYPE), eq(KEY), any(), eq(REUSE_PERIOD));
     }
 
     @Test
