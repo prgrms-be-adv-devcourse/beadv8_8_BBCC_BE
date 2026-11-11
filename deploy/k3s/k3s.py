@@ -6,6 +6,7 @@ deploy.sh 가 `docker compose config --format json <서비스>` 결과를 stdin 
 비밀은 명령줄 · 출력 로그에 남기지 않고 stdout 으로만 kubectl 에 넘어간다.
 """
 import base64
+import copy
 import hashlib
 import json
 import sys
@@ -19,6 +20,9 @@ DEFAULT_CPU_REQUEST = '50m'
 # 두 프로세스가 함께 돌면 안 되는 스케줄러가 있는 서비스. 롤링 배포의 겹치는 시간을 두지 않고 옛 Pod 를 먼저 내린다(compose 때와 같다)
 # 상품: 아웃박스 릴레이에 잠금이 없다(domains/product CLAUDE.md). 알림: 재발송 스케줄러가 같은 알림을 두 번 보낼 수 있다
 SINGLE_INSTANCE = {'product', 'notification'}
+# 하루 한 번 실행하는 CronJob: Deployment 이름 → (CronJob 이름, 일정, 인자)
+DAILY_JOBS = {'settlement': ('settlement-daily-run', '0 10 * * *',
+                             ['--spring.profiles.include=settlement-run-once'])}
 # 이미지의 앱 유저 그룹(Dockerfile 의 groupadd -g 1001)
 APP_GID = 1001
 # 다른 서비스를 클러스터 안 이름으로 부르는 입구. 다른 서비스가 모두 뜬 뒤 맨 마지막에 올린다
@@ -182,6 +186,23 @@ def manifest(env, name, node_port, job, service, project_dir):
         items.insert(1, {'apiVersion': 'v1', 'kind': 'Secret', 'metadata': {'name': name + '-jwt', 'namespace': ns},
                          'type': 'Opaque',
                          'data': {key: base64.b64encode(value).decode() for key, value in jwt_files.items()}})
+    if name in DAILY_JOBS:
+        job_name, schedule, args = DAILY_JOBS[name]
+        template = copy.deepcopy(next(item for item in items if item['kind'] == 'Deployment')['spec']['template'])
+        template['metadata']['labels'] = {'app': job_name, 'kidly/job': job}
+        pod = template['spec']
+        pod['restartPolicy'] = 'Never'
+        job_container = pod['containers'][0]
+        for key in ('ports', 'lifecycle', 'startupProbe', 'readinessProbe', 'livenessProbe'):
+            job_container.pop(key, None)
+        job_container['args'] = args
+        items.append({'apiVersion': 'batch/v1', 'kind': 'CronJob',
+                      'metadata': {'name': job_name, 'namespace': ns, 'labels': labels},
+                      'spec': {'schedule': schedule, 'timeZone': 'Asia/Seoul', 'concurrencyPolicy': 'Forbid',
+                               'startingDeadlineSeconds': 25200, 'successfulJobsHistoryLimit': 3,
+                               'failedJobsHistoryLimit': 3,
+                               'jobTemplate': {'spec': {'backoffLimit': 2, 'activeDeadlineSeconds': 7200,
+                                                        'template': template}}}})
     if name in AUTOSCALE:
         low, high, cpu = AUTOSCALE[name]
         items.append({'apiVersion': 'autoscaling/v2', 'kind': 'HorizontalPodAutoscaler',
