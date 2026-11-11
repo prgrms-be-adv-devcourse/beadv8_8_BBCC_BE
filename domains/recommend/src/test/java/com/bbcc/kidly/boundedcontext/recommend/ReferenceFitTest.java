@@ -111,6 +111,21 @@ class ReferenceFitTest {
                     new ReferenceFit.SizeDiff("120", cm("39.5"), cm("1.5")))));
     }
 
+    // 「그 칸이 비면」은 그 칸에 기준 옷이 없다는 뜻이라, 기준 옷이 있는데 견줄 항목이 없을 때는 대신할 칸으로 넘어가지 않는다
+    @Test
+    @DisplayName("FIT-01 아우터 칸에 기준 옷이 있으면 견줄 항목이 없어도 상의 칸과 대신 비교하지 않는다")
+    void noSubstituteWhenSamePartHasGarment() {
+        // 상의 칸과 대신 비교했다면 어깨너비가 견줄 항목으로 나온다
+        ReferenceGarment top = garment(GarmentPart.TOP, TOP_ID, "상의",
+            Map.of("TOTAL_LENGTH", cm("40.0"), "CHEST_WIDTH", cm("34.0"), "SHOULDER_WIDTH", cm("30.0")));
+        ReferenceGarment outer = garment(GarmentPart.OUTER, OUTER_ID, "아우터",
+            Map.of("TOTAL_LENGTH", cm("48.0"), "CHEST_WIDTH", cm("38.0")));
+        FitProduct product = product(OUTER_ID, "아우터", List.of(
+            size("120", Map.of("SHOULDER_WIDTH", cm("32.0")))));
+
+        assertThat(ReferenceFit.compare(product, List.of(top, outer))).isEmpty();
+    }
+
     @ParameterizedTest
     @CsvSource({"52, 상의, BOTTOM, 60, 바지, WAIST_WIDTH", "60, 바지, TOP, 52, 상의, CHEST_WIDTH"})
     @DisplayName("FIT-01 상의 · 바지 상품은 자기 칸이 비면 대신할 칸이 없어 다른 칸이 있어도 기준 핏이 없다")
