@@ -50,6 +50,7 @@ class GrowthSpeedCalculatorTest {
         assertThat(speed.cmPerMonth()).isEqualTo(0.5);
         assertThat(speed.tableCmPerMonth()).isEqualTo(0.5);
         assertThat(speed.childShare()).isEqualTo(0.0);
+        assertThat(speed.childCmPerMonth()).isNull();
         assertThat(speed.tableSource()).isEqualTo("한국아동패널");
     }
 
@@ -78,6 +79,26 @@ class GrowthSpeedCalculatorTest {
 
         assertThat(speed.childShare()).isCloseTo(expectedChildShare, within(0.000001));
         assertThat(speed.cmPerMonth()).isCloseTo(expectedCmPerMonth, within(0.000001));
+    }
+
+    // 처음과 끝 기록만 쓰면 5cm ÷ 182일 = 0.836cm/월이지만, 네 기록 모두로 구한 최소제곱 기울기는 0.890210cm/월이다
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unevenRecords")
+    @DisplayName("GROW-03 아이 기록 기울기는 처음과 끝 기록이 아니라 모든 기록의 최소제곱 기울기다")
+    void childSlopeIsLeastSquares(List<RecommendGrowthRecord> records, double expectedChildCmPerMonth) {
+        GrowthSpeed speed = calculator.calculate(Gender.FEMALE, BIRTH_DATE_AGE_6, records, TODAY);
+
+        assertThat(speed.childCmPerMonth()).isCloseTo(expectedChildCmPerMonth, within(0.000001));
+    }
+
+    static Stream<Arguments> unevenRecords() {
+        return Stream.of(
+            Arguments.of(Named.of("기록 4개, 간격이 고르지 않음", List.of(
+                record(TODAY.minusDays(182), "115.0"),
+                record(TODAY.minusDays(150), "115.5"),
+                record(TODAY.minusDays(30), "119.5"),
+                record(TODAY, "120.0"))), 0.890210)
+        );
     }
 
     private static RecommendGrowthRecord record(LocalDate recordedOn, String heightCm) {
