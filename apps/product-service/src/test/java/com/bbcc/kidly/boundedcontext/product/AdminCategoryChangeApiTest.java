@@ -120,6 +120,23 @@ class AdminCategoryChangeApiTest {
     }
 
     @Test
+    @DisplayName("VIS-01 상품이 있는 카테고리도 보일 성별을 GIRL로 바꾸면 200이고, 다시 보내지 않으면 ALL이 된다")
+    void changeVisibleGenderWithProducts() {
+        Category top = savedProductCategory();
+        Map<String, Object> toGirl = categoryChange(clothing.type().getId(), List.of());
+        toGirl.put("visibleGender", "GIRL");
+
+        put(categoryPath(top), toGirl)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.visibleGender").isEqualTo("GIRL");
+        put(categoryPath(top), categoryChange(clothing.type().getId(), List.of()))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.visibleGender").isEqualTo("ALL");
+    }
+
+    @Test
     @DisplayName("없는 카테고리 · 상품 유형 · 실측 항목이면 404로 거절한다")
     void rejectUnknownCategoryReferences() {
         String unknownCategoryPath = "/api/v1/admin/categories/999999";

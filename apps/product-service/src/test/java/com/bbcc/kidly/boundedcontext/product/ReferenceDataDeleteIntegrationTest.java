@@ -192,7 +192,7 @@ class ReferenceDataDeleteIntegrationTest {
         SavedClothingTop saved = clothingTopSaver.save();
         inTransaction(() -> managed(saved.clothingCategory()).delete(NOW));
 
-        assertThatCode(() -> categoryService.create(new CategoryCreateRequest("의류", null, null, List.of())))
+        assertThatCode(() -> categoryService.create(new CategoryCreateRequest("의류", null, null, List.of(), null)))
             .doesNotThrowAnyException();
     }
 

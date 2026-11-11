@@ -52,7 +52,9 @@ public class CategoryService {
         if (parent == null && categoryRepository.findTopLevelByName(request.name()).isPresent()) {
             throw new BusinessException(CommonErrorCode.CONFLICT);
         }
-        Category category = categoryRepository.save(newCategory(request, parent));
+        Category category = newCategory(request, parent);
+        category.changeVisibleGender(request.visibleGender());
+        category = categoryRepository.save(category);
         return toResult(category);
     }
 
@@ -64,6 +66,8 @@ public class CategoryService {
         ProductType productType = productTypeRepository.getByIdForShare(request.productTypeId());
         List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
         category.change(productType, measurementItems, productRepository.existsByCategory(category));
+        // 보일 성별은 상품을 깨지 않는 값이므로 상품이 있어도 바꿀 수 있다
+        category.changeVisibleGender(request.visibleGender());
         return toResult(category);
     }
 
@@ -119,6 +123,7 @@ public class CategoryService {
             category.isLeaf(),
             productTypeId,
             productTypeName,
+            category.getVisibleGender(),
             measurementItems);
     }
 

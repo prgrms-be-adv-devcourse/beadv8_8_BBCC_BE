@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.app.type.dto;
 
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
@@ -8,10 +9,12 @@ import java.util.List;
  *
  * @param productTypeId 바꿀 상품 유형 ID다
  * @param measurementItemIds 바꿀 필수 실측 항목 ID다. 넣은 순서가 실측 항목 순서가 된다. 없으면 빈 목록을 보낸다
+ * @param visibleGender 바꿀 보일 성별이다. 값 전체를 바꾸는 요청이므로 보내지 않으면 ALL이 된다
  */
 public record CategoryChangeRequest(
     @NotNull(message = "상품 유형 ID를 보내 주세요.")
     Long productTypeId,
     @NotNull(message = "실측 항목 ID를 보내 주세요. 없으면 빈 목록을 보내 주세요.")
-    List<@NotNull(message = "실측 항목 ID를 넣어 주세요.") Long> measurementItemIds) {
+    List<@NotNull(message = "실측 항목 ID를 넣어 주세요.") Long> measurementItemIds,
+    CategoryVisibleGender visibleGender) {
 }
