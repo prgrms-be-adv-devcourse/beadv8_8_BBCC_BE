@@ -96,7 +96,7 @@
 | GET | `/api/v1/categories` | 카테고리 트리. 선택 파라미터 `gender`(`MALE` · `FEMALE`, 고른 자녀의 성별): `MALE`이면 여아에게만 보여 줄 카테고리(원피스 · 치마 등)와 그 아래 카테고리를 빼고, `FEMALE`이거나 없으면 모두 준다. 그 밖의 값은 400 | 🌐 |
 | GET | `/api/v1/categories/{categoryId}/attributes` | 상품 등록 때 입력할 항목(옵션 항목 · 정보 항목 · 필수 실측) | 🌐 |
 | POST | `/api/v1/seller/products` | 상품 등록(판매대기로 생김. 카테고리 · 정보 항목 · 옵션 · 가격 · 실측 · 이미지) | 🏪 |
-| GET | `/api/v1/seller/products` | 내 상품 목록 | 🏪 |
+| GET | `/api/v1/seller/products` | 내 상품 목록. 쿼리 `status`(선택, 판매 상태 하나만 봄. 잘못된 값은 400)와 `lowStock`(선택, 기본 `false`. `true`면 판매중 옵션 가운데 판매 가능 수량이 5 이하인 옵션이 있는 상품만 봄)는 서로 독립이고 함께 주면 둘 다 만족하는 상품만 온다. 한 줄에 `soldOutOptionCount`(판매중 옵션 중 수량 0) · `lowStockOptionCount`(판매중 옵션 중 수량 1 ~ 5)가 있다. 전체 건수도 같은 조건으로 센다 | 🏪 |
 | GET | `/api/v1/seller/products/{productId}` | 내 상품 상세 | 🏪 |
 | PUT | `/api/v1/seller/products/{productId}` | 상품 수정(version 확인. 옵션 · 가격 · 실측 교체는 판매대기 상품만) | 🏪 |
 | PUT | `/api/v1/seller/products/{productId}/sale-status` | 판매 시작 · 중지(`ON_SALE` · `STOPPED`) | 🏪 |
