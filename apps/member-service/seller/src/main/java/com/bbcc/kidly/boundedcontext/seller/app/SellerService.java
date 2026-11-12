@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.seller.app;
 
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerResult;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
+import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerUpdateRequest;
 import com.bbcc.kidly.boundedcontext.seller.domain.Seller;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -28,6 +29,16 @@ public class SellerService {
     @Transactional(readOnly = true)
     public SellerResult getMine(Long sellerId) {
         return SellerResult.from(sellerRepository.getById(sellerId));
+    }
+
+    @Transactional
+    public SellerResult changeBusinessName(Long sellerId, SellerUpdateRequest request) {
+        var seller = sellerRepository.getById(sellerId);
+        if (seller.changeBusinessName(request.businessName())) {
+            eventPublisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+        }
+        return SellerResult.from(seller);
     }
 
     @Transactional

@@ -11,6 +11,8 @@ public interface ChildProfileRepository {
 
     Optional<ChildProfile> findByIdAndMemberId(Long id, Long memberId);
 
+    Optional<ChildProfile> findByIdAndMemberIdForUpdate(Long id, Long memberId);
+
     List<ChildProfile> findAllByMemberId(Long memberId);
 
     List<ChildProfile> findAllByMemberIdForUpdate(Long memberId);
@@ -24,6 +26,11 @@ public interface ChildProfileRepository {
 
     default ChildProfile getByIdAndMemberId(Long id, Long memberId) {
         return findByIdAndMemberId(id, memberId)
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+    }
+
+    default ChildProfile getByIdAndMemberIdForUpdate(Long id, Long memberId) {
+        return findByIdAndMemberIdForUpdate(id, memberId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }
 }

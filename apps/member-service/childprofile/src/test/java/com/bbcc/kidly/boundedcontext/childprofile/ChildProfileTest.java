@@ -13,6 +13,7 @@ import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileErrorCode;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRegisterInfo;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.Consenter;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.GrowthRecord;
+import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -25,6 +26,52 @@ import org.springframework.test.util.ReflectionTestUtils;
 class ChildProfileTest {
 
     private static final Long MEMBER_ID = 1L;
+
+    @Test
+    @DisplayName("중간 성장 이력을 삭제하면 자녀 정보는 그대로다")
+    void deleteMiddleGrowthRecordKeepsProfile() {
+        var child = childWithThreeRecords();
+        child.deleteGrowthRecord(2L);
+        assertThat(child.getGrowthRecords()).extracting(GrowthRecord::getId).containsExactly(1L, 3L);
+        assertThat(child.getHeightCm()).isEqualByComparingTo("120.0");
+        assertThat(child.getBodyType()).isEqualTo(BodyType.SLIM);
+    }
+
+    @Test
+    @DisplayName("최근 성장 이력을 삭제하면 키와 체형이 이전 값으로 돌아간다")
+    void deleteLatestGrowthRecordRestoresHeightAndBodyType() {
+        var child = childWithThreeRecords();
+        child.deleteGrowthRecord(3L);
+        assertThat(child.getGrowthRecords()).extracting(GrowthRecord::getId).containsExactly(1L, 2L);
+        assertThat(child.getHeightCm()).isEqualByComparingTo("117.0");
+        assertThat(child.getBodyType()).isEqualTo(BodyType.NORMAL);
+        assertThat(child.getWeightKg()).isEqualByComparingTo("25.0");
+        assertThat(child.getPreferredFit()).isEqualTo(PreferredFit.SLIM);
+    }
+
+    @Test
+    @DisplayName("없는 이력과 하나뿐인 이력은 삭제할 수 없다")
+    void cannotDeleteOnlyGrowthRecordOrUnknownRecord() {
+        var child = ChildProfileFixture.child(MEMBER_ID);
+        ReflectionTestUtils.setField(child.getGrowthRecords().getFirst(), "id", 1L);
+        assertThatThrownBy(() -> child.deleteGrowthRecord(2L))
+            .extracting("errorCode").isEqualTo(CommonErrorCode.NOT_FOUND);
+        assertThatThrownBy(() -> child.deleteGrowthRecord(1L))
+            .extracting("errorCode").isEqualTo(ChildProfileErrorCode.ONLY_GROWTH_RECORD);
+        assertThat(child.getGrowthRecords()).hasSize(1);
+    }
+
+    private static ChildProfile childWithThreeRecords() {
+        var child = ChildProfileFixture.child(MEMBER_ID);
+        child.update(updateInfo("첫째", new BigDecimal("117.0"), WEIGHT, BodyType.NORMAL, PreferredFit.LOOSE),
+            NOW.plusDays(1));
+        child.update(updateInfo("첫째", new BigDecimal("120.0"), new BigDecimal("25.0"), BodyType.SLIM,
+            PreferredFit.SLIM), NOW.plusDays(2));
+        for (int i = 0; i < child.getGrowthRecords().size(); i++) {
+            ReflectionTestUtils.setField(child.getGrowthRecords().get(i), "id", (long) i + 1);
+        }
+        return child;
+    }
 
     @Test
     @DisplayName("등록하면 입력한 키 · 체형으로 성장 이력 1건이 함께 생긴다")

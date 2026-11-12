@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.childprofile.domain;
 
 import com.bbcc.kidly.member.support.error.BusinessException;
+import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -142,6 +143,24 @@ public class ChildProfile extends BaseSoftDeleteEntity {
     public int growthRecordCount() {
         return growthRecords.size();
     }
+
+    public GrowthRecordDeletion deleteGrowthRecord(Long recordId) {
+        var record = growthRecords.stream().filter(item -> Objects.equals(item.getId(), recordId)).findFirst()
+            .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
+        if (growthRecords.size() == 1) {
+            throw new BusinessException(ChildProfileErrorCode.ONLY_GROWTH_RECORD);
+        }
+        boolean restored = record == growthRecords.getLast();
+        growthRecords.remove(record);
+        if (restored) {
+            var previous = growthRecords.getLast();
+            heightCm = previous.getHeightCm();
+            bodyType = previous.getBodyType();
+        }
+        return new GrowthRecordDeletion(record, restored);
+    }
+
+    public record GrowthRecordDeletion(GrowthRecord record, boolean restored) { }
 
     public LocalDateTime lastRecordedAt() {
         return growthRecords.getLast().getRecordedAt();

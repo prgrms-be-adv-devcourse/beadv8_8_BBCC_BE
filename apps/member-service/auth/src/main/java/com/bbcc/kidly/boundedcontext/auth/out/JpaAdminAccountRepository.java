@@ -2,9 +2,14 @@ package com.bbcc.kidly.boundedcontext.auth.out;
 
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccount;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccountRepository;
+import com.bbcc.kidly.boundedcontext.auth.domain.AdminStatus;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -13,6 +18,15 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 public interface JpaAdminAccountRepository extends JpaRepository<AdminAccount, Long>, AdminAccountRepository {
+
+    @Override
+    default Page<AdminAccount> findAccounts(AdminStatus status, Pageable pageable) {
+        var ordered = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+            Sort.by(Sort.Direction.DESC, "id"));
+        return status == null ? findAll(ordered) : findByStatus(status, ordered);
+    }
+
+    Page<AdminAccount> findByStatus(AdminStatus status, Pageable pageable);
 
     @Override
     default AdminAccount saveAccount(AdminAccount account) {
