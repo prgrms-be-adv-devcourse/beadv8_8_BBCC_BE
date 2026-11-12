@@ -77,8 +77,9 @@ if systemctl is-active --quiet nginx 2> /dev/null; then
     cat <<MSG
 Pod 가 호스트 nginx 를 기다립니다. 호스트 nginx 와 예전 갱신 타이머를 끄면 1초 안에 이어받습니다:
   sudo systemctl disable --now nginx kidly-certbot-renew.timer
-  kubectl -n edge rollout status deploy/nginx
-되돌리기: kubectl -n edge scale deploy/nginx --replicas 0 && sudo systemctl enable --now nginx
+  kubectl -n edge wait --for=condition=Ready pod -l app=nginx --timeout 60s
+되돌리기: kubectl -n edge scale deploy/nginx --replicas 0 && sudo systemctl enable --now nginx kidly-certbot-renew.timer
+(rollout status 는 쓰지 않는다. 기다린 시간이 10분(progressDeadlineSeconds)을 넘으면 Pod 가 떠도 바로 실패로 끝난다)
 MSG
     exit 0
 fi
