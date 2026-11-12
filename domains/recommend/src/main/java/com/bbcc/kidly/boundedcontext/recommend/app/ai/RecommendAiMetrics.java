@@ -3,10 +3,12 @@ package com.bbcc.kidly.boundedcontext.recommend.app.ai;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,6 +21,7 @@ public class RecommendAiMetrics {
 
     static final String REQUESTS = "kidly.recommend.ai.requests";
     static final String STORE_LOOKUPS = "kidly.recommend.ai.store.lookups";
+    static final String AI_CALL = "kidly.recommend.ai.call";
     static final String REJECTED = "kidly.recommend.ai.rejected";
 
     /**
@@ -32,7 +35,6 @@ public class RecommendAiMetrics {
     public enum LookupResult { HIT, MISS, ERROR }
 
     private final MeterRegistry meterRegistry;
-    // 호출 시간 Timer를 Observation API로 재는 다음 단계에서 쓴다
     private final ObservationRegistry observationRegistry;
     private final Map<AiResponseType, Map<RequestResult, Counter>> requests = new EnumMap<>(AiResponseType.class);
     private final Map<AiResponseType, Map<LookupResult, Counter>> storeLookups = new EnumMap<>(AiResponseType.class);
@@ -54,6 +56,16 @@ public class RecommendAiMetrics {
 
     public void recordLookup(AiResponseType feature, LookupResult result) {
         storeLookups.get(feature).get(result).increment();
+    }
+
+    /**
+     * AI 호출 시간을 기능 이름을 붙여 잰다. 돌려준 Supplier를 AI를 부르는 스레드에서 실행해야 그 스레드에서 관측이 열린다.
+     * 제한 시간을 넘겨 화면이 먼저 끊어도 호출이 끝날 때까지 잰다.
+     */
+    public <T> Supplier<T> observeCall(AiResponseType feature, Supplier<T> call) {
+        return () -> Observation.createNotStarted(AI_CALL, observationRegistry)
+            .lowCardinalityKeyValue("feature", tagValue(feature))
+            .observe(call);
     }
 
     private Map<RequestResult, Counter> registerRequests(AiResponseType feature) {

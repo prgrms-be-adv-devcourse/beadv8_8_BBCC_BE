@@ -102,6 +102,20 @@ class AiResponseServiceTest {
         assertThat(meterRegistry.find("kidly.recommend.ai.call").timers()).isEmpty();
     }
 
+    @Test
+    @DisplayName("저장한 응답이 없어 AI가 답하면 요청 결과 answered와 저장 답 조회 miss를 세고, 기능 이름을 붙여 AI 호출 시간을 잰다")
+    void countAnsweredAndTimeCall() {
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
+        given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(true);
+
+        service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(count("kidly.recommend.ai.requests", "answered")).isEqualTo(1);
+        assertThat(count("kidly.recommend.ai.store.lookups", "miss")).isEqualTo(1);
+        assertThat(meterRegistry.get("kidly.recommend.ai.call").tag("feature", "home_preview").timer().count())
+            .isEqualTo(1);
+    }
+
     // TYPE(홈 맛보기)의 그 결과 카운터 값이다
     private double count(String name, String result) {
         return meterRegistry.get(name).tag("feature", "home_preview").tag("result", result).counter().count();

@@ -133,6 +133,7 @@ public class AiResponseService {
         if (result.isEmpty()) {
             return Optional.empty();
         }
+        metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ANSWERED);
         // 저장소가 느려도 화면 응답이 늦어지지 않게 저장은 기다리지 않는다
         T answer = result.get();
         CompletableFuture.runAsync(() -> saveQuietly(type, key, answer), VIRTUAL_THREAD);
@@ -162,7 +163,8 @@ public class AiResponseService {
         if (!tryAcquireQuietly(type, now)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
+        CompletableFuture<T> task =
+            CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
         // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
         task.thenAccept(answer -> saveLateAnswer(type, key, answer));
         return task.handle((answer, error) -> toResult(type, answer, error))
@@ -199,14 +201,16 @@ public class AiResponseService {
     ) {
         try {
             Optional<String> json = store.find(type, key);
-            if (json.isEmpty()) {
+            T value = null;
+            if (json.isPresent()) {
+                value = jsonMapper.readValue(json.get(), responseType);
+            }
+            if (value == null) {
+                metrics.recordLookup(type, RecommendAiMetrics.LookupResult.MISS);
                 return Optional.empty();
             }
-            T value = jsonMapper.readValue(json.get(), responseType);
-            if (value != null) {
-                metrics.recordLookup(type, RecommendAiMetrics.LookupResult.HIT);
-            }
-            return Optional.ofNullable(value);
+            metrics.recordLookup(type, RecommendAiMetrics.LookupResult.HIT);
+            return Optional.of(value);
         } catch (RuntimeException e) {
             log.warn("저장된 AI 응답을 읽지 못해 없는 것으로 봅니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
@@ -225,7 +229,8 @@ public class AiResponseService {
 
     private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, Supplier<T> call) {
         Duration callTimeout = requireNonNull(callTimeouts.get(type), "종류별 제한 시간이 없습니다");
-        CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
+        CompletableFuture<T> task =
+            CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
         try {
             return Optional.ofNullable(task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS));
         } catch (InterruptedException e) {
