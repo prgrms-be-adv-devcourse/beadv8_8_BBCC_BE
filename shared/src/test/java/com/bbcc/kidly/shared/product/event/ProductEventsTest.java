@@ -3,6 +3,7 @@ package com.bbcc.kidly.shared.product.event;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.domain.StockDeductionFailureCode;
@@ -114,10 +115,24 @@ class ProductEventsTest {
     }
 
     @Test
-    @DisplayName("카테고리 경로의 원소는 id와 이름이다")
+    @DisplayName("VIS-01 카테고리 경로의 원소는 id · 이름 · 보일 성별이고, 보일 성별은 ALL · GIRL 두 값이다")
     void dataCarriesCategoryPath() {
-        assertThat(ProductChangedEvent.CategoryPathEntry.class.getRecordComponents())
-            .extracting(RecordComponent::getName).containsExactly("id", "name");
+        RecordComponent[] components = ProductChangedEvent.CategoryPathEntry.class.getRecordComponents();
+
+        assertThat(components).extracting(RecordComponent::getName).containsExactly("id", "name", "visibleGender");
+        assertThat(components[2].getType()).isEqualTo(CategoryVisibleGender.class);
+        assertThat(CategoryVisibleGender.values()).extracting(Enum::name).containsExactly("ALL", "GIRL");
+    }
+
+    @Test
+    @DisplayName("VIS-01 보일 성별 칸이 생기기 전의 생성자로 만들거나 예전 메시지처럼 null을 받으면 보일 성별은 ALL이다")
+    void categoryPathEntryVisibleGenderIsAllWhenAbsent() {
+        ProductChangedEvent.CategoryPathEntry withoutVisibleGender =
+            new ProductChangedEvent.CategoryPathEntry(5L, "원피스");
+        ProductChangedEvent.CategoryPathEntry withNull = new ProductChangedEvent.CategoryPathEntry(5L, "원피스", null);
+
+        assertThat(List.of(withoutVisibleGender, withNull))
+            .allSatisfy(entry -> assertThat(entry.visibleGender()).isEqualTo(CategoryVisibleGender.ALL));
     }
 
     @Test

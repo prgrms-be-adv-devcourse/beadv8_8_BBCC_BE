@@ -39,6 +39,15 @@ public class JpaSettlementTargetQuery implements SettlementTargetQuery {
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
     }
 
+    @Override
+    public long sumPendingSalesAmount(Long sellerId) {
+        return queryFactory
+            .select(settlementItem.salesAmount.sumLong().coalesce(0L))
+            .from(settlementItem)
+            .where(pending(sellerId))
+            .fetchOne();
+    }
+
     private BooleanExpression pending(Long sellerId) {
         return settlementItem.sellerId.eq(sellerId).and(settlementItem.status.eq(SettlementItemStatus.PENDING));
     }

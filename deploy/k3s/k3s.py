@@ -13,7 +13,8 @@ import sys
 from pathlib import Path
 
 # HPA 로 늘리는 서비스: (최소, 최대, CPU 사용률 %). 추천은 구독 토픽이 파티션 3 이라 4번째 Pod 부터는 이벤트를 받지 않는다(#1028)
-AUTOSCALE = {'recommend': (1, 3, 70)}
+# 추천은 노드(8GB)에 메모리 상한 576Mi Pod 를 3개 둘 자리가 없어 2개까지만 늘린다. 파티션 3개는 Pod 2개가 나눠 받는다(#1237)
+AUTOSCALE = {'recommend': (1, 2, 70)}
 # HPA 기준이 되는 서비스만 CPU request 를 크게 잡는다. 나머지는 노드(vCPU 2)에 9개가 함께 올라가도록 작게 둔다
 CPU_REQUEST = {'recommend': '200m'}
 DEFAULT_CPU_REQUEST = '50m'
@@ -201,7 +202,8 @@ def manifest(env, name, node_port, job, service, project_dir):
                       'spec': {'schedule': schedule, 'timeZone': 'Asia/Seoul', 'concurrencyPolicy': 'Forbid',
                                'startingDeadlineSeconds': 25200, 'successfulJobsHistoryLimit': 3,
                                'failedJobsHistoryLimit': 3,
-                               'jobTemplate': {'spec': {'backoffLimit': 2, 'activeDeadlineSeconds': 7200,
+                               'jobTemplate': {'spec': {'backoffLimit': 2, 'podReplacementPolicy': 'Failed',
+                                                        'activeDeadlineSeconds': 7200,
                                                         'template': template}}}})
     if name in AUTOSCALE:
         low, high, cpu = AUTOSCALE[name]
@@ -211,8 +213,10 @@ def manifest(env, name, node_port, job, service, project_dir):
                                'minReplicas': low, 'maxReplicas': high,
                                'metrics': [{'type': 'Resource', 'resource': {
                                    'name': 'cpu', 'target': {'type': 'Utilization', 'averageUtilization': cpu}}}],
+                               # 늘릴 때도 5분 동안 높게 유지될 때만 늘린다. JVM 이 켜지며 잠깐 쓰는 CPU 로 Pod 를 늘리지 않는다(#1237)
                                # 줄일 때는 5분 동안 낮게 유지될 때만 1분에 하나씩 줄인다(Kafka 리밸런스를 줄인다)
-                               'behavior': {'scaleDown': {'stabilizationWindowSeconds': 300,
+                               'behavior': {'scaleUp': {'stabilizationWindowSeconds': 300},
+                                            'scaleDown': {'stabilizationWindowSeconds': 300,
                                                           'policies': [{'type': 'Pods', 'value': 1, 'periodSeconds': 60}]}}}})
     return {'apiVersion': 'v1', 'kind': 'List', 'items': items}
 

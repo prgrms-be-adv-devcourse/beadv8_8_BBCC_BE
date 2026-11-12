@@ -14,9 +14,36 @@
 | Kafka 정체 (#774, 도입 전) | 그룹·토픽·소비 진행·도메인 실패 | lag 해소·업무 처리 완료 |
 | 외부 경로·감시 서버 (#775, 도입 전) | DNS·TLS·nginx·대표 API·감시 경로 | 외부에서 정상 응답·복구 알림 |
 | 검색 색인 실패·DLT 미반영·임베딩 차단·벡터 없는 상품 (#1026) | Elasticsearch 상태, `deploy/search/README.md` "장애 대응" | 검색 API 200·DLT lag 0·지표 0 |
+| 정산 실행 지연·정산 지급 실패·정산 지급 결과 없음·알림 발송 지연 (#1223) | 아래 "알림 레벨"의 정산·알림 규칙 | 해결 알림·업무 상태 |
 
 당번은 상황과 사용자 영향을 공유하고, 해당 도메인 담당이 업무 상태·재처리를 판단합니다.
 담당자 실명·연락 경로·당번 시간은 팀이 지정해야 합니다. 특정 담당자가 정해졌다고 가정하지 않습니다.
+
+## 알림 레벨
+
+로그 레벨(ERROR·WARN)은 진단용입니다. 사람을 부르는 알림은 지표 규칙의 `severity` 라벨로 나눕니다.
+두 레벨 모두 같은 Slack 연락처(`slack-ops`)로 가고, 제목 표시(critical 🔴, warning 🟠)만 다릅니다(`templates.yml`).
+
+- **critical**: 바로 사람이 행동해야 하는 증상. 판매자에게 돈이 나가지 않거나 업무가 멈춘 경우
+- **warning**: 근무 시간에 확인
+- **알림 없음**: 규칙을 두지 않고 지표로만 봅니다(재시도 횟수·처리 시간 등)
+
+근거: Prometheus [Alerting](https://prometheus.io/docs/practices/alerting/)(원인이 아니라 증상에 알리고, 사람을 부르는 알림은 적게) ·
+Google SRE book [Monitoring Distributed Systems](https://sre.google/sre-book/monitoring-distributed-systems/)
+
+### 정산·알림 규칙 (#1223)
+
+규칙 파일은 `grafana/provisioning/alerting/settlement.yml`·`notification.yml`입니다. 모두 1분마다 평가하고 `for: 0m`, 데이터가 없으면 OK입니다.
+
+| 규칙 | 조건 | severity | 받으면 |
+| --- | --- | --- | --- |
+| 정산 실행 지연 | `settlement_run_overdue` > 0: 영업일 마감 시각(`SETTLEMENT_RUN_DEADLINE`, 기본 12:30)까지 그날 정산 실행이 끝나지 않았거나, 그해 공휴일 목록이 없음 | critical | `kubectl -n kidly-dev get cronjob,jobs`로 그날 `settlement-daily-run` Job의 성공·실패를 봅니다. 실패했으면 `POST /api/v1/admin/settlements/run`으로 다시 실행합니다. 수동 실행은 진행이 `stale-run-after`(기본 30분) 넘게 없는 실행을 FAILED로 닫고 정산합니다. 30분을 기다리지 않으려면 Job Pod가 끝난 것을 확인한 뒤 `POST /api/v1/admin/settlement-runs/{runId}/recover`로 먼저 닫습니다(실제로 도는 실행과 구분하지 못합니다). CronJob 재시도 Pod는 앞 Pod가 남긴 자동 실행을 바로 닫고 정산합니다. 공휴일 목록이 없으면 공휴일 갱신 로그를 봅니다 |
+| 정산 지급 실패 | `increase(settlement_payout_failed_total[10m])` > 0: 결제가 `payment.payout-failed`를 보냄 | critical | 실패한 정산서는 자동 재요청하지 않고, 관리자 재요청(`retry`)도 받지 않습니다. `GET /api/v1/admin/settlements`의 `failReason`을 보고 판매자 지급을 직접 처리합니다 |
+| 정산 지급 결과 없음 | `settlement_payout_oldest_unpaid_age_seconds` > 7200 | critical | 30분 넘게 결과가 없는 정산서는 10분마다 자동 재요청합니다. 그래도 2시간이 지났으니 정산 아웃박스(`settlement_outbox_unsent`)·결제 서비스·Kafka를 확인합니다. 7일이 지나 자동 재요청이 멈춘 정산서는 `POST /api/v1/admin/settlements/{settlementId}/retry` |
+| 알림 발송 지연 | `kidly_notification_oldest_unsent_age_seconds` > 1200. 정상 재시도(30초·2분·10분 뒤)도 마지막 시도까지 12분 30초가 걸림 | warning | 알림 서비스 로그의 발송 실패 원인과 `kidly_notification_sends_total`(채널·결과별)을 봅니다. 모두 보내면 해제됩니다 |
+
+- 서비스가 내려가 지표가 오지 않으면 위 규칙은 데이터 없음이라 조용하고, 기존 `서비스 다운`·`수집 끊김`(critical)이 대신 알립니다. 정산·알림의 ERROR 로그 급증은 기존 `ERROR 로그`(warning)가 봅니다
+- 알림 없는 지표: `settlement_payout_retry_total`·`settlement_outbox_send_delay_seconds`·`settlement_payout_duration_seconds`·`settlement_dead_letter_total`·`kidly_notification_unsent`. 아직 대시보드 패널이 없어 Grafana Explore에서 조회합니다
 
 ## 안전하게 조치하기
 

@@ -14,6 +14,7 @@ import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -32,6 +33,10 @@ class ProductMigrationIntegrationTest {
     private static final String BASELINE_VERSION = "202610292246";
     // kidly-app 폴더에 있던 마지막 상품 마이그레이션(기준 데이터 soft delete)
     private static final String LAST_KIDLY_APP_MODULE_VERSION = "202610181146";
+    // 카테고리 보일 성별 마이그레이션 바로 앞의 상품 마이그레이션
+    private static final String BEFORE_VISIBLE_GENDER_VERSION = "202611101703";
+    private static final String VISIBLE_GENDER_MIGRATION =
+        "db/migration/product/V202611111501__category_visible_gender.sql";
 
     @Test
     @DisplayName("kidly-app이 상품 마이그레이션을 모두 적용한 DB에서는 baseline을 잡고 스키마를 바꾸지 않는다")
@@ -70,6 +75,51 @@ class ProductMigrationIntegrationTest {
 
             assertThat(schema(jdbc)).isEqualTo(schema(new JdbcTemplate(fullDataSource)));
             assertThat(historyTypes(jdbc)).first().isEqualTo("BASELINE " + BASELINE_VERSION);
+        }
+    }
+
+    @Test
+    @DisplayName("VIS-01 카테고리가 있는 DB에서 원피스 · 치마를 GIRL로 두고, 하의를 바지로 바꾸고, 총장 · 허리단면을 필수 실측으로 가진 치마를 넣으며, "
+        + "보일 성별 마이그레이션을 한 번 더 돌려도 행이 그대로다")
+    void migratesCategoryVisibleGenderOnExistingCategories() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createProductTablesLikeKidlyApp(dataSource, jdbc, BEFORE_VISIBLE_GENDER_VERSION);
+            insertCategoriesLikeDev(jdbc);
+
+            serviceFlyway(dataSource).load().migrate();
+            var migrated = categoryRows(jdbc);
+            new ResourceDatabasePopulator(new ClassPathResource(VISIBLE_GENDER_MIGRATION)).execute(dataSource);
+
+            assertThat(migrated).containsExactly(
+                "의류 - ALL -", "상의 의류 ALL -", "바지 의류 ALL TOTAL_LENGTH,WAIST_WIDTH",
+                "아우터 의류 ALL -", "원피스 의류 GIRL -", "잡화 - ALL -", "모자 잡화 ALL -",
+                "치마 의류 GIRL TOTAL_LENGTH,WAIST_WIDTH");
+            assertThat(productTypeIdOf(jdbc, "치마")).isEqualTo(productTypeIdOf(jdbc, "바지"));
+            assertThat(categoryRows(jdbc)).isEqualTo(migrated);
+        }
+    }
+
+    @Test
+    @DisplayName("VIS-01 관리자가 의류 아래에 이미 만든 치마가 있으면 새로 넣지 않고 그 치마를 GIRL로 둔다")
+    void keepsExistingSkirtAndMarksItGirl() {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createProductTablesLikeKidlyApp(dataSource, jdbc, BEFORE_VISIBLE_GENDER_VERSION);
+            insertCategoriesLikeDev(jdbc);
+            jdbc.update("INSERT INTO product.category (name, parent_id, product_type_id, created_at, updated_at) "
+                + "VALUES ('치마', 1, 1, now(), now())");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            assertThat(categoryRows(jdbc)).filteredOn(row -> row.startsWith("치마 "))
+                .containsExactly("치마 의류 GIRL TOTAL_LENGTH,WAIST_WIDTH");
         }
     }
 
@@ -129,6 +179,41 @@ class ProductMigrationIntegrationTest {
             ORDER BY 1
             """, String.class);
         return Stream.of(columns, constraints, indexes).flatMap(List::stream).toList();
+    }
+
+    // dev처럼 의류 아래 상의 · 하의 · 아우터 · 원피스, 잡화 아래 모자를 둔다. 하의만 총장 · 허리단면을 필수 실측으로 가진다
+    private static void insertCategoriesLikeDev(JdbcTemplate jdbc) {
+        jdbc.update("INSERT INTO product.product_type (id, name, created_at, updated_at) VALUES "
+            + "(1, '의류', now(), now()), (2, '모자', now(), now())");
+        jdbc.update("INSERT INTO product.measurement_item (id, name, code, unit, created_at, updated_at) VALUES "
+            + "(1, '총장', 'TOTAL_LENGTH', 'cm', now(), now()), (2, '허리단면', 'WAIST_WIDTH', 'cm', now(), now())");
+        jdbc.update("INSERT INTO product.category (id, name, parent_id, product_type_id, created_at, updated_at) "
+            + "VALUES "
+            + "(1, '의류', null, null, now(), now()), (2, '상의', 1, 1, now(), now()), (3, '하의', 1, 1, now(), now()), "
+            + "(4, '아우터', 1, 1, now(), now()), (5, '원피스', 1, 1, now(), now()), (6, '잡화', null, null, now(), now()), "
+            + "(7, '모자', 6, 2, now(), now())");
+        jdbc.execute("SELECT setval('product.category_id_seq', 7)");
+        jdbc.update("INSERT INTO product.category_measurement_item "
+            + "(category_id, measurement_item_id, sort_order, created_at, updated_at) VALUES "
+            + "(3, 1, 1, now(), now()), (3, 2, 2, now(), now())");
+    }
+
+    // 카테고리마다 "이름 부모 보일성별 필수실측"을 ID 순서로 담는다. 부모 · 실측이 없으면 "-"다
+    private static List<String> categoryRows(JdbcTemplate jdbc) {
+        return jdbc.queryForList("""
+            SELECT c.name || ' ' || coalesce(p.name, '-') || ' ' || c.visible_gender || ' ' || coalesce((
+                SELECT string_agg(m.code, ',' ORDER BY l.sort_order)
+                FROM product.category_measurement_item l
+                JOIN product.measurement_item m ON m.id = l.measurement_item_id
+                WHERE l.category_id = c.id), '-')
+            FROM product.category c LEFT JOIN product.category p ON p.id = c.parent_id
+            ORDER BY c.id
+            """, String.class);
+    }
+
+    private static Long productTypeIdOf(JdbcTemplate jdbc, String categoryName) {
+        return jdbc.queryForObject("SELECT product_type_id FROM product.category WHERE name = ?", Long.class,
+            categoryName);
     }
 
     private static List<String> historyTypes(JdbcTemplate jdbc) {

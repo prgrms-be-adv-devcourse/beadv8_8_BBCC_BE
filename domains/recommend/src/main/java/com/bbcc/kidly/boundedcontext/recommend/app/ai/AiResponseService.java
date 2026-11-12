@@ -55,7 +55,7 @@ public class AiResponseService {
         @Value("${kidly.recommend.ai.call-timeout.home-preview:PT3S}") Duration homePreviewTimeout,
         @Value("${kidly.recommend.ai.call-timeout.bought-together:PT4S}") Duration boughtTogetherTimeout,
         @Value("${kidly.recommend.ai.call-timeout.size-recommendation:PT3.5S}") Duration sizeRecommendationTimeout,
-        // 기다리지 않는 호출(SSE)이 AI 답을 받아 화면에 보낼 수 있는 최대 시간이다. 한 번 4초, 재시도 1번보다 길게 둔다
+        // 기다리지 않는 호출(SSE)이 AI 답을 받아 화면에 보낼 수 있는 최대 시간이다. 넘겨서 온 답도 저장해 다음 요청이 쓴다
         @Value("${kidly.recommend.ai.async-wait:PT10S}") Duration asyncWait,
         @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod
     ) {
@@ -87,7 +87,8 @@ public class AiResponseService {
     }
 
     /**
-     * 같은 종류 · 같은 입력의 저장된 답이 있으면 그것을 돌려주고, 없으면 {@code call}로 AI를 불러 답을 저장한 뒤 돌려준다.
+     * 같은 종류 · 같은 입력의 저장된 답이 있으면 그것을 돌려주고, 없으면 {@code call}로 AI를 불러 답을 돌려준다.
+     * 받은 답은 다른 스레드에서 저장하므로, 돌려받은 직후에는 아직 저장되지 않았을 수 있다.
      * <ul>
      *   <li>빈 값은 AI 결과가 없다는 뜻이다. 부른 쪽이 규칙 결과로 대신한다.
      *       호출이 실패하거나 제한 시간을 넘기거나 null을 돌려줘도, 하루 상한에 닿아도 빈 값이다.</li>
@@ -116,18 +117,20 @@ public class AiResponseService {
         }
         LocalDateTime now = LocalDateTime.now(clock);
         AiResponseKey key = AiResponseKey.of(input);
-        Optional<T> stored = findStored(type, key, now, responseType);
+        Optional<T> stored = findStored(type, key, responseType);
         if (stored.isPresent()) {
             return stored;
         }
         if (!tryAcquireQuietly(type, now)) {
             return Optional.empty();
         }
-        Optional<T> result = callWithTimeout(type, key, now, call);
+        Optional<T> result = callWithTimeout(type, key, call);
         if (result.isEmpty()) {
             return Optional.empty();
         }
-        saveQuietly(type, key, result.get(), now);
+        // 저장소가 느려도 화면 응답이 늦어지지 않게 저장은 기다리지 않는다
+        T answer = result.get();
+        CompletableFuture.runAsync(() -> saveQuietly(type, key, answer), VIRTUAL_THREAD);
         return result;
     }
 
@@ -146,7 +149,7 @@ public class AiResponseService {
         }
         LocalDateTime now = LocalDateTime.now(clock);
         AiResponseKey key = AiResponseKey.of(input);
-        Optional<T> stored = findStored(type, key, now, responseType);
+        Optional<T> stored = findStored(type, key, responseType);
         if (stored.isPresent()) {
             return CompletableFuture.completedFuture(stored);
         }
@@ -155,7 +158,7 @@ public class AiResponseService {
         }
         CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
         // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
-        task.thenAccept(answer -> saveLateAnswer(type, key, answer, now));
+        task.thenAccept(answer -> saveLateAnswer(type, key, answer));
         return task.handle((answer, error) -> toResult(type, answer, error))
             .completeOnTimeout(Optional.empty(), asyncWait.toMillis(), TimeUnit.MILLISECONDS);
     }
@@ -186,11 +189,10 @@ public class AiResponseService {
     private <T> Optional<T> findStored(
         AiResponseType type,
         AiResponseKey key,
-        LocalDateTime now,
         Class<T> responseType
     ) {
         try {
-            Optional<String> json = store.findLatestSince(type, key, now.minus(reusePeriod));
+            Optional<String> json = store.find(type, key);
             if (json.isEmpty()) {
                 return Optional.empty();
             }
@@ -202,17 +204,16 @@ public class AiResponseService {
         }
     }
 
-    private <T> void saveQuietly(AiResponseType type, AiResponseKey key, T response, LocalDateTime now) {
+    private <T> void saveQuietly(AiResponseType type, AiResponseKey key, T response) {
         try {
-            store.save(type, key, jsonMapper.writeValueAsString(response), now);
+            store.save(type, key, jsonMapper.writeValueAsString(response), reusePeriod);
         } catch (RuntimeException e) {
             log.warn("AI 응답을 저장하지 못했지만 받은 결과는 돌려줍니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
         }
     }
 
-    private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, LocalDateTime now,
-        Supplier<T> call) {
+    private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, Supplier<T> call) {
         Duration callTimeout = requireNonNull(callTimeouts.get(type), "종류별 제한 시간이 없습니다");
         CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
         try {
@@ -223,7 +224,7 @@ public class AiResponseService {
             logCallFailure(type, e);
         } catch (TimeoutException e) {
             // 화면에는 규칙 결과가 나가지만, 늦게 온 답은 받는 대로 저장해 같은 입력의 다음 요청이 쓰게 한다
-            task.thenAccept(lateAnswer -> saveLateAnswer(type, key, lateAnswer, now));
+            task.thenAccept(lateAnswer -> saveLateAnswer(type, key, lateAnswer));
             logCallFailure(type, e);
         } catch (ExecutionException e) {
             logCallFailure(type, e.getCause());
@@ -231,9 +232,9 @@ public class AiResponseService {
         return Optional.empty();
     }
 
-    private <T> void saveLateAnswer(AiResponseType type, AiResponseKey key, T lateAnswer, LocalDateTime now) {
+    private <T> void saveLateAnswer(AiResponseType type, AiResponseKey key, T lateAnswer) {
         if (lateAnswer != null) {
-            saveQuietly(type, key, lateAnswer, now);
+            saveQuietly(type, key, lateAnswer);
         }
     }
 

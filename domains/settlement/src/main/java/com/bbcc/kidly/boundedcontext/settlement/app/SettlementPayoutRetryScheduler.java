@@ -5,7 +5,6 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,8 +34,6 @@ public class SettlementPayoutRetryScheduler {
     // 다음 실행이 찾기 시작할 id. 계속 결과를 못 받는 정산서가 앞쪽을 차지해도 뒤쪽 차례가 오게 돌아가며 찾는다.
     // 서버마다 따로 두고 재시작하면 처음부터 찾는다. 같은 정산서를 다시 요청해도 결제가 한 번만 입금한다
     private long nextAfterId = 0L;
-    // 7일 넘은 정산서 경고를 마지막으로 남긴 날. 같은 경고가 실행마다 반복되지 않게 하루 한 번만 남긴다
-    private LocalDate lastExpiredWarnedOn;
 
     @Scheduled(cron = "${kidly.settlement.payout-retry-cron}", zone = "Asia/Seoul")
     public void retryStuck() {
@@ -61,22 +58,7 @@ public class SettlementPayoutRetryScheduler {
         if (requested > 0) {
             log.info("지급 결과를 받지 못한 정산서 {}건에 지급을 다시 요청했습니다", requested);
         }
-        alertExpiredOncePerDay(now);
         return requested;
-    }
-
-    private void alertExpiredOncePerDay(LocalDateTime now) {
-        var today = now.toLocalDate();
-        if (today.equals(lastExpiredWarnedOn)) {
-            return;
-        }
-        long expired = settlementRepository.countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, now.minus(RETRY_WINDOW));
-        if (expired > 0) {
-            // ERROR는 Grafana 알림(ERROR 로그)으로 이어진다. 자동 재요청으로 풀리지 않은 지급이라 사람이 봐야 한다
-            log.error("7일 넘게 지급 결과를 받지 못한 정산서 {}건. 관리자 재요청이 필요합니다", expired);
-            lastExpiredWarnedOn = today;
-        }
     }
 
     private boolean retry(Long settlementId) {

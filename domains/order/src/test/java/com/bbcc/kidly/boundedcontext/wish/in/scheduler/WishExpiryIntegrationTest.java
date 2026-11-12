@@ -21,6 +21,7 @@ import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.order.in.event.ChildProfileEventListener;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.wish.app.WishErrorCode;
 import com.bbcc.kidly.boundedcontext.wish.app.WishExpiryService;
@@ -32,16 +33,23 @@ import com.bbcc.kidly.boundedcontext.wish.app.dto.WishTimelineView;
 import com.bbcc.kidly.boundedcontext.wish.out.actor.ChildWishActor;
 import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -56,6 +64,10 @@ class WishExpiryIntegrationTest {
     private static final Long CHILD_ID = 1L;
     private static final ChildWishActor CHILD = new ChildWishActor(CHILD_ID, BUYER_ID);
     private static final ParentWishActor GUARDIAN = new ParentWishActor(BUYER_ID);
+    private static final Logger LOG = LoggerFactory.getLogger(WishExpiryIntegrationTest.class);
+    // 만료 · 결제 정리 경쟁 반복 횟수(#1207). CI 시간을 고려한 값이고, 로컬에서는 늘려 여러 번 돌려 본다
+    private static final int RACE_ROUNDS = 10;
+    private static final long YIELD_MILLIS = 30;
 
     @Autowired
     private WishExpiryScheduler scheduler;
@@ -91,7 +103,13 @@ class WishExpiryIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    private ChildProfileEventListener childProfileEventListener;
+
+    @Autowired
     private MeterRegistry registry;
+
+    @Autowired
+    private WishReservationValidUntilSync validUntilSync;
 
     @BeforeEach
     void setUp() {
@@ -198,38 +216,191 @@ class WishExpiryIntegrationTest {
     }
 
     @Test
-    @DisplayName("기한 지난 조르기의 만료와 칸 전체를 사는 결제 정리가 겹치면 먼저 커밋한 쪽만 남는다: 만료가 이기면 그 칸의 구매는 조르기와 "
-        + "이어지지 않고, 결제가 이기면 PAID(만료는 예약 버전 충돌로 짐)(반복)")
+    @DisplayName("기한 지난 조르기의 만료와 칸 전체를 사는 결제 정리가 겹쳐도 교착 · 예외 없이 먼저 예약을 잠근 쪽만 남는다(#1207): 만료가 "
+        + "먼저면 EXPIRED이고 그 칸의 구매는 조르기와 이어지지 않으며, 결제 정리가 먼저면 만료는 구매 표시를 보고 건너뛰어 PAID(반복)")
     void fullPurchaseCleanupAndExpiryRace() throws InterruptedException {
-        for (int round = 1; round <= 5; round++) {
-            Long optionId = 7L + round;
-            Long line = line(optionId);
+        Map<String, Integer> outcomes = new TreeMap<>();
+        for (int round = 1; round <= RACE_ROUNDS; round++) {
+            Long line = line(8L);
             Long requestId = send(line);
             sentDaysAgo(requestId, 8);
             LocalDateTime now = LocalDateTime.now();
 
+            int turn = round;
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
-                () -> wishExpiryService.expire(requestId, now),
-                () -> cartService.clearOrdered(900L, List.of(
-                    new CartCleanup.OrderedLine(null, line, BUYER_ID, optionId, null, null)))));
+                () -> {
+                    yieldIf(turn % 3 == 1);
+                    wishExpiryService.expire(requestId, now);
+                },
+                () -> {
+                    yieldIf(turn % 3 == 2);
+                    cartService.clearOrdered(900L, List.of(
+                        new CartCleanup.OrderedLine(null, line, BUYER_ID, 8L, null, null)));
+                }));
 
-            assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
-            assertThat(outcome.conflicts()).as("%d회차 진 쪽", round).isLessThanOrEqualTo(1);
-            String status = status(requestId);
-            long purchases = jdbcTemplate.queryForObject(
-                "select count(*) from orders.wish_purchase where request_id = ?", Long.class, requestId);
-            assertThat(status).as("%d회차 상태", round).isIn("PAID", "EXPIRED");
-            if ("PAID".equals(status)) {
-                assertThat(purchases).as("%d회차 산 것", round).isOne();
-                assertThat(eventCount("wish.paid", requestId)).as("%d회차 wish.paid", round).isOne();
-                assertThat(eventCount("wish.expired", requestId)).as("%d회차 wish.expired", round).isZero();
-            } else {
-                assertThat(purchases).as("%d회차 만료된 조르기의 산 것", round).isZero();
-                assertThat(eventCount("wish.paid", requestId)).as("%d회차 wish.paid", round).isZero();
-                assertThat(eventCount("wish.expired", requestId)).as("%d회차 wish.expired", round).isOne();
-            }
+            outcomes.merge(assertRaceResult(round, outcome, requestId), 1, Integer::sum);
+            assertThat(jdbcTemplate.queryForObject("select count(*) from orders.cart_item where id = ?", Long.class,
+                line)).as("%d회차 칸 전체를 샀다", round).isZero();
+        }
+        LOG.info("만료 ↔ 전체 결제 정리 경쟁 결과(#1207): rounds={} outcomes={}", RACE_ROUNDS, outcomes);
+    }
+
+    @Test
+    @DisplayName("일부 수량 결제 정리(칸이 남음)와 만료가 겹쳐도 교착 · 예외 없이 먼저 예약을 잠근 쪽만 남는다(#1207): 결제 정리가 먼저면 구매 "
+        + "표시를 보고 만료하지 않아 PAID, 만료가 먼저면 EXPIRED이고 그 구매는 조르기와 이어지지 않는다. 칸은 어느 쪽이든 산 만큼 줄어 남는다(반복)")
+    void partialPurchaseCleanupAndExpiryRace() throws InterruptedException {
+        Map<String, Integer> outcomes = new TreeMap<>();
+        for (int round = 1; round <= RACE_ROUNDS; round++) {
+            Long line = cartService.addItem(CartOwners.child(CHILD_ID, BUYER_ID), 9L, null, 3).line().cartItemId();
+            Long requestId = send(line);
+            sentDaysAgo(requestId, 8);
+            LocalDateTime now = LocalDateTime.now();
+
+            int turn = round;
+            ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
+                () -> {
+                    yieldIf(turn % 3 == 1);
+                    wishExpiryService.expire(requestId, now);
+                },
+                () -> {
+                    yieldIf(turn % 3 == 2);
+                    cartService.clearOrdered(900L, List.of(
+                        new CartCleanup.OrderedLine(null, line, BUYER_ID, 9L, null, 1)));
+                }));
+
+            outcomes.merge(assertRaceResult(round, outcome, requestId), 1, Integer::sum);
+            assertThat(jdbcTemplate.queryForMap("select quantity, reservation_id from orders.cart_item where id = ?",
+                line)).as("%d회차 남은 칸(예약 풀림)", round).containsEntry("quantity", 2)
+                .containsEntry("reservation_id", null);
             jdbcTemplate.update("delete from orders.cart_item where id = ?", line);
         }
+        LOG.info("만료 ↔ 일부 결제 정리 경쟁 결과(#1207): rounds={} outcomes={}", RACE_ROUNDS, outcomes);
+    }
+
+    @Test
+    @DisplayName("자녀 삭제(장바구니 비우기 + 조르기 철회)와 칸 전체를 사는 결제 정리가 겹쳐도 교착 · 예외 없이 먼저 예약을 잠근 쪽만 남는다"
+        + "(#1207): 삭제가 먼저면 CANCELLED(CHILD_DELETED), 결제 정리가 먼저면 PAID(결제 반영 전에 삭제가 끼면 CANCELLED에 산 것만 남음)(반복)")
+    void childDeletionAndPurchaseCleanupRace() throws InterruptedException {
+        Map<String, Integer> outcomes = new TreeMap<>();
+        for (int round = 1; round <= RACE_ROUNDS; round++) {
+            Long childId = 1_000L + round;
+            childReplicaRepository.save(ReplicaChild.create(new ReplicaChild.Values(childId, BUYER_ID, null,
+                new BigDecimal("115.0"), new BigDecimal("20.0"), "NORMAL", false, OCCURRED_AT)));
+            Long line = cartService.addItem(CartOwners.child(childId, BUYER_ID), 10L, null, 1).line().cartItemId();
+            Long requestId = wishRequestService.send(new ChildWishActor(childId, BUYER_ID), List.of(line), null)
+                .requestId();
+            ChildChangedEvent deleted = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT.plusDays(1),
+                new ChildChangedEvent.Data(childId, BUYER_ID, null, null, null, null, null, null, true));
+
+            int turn = round;
+            ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
+                () -> {
+                    yieldIf(turn % 3 == 1);
+                    childProfileEventListener.onChildChanged(deleted);
+                },
+                () -> {
+                    yieldIf(turn % 3 == 2);
+                    cartService.clearOrdered(900L, List.of(
+                        new CartCleanup.OrderedLine(null, line, BUYER_ID, 10L, childId, null)));
+                }));
+
+            assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
+            assertThat(outcome.conflicts()).as("%d회차 낙관적 락으로 진 쪽", round).isZero();
+            String status = status(requestId);
+            assertThat(status).as("%d회차 상태", round).isIn("PAID", "CANCELLED");
+            assertThat(eventCount("wish.paid", requestId)).as("%d회차 wish.paid", round)
+                .isEqualTo("PAID".equals(status) ? 1 : 0);
+            assertThat(eventCount("wish.cancelled", requestId)).as("%d회차 wish.cancelled", round)
+                .isEqualTo("CANCELLED".equals(status) ? 1 : 0);
+            assertThat(jdbcTemplate.queryForObject("select count(*) from orders.cart_item where id = ?", Long.class,
+                line)).as("%d회차 칸은 어느 쪽이든 없다", round).isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from orders.cart_reservation where reservation_id = ?", Long.class,
+                "wish-" + requestId)).as("%d회차 예약은 풀렸다", round).isZero();
+            outcomes.merge(status, 1, Integer::sum);
+        }
+        LOG.info("자녀 삭제 ↔ 결제 정리 경쟁 결과(#1207): rounds={} outcomes={}", RACE_ROUNDS, outcomes);
+    }
+
+    @Test
+    @DisplayName("결제 정리 뒤 반영 전 조르기(예약에 구매 표시)가 있는 자녀 삭제와 예약 기한 동기화(syncBatch)가 겹쳐도 교착 · 예외 없이 끝난다"
+        + "(#1207): 조르기는 CANCELLED(CHILD_DELETED) · 예약은 풀리고, 동기화는 삭제보다 먼저면 그 예약 기한을 맞추고 늦으면 맞출 것이 없다(반복)")
+    void childDeletionAndValidUntilSyncRace() throws InterruptedException {
+        Map<String, Integer> outcomes = new TreeMap<>();
+        for (int round = 1; round <= RACE_ROUNDS; round++) {
+            Long childId = 2_000L + round;
+            childReplicaRepository.save(ReplicaChild.create(new ReplicaChild.Values(childId, BUYER_ID, null,
+                new BigDecimal("115.0"), new BigDecimal("20.0"), "NORMAL", false, OCCURRED_AT)));
+            Long line = cartService.addItem(CartOwners.child(childId, BUYER_ID), 11L, null, 1).line().cartItemId();
+            Long requestId = wishRequestService.send(new ChildWishActor(childId, BUYER_ID), List.of(line), null)
+                .requestId();
+            String reservationId = "wish-" + requestId;
+            // 칸 전체 결제 정리가 커밋됐고(칸 지움 · 예약에 구매 표시) 구매 사실은 아직 반영 전인 상태. 이 컨텍스트는 정리 커밋 직후 조르기가
+            // 바로 받으므로 정리 결과를 직접 만든다
+            jdbcTemplate.update("delete from orders.cart_item where id = ?", line);
+            jdbcTemplate.update("update orders.cart_reservation set purchased_at = now() where reservation_id = ?",
+                reservationId);
+            // 다른 진행 중 조르기는 미리 맞춰 두고, 이 조르기의 예약 기한만 어긋나게 해 동기화가 이 예약에서만 쓰게 한다
+            validUntilSync.syncAll();
+            jdbcTemplate.update("update orders.cart_reservation set valid_until = ? where reservation_id = ?",
+                LocalDateTime.now().minusYears(1), reservationId);
+            ChildChangedEvent deleted = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT.plusDays(1),
+                new ChildChangedEvent.Data(childId, BUYER_ID, null, null, null, null, null, null, true));
+
+            int turn = round;
+            AtomicInteger synced = new AtomicInteger();
+            ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
+                () -> {
+                    yieldIf(turn % 3 == 1);
+                    childProfileEventListener.onChildChanged(deleted);
+                },
+                () -> {
+                    yieldIf(turn % 3 == 2);
+                    synced.set(validUntilSync.syncAll());
+                }));
+
+            assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
+            assertThat(outcome.conflicts()).as("%d회차 낙관적 락으로 진 쪽", round).isZero();
+            assertThat(status(requestId)).as("%d회차 상태", round).isEqualTo("CANCELLED");
+            assertThat(eventCount("wish.cancelled", requestId)).as("%d회차 wish.cancelled", round).isOne();
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from orders.cart_reservation where reservation_id = ?", Long.class,
+                reservationId)).as("%d회차 예약은 풀렸다", round).isZero();
+            assertThat(synced.get()).as("%d회차 동기화가 바꾼 예약 수", round).isBetween(0, 1);
+            outcomes.merge(synced.get() == 1 ? "SYNC_FIRST" : "DELETION_FIRST", 1, Integer::sum);
+        }
+        LOG.info("자녀 삭제 ↔ 예약 기한 동기화 경쟁 결과(#1207): rounds={} outcomes={}", RACE_ROUNDS, outcomes);
+    }
+
+    // 같이 출발하되 세 회차 중 둘은 한쪽을 아주 조금 늦춰 두 결과(먼저 잠근 쪽)가 모두 나오게 하고, 나머지 하나는 늦추지 않고 그대로 겨루게 한다
+    private static void yieldIf(boolean later) {
+        if (later) {
+            try {
+                Thread.sleep(YIELD_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    // 교착 · 낙관적 락 예외 없이 끝나고(진 쪽 없음), 결과는 둘 중 하나로 맞는다: PAID면 산 것 · wish.paid, EXPIRED면 산 것 없이 wish.expired
+    private String assertRaceResult(int round, ConcurrentCalls.Outcome outcome, Long requestId) {
+        assertThat(outcome.unexpected()).as("%d회차 예외", round).isEmpty();
+        assertThat(outcome.conflicts()).as("%d회차 낙관적 락으로 진 쪽", round).isZero();
+        String status = status(requestId);
+        long purchases = jdbcTemplate.queryForObject(
+            "select count(*) from orders.wish_purchase where request_id = ?", Long.class, requestId);
+        assertThat(status).as("%d회차 상태", round).isIn("PAID", "EXPIRED");
+        if ("PAID".equals(status)) {
+            assertThat(purchases).as("%d회차 산 것", round).isOne();
+            assertThat(eventCount("wish.paid", requestId)).as("%d회차 wish.paid", round).isOne();
+            assertThat(eventCount("wish.expired", requestId)).as("%d회차 wish.expired", round).isZero();
+        } else {
+            assertThat(purchases).as("%d회차 만료된 조르기의 산 것", round).isZero();
+            assertThat(eventCount("wish.paid", requestId)).as("%d회차 wish.paid", round).isZero();
+            assertThat(eventCount("wish.expired", requestId)).as("%d회차 wish.expired", round).isOne();
+        }
+        return status;
     }
 
     @Test

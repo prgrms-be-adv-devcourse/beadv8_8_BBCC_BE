@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.cart.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +47,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -566,8 +569,10 @@ class CartServiceTest {
             when(cartItemRepository.findById(27L)).thenReturn(Optional.of(partial));
             when(cartItemRepository.findById(28L)).thenReturn(Optional.of(whole));
             when(cartItemRepository.findById(29L)).thenReturn(Optional.of(plain));
-            when(reservationRepository.findAllByReservationId("wish-4")).thenReturn(List.of(first, second));
-            when(reservationRepository.findAllByReservationId("wish-5")).thenReturn(List.of(alreadyMarked));
+            when(cartItemRepository.findReservationIdById(27L)).thenReturn(Optional.of("wish-4"));
+            when(cartItemRepository.findReservationIdById(28L)).thenReturn(Optional.of("wish-5"));
+            when(reservationRepository.lockAllByReservationIdIn(any()))
+                .thenReturn(List.of(first, second, alreadyMarked));
 
             cartService.clearOrdered(7L, List.of(
                 new CartCleanup.OrderedLine(77L, 27L, BUYER_ID, OPTION_ID, CHILD_ID, 1),
@@ -579,7 +584,12 @@ class CartServiceTest {
             assertThat(second.getPurchasedAt()).isEqualTo(first.getPurchasedAt());
             assertThat(alreadyMarked.getPurchasedAt()).isEqualTo(earlier);
             verify(cartItemRepository).delete(whole);
-            verify(reservationRepository, never()).findAllByReservationId(null);
+            // 줄들의 예약 행을 (예약 ID 순) 한 번에, 칸을 읽기 전에 잠근다(#1207, 만료 · 거절 · 철회 · 자녀 삭제와 같은 순서)
+            InOrder lockOrder = inOrder(reservationRepository, cartItemRepository);
+            lockOrder.verify(reservationRepository).lockAllByReservationIdIn(
+                argThat(ids -> List.copyOf(ids).equals(List.of("wish-4", "wish-5"))));
+            lockOrder.verify(cartItemRepository).findById(27L);
+            verify(reservationRepository, never()).lockAllByReservationId(any());
         }
 
         @Test
@@ -761,17 +771,27 @@ class CartServiceTest {
         }
 
         @Test
-        @DisplayName("주인 정리(#1001): 그 주인의 칸을 예약 칸까지 모두 지우고 이벤트는 내지 않는다")
+        @DisplayName("주인 정리(#1001): 그 주인의 칸을 예약 칸까지 모두 지우고 이벤트는 내지 않는다. 지우기 전에 칸들의 예약을 (예약 ID 순) "
+            + "한꺼번에 잠근다(#1207)")
         void removeOwnerItems() {
             CartItem reservedLine = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, OPTION_ID, CHILD_ID, 1);
-            reservedLine.reserve("wish-1");
+            reservedLine.reserve("wish-2");
+            CartItem otherReserved = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, 4L, CHILD_ID, 1);
+            otherReserved.reserve("wish-1");
             CartItem plainLine = CartItem.create(OwnerType.CHILD, CHILD_ID, BUYER_ID, 3L, CHILD_ID, 1);
+            when(cartItemRepository.findReservationIdsByOwner(OwnerType.CHILD, CHILD_ID))
+                .thenReturn(List.of("wish-2", "wish-1"));
             when(cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(OwnerType.CHILD, CHILD_ID))
-                .thenReturn(List.of(reservedLine, plainLine));
+                .thenReturn(List.of(reservedLine, otherReserved, plainLine));
 
-            assertThat(cartService.removeOwnerItems("CHILD", CHILD_ID)).isEqualTo(2);
+            assertThat(cartService.removeOwnerItems("CHILD", CHILD_ID)).isEqualTo(3);
 
-            verify(cartItemRepository).delete(reservedLine);
+            InOrder lockOrder = inOrder(reservationRepository, cartItemRepository);
+            lockOrder.verify(reservationRepository).lockAllByReservationIdIn(
+                argThat(ids -> List.copyOf(ids).equals(List.of("wish-1", "wish-2"))));
+            lockOrder.verify(cartItemRepository).findAllByOwnerTypeAndOwnerIdOrderByIdDesc(OwnerType.CHILD, CHILD_ID);
+            lockOrder.verify(cartItemRepository).delete(reservedLine);
+            verify(cartItemRepository).delete(otherReserved);
             verify(cartItemRepository).delete(plainLine);
             verifyNoEvent();
         }
@@ -810,12 +830,16 @@ class CartServiceTest {
             item.reserve("r-1");
             CartReservation payer = CartReservation.allow("r-1", OwnerType.MEMBER, OTHER_ID, null);
             when(cartItemRepository.findAllByReservationId("r-1")).thenReturn(List.of(item));
-            when(reservationRepository.findAllByReservationId("r-1")).thenReturn(List.of(payer));
+            when(reservationRepository.lockAllByReservationId("r-1")).thenReturn(List.of(payer));
 
             cartService.release("r-1");
 
             assertThat(item.isReserved()).isFalse();
             verify(reservationRepository).delete(payer);
+            // 예약 행을 먼저 잠그고 칸을 푼다(#1207, 결제 정리와 같은 순서)
+            InOrder lockOrder = inOrder(reservationRepository, cartItemRepository);
+            lockOrder.verify(reservationRepository).lockAllByReservationId("r-1");
+            lockOrder.verify(cartItemRepository).findAllByReservationId("r-1");
         }
 
         @Test
@@ -960,7 +984,7 @@ class CartServiceTest {
             CartReservation firstOther = CartReservation.allow("r-1", OwnerType.MEMBER, OTHER_ID, null);
             CartReservation same = CartReservation.allow("r-2", OwnerType.MEMBER, BUYER_ID, until);
             CartReservation cleared = CartReservation.allow("r-3", OwnerType.MEMBER, BUYER_ID, until);
-            when(reservationRepository.findAllByReservationIdIn(any()))
+            when(reservationRepository.lockAllByReservationIdIn(any()))
                 .thenReturn(List.of(first, firstOther, same, cleared));
 
             int changed = cartService.updateValidUntil(List.of(new CartReservations.ValidUntil("r-1", until),

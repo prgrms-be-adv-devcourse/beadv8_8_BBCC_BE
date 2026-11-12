@@ -6,14 +6,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReason;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReasonType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSource;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -30,13 +33,17 @@ class SizeRecommendationAiTest {
 
     private static final String HEIGHT_DETAIL = "키 114cm는 110의 권장 키 안이에요.";
 
+    // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문이다
+    private static final SizeAiEvidence GIVEN =
+        new SizeAiEvidence(null, Set.of(new BigDecimal("114"), new BigDecimal("110")));
+
     @Test
     @DisplayName("AI가 상품에 있는 사이즈를 고르면 그 사이즈와 적합도로 답하고, 후보는 규칙 그대로, 안내는 비운다")
     void adoptAiAnswerWithinProductSizes() {
         AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT",
-            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)), List.of());
 
-        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer);
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, GIVEN);
 
         assertThat(result.getRecommendedSize()).isEqualTo("110");
         assertThat(result.getFit()).isEqualTo(Fit.TIGHT);
@@ -53,9 +60,9 @@ class SizeRecommendationAiTest {
     @DisplayName("INV-R04 AI가 상품에 없는 사이즈를 고르거나 사이즈를 비우면 규칙 결과를 그대로 쓴다")
     void keepRuleWhenAiSizeIsNotInProduct(String aiSize) {
         AiSizeAnswer answer = new AiSizeAnswer(aiSize, "TIGHT",
-            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)), List.of());
 
-        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer);
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, GIVEN);
 
         assertRuleResult(result);
     }
@@ -64,7 +71,7 @@ class SizeRecommendationAiTest {
     @MethodSource("unusableAnswers")
     @DisplayName("AI 답이 없거나 적합도가 모르는 값이면 규칙 결과를 그대로 쓴다")
     void keepRuleWhenAiAnswerIsUnusable(AiSizeAnswer answer) {
-        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer);
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, GIVEN);
 
         assertRuleResult(result);
     }
@@ -73,10 +80,10 @@ class SizeRecommendationAiTest {
         List<AiSizeAnswer.Reason> reasons = List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null));
         return Stream.of(
             Named.of("AI 답 없음", null),
-            Named.of("적합도 없음", new AiSizeAnswer("110", null, reasons)),
-            Named.of("적합도 빈 값", new AiSizeAnswer("110", "", reasons)),
-            Named.of("모르는 적합도", new AiSizeAnswer("110", "LOOSE", reasons)),
-            Named.of("소문자 적합도", new AiSizeAnswer("110", "tight", reasons)));
+            Named.of("적합도 없음", new AiSizeAnswer("110", null, reasons, List.of())),
+            Named.of("적합도 빈 값", new AiSizeAnswer("110", "", reasons, List.of())),
+            Named.of("모르는 적합도", new AiSizeAnswer("110", "LOOSE", reasons, List.of())),
+            Named.of("소문자 적합도", new AiSizeAnswer("110", "tight", reasons, List.of())));
     }
 
     @Test
@@ -84,9 +91,9 @@ class SizeRecommendationAiTest {
     void keepRuleForSizeFreeProduct() {
         ProductSizes sizeFreeProduct = ProductSizes.of(true, List.of(SizeRange.of("FREE", 90, 130)));
         AiSizeAnswer answer = new AiSizeAnswer("FREE", "PROPER",
-            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)), List.of());
 
-        SizeRecommendation result = SizeRecommendation.sizeFree().decideWith(sizeFreeProduct, answer);
+        SizeRecommendation result = SizeRecommendation.sizeFree().decideWith(sizeFreeProduct, answer, GIVEN);
 
         assertThat(result.getRecommendedSize()).isNull();
         assertThat(result.getFit()).isNull();
@@ -99,9 +106,10 @@ class SizeRecommendationAiTest {
     @DisplayName("규칙이 맞는 사이즈를 찾지 못해도 AI가 상품에 있는 사이즈를 고르면 그 답을 쓴다")
     void adoptAiAnswerWhenRuleFoundNoSize() {
         AiSizeAnswer answer = new AiSizeAnswer("120", "ROOMY",
-            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)), List.of());
 
-        SizeRecommendation result = SizeRecommendation.noMatchingSize().decideWith(RecommendFixture.productA(), answer);
+        SizeRecommendation result = SizeRecommendation.noMatchingSize()
+            .decideWith(RecommendFixture.productA(), answer, GIVEN);
 
         assertThat(result.getRecommendedSize()).isEqualTo("120");
         assertThat(result.getFit()).isEqualTo(Fit.ROOMY);
@@ -115,9 +123,9 @@ class SizeRecommendationAiTest {
     void adoptAiAnswerOutsideRuleCandidates() {
         SizeRecommendation ruleOnly120 = SizeRecommendation.recommended("120", Fit.PROPER, List.of(), List.of("120"));
         AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT",
-            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)));
+            List.of(new AiSizeAnswer.Reason("HEIGHT", HEIGHT_DETAIL, null)), List.of());
 
-        SizeRecommendation result = ruleOnly120.decideWith(RecommendFixture.productA(), answer);
+        SizeRecommendation result = ruleOnly120.decideWith(RecommendFixture.productA(), answer, GIVEN);
 
         assertThat(result.getRecommendedSize()).isEqualTo("110");
         assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
@@ -135,9 +143,9 @@ class SizeRecommendationAiTest {
             new AiSizeAnswer.Reason("PREFERRED_FIT", null, null),
             null,
             new AiSizeAnswer.Reason("body_type", "소문자 종류예요.", null),
-            new AiSizeAnswer.Reason("RULE_RESULT", "규칙도 110을 후보로 봤어요.", null)));
+            new AiSizeAnswer.Reason("RULE_RESULT", "규칙도 110을 후보로 봤어요.", null)), List.of());
 
-        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer);
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, GIVEN);
 
         assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
         assertThat(result.getReasons()).containsExactly(
@@ -149,7 +157,7 @@ class SizeRecommendationAiTest {
     @DisplayName("AI가 근거를 비우면 근거 없이 AI 답을 쓴다")
     void adoptAiAnswerWithoutReasons() {
         SizeRecommendation result = RULE_120.decideWith(
-            RecommendFixture.productA(), new AiSizeAnswer("110", "TIGHT", null));
+            RecommendFixture.productA(), new AiSizeAnswer("110", "TIGHT", null, List.of()), GIVEN);
 
         assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
         assertThat(result.getReasons()).isEmpty();
@@ -158,9 +166,9 @@ class SizeRecommendationAiTest {
     @Test
     @DisplayName("상품 사이즈 없이 AI 답을 합치면 NullPointerException을 던진다")
     void rejectNullProductSizes() {
-        AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT", null);
+        AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT", null, List.of());
 
-        assertThatThrownBy(() -> RULE_120.decideWith(null, answer))
+        assertThatThrownBy(() -> RULE_120.decideWith(null, answer, GIVEN))
             .isInstanceOf(NullPointerException.class)
             .hasMessage("productSizes는 필수입니다");
     }

@@ -1,0 +1,23 @@
+rule_files:
+- rules.yml
+evaluation_interval: 1m
+tests:
+- name: notification age crosses threshold and ignores other jobs
+  interval: 1m
+  input_series:
+  - series: kidly_notification_oldest_unsent_age_seconds{job="kidly-notification",env="dev"}
+    values: 1200 1201 0
+  - series: kidly_notification_oldest_unsent_age_seconds{job="other",env="prod"}
+    values: 1500+0x3
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: kidly-notification-unsent-age
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: kidly-notification-unsent-age
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 2m
+    alertname: kidly-notification-unsent-age
+    exp_alerts: []

@@ -153,6 +153,8 @@ public class WishRequestService {
      * WISH_REQUEST_EXPIRED, #1008) → 결제 반영 중(409) → 처리 전(409).
      */
     public WishRequestView reject(WishActor actor, Long requestId, String reason) {
+        // 조르기를 읽기 전에 장바구니 예약을 먼저 잠근다(#1207, 결제 정리 · 만료와 같은 순서). 결제 반영 중 409도 잠근 뒤 판단한다
+        wishCart.lock(WishRequest.RESERVATION_PREFIX + requestId);
         WishRequest request = findVisible(actor, requestId);
         if (!wishPolicy.canReject(actor, approversOf(request))) {
             throw new BusinessException(WishErrorCode.WISH_REQUEST_DECIDE_FORBIDDEN);
@@ -184,6 +186,8 @@ public class WishRequestService {
      * WISH_REQUEST_EXPIRED, #1008) → 결제 반영 중(409) → 처리 전(409).
      */
     public WishRequestView cancel(WishActor actor, Long requestId) {
+        // 조르기를 읽기 전에 장바구니 예약을 먼저 잠근다(#1207, 결제 정리 · 만료와 같은 순서)
+        wishCart.lock(WishRequest.RESERVATION_PREFIX + requestId);
         WishRequest request = findVisible(actor, requestId);
         if (!wishPolicy.canCancel(actor, request)) {
             throw new BusinessException(WishErrorCode.WISH_REQUEST_CANCEL_FORBIDDEN);
