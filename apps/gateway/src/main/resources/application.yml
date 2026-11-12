@@ -81,6 +81,13 @@ spring:
                 - Header=Accept, .*text/event-stream.*
               metadata:
                 response-timeout: 15000
+            - id: recommend-size-stream
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/api/v1/recommendations/size
+                - Header=Accept, .*text/event-stream.*
+              metadata:
+                response-timeout: 15000
             - id: recommend-preview-stream
               uri: ${kidly.gateway.recommend-uri}
               predicates:

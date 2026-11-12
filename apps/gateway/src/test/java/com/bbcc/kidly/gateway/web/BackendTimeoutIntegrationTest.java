@@ -85,6 +85,7 @@ class BackendTimeoutIntegrationTest extends GatewayTestSupport {
     @ParameterizedTest
     @CsvSource({
         "/api/v1/recommendations/companions?productId=31&childId=11, 4700",
+        "/api/v1/recommendations/size?productId=31&childId=11, 4500",
         "/api/v1/recommendations/products/preview?childId=11, 4000"
     })
     @DisplayName("AI 추천 스트림(text/event-stream) 요청은 일반 요청의 제한 시간보다 늦은 응답도 그대로 넘긴다")
