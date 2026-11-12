@@ -255,6 +255,53 @@ class CommunityMigrationIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("리뷰 수정 시각 보정: 마지막 작성자 수정(REVIEW_UPDATED) 시각, 없으면 작성 시각. 다시 돌려도 결과가 같다")
+    void fixesReviewUpdatedAt() throws Exception {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+            serviceFlyway(dataSource).target("202611101700").load().migrate();
+            jdbc.update("insert into community.review (id, order_item_id, product_id, member_id, nickname, rating, "
+                + "content, fit, created_at, updated_at, moderation_status) values "
+                // 작성자가 두 번 고친 뒤 검사가 수정 시각을 바꾼 리뷰
+                + "(1, 11, 14, 13, '닉', 4, '본문', null, '2026-11-02 10:00:00', '2026-11-12 09:00:00', 'PASSED'), "
+                // 고친 적 없이 관리자 조치가 수정 시각을 바꾼 리뷰
+                + "(2, 12, 14, 13, '닉', 2, '본문', null, '2026-11-03 10:00:00', '2026-11-12 09:00:00', "
+                + "'CONFIRMED_HIDDEN'), "
+                // 이미 맞는 리뷰(바꾸지 않는다)
+                + "(3, 13, 14, 13, '닉', 3, '본문', null, '2026-11-03 10:00:00', '2026-11-03 10:00:00', 'PENDING')");
+            jdbc.update("delete from community.activity");
+            jdbc.update("insert into community.activity (occurred_at, type, product_id, aggregate_id, created_at) "
+                + "values ('2026-11-10 12:00:00.123456', 'REVIEW_UPDATED', 14, 1, now()), "
+                + "('2026-11-11 08:30:00.654321', 'REVIEW_UPDATED', 14, 1, now()), "
+                + "('2026-11-12 09:00:00', 'MODERATION_DECIDED', 14, 1, now()), "
+                + "('2026-11-12 09:00:00', 'MODERATION_DECIDED', 14, 2, now()), "
+                + "('2026-11-12 09:00:00', 'REVIEW_UPDATED', 14, 99, now())");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            List<String> expected = List.of("1 2026-11-11 08:30:00.654321", "2 2026-11-03 10:00:00",
+                "3 2026-11-03 10:00:00");
+            assertThat(updatedAts(jdbc)).isEqualTo(expected);
+
+            // 같은 보정 문장을 다시 돌려도 결과가 같고 바뀌는 행이 없다
+            String fix = new ClassPathResource(
+                "db/migration/community/V202611121420__community_review_updated_at_fix.sql")
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+            assertThat(jdbc.update(fix)).isZero();
+            assertThat(updatedAts(jdbc)).isEqualTo(expected);
+        }
+    }
+
+    private static List<String> updatedAts(JdbcTemplate jdbc) {
+        return jdbc.queryForList("select id || ' ' || updated_at::text from community.review order by id",
+            String.class);
+    }
+
     private static Map<String, Long> activityCounts(JdbcTemplate jdbc) {
         Map<String, Long> counts = new java.util.HashMap<>();
         jdbc.query("select type, count(*) from community.activity group by type",

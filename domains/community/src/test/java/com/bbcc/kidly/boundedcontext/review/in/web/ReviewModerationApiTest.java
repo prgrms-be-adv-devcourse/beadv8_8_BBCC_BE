@@ -192,6 +192,26 @@ class ReviewModerationApiTest {
             .expectStatus().isForbidden();
     }
 
+    @Test
+    @DisplayName("검사 통과 · 관리자 숨김 확정 · 다시 공개 뒤에도 공개 목록 · 내 리뷰의 updatedAt은 작성 때 값 그대로다")
+    void moderationKeepsUpdatedAt() {
+        jdbcTemplate.update("update community.review set updated_at = '2026-11-01 10:00:00.123456'");
+        fake.willReturn(Result.passed(), Result.passed());
+        moderationService.processPending();
+        visibility(mine, "HIDDEN").expectStatus().isOk();
+        visibility(mine, "VISIBLE").expectStatus().isOk();
+
+        client.get().uri(REVIEWS + "?productId=14").exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items[?(@.reviewId == '" + mine + "')].updatedAt").isEqualTo(
+                List.of("2026-11-01T10:00:00.123456"));
+        client.get().uri(REVIEWS + "/me").headers(TestMembers.buyer(ME)).exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items[0].updatedAt").isEqualTo("2026-11-01T10:00:00.123456");
+    }
+
     private RestTestClient.ResponseSpec visibility(String reviewId, String visibility) {
         return client.patch().uri(ADMIN_REVIEWS + "/" + reviewId + "/visibility").headers(TestAdmins.of(ADMIN))
             .contentType(MediaType.APPLICATION_JSON).body(Map.of("visibility", visibility)).exchange();
