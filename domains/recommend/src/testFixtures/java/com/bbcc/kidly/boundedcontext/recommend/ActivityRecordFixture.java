@@ -70,6 +70,16 @@ public final class ActivityRecordFixture {
 
     public static final LocalDateTime WISH_CANCELLED_AT = LocalDateTime.of(2026, 11, 3, 10, 30);
 
+    public static final UUID FAVORITE_EVENT_ID = UUID.fromString("fa50000a-0000-0000-0000-000000000001");
+
+    public static final UUID FAVORITE_REMOVE_EVENT_ID = UUID.fromString("fa50000a-0000-0000-0000-000000000002");
+
+    public static final Long FAVORITE_ID = 401L;
+
+    public static final LocalDateTime FAVORITED_AT = LocalDateTime.of(2026, 11, 3, 10, 4);
+
+    public static final LocalDateTime FAVORITE_REMOVED_AT = LocalDateTime.of(2026, 11, 3, 10, 40);
+
     public static final UUID WITHDRAWN_EVENT_ID = UUID.fromString("3e3b0000-0000-0000-0000-000000000001");
 
     public static final LocalDateTime WITHDRAWN_AT = LocalDateTime.of(2026, 11, 4, 9, 0);

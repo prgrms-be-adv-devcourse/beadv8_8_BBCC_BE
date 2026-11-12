@@ -88,6 +88,10 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "wish_request_id")
     private Long wishRequestId;
 
+    // 찜 · 찜 해제만 값이 있다
+    @Column(name = "favorite_id")
+    private Long favoriteId;
+
     @Column(name = "product_id")
     private Long productId;
 
@@ -266,6 +270,23 @@ public class ActivityRecord extends BaseTimeEntity {
         record.wishRequestId = requireNonNull(info.wishRequestId(), "wishRequestId는 필수입니다");
         record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
+        record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
+        return record;
+    }
+
+    public record FavoriteAddedInfo(UUID eventId, Long favoriteId, Long memberId, Long productId,
+        LocalDateTime occurredAt) {
+    }
+
+    // 찜은 회원 단위라 자녀가 없다
+    public static ActivityRecord favoriteAdded(FavoriteAddedInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        ActivityRecord record = new ActivityRecord();
+        record.type = ActivityType.FAVORITE_ADDED;
+        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        record.favoriteId = requireNonNull(info.favoriteId(), "favoriteId는 필수입니다");
+        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;
     }
