@@ -23,4 +23,16 @@ class ProductFitTendencyTest {
     void noTendencyBelowFiveReviews(int small, int trueToSize, int large) {
         assertThat(ProductFitTendency.ofCounts(small, trueToSize, large)).isNull();
     }
+
+    @ParameterizedTest
+    @CsvSource({
+        "2, 2, 1",
+        "0, 5, 0",
+        "3, 4, 6"
+    })
+    @DisplayName("FIT-13 공개된 핏 리뷰가 5건 이상이면 작아요 · 잘 맞아요 · 커요 수를 그대로 상품 핏 성향으로 쓴다")
+    void tendencyFromFiveReviews(int small, int trueToSize, int large) {
+        assertThat(ProductFitTendency.ofCounts(small, trueToSize, large))
+            .isEqualTo(new ProductFitTendency(small, trueToSize, large));
+    }
 }
