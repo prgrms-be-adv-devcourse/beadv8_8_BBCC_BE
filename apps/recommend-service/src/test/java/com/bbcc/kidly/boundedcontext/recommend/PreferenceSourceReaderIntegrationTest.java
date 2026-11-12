@@ -191,6 +191,20 @@ class PreferenceSourceReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("PREF-21 같은 상품을 해제한 뒤 다시 찜하면 해제는 앞 찜에만 붙고 다시 한 찜은 그대로 센다")
+    void countFavoriteAgainAfterRemoval() {
+        LocalDateTime to = SINCE.plusHours(3);
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", null);
+        insertFavorite(ActivityType.FAVORITE_ADDED, 401L, SINCE, 100L);
+        insertFavorite(ActivityType.FAVORITE_REMOVED, 401L, SINCE.plusHours(1), 100L);
+        insertFavorite(ActivityType.FAVORITE_ADDED, 403L, SINCE.plusHours(2), 100L);
+
+        assertThat(reader.findMemberActivities(1L, SINCE, to)).containsExactly(
+            new RecentActivity(ActivityType.FAVORITE_ADDED, 100L, 10L, "Nike", SINCE, true),
+            new RecentActivity(ActivityType.FAVORITE_ADDED, 100L, 10L, "Nike", SINCE.plusHours(2), false));
+    }
+
+    @Test
     @DisplayName("회원 활동은 자녀를 고르지 않은 활동만 읽는다")
     void readMemberActivitiesWithoutChild() {
         LocalDateTime to = SINCE.plusHours(3);
