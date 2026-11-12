@@ -7,6 +7,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.HomePreviewAiAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.HomePreviewAiRequest;
@@ -55,6 +58,10 @@ class HomePreviewServiceAiLaterTest {
     @Mock
     private HomePreviewPicker picker;
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    private final RecommendAiMetrics metrics = new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP);
+
     @Test
     @DisplayName("HOME-03 기다리지 않는 맛보기는 규칙 상위 4개를 바로 담고, AI 답이 오면 AI가 고른 순서와 이유로 끝난다")
     void returnRuleNowAndAiLater() {
@@ -90,9 +97,24 @@ class HomePreviewServiceAiLaterTest {
         assertThat(result.ai().join()).isEmpty();
     }
 
+    @Test
+    @DisplayName("HOME-02 기다리지 않는 맛보기에서 AI가 고른 상품이 모두 후보 밖이면 AI 결과는 빈 값이고 검증 버림 수를 하나 센다")
+    void countRejectedWhenAiPicksOutsideCandidates() {
+        givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
+        HomePreviewAiAnswer answer = new HomePreviewAiAnswer(List.of(new HomePreviewAiAnswer.Pick(99L, "후보 밖이에요.")));
+        given(aiResponseService.respondAsync(eq(AiResponseType.HOME_PREVIEW), any(), eq(HomePreviewAiAnswer.class),
+            any())).willReturn(CompletableFuture.completedFuture(Optional.of(answer)));
+
+        HomePreviewWithAi result = service().previewWithAiLater(MEMBER_ID, CHILD_ID);
+
+        assertThat(result.ai().join()).isEmpty();
+        assertThat(meterRegistry.get("kidly.recommend.ai.rejected").tag("feature", "home_preview")
+            .counter().count()).isEqualTo(1);
+    }
+
     private HomePreviewService service() {
         return new HomePreviewService(candidateReader, replicaSellerRepository, aiResponseService,
-            Optional.of(picker));
+            Optional.of(picker), metrics);
     }
 
     // 상품 ID 순서가 선호 점수 순서인 후보를 읽게 한다

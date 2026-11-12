@@ -80,6 +80,10 @@ class HomePreviewServiceTest {
             Duration.ofHours(24), new RecommendAiMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP));
     }
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    private final RecommendAiMetrics metrics = new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP);
+
     @Test
     @DisplayName("HOME-03 AI가 고른 상품을 AI 답 순서와 이유 그대로 돌려준다")
     void aiPicksWithReasons() {
@@ -212,7 +216,7 @@ class HomePreviewServiceTest {
 
     private HomePreviewService service(HomePreviewPicker picker) {
         return new HomePreviewService(candidateReader, replicaSellerRepository, aiResponseService,
-            Optional.ofNullable(picker));
+            Optional.ofNullable(picker), metrics);
     }
 
     // 상품 ID 순서가 선호 점수 순서인 후보를 읽게 한다

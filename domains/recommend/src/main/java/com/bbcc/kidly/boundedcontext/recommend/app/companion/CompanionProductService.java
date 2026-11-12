@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.companion;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductsResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductsWithAi;
@@ -38,20 +39,23 @@ public class CompanionProductService {
     private final AiResponseService aiResponseService;
     // OpenAI 키가 없으면 AI 선택 빈이 만들어지지 않으므로 Optional로 받는다.
     private final Optional<CompanionAiPicker> aiPicker;
+    private final RecommendAiMetrics metrics;
 
     public CompanionProductService(
         CompanionCandidateReader candidateReader,
         AiResponseService aiResponseService,
-        Optional<CompanionAiPicker> aiPicker
+        Optional<CompanionAiPicker> aiPicker,
+        RecommendAiMetrics metrics
     ) {
         this.candidateReader = candidateReader;
         this.aiResponseService = aiResponseService;
         this.aiPicker = aiPicker;
+        this.metrics = metrics;
     }
 
     public CompanionProductsResult recommend(Long memberId, Long productId, Long childId) {
         CompanionCandidates candidates = candidateReader.read(memberId, productId, childId);
-        return toResults(CompanionSelection.of(askAi(productId, candidates), candidates.ranked()), candidates);
+        return toResults(select(askAi(productId, candidates), candidates), candidates);
     }
 
     /**
@@ -76,11 +80,24 @@ public class CompanionProductService {
         if (answer.isEmpty()) {
             return Optional.empty();
         }
-        CompanionSelection selection = CompanionSelection.of(answer.get().picks(), candidates.ranked());
+        CompanionSelection selection = select(answer, candidates);
         if (selection.source() != CompanionSource.AI) {
             return Optional.empty();
         }
         return Optional.of(toResults(selection, candidates));
+    }
+
+    // AI 답이 있었는데 고른 상품이 모두 후보 밖이라 출처가 AI가 아니면 검증에서 버린 것으로 센다
+    private CompanionSelection select(Optional<CompanionAiAnswer> answer, CompanionCandidates candidates) {
+        List<CompanionAiPick> picks = null;
+        if (answer.isPresent()) {
+            picks = answer.get().picks();
+        }
+        CompanionSelection selection = CompanionSelection.of(picks, candidates.ranked());
+        if (answer.isPresent() && selection.source() != CompanionSource.AI) {
+            metrics.recordRejected(AiResponseType.BOUGHT_TOGETHER);
+        }
+        return selection;
     }
 
     private CompanionProductsResult toResults(CompanionSelection selection, CompanionCandidates candidates) {
@@ -91,20 +108,16 @@ public class CompanionProductService {
         return new CompanionProductsResult(selection.source(), products);
     }
 
-    // AI 결과가 없으면 null을 돌려주고, 고르는 쪽(CompanionSelection)이 규칙 결과로 대신한다
-    private List<CompanionAiPick> askAi(Long productId, CompanionCandidates candidates) {
+    // AI 결과가 없으면 빈 값을 돌려주고, 고르는 쪽(CompanionSelection)이 규칙 결과로 대신한다
+    private Optional<CompanionAiAnswer> askAi(Long productId, CompanionCandidates candidates) {
         // OpenAI 키가 없으면 AI 선택 빈이 없고, 후보가 없으면 고를 것이 없으므로 AI 공통 서비스를 부르지 않는다
         if (aiPicker.isEmpty() || candidates.ranked().isEmpty()) {
-            return null;
+            return Optional.empty();
         }
         CompanionAiPicker picker = aiPicker.get();
         // BOUGHT_TOGETHER는 함께 사면 좋은 상품 답을 뜻한다.
-        Optional<CompanionAiAnswer> answer = aiResponseService.respond(AiResponseType.BOUGHT_TOGETHER,
+        return aiResponseService.respond(AiResponseType.BOUGHT_TOGETHER,
             aiInput(productId, candidates), CompanionAiAnswer.class, () -> picker.pick(candidates.aiRequest()));
-        if (answer.isEmpty()) {
-            return null;
-        }
-        return answer.get().picks();
     }
 
     private AiResponseKey.Input aiInput(Long productId, CompanionCandidates candidates) {
