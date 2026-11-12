@@ -2,9 +2,13 @@ package com.bbcc.kidly.boundedcontext.recommend.app.ai;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.config.MeterFilter;
+import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import java.time.Duration;
 import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
@@ -21,8 +25,10 @@ public class RecommendAiMetrics {
 
     static final String REQUESTS = "kidly.recommend.ai.requests";
     static final String STORE_LOOKUPS = "kidly.recommend.ai.store.lookups";
+    private static final double[] CALL_TIME_BOUNDARY_SECONDS = {1, 2, 3, 3.5, 4, 4.5, 5, 6, 8, 10};
     static final String AI_CALL = "kidly.recommend.ai.call";
     static final String REJECTED = "kidly.recommend.ai.rejected";
+    static final String FEATURE_KEY = "feature";
     static final String DAILY_CALLS = "kidly.recommend.ai.daily.calls";
 
     /**
@@ -64,12 +70,32 @@ public class RecommendAiMetrics {
     }
 
     /**
+     * AI 호출 시간 Timer만 AI 대기 제한 시간(3 · 3.5 · 4초 등) 경계에 맞춘 구간으로 센다.
+     * 구간 경계가 제한 시간과 맞아야 제한을 넘은 호출의 비율을 정확히 구할 수 있다.
+     */
+    public static MeterFilter callTimeBuckets() {
+        double[] boundaries = new double[CALL_TIME_BOUNDARY_SECONDS.length];
+        for (int i = 0; i < boundaries.length; i++) {
+            boundaries[i] = Duration.ofMillis((long) (CALL_TIME_BOUNDARY_SECONDS[i] * 1000)).toNanos();
+        }
+        return new MeterFilter() {
+            @Override
+            public DistributionStatisticConfig configure(Meter.Id id, DistributionStatisticConfig config) {
+                if (id.getType() != Meter.Type.TIMER || !AI_CALL.equals(id.getName())) {
+                    return config;
+                }
+                return DistributionStatisticConfig.builder().serviceLevelObjectives(boundaries).build().merge(config);
+            }
+        };
+    }
+
+    /**
      * AI 호출 시간을 기능 이름을 붙여 잰다. 돌려준 Supplier를 AI를 부르는 스레드에서 실행해야 그 스레드에서 관측이 열린다.
      * 제한 시간을 넘겨 화면이 먼저 끊어도 호출이 끝날 때까지 잰다.
      */
     public <T> Supplier<T> observeCall(AiResponseType feature, Supplier<T> call) {
         return () -> Observation.createNotStarted(AI_CALL, observationRegistry)
-            .lowCardinalityKeyValue("feature", tagValue(feature))
+            .lowCardinalityKeyValue(FEATURE_KEY, tagValue(feature))
             .observe(call);
     }
 

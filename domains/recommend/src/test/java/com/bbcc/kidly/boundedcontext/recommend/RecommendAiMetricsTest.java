@@ -3,6 +3,10 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.DisplayName;
@@ -43,5 +47,20 @@ class RecommendAiMetricsTest {
         assertThat(registry.find("kidly.recommend.ai.requests").counters()).hasSize(15);
         assertThat(registry.find("kidly.recommend.ai.store.lookups").counters()).hasSize(9);
         assertThat(registry.find("kidly.recommend.ai.rejected").counters()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("AI 호출 시간은 AI 대기 경계(3 · 3.5 · 4초 등)에 맞춘 구간으로 세어, 제한을 넘은 비율을 정확히 구할 수 있다")
+    void bucketCallTimeAtTimeoutBoundaries() {
+        registry.config().meterFilter(RecommendAiMetrics.callTimeBuckets());
+        ObservationRegistry observations = ObservationRegistry.create();
+        observations.observationConfig().observationHandler(new DefaultMeterObservationHandler(registry));
+        RecommendAiMetrics metrics = new RecommendAiMetrics(registry, observations);
+
+        metrics.observeCall(AiResponseType.SIZE_RECOMMENDATION, () -> "답").get();
+
+        double[] boundaries = Arrays.stream(registry.get("kidly.recommend.ai.call").timer().takeSnapshot()
+            .histogramCounts()).mapToDouble(bucket -> bucket.bucket(TimeUnit.SECONDS)).toArray();
+        assertThat(boundaries).containsExactly(1, 2, 3, 3.5, 4, 4.5, 5, 6, 8, 10);
     }
 }
