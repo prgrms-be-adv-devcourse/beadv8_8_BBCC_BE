@@ -8,12 +8,20 @@ import static com.bbcc.kidly.boundedcontext.recommend.ActivityRecordFixture.FAVO
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
+import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord.FavoriteInfo;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Stream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -75,5 +83,40 @@ class ActivityRecordFavoriteTest {
     @DisplayName("PREF-21 탈퇴로 지운 찜과 모르는 원인은 관심을 거둔 찜으로 보지 않는다")
     void otherRemovalIsNotWithdrawnByMember(String cause) {
         assertThat(ActivityRecord.isFavoriteWithdrawnByMember(cause)).isFalse();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("favoritesWithNull")
+    @DisplayName("찜 · 찜 해제 값에 필수 값이 없으면 활동 기록을 만들지 않는다")
+    void rejectFavoriteWithNull(ThrowingCallable creation) {
+        assertThatThrownBy(creation)
+            .isInstanceOf(NullPointerException.class)
+            .hasMessageContaining("필수입니다");
+    }
+
+    static Stream<Named<ThrowingCallable>> favoritesWithNull() {
+        Stream.Builder<Named<ThrowingCallable>> cases = Stream.builder();
+        for (Named<Function<FavoriteInfo, ActivityRecord>> factory : factories()) {
+            String name = factory.getName();
+            Function<FavoriteInfo, ActivityRecord> create = factory.getPayload();
+            cases.add(Named.of(name + " 값", () -> create.apply(null)));
+            cases.add(Named.of(name + " 이벤트 ID", () -> create.apply(new FavoriteInfo(
+                null, FAVORITE_ID, MEMBER_1_ID, PRODUCT_A_ID, FAVORITED_AT))));
+            cases.add(Named.of(name + " 찜 ID", () -> create.apply(new FavoriteInfo(
+                FAVORITE_EVENT_ID, null, MEMBER_1_ID, PRODUCT_A_ID, FAVORITED_AT))));
+            cases.add(Named.of(name + " 회원 ID", () -> create.apply(new FavoriteInfo(
+                FAVORITE_EVENT_ID, FAVORITE_ID, null, PRODUCT_A_ID, FAVORITED_AT))));
+            cases.add(Named.of(name + " 상품 ID", () -> create.apply(new FavoriteInfo(
+                FAVORITE_EVENT_ID, FAVORITE_ID, MEMBER_1_ID, null, FAVORITED_AT))));
+            cases.add(Named.of(name + " 시각", () -> create.apply(new FavoriteInfo(
+                FAVORITE_EVENT_ID, FAVORITE_ID, MEMBER_1_ID, PRODUCT_A_ID, null))));
+        }
+        return cases.build();
+    }
+
+    private static List<Named<Function<FavoriteInfo, ActivityRecord>>> factories() {
+        return List.of(
+            Named.of("찜", ActivityRecord::favoriteAdded),
+            Named.of("찜 해제", ActivityRecord::favoriteRemoved));
     }
 }
