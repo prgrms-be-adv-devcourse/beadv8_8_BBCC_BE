@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChild
 import com.bbcc.kidly.boundedcontext.recommend.in.RecommendKafkaListenerConfig;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordedEvent;
+import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordDeletedEvent;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -14,7 +15,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * kidly.childprofile.events에서 child.changed를 받아 자녀 복사본 반영을, child.growth-recorded를 받아 성장 기록 저장을 맡긴다.
  * 같은 메시지를 다시 받아도 복사본은 저장된 시각보다 늦은 변경만 반영하고 성장 기록은 같은 기록 ID를 건너뛰므로,
- * 결과는 한 번 받은 것과 같다.
+ * 삭제는 없는 기록을 다시 지워도 변하지 않으므로 결과는 한 번 받은 것과 같다.
  */
 @Component
 @RequiredArgsConstructor
@@ -32,6 +33,8 @@ public class RecommendChildProfileEventListener {
                 replicaChildService.applyChildChanged(jsonMapper.readValue(record.value(), ChildChangedEvent.class));
             case "child.growth-recorded" -> growthRecordService.recordGrowth(
                 jsonMapper.readValue(record.value(), ChildGrowthRecordedEvent.class));
+            case "child.growth-record-deleted" -> growthRecordService.deleteGrowthRecord(
+                jsonMapper.readValue(record.value(), ChildGrowthRecordDeletedEvent.class));
             // 헤더가 없으면 어떤 이벤트인지 알 수 없어 재시도 없이 DLT로 보낸다
             case null -> throw new IllegalArgumentException("eventType 헤더가 없습니다");
             // 추천이 받지 않는 종류는 건너뛴다

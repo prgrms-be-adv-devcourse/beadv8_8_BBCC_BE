@@ -10,6 +10,7 @@
 | | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
 | | `child.growth-recorded` | 자녀 ID | | recommend |
+| | `child.growth-record-deleted` | 자녀 ID | | recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
 | | `child-account.changed` | 자녀 계정 ID | | childprofile, notification, order |
 | `kidly.product.events` | `product.changed`(data에 관리자 판매 중지 `stoppedByAdmin`, 판매 시작 시각 `saleStartedAt`, 카테고리 경로마다 보일 성별 `visibleGender`) | 상품 ID | product | community, notification, order, recommend, search |
@@ -44,6 +45,7 @@
 - `wish.approved` · `wish.item-added`는 #999에서 보내지 않습니다(승인 단계 · 공용 장바구니를 없앰, 받는 도메인 없음).
 - `child.changed`는 관리자 `POST /api/v1/admin/children/changed-events`로 삭제되지 않은 자녀 전체를 지금 값으로 다시 보낼 수 있습니다(#1055). 형식 · 키는 같고 `eventId` · `occurredAt`만 새로 정합니다. 받는 도메인(auth · order · recommend)은 여러 번 받아도 결과가 같습니다.
 - `child.growth-recorded`는 관리자 `POST /api/v1/admin/children/growth-recorded-events`로 삭제되지 않은 자녀의 성장 이력을 다시 보낼 수 있습니다(#1110). `eventId`만 새로 정하며 받는 쪽은 `growthRecordId`로 중복을 거릅니다.
+- `child.growth-record-deleted`는 보호자가 잘못 입력한 성장 이력을 지울 때 보냅니다(#1293). 추천은 같은 `growthRecordId`의 기록을 지우고, 없으면 그대로 둡니다. 추천을 먼저 배포한 뒤 자녀 프로필을 배포합니다.
 - 새 이벤트를 만들거나 토픽, 키, 메시지 형식을 바꾸려면 팀에 먼저 묻습니다. 결정되면 이 표에 추가합니다.
 
 ---
