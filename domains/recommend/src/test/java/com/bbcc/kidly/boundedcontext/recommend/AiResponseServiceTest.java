@@ -150,6 +150,18 @@ class AiResponseServiceTest {
         assertThat(count("kidly.recommend.ai.requests", "error")).isZero();
     }
 
+    @Test
+    @DisplayName("저장소가 저장 답을 읽지 못하면 저장 답 조회 error를 세고, miss는 세지 않는다")
+    void countLookupError() {
+        given(store.find(TYPE, KEY)).willThrow(new QueryTimeoutException("Redis 시간 초과"));
+        given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(true);
+
+        service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(count("kidly.recommend.ai.store.lookups", "error")).isEqualTo(1);
+        assertThat(count("kidly.recommend.ai.store.lookups", "miss")).isZero();
+    }
+
     // TYPE(홈 맛보기)의 그 결과 카운터 값이다
     private double count(String name, String result) {
         return meterRegistry.get(name).tag("feature", "home_preview").tag("result", result).counter().count();

@@ -226,6 +226,7 @@ public class AiResponseService {
             metrics.recordLookup(type, RecommendAiMetrics.LookupResult.HIT);
             return Optional.of(value);
         } catch (RuntimeException e) {
+            metrics.recordLookup(type, RecommendAiMetrics.LookupResult.ERROR);
             log.warn("저장된 AI 응답을 읽지 못해 없는 것으로 봅니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
             return Optional.empty();
