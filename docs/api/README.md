@@ -31,6 +31,7 @@
 | GET | `/api/v1/admin/auth-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/auth-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 | POST | `/api/v1/dev/tokens` | 개발용 토큰 발급(local · test · dev 프로필에서만) | 🌐 |
+| POST | `/api/v1/dev/members` | 더미 회원 가입(`key` · `nickname`, 같은 `key`면 기존 회원을 200으로, 이메일 없음). local · test · dev 프로필에서만 | 🌐 |
 
 ## 회원
 
@@ -57,6 +58,7 @@
 |---|---|---|---|
 | POST | `/api/v1/guardian-verification` | 본인인증 거래번호 `identityVerificationId`로 인증, 201과 Location | 🔒 |
 | GET | `/api/v1/guardian-verification` | 인증 여부 `verified`와 인증 시각 `verifiedAt` 조회(미인증이면 `false`, `null`) | 🔒 |
+| POST | `/api/v1/dev/guardian-verifications` | 포트원 없이 내 보호자 본인인증 기록 만들기(이미 있으면 그대로 200). local · test · dev 프로필에서만 | 🔒 |
 | POST | `/api/v1/children` | 자녀 등록(만 14세 미만, 필수 동의 `requiredConsent` · 선택 동의 `optionalConsent`, 본인인증 전 403) | 🔒 |
 | GET | `/api/v1/children` | 내 자녀 목록 | 🔒 |
 | GET | `/api/v1/children/{childId}` | 자녀 상세 | 🔒 |
@@ -278,10 +280,11 @@
 | POST | `/api/v1/wallets/me/charges/fail` | 결제창 실패 · 취소를 충전 실패로 반영 | 🔒 |
 | POST | `/api/v1/wallets/me/charges/{chargeId}/cancel` | 충전 취소 | 🔒 |
 | POST | `/api/v1/dev/wallets/me/charges` | 개발용 예치금 충전(토스 없이 내 지갑에 입금, 원장 `DEV_CHARGE`). local · test · dev 프로필에서만 | 🔒 |
-| GET | `/api/v1/payments` | 주문 결제 · 환불 내역 | 🔒 |
+| GET | `/api/v1/payments` | 주문 결제 · 환불 내역. `orderId`를 주면 그 주문의 내 결제만(0 또는 1건) | 🔒 |
 | GET | `/api/v1/payments/{paymentId}` | 주문 결제 · 환불 상세 | 🔒 |
 | POST | `/api/v1/webhooks/toss` | 토스 웹훅. 토스에서 직접 취소한 충전을 맞춤 | 🌐 |
 | GET | `/api/v1/admin/payments` | 전체 결제 · 환불 조회 | 🛠 |
+| GET | `/api/v1/admin/payments/summary` | 결제일 기준 날짜별 결제 금액 · 건수(`from` · `to`, 한국 시간, 비우면 오늘, 최대 31일)와 환불 이력이 있는 결제 전체 건수 | 🛠 |
 | GET | `/api/v1/admin/wallets` | 지갑 목록(`frozen` · `hasBalance`로 거름) | 🛠 |
 | POST | `/api/v1/admin/wallets/{walletId}/return-balance` | 동결 지갑의 잔액을 환급했다고 기록하고 0으로 만듦(송금은 하지 않음) | 🛠 |
 

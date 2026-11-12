@@ -27,6 +27,7 @@ public enum PaymentErrorCode implements ErrorCode {
     PG_RESULT_UNKNOWN(HttpStatus.SERVICE_UNAVAILABLE, "결제대행사 결과를 확인하지 못했습니다", "잠시 뒤 다시 시도해 주세요."),
     INVALID_CHARGE_STATUS(HttpStatus.CONFLICT, "처리할 수 없는 충전 상태입니다", "현재 충전 상태에서는 요청을 처리할 수 없습니다."),
     INVALID_PAYMENT_STATUS(HttpStatus.CONFLICT, "처리할 수 없는 결제 상태입니다", "현재 결제 상태에서는 요청을 처리할 수 없습니다."),
+    INVALID_SUMMARY_PERIOD(HttpStatus.BAD_REQUEST, "조회할 수 없는 기간입니다", "시작일은 종료일보다 늦을 수 없고, 한 번에 31일까지 조회할 수 있습니다."),
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제를 찾을 수 없습니다", "해당 결제가 없습니다."),
     PAYMENT_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 항목을 찾을 수 없습니다", "결제에 해당 주문상품이 없습니다."),
     REFUND_AMOUNT_EXCEEDED(HttpStatus.CONFLICT, "환불 가능 금액을 넘었습니다", "결제한 금액보다 많이 환불할 수 없습니다.");

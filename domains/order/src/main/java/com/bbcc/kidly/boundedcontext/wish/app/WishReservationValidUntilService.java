@@ -43,7 +43,7 @@ public class WishReservationValidUntilService {
     }
 
     /**
-     * afterId 다음 진행 중 조르기 ID limit건(배치가 낙관적 락으로 실패했을 때 한 건씩 다시 맞추려고 쓴다).
+     * afterId 다음 진행 중 조르기 ID limit건(배치가 잠금 실패(교착 등)로 졌을 때 한 건씩 다시 맞추려고 쓴다, #1207).
      */
     @Transactional(readOnly = true)
     public List<Long> requestIds(Long afterId, int limit) {
