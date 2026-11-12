@@ -18,7 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Retention(RetentionPolicy.RUNTIME)
 @Tag("integration")
 @SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, FakeChatbotAiConfiguration.class})
 @ActiveProfiles("test")
 @ExtendWith(DatabaseCleanerExtension.class)
 public @interface IntegrationTest {

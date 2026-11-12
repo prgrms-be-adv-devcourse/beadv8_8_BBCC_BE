@@ -1,6 +1,9 @@
 spring:
   application:
     name: kidly-chatbot
+  # 챗봇 도메인 설정(답변 근거 찾기)
+  config:
+    import: classpath:chatbot.yml
   profiles:
     default: local
   # 자기 스키마만 다룬다. 처음부터 이 서비스만 챗봇 마이그레이션을 적용하므로 baseline이 없다
@@ -23,6 +26,30 @@ spring:
           handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
         session_factory:
           statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
+  # OpenAI(Chat Completions · 임베딩). 챗봇은 chat과 임베딩만 쓰므로 나머지 모델의 자동 설정은 끈다.
+  # 키가 없는 로컬 · 테스트 · CI에서는 ChatbotAiKeyApplicationListener가 chat과 임베딩 모델 빈도 만들지 않고, 문서 저장 · 근거가 있는 질문의 답변은 503이다
+  ai:
+    model:
+      image: none
+      audio:
+        speech: none
+        transcription: none
+      moderation: none
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        model: gpt-6.1-terra
+        reasoning-effort: low
+        # 추론 토큰도 이 상한에 들어간다
+        max-completion-tokens: 2048
+        # 회원이 화면에서 기다리므로 한 번 부를 때 기다리는 시간을 짧게 두고, 일시적인 오류(429 · 5xx 등)는 한 번만 다시 부른다
+        timeout: 15s
+        max-retries: 1
+      embedding:
+        # 이름을 바꾸면 이미 저장한 조각과 차원이 달라 비교하지 않는다. 바꾼 뒤에는 문서를 다시 저장한다
+        model: text-embedding-3-small
+        timeout: 10s
+        max-retries: 1
 
 springdoc:
   swagger-ui:

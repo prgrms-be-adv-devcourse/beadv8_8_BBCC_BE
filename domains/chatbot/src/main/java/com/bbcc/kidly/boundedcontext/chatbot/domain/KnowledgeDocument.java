@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.chatbot.domain;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -27,6 +29,26 @@ public class KnowledgeDocument extends BaseTimeEntity {
     @Column(nullable = false, length = 200)
     private String title;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private KnowledgeCategory category;
+
     @Column(nullable = false, columnDefinition = "text")
     private String content;
+
+    private KnowledgeDocument(String title, KnowledgeCategory category, String content) {
+        this.title = title;
+        this.category = category;
+        this.content = content;
+    }
+
+    public static KnowledgeDocument create(String title, KnowledgeCategory category, String content) {
+        return new KnowledgeDocument(title, category, content);
+    }
+
+    public void revise(String title, KnowledgeCategory category, String content) {
+        this.title = title;
+        this.category = category;
+        this.content = content;
+    }
 }

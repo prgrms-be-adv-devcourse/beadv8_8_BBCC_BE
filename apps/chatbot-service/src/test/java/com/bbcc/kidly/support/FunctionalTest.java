@@ -13,13 +13,14 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * 기능 테스트: 실제 포트로 앱을 띄우고 RestTestClient로 HTTP 요청을 보낸다. 테스트가 끝나면 모든 테이블을 비운다.
+ * AI는 가짜 모델(FakeChatbotAiConfiguration)이 답한다.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Tag("functional")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureRestTestClient
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, FakeChatbotAiConfiguration.class})
 @ActiveProfiles("test")
 @ExtendWith(DatabaseCleanerExtension.class)
 public @interface FunctionalTest {
