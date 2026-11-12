@@ -162,7 +162,7 @@ groups:
       model:
         refId: A
         expr: >-
-          max by(env,job) (
+          max by(env,job,pool) (
             (hikaricp_connections_pending > 0)
             and (time() - timestamp(hikaricp_connections_pending) < 60)
             and on(env,job,instance,pool) (
@@ -188,5 +188,5 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: '{{ $labels.job }}에서 여유 DB 연결 없이 5분간 요청이 대기했습니다'
+      summary: '{{ $labels.job }} · {{ $labels.pool }} 풀에서 여유 DB 연결 없이 5분간 요청이 대기했습니다'
       description: DB 연결 대기와 타임아웃을 확인하세요. 같은 시간의 요청량, 연결 획득 시간, DB 쿼리 지연을 확인해 원인을 좁히세요.
