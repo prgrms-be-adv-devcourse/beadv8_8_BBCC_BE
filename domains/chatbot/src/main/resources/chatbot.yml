@@ -10,6 +10,9 @@ kidly:
     # 상품 검색 도구가 부르는 검색 서비스(#1191). 내부 경로 GET /internal/products/search를 부른다
     search:
       uri: ${KIDLY_SEARCH_URI:http://localhost:8082}
+    # 내 주문 조회 도구가 부르는 주문 서비스(#1191). 내부 경로 GET /internal/members/{memberId}/orders를 부른다
+    order:
+      uri: ${KIDLY_ORDER_URI:http://localhost:8091}
 
 ---
 spring:
@@ -20,3 +23,5 @@ kidly:
   chatbot:
     search:
       uri: ${KIDLY_SEARCH_URI}
+    order:
+      uri: ${KIDLY_ORDER_URI}
