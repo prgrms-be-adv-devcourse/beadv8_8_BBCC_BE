@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
+import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileUpdateRequest;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
@@ -173,5 +174,28 @@ class ChildProfileOutboxRecorderIntegrationTest {
         return jdbcTemplate.queryForList(
             "select event_id, event_type, topic, message_key, payload "
                 + "from childprofile.child_profile_outbox order by id");
+    }
+
+    @Test
+    @DisplayName("성장 이력 삭제 시 프로필 변경과 삭제 이벤트를 순서대로 저장한다")
+    void growthDeletionPublishesInOrder() {
+        var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
+        childProfileService.update(MEMBER_ID, childId, updateRequest("117.0"));
+        childProfileService.update(MEMBER_ID, childId, updateRequest("119.0"));
+        var records = childProfileService.getGrowthRecords(MEMBER_ID, childId);
+        int before = outboxRows().size();
+        childProfileService.deleteGrowthRecord(MEMBER_ID, childId, records.get(1).id());
+        assertThat(outboxRows().subList(before, outboxRows().size()))
+            .extracting(row -> row.get("event_type")).containsExactly("child.growth-record-deleted");
+        before = outboxRows().size();
+        childProfileService.deleteGrowthRecord(MEMBER_ID, childId, records.get(2).id());
+        assertThat(outboxRows().subList(before, outboxRows().size()))
+            .extracting(row -> row.get("event_type"))
+            .containsExactly("child.changed", "child.growth-record-deleted");
+    }
+
+    private static ChildProfileUpdateRequest updateRequest(String height) {
+        return new ChildProfileUpdateRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
+            new BigDecimal(height), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE);
     }
 }
