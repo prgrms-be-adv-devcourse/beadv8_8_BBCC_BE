@@ -13,6 +13,7 @@ import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 알림함. 알림을 넣고, 로그인 주체(회원 · 자녀 계정)가 자기 알림을 보고 읽음 처리한다. 오래된 알림은 정리한다.
+ * 안 읽은 수가 바뀌면(넣기 · 읽음) InboxChanged를 발행해, 커밋 뒤 열린 SSE 연결에 새 안 읽은 수를 보낸다.
  * 로그인 주체(PrincipalId)를 받는 사람(InboxRecipient)으로 바꿔 늘 종류와 ID로 거른다. 같은 숫자 ID의 다른 종류 주체 알림은 보이지도 바뀌지도 않는다.
  */
 @Slf4j
@@ -29,6 +31,7 @@ public class InboxNotificationService {
 
     private final InboxNotificationRepository inboxNotificationRepository;
     private final WithdrawnMemberRepository withdrawnMemberRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 알림함에 넣는다. 같은 dedupKey가 이미 있으면 넣지 않는다(같은 이벤트를 다시 받거나 동시에 받아도 한 건).
@@ -45,7 +48,9 @@ public class InboxNotificationService {
                 return;
             }
         }
-        inboxNotificationRepository.saveIfAbsent(InboxNotification.create(info), LocalDateTime.now());
+        if (inboxNotificationRepository.saveIfAbsent(InboxNotification.create(info), LocalDateTime.now())) {
+            eventPublisher.publishEvent(InboxChanged.of(recipient));
+        }
     }
 
     @Transactional(readOnly = true)
@@ -67,6 +72,7 @@ public class InboxNotificationService {
         inboxNotificationRepository.findByIdAndRecipient(notificationId, InboxRecipient.of(principal))
             .orElseThrow(() -> new BusinessException(NotificationErrorCode.NOTIFICATION_NOT_FOUND))
             .read(LocalDateTime.now());
+        eventPublisher.publishEvent(new InboxChanged(principal));
     }
 
     /**
@@ -74,7 +80,9 @@ public class InboxNotificationService {
      */
     @Transactional
     public void readAll(PrincipalId principal) {
-        inboxNotificationRepository.readAllUnread(InboxRecipient.of(principal), LocalDateTime.now());
+        if (inboxNotificationRepository.readAllUnread(InboxRecipient.of(principal), LocalDateTime.now()) > 0) {
+            eventPublisher.publishEvent(new InboxChanged(principal));
+        }
     }
 
     /**

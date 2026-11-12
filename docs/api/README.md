@@ -365,10 +365,12 @@
 |---|---|---|---|
 | GET | `/api/v1/notifications` | 내 알림함(최신순, `page` · `size` 1~100, 기본 0 · 20) | 🔒 |
 | GET | `/api/v1/notifications/unread-count` | 안 읽은 내 알림 개수 `{ count }` | 🔒 |
+| GET | `/api/v1/notifications/stream` | 안 읽은 내 알림 개수 SSE(`text/event-stream`). 연결하면 지금 개수를, 알림이 들어오거나 읽으면 새 개수를 `unread-count` 이벤트(`{ count }`)로 보낸다. 30초마다 주석(`:ping`), 30분 뒤 서버가 닫으므로 끊기면 다시 연결 | 🔒 |
 | PATCH | `/api/v1/notifications/{notificationId}/read` | 읽음 처리(204, 다시 해도 204). 없거나 남의 알림은 404 | 🔒 |
 | PATCH | `/api/v1/notifications/read-all` | 내 안 읽은 알림 모두 읽음 처리(204, 없어도 204). 이미 읽은 알림의 읽은 시각은 그대로 | 🔒 |
 | GET | `/api/v1/child/notifications` | 자녀 계정이 자기 알림함 조회. 응답 · 규칙은 회원 알림함과 같다 | 🔒 |
 | GET | `/api/v1/child/notifications/unread-count` | 자녀 계정의 안 읽은 알림 개수 `{ count }` | 🔒 |
+| GET | `/api/v1/child/notifications/stream` | 자녀 계정의 안 읽은 알림 개수 SSE. 규칙은 회원 `/stream`과 같다 | 🔒 |
 | PATCH | `/api/v1/child/notifications/{notificationId}/read` | 자녀 계정의 알림 읽음 처리(204). 없거나 다른 주체의 알림은 404 | 🔒 |
 | PATCH | `/api/v1/child/notifications/read-all` | 자녀 계정의 안 읽은 알림 모두 읽음 처리(204) | 🔒 |
 | PUT | `/api/v1/notifications/push-tokens` | 이 브라우저의 웹 푸시 FID 등록. 본문 `{ fid }`(1~1024자). 204, 다시 해도 204. 다른 회원이 쓰던 FID면 주인을 바꾼다 | 🔒 |
