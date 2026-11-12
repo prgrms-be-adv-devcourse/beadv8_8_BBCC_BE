@@ -2,17 +2,20 @@
 
 ## 3.1 전체 구성
 
-세미의 **모듈러 모놀리스**(앱 1개 · 배포 1개 · DB 1개)에서 출발해, 도메인 사이 이벤트를 **Kafka**로 옮기고 서비스를 하나씩 떼어 내고 있습니다. 모든 요청은 **API Gateway**를 거치고, 서비스끼리는 서로 부르지 않습니다.
+세미의 **모듈러 모놀리스**(앱 1개 · 배포 1개 · DB 1개)에서 출발해, 도메인 사이 이벤트를 **Kafka**로 옮기고 도메인마다 서비스로 떼어 냈습니다. 모든 요청은 **API Gateway**를 거치고, 서비스끼리는 서로 부르지 않습니다.
 
 ![그림](images/23.svg)
 
-- 요청은 화면 → **API Gateway**(dev 8083 · prod 8084) → 서비스로 갑니다. Gateway가 토큰 검증 · 무효화 확인 · 역할 검사 · CORS를 하고 검증된 회원 정보를 헤더로 넘깁니다. 서비스는 Gateway 뒤에서만 열린다는 전제입니다.
+- 요청은 화면 → Nginx(HTTPS) → **API Gateway** → 서비스로 갑니다. Gateway가 토큰 검증 · 무효화 확인 · 역할 검사 · CORS를 하고 검증된 회원 정보를 헤더로 넘깁니다. 서비스는 Gateway 뒤에서만 열린다는 전제입니다.
 - Gateway는 경로별로 도메인 서비스에 보냅니다. `GET /api/v1/products`는 search-service가 처리합니다.
 - 도메인 사이는 Kafka 이벤트로만 주고받습니다(토픽은 3.3). 다른 도메인 정보는 이벤트로 받아 둔 복사본을 씁니다 (6.3).
-- 서버는 EC2 2대입니다: t3.large(Docker Compose: Gateway · 도메인 서비스 · PostgreSQL · Kafka)와 t3.medium(k3s: Elasticsearch · 모니터링). 상품 이미지는 S3, 배포는 GitHub Actions가 맡습니다.
-- 검색 서비스(search-service)는 독립된 Spring Boot 앱입니다. 앱 서버 t3.large의 docker compose에서 돌고(프로필 `search`, heap 512m), 서버 안 `127.0.0.1:8082`에만 열립니다.
-- Elasticsearch(공식 이미지 + nori)는 모니터링과 같은 t3.medium의 k3s에서 돕니다(namespace `search`, heap 1g, 데이터 10Gi). 검색 서비스는 VPC 안에서 NodePort 30920으로 붙고, 보안 그룹은 t3.large에서 오는 것만 받습니다.
-- 지금은 dev만 켜져 있습니다. 배포는 앱 배포 워크플로가 Elasticsearch를 먼저 올린 뒤 검색 서비스를 올립니다. Elasticsearch 설정이나 이미지가 바뀌면 다시 뜨는 동안 2분쯤 검색이 끊깁니다.
+- 서버는 EC2 2대이고, 서버마다 k3s를 따로 설치해 두 클러스터가 서로 기대지 않습니다(#1028).
+  - t3.large(namespace `kidly-dev`): Gateway · 도메인 서비스 10개 · Redis(캐시). 같은 서버에 Nginx · 인증서 갱신(namespace `edge`)과 Pod 지표 · 로그 수집기 Alloy(namespace `monitoring`)도 k3s로 돕니다(#1142 · #1309 · #1210).
+  - t3.medium: PostgreSQL · Kafka(Redpanda) · Elasticsearch · 모니터링(Prometheus · Loki · Grafana). 앱은 사설 IP의 NodePort로 붙고, 보안 그룹은 t3.large에서 오는 것만 받습니다.
+  - 상품 이미지는 S3, 배포는 GitHub Actions가 맡습니다.
+- 배포는 소스가 바뀐 서비스만 하나씩 새 Pod가 준비된 뒤 옛 Pod를 내립니다. 추천은 CPU 사용률로 Pod를 1 ~ 2개로 늘리고 줄이고(HPA), 정산 실행은 매일 도는 CronJob입니다. 자세한 것은 `deploy/k3s/README.md`입니다.
+- dev가 운영 서버입니다. prod 배포 경로는 쓰지 않아 지웠습니다(#1213).
+- 검색 서비스(search-service)는 독립된 Spring Boot 앱으로 t3.large k3s에서 돌고(heap 384m), 클러스터 안에서만 열립니다. Elasticsearch(공식 이미지 + nori)는 t3.medium k3s에서 돕니다(namespace `search`, heap 512m, 데이터 10Gi). Elasticsearch 설정이나 이미지가 바뀌면 다시 뜨는 동안 2분쯤 검색이 끊깁니다.
 
 아래는 세미 때 구성(앱 1개 · EC2 1대)입니다. 참고로 남깁니다.
 

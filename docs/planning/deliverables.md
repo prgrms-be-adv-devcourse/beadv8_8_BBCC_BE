@@ -72,7 +72,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | 보내는 이벤트 | search.performed (최종, `kidly.search.events`, 키 회원 ID) |
 | 받는 이벤트 | product.changed 상품 문서 색인 · seller.changed 상호명 색인 (최종) |
 | 구독 그룹 · DLT | `kidly.search`. `kidly.product.events.search.dlt` · `kidly.seller.events.search.dlt`. 읽기 시작 위치는 latest라 기존 상품은 처음 채우기로 넣음. DLT는 검색이 같은 그룹으로 다시 읽어 Elasticsearch가 돌아오면 반영(#1026) |
-| 실행 | apps/search-service. dev만 켜짐: 검색 서비스는 t3.large compose(프로필 `search`), Elasticsearch는 t3.medium k3s(3.1). 모니터링은 앱과 나눈 job `kidly-search` · 로그 `service_name=kidly-search` |
+| 실행 | apps/search-service. 검색 서비스는 t3.large k3s, Elasticsearch는 t3.medium k3s(3.1). 모니터링은 앱과 나눈 job `kidly-search` · 로그 `service_name=kidly-search` |
 
 ## 추천 · heojungseok
 
