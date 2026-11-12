@@ -62,6 +62,29 @@ tests:
   - eval_time: 20m
     alertname: kidly-kafka-lag-growing
     exp_alerts: []
+- name: confirmed empty partition does not hide growth elsewhere
+  interval: 1m
+  input_series:
+  - series: kidly_kafka_exporter_expected{env="dev"}
+    values: 1+0x25
+  - series: up{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x25
+  - series: kafka_brokers{job="kidly-kafka",env="dev",instance="127.0.0.1:9308"}
+    values: 1+0x25
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events",instance="127.0.0.1:9308",partition="0"}
+    values: 1+1x25
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events",instance="127.0.0.1:9308",partition="1"}
+    values: "-1+0x25"
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",instance="127.0.0.1:9308",topic="kidly.product.events",partition="1"}
+    values: 0+0x25
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: kidly-kafka-lag-growing
+    exp_alerts:
+    - exp_labels:
+        env: dev
+        consumergroup: kidly.search
+        topic: kidly.product.events
 - name: intentional stop suppresses broker and lag calls
   interval: 1m
   input_series:
