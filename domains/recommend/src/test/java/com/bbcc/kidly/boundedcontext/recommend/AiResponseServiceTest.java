@@ -138,6 +138,18 @@ class AiResponseServiceTest {
         assertThat(count("kidly.recommend.ai.requests", "error")).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("하루 호출 상한에 걸리면 요청 결과 daily_limit을 세고 error는 세지 않는다")
+    void countDailyLimit() {
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
+        given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(false);
+
+        service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(count("kidly.recommend.ai.requests", "daily_limit")).isEqualTo(1);
+        assertThat(count("kidly.recommend.ai.requests", "error")).isZero();
+    }
+
     // TYPE(홈 맛보기)의 그 결과 카운터 값이다
     private double count(String name, String result) {
         return meterRegistry.get(name).tag("feature", "home_preview").tag("result", result).counter().count();

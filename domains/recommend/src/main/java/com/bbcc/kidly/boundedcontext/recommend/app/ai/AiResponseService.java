@@ -133,6 +133,9 @@ public class AiResponseService {
         if (quotaResult == QuotaResult.ERROR) {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
         }
+        if (quotaResult == QuotaResult.LIMIT) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.DAILY_LIMIT);
+        }
         if (quotaResult != QuotaResult.ACQUIRED) {
             return Optional.empty();
         }
