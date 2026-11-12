@@ -9,6 +9,8 @@ public enum PreferenceSignalType {
     PRODUCT_VIEWED(PreferenceWeights.VIEW_INTENSITY, PreferenceWeights.ACTIVITY_WINDOW_DAYS, true, true),
     CART_ITEM_ADDED(PreferenceWeights.CART_ADD_INTENSITY, PreferenceWeights.ACTIVITY_WINDOW_DAYS, true, true),
     WISH_SENT(PreferenceWeights.WISH_SENT_INTENSITY, PreferenceWeights.ACTIVITY_WINDOW_DAYS, true, true),
+    FAVORITE_ADDED(
+            PreferenceWeights.FAVORITE_ADDED_INTENSITY, PreferenceWeights.ACTIVITY_WINDOW_DAYS, true, true),
     SEARCH(PreferenceWeights.SEARCH_INTENSITY, PreferenceWeights.ACTIVITY_WINDOW_DAYS, true, false),
     SEARCH_RESULT_CLICKED(
             PreferenceWeights.SEARCH_RESULT_CLICK_INTENSITY, PreferenceWeights.ACTIVITY_WINDOW_DAYS, true, true),
