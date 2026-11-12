@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.ChainedContentModerator;
+import com.bbcc.kidly.boundedcontext.review.out.moderation.ModerationAdapter;
+import com.bbcc.kidly.boundedcontext.review.out.moderation.SafeguardModerator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,7 +30,7 @@ class CommunityModerationConfigTest {
             PREFIX + "moderators[1]=ai",
             PREFIX + "banned-words[0]=나쁜말",
             PREFIX + "ai.base-url=http://127.0.0.1:9/openai/v1",
-            PREFIX + "ai.model=meta-llama/llama-guard-4-12b",
+            PREFIX + "ai.model=openai/gpt-oss-safeguard-20b",
             PREFIX + "ai.timeout=PT10S");
 
     @Test
@@ -88,6 +90,56 @@ class CommunityModerationConfigTest {
                 assertThat(context).hasFailed();
                 assertThat(context.getStartupFailure()).hasStackTraceContaining("kidly.community.moderation");
             });
+    }
+
+    @Test
+    @DisplayName("ai는 정책 기반 안전 분류 검사기다. 기본: 정책 classpath:moderation/review-policy.txt · temperature 0 · "
+        + "max_tokens 1024 · JSON 응답 형식 켬 · reasoning_effort 보내지 않음")
+    void aiDefaults() {
+        runner.withPropertyValues(PREFIX + "ai.api-key=" + KEY).run(context -> {
+            SafeguardModerator ai = (SafeguardModerator) context.getBean("communityAiModerator",
+                ModerationAdapter.class);
+            SafeguardModerator.Settings settings = ai.settings();
+            assertThat(settings.model()).isEqualTo("openai/gpt-oss-safeguard-20b");
+            assertThat(settings.policy()).contains("INSTRUCTIONS").contains("DEFINITIONS").contains("CRITERIA")
+                .contains("EXAMPLES").contains("\"violation\"").contains("PROFANITY").contains("PRIVACY")
+                .doesNotContain("{{USER_INPUT}}");
+            assertThat(settings.temperature()).isZero();
+            assertThat(settings.maxTokens()).isEqualTo(1024);
+            assertThat(settings.jsonResponse()).isTrue();
+            assertThat(settings.reasoningEffort()).isNull();
+            assertThat(settings.toString()).doesNotContain(KEY).doesNotContain("INSTRUCTIONS");
+        });
+    }
+
+    @Test
+    @DisplayName("정책 경로 · max_tokens · temperature · JSON 응답 형식 · reasoning_effort는 설정으로 바꾼다")
+    void aiOverrides() {
+        runner.withPropertyValues(PREFIX + "ai.api-key=" + KEY,
+                PREFIX + "ai.policy=classpath:moderation/test-policy.txt", PREFIX + "ai.max-tokens=512",
+                PREFIX + "ai.temperature=0.3", PREFIX + "ai.json-response=false", PREFIX + "ai.reasoning-effort=low")
+            .run(context -> {
+                SafeguardModerator.Settings settings = ((SafeguardModerator) context.getBean("communityAiModerator",
+                    ModerationAdapter.class)).settings();
+                assertThat(settings.policy()).isEqualTo("테스트 정책");
+                assertThat(settings.maxTokens()).isEqualTo(512);
+                assertThat(settings.temperature()).isEqualTo(0.3);
+                assertThat(settings.jsonResponse()).isFalse();
+                assertThat(settings.reasoningEffort()).isEqualTo("low");
+            });
+    }
+
+    @Test
+    @DisplayName("정책 파일이 없거나 비면 정책 키 이름이 나오는 오류로 기동에 실패한다. max_tokens가 1 미만이어도 실패")
+    void failsOnBadPolicyOrTokens() {
+        runner.withPropertyValues(PREFIX + "ai.api-key=" + KEY, PREFIX + "ai.policy=classpath:moderation/none.txt")
+            .run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).hasStackTraceContaining(PREFIX + "ai.policy");
+            });
+        runner.withPropertyValues(PREFIX + "ai.api-key=" + KEY, PREFIX + "ai.policy=classpath:moderation/blank.txt")
+            .run(context -> assertThat(context).hasFailed());
+        runner.withPropertyValues(PREFIX + "ai.max-tokens=0").run(context -> assertThat(context).hasFailed());
     }
 
     @Test
