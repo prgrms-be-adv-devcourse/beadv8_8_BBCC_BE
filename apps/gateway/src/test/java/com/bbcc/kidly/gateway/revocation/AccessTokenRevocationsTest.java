@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.shared.auth.PrincipalId;
-import java.io.IOException;
-import java.net.ServerSocket;
 import java.time.Duration;
 import java.time.Instant;
+import java.io.IOException;
+import java.net.ServerSocket;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,15 +20,12 @@ import org.springframework.data.redis.connection.lettuce.LettuceClientConfigurat
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 
-/**
- * Redis에 닿지 못할 때(닫힌 포트). Docker 없이 돈다.
- */
 @ExtendWith(OutputCaptureExtension.class)
 class AccessTokenRevocationsTest {
 
     private static final PrincipalId MEMBER = PrincipalId.member(987_654_321L);
 
-    private final LettuceConnectionFactory connectionFactory = unreachable();
+    private final LettuceConnectionFactory connectionFactory = connectionFactory();
     private final AccessTokenRevocations revocations =
         new AccessTokenRevocations(new ReactiveStringRedisTemplate(connectionFactory), Duration.ofMinutes(31));
 
@@ -47,24 +44,27 @@ class AccessTokenRevocationsTest {
     }
 
     @Test
-    @DisplayName("무효화를 쓰지 못하면 DataAccessException을 던진다(리스너가 DLT 대신 재시도한다)")
+    @DisplayName("무효화를 쓰지 못하면 DataAccessException을 던진다(리스너가 DLT 대신 다시 시도한다)")
     void revokeThrowsWhenRedisUnavailable() {
         var now = Instant.now();
 
         assertThatThrownBy(() -> revocations.revoke(MEMBER, now, now)).isInstanceOf(DataAccessException.class);
     }
 
-    private static LettuceConnectionFactory unreachable() {
-        var factory = new LettuceConnectionFactory(new RedisStandaloneConfiguration("127.0.0.1", closedPort()),
-            LettuceClientConfiguration.builder().commandTimeout(Duration.ofMillis(300)).build());
-        factory.afterPropertiesSet();
-        factory.start();
-        return factory;
+    @Test
+    @DisplayName("표식을 읽지 못하면 DataAccessException을 던진다(리스너가 되감기를 정한다)")
+    void isLoadedThrowsWhenRedisUnavailable() {
+        assertThatThrownBy(() -> revocations.isLoaded(0))
+            .isInstanceOf(DataAccessException.class);
     }
-
-    private static int closedPort() {
+    private static LettuceConnectionFactory connectionFactory() {
         try (var socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
+            var server = new RedisStandaloneConfiguration("127.0.0.1", socket.getLocalPort());
+            var client = LettuceClientConfiguration.builder().commandTimeout(Duration.ofSeconds(1)).build();
+            var factory = new LettuceConnectionFactory(server, client);
+            factory.afterPropertiesSet();
+            factory.start();
+            return factory;
         } catch (IOException e) {
             throw new IllegalStateException("빈 포트를 찾지 못했습니다", e);
         }

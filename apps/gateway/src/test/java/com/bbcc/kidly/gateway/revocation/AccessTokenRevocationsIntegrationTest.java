@@ -11,9 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-/**
- * 무효화 목록을 실제 Redis에 쓰고 읽는다. 보존 기간은 설정(토큰 유효 기간 30분 + 시계 오차 60초)에서 나온 31분이다.
- */
 @IntegrationTest
 class AccessTokenRevocationsIntegrationTest {
 
@@ -39,7 +36,6 @@ class AccessTokenRevocationsIntegrationTest {
         assertThat(isRevoked(MEMBER_1, Instant.parse("2026-10-30T00:00:00Z"), now)).isTrue();
         assertThat(isRevoked(MEMBER_1, Instant.parse("2026-10-30T00:00:01Z"), now)).isFalse();
         assertThat(isRevoked(MEMBER_2, Instant.parse("2026-10-29T23:59:59Z"), now)).isFalse();
-        // 회원 1과 관리자 1은 다른 주체다
         assertThat(isRevoked(ADMIN_1, Instant.parse("2026-10-29T23:59:59Z"), now)).isFalse();
     }
 
@@ -62,7 +58,7 @@ class AccessTokenRevocationsIntegrationTest {
         var later = REVOKED_AT.plus(RETENTION).plusSeconds(1);
         revocations.revoke(MEMBER_2, later, later);
 
-        assertThat(redis.opsForHash().keys("kidly:gateway:revocations")).containsExactly(MEMBER_2.toSubject());
+        assertThat(redis.opsForHash().keys(AccessTokenRevocations.KEY)).containsExactly(MEMBER_2.toSubject());
     }
 
     @Test

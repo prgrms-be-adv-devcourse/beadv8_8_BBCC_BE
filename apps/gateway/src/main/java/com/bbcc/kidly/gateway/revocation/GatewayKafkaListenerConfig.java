@@ -25,11 +25,10 @@ import org.springframework.util.backoff.FixedBackOff;
 /**
  * Gateway가 auth.tokens-revoked를 받을 때 쓰는 컨테이너 팩토리 · DLT.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고, 한 건씩 처리 완료를 표시한다.
- * 읽지 못한 메시지(JSON · eventType 헤더 · data 없음 등)는 재시도해도 같으므로 바로 DLT로 보낸다.
- * Redis 쓰기 실패(DataAccessException)는 DLT로 보내면 무효화를 잃으므로 Redis가 돌아올 때까지 고정 간격으로 다시 시도한다(#1327).
- * 그동안 이 리스너는 뒤 메시지를 읽지 않는다.
+ * 읽지 못한 메시지는 재시도해도 같으므로 바로 DLT로 보낸다. Redis 쓰기 실패(DataAccessException)는 DLT로 보내면 무효화를 잃으므로
+ * Redis가 돌아올 때까지 고정 간격으로 다시 시도한다. 그동안 이 리스너는 뒤 메시지를 읽지 않는다.
  * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate에 영향이 없다.
- * 더 읽을 메시지가 없으면 idle 이벤트를 낸다. RevocationReplay 가 이것으로 무효화 목록을 다 읽었는지 안다(#1176).
+ * 더 읽을 메시지가 없으면 idle 이벤트를 낸다.
  */
 @Slf4j
 @Configuration
@@ -60,7 +59,6 @@ class GatewayKafkaListenerConfig {
         return factory;
     }
 
-    // Redis 쓰기 실패만 끝없이 다시 시도하고, 나머지는 재시도 없이 kidly.auth.events.gateway.dlt로 보낸다
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));

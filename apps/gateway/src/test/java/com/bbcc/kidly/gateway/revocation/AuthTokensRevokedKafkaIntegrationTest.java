@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.gateway.support.AsyncWait;
 import com.bbcc.kidly.gateway.support.KafkaIntegrationTest;
+import com.bbcc.kidly.gateway.support.RedisCleanerExtension;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import java.time.Duration;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
@@ -42,10 +44,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.availability.ApplicationAvailability;
-import org.springframework.boot.availability.ReadinessState;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.kafka.KafkaContainer;
@@ -55,7 +56,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 인증이 Kafka로 보낸 auth.tokens-revoked를 Gateway가 받아 무효화 목록에 넣는지 실제 Kafka로 본다.
  * 메시지는 인증이 보내는 모양(키 = 주체 ID, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data)으로 직접 넣는다.
  * Gateway는 인증 토픽을 선언하지 않으므로(보내는 쪽이 선언) 테스트가 만든다.
- * 리스너는 켤 때마다 31분 전으로 되감으므로 앞 테스트의 메시지를 다시 읽는다. 테스트마다 회원 ID를 새로 뽑아 섞이지 않게 한다.
+ * 테스트마다 회원 ID를 새로 뽑아 섞이지 않게 한다.
  */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
@@ -67,6 +68,7 @@ class AuthTokensRevokedKafkaIntegrationTest {
     private static final String TOKENS_REVOKED = "auth.tokens-revoked";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final List<Integer> PARTITIONS = List.of(0, 1, 2);
 
     // 무효화 시각(지금)보다 먼저 발급된 토큰. 무효화가 반영됐으면 거절된다
     private static final Duration ISSUED_BEFORE = Duration.ofMinutes(1);
@@ -87,10 +89,7 @@ class AuthTokensRevokedKafkaIntegrationTest {
     private AccessTokenRevocations revocations;
 
     @Autowired
-    private ApplicationAvailability availability;
-
-    @Autowired
-    private RevocationReplay replay;
+    private StringRedisTemplate redis;
 
     @BeforeEach
     void createTopic() {
@@ -112,12 +111,46 @@ class AuthTokensRevokedKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("다시 뜨면 이미 읽은 무효화도 되감아 다시 읽어 목록에 넣는다")
-    void rewindsOnAssignment() throws Exception {
+    @DisplayName("파티션 표식이 없으면(Redis가 비면) 이미 읽은 무효화도 31분 전부터 다시 읽어 Redis를 채우고 표식을 쓴다")
+    void rewindsWhenNotLoaded() throws Exception {
         var memberId = newMemberId();
         send(null, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
-        // 앞 인스턴스가 이 메시지까지 읽고 책갈피를 남긴 뒤 다시 뜬 상황. 책갈피대로 읽으면 이 메시지를 받지 못한다
         commitGroupOffsetsToEnd();
+
+        startListener();
+
+        AsyncWait.until(TIMEOUT, () -> isRevoked(memberId));
+        assertThat(PARTITIONS).allSatisfy(partition -> assertThat(revocations.isLoaded(partition)).isTrue());
+    }
+
+    @Test
+    @DisplayName("파티션 표식이 있으면 되감지 않고 구독 그룹 책갈피부터 읽는다")
+    void readsFromBookmarkWhenLoaded() throws Exception {
+        var readBefore = newMemberId();
+        var memberId = newMemberId();
+        send(2, null, readBefore, TOKENS_REVOKED, tokensRevoked(readBefore));
+        commitGroupOffsetsToEnd();
+        PARTITIONS.forEach(revocations::markLoaded);
+
+        startListener();
+        send(2, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
+
+        AsyncWait.until(TIMEOUT, () -> isRevoked(memberId));
+        assertThat(isRevoked(readBefore)).isFalse();
+    }
+
+    @Test
+    @DisplayName("표식이 있어도 책갈피가 없는 파티션은 처음부터 읽는다")
+    void readsFromBeginningWhenLoadedWithoutBookmark() throws Exception {
+        var memberId = newMemberId();
+        var partition = new TopicPartition(TOPIC, 2);
+        send(2, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
+        commitGroupOffsetsToEnd();
+        try (var admin = admin()) {
+            admin.deleteConsumerGroupOffsets(GatewayKafkaListenerConfig.GROUP, Set.of(partition))
+                .all().get(10, TimeUnit.SECONDS);
+        }
+        PARTITIONS.forEach(revocations::markLoaded);
 
         startListener();
 
@@ -125,19 +158,16 @@ class AuthTokensRevokedKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("다시 읽기를 마친 뒤에야 Ready 가 되고, 그때는 이미 앞서 받은 무효화가 목록에 있다")
-    void readyOnlyAfterReplay() throws Exception {
+    @DisplayName("돌던 중 Redis가 비면(다시 뜨면) idle 확인이 표식이 없어진 파티션을 되감아 다시 채운다")
+    void refillsWhenRedisEmptied() throws Exception {
         var memberId = newMemberId();
-        send(null, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
-        commitGroupOffsetsToEnd();
-
         startListener();
+        send(null, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
+        AsyncWait.until(TIMEOUT, () -> isRevoked(memberId));
 
-        // 리스너가 시작하면 다시 기다린다(앞 테스트에서 이미 다 읽었어도). 첫 메시지 전 idle 은 5초 뒤라 이 상태가 보인다
-        AsyncWait.until(TIMEOUT, () -> !replay.caughtUp());
-        assertThat(availability.getReadinessState()).isEqualTo(ReadinessState.REFUSING_TRAFFIC);
-        AsyncWait.until(TIMEOUT, () -> availability.getReadinessState() == ReadinessState.ACCEPTING_TRAFFIC);
-        assertThat(isRevoked(memberId)).isTrue();
+        RedisCleanerExtension.flush(redis);
+
+        AsyncWait.until(TIMEOUT, () -> isRevoked(memberId));
     }
 
     @Test
@@ -312,8 +342,7 @@ class AuthTokensRevokedKafkaIntegrationTest {
 
     // 리스너가 꺼져 있을 때(그룹에 소비자가 없을 때)만 바꿀 수 있다
     private void commitGroupOffsetsToEnd() throws Exception {
-        var partitions = List.of(
-            new TopicPartition(TOPIC, 0), new TopicPartition(TOPIC, 1), new TopicPartition(TOPIC, 2));
+        var partitions = PARTITIONS.stream().map(partition -> new TopicPartition(TOPIC, partition)).toList();
         try (Admin admin = admin(); var consumer = consumer()) {
             var offsets = new HashMap<TopicPartition, OffsetAndMetadata>();
             consumer.endOffsets(partitions)
