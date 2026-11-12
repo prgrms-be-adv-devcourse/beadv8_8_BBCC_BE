@@ -176,7 +176,7 @@ class OpenAiSizeChooserTest {
     }
 
     @Test
-    @DisplayName("사이즈 AI는 빠른 처리 등급(Fast mode, service_tier priority)으로 부른다")
+    @DisplayName("사이즈 AI는 빠른 처리 등급(Fast mode, service_tier priority)으로 부르고, 모델 · 추론 강도 · 최대 토큰 설정은 그대로 둔다")
     void callWithFastServiceTier() {
         List<Prompt> prompts = new ArrayList<>();
         // 실제 OpenAI 모델처럼 기본 옵션이 OpenAI 옵션이어야 요청 옵션의 처리 등급이 합쳐진다
@@ -191,14 +191,20 @@ class OpenAiSizeChooserTest {
 
             @Override
             public ChatOptions getOptions() {
-                return OpenAiChatOptions.builder().build();
+                return OpenAiChatOptions.builder().model("gpt-6.1-terra").reasoningEffort("low")
+                    .maxCompletionTokens(2048).build();
             }
         };
 
         new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
 
         assertThat(prompts.getFirst().getOptions()).isInstanceOfSatisfying(OpenAiChatOptions.class,
-            options -> assertThat(options.getServiceTier()).isEqualTo("priority"));
+            options -> {
+                assertThat(options.getServiceTier()).isEqualTo("priority");
+                assertThat(options.getModel()).isEqualTo("gpt-6.1-terra");
+                assertThat(options.getReasoningEffort()).isEqualTo("low");
+                assertThat(options.getMaxCompletionTokens()).isEqualTo(2048);
+            });
     }
 
     @Test
