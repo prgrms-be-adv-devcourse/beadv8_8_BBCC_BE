@@ -8,7 +8,7 @@
 | | Loki | Service `loki:3100`, NodePort `31100` | 로그 저장 | 14일 |
 | | Grafana | Service `grafana:3000`, Ingress `grafana.kidly.kro.kr` | 대시보드 · 로그 검색 · 알림 | - |
 | | Alloy (DaemonSet) | 노드 `127.0.0.1:12345` | medium 노드 메트릭 · 이 노드 Pod 로그 | - |
-| t3.large (docker) | Alloy (`deploy/monitoring-agent`) | `127.0.0.1:12345` | 앱 `/actuator/prometheus` 수집(아래 수집 대상), dev · prod 앱 로그, 내장 node_exporter · cAdvisor 로 호스트 · docker 컨테이너 자원, k3s kubelet cAdvisor(`127.0.0.1:10250`, 읽기 전용 계정 `kube-system/kidly-metrics-reader`)로 Pod 컨테이너 CPU · 메모리. 모두 medium 으로 보냄 | - |
+| t3.large (k3s `monitoring`, #1210) | Alloy (`deploy/monitoring-agent`) | `127.0.0.1:12345` | 앱 `/actuator/prometheus` 수집(아래 수집 대상), dev 앱 로그, 내장 node_exporter · cAdvisor 로 호스트 · docker 컨테이너 자원, k3s kubelet cAdvisor(`127.0.0.1:10250`, 읽기 전용 계정 `kube-system/kidly-metrics-reader`)로 Pod 컨테이너 CPU · 메모리. 모두 medium 으로 보냄 | - |
 
 - 밖에서는 t3.large nginx 의 `https://grafana.<도메인>` 으로 Grafana 만 보입니다. nginx 가 medium 의 Traefik(80)으로 넘깁니다.
 - NodePort 와 Traefik 80 은 노드의 모든 주소에 열립니다. **보안 그룹이 t3.large(`team04-sg`)에서 오는 것만 받게 해서 막습니다.**

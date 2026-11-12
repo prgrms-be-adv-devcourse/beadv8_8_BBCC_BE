@@ -93,7 +93,11 @@ public class HomePreviewCandidateReader {
         Map<String, Integer> brandActivityCounts = new HashMap<>();
         LocalDateTime activitySince = now.minusDays(PreferenceWeights.ACTIVITY_WINDOW_DAYS);
         for (RecentActivity activity : preferenceSourceReader.findChildActivities(childProfileId, activitySince, now)) {
-            if (activity.removedFromCart()) {
+            if (activity.withdrawn()) {
+                continue;
+            }
+            // 조른 상품은 늘 자녀 장바구니 칸이라 담기로 이미 세었다. 조르기까지 세면 같은 상품을 두 번 센다
+            if (activity.type() == ActivityType.WISH_SENT) {
                 continue;
             }
             if (activity.categoryId() != null) {

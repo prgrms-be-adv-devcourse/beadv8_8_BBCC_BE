@@ -13,7 +13,7 @@
 
 GitHub Actions → **environment-operation** → **Run workflow**
 
-- 환경: `dev` 또는 `prod` (**prod는 main 브랜치**)
+- 환경: `dev` (prod 환경은 #1210 에서 걷어냈다)
 - 동작: `stop` 끄기 / `resume` 켜기
 - 완료 후 Grafana에서 상태 확인
 

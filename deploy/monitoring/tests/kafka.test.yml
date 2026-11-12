@@ -261,6 +261,14 @@ tests:
     values: 3+1x40
   - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.notification",topic="kidly.payment.events",partition="0"}
     values: 10+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.order",topic="kidly.payment.events",partition="0"}
+    values: 3+1x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.order",topic="kidly.payment.events",partition="0"}
+    values: 10+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.payment",topic="kidly.payment.events",partition="0"}
+    values: 3+1x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.payment",topic="kidly.payment.events",partition="0"}
+    values: 10+0x40
   alert_rule_test:
   - eval_time: 16m
     alertname: kidly-kafka-lag-growing
@@ -277,6 +285,14 @@ tests:
         env: dev
         consumergroup: kidly.settlement
         topic: kidly.payment.events
+    - exp_labels:
+        env: dev
+        consumergroup: kidly.order
+        topic: kidly.payment.events
+    - exp_labels:
+        env: dev
+        consumergroup: kidly.notification
+        topic: kidly.payment.events
   - eval_time: 16m
     alertname: kidly-kafka-consumer-stalled
     exp_alerts:
@@ -291,4 +307,12 @@ tests:
     - exp_labels:
         env: dev
         consumergroup: kidly.settlement
+        topic: kidly.payment.events
+    - exp_labels:
+        env: dev
+        consumergroup: kidly.order
+        topic: kidly.payment.events
+    - exp_labels:
+        env: dev
+        consumergroup: kidly.notification
         topic: kidly.payment.events

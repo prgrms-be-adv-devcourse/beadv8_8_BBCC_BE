@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecordRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.global.security.TestMembers;
@@ -21,6 +23,7 @@ import com.bbcc.kidly.support.FunctionalTest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,6 +65,9 @@ class SizeRecommendationApiTest {
     @Autowired
     private ReferenceGarmentRepository referenceGarmentRepository;
 
+    @Autowired
+    private PurchaseRecordRepository purchaseRecordRepository;
+
     @Test
     @DisplayName("자녀 1이 상품 A의 사이즈 추천을 받으면 120 · 여유 있음과 후보 110 · 120을 받고, 안내는 빈 목록이고 지난 구매 사이즈는 null이다")
     void recommendSize() {
@@ -81,6 +87,21 @@ class SizeRecommendationApiTest {
                 .containsEntry("productId", String.valueOf(PRODUCT_A_ID))
                 .containsEntry("childId", String.valueOf(CHILD_1_ID))
                 .containsEntry("lastPurchasedSize", null));
+    }
+
+    @Test
+    @DisplayName("PUR-01 같은 칸에서 산 옷이 있으면 마지막으로 산 사이즈를 지난 구매 사이즈로 받는다")
+    void recommendSizeWithLastPurchasedSize() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        // 석 달 전에 상품 A(상의)의 110을 샀다
+        purchaseRecordRepository.save(PurchaseRecord.create(new PurchaseRecord.RecordInfo(901L, 900L, MEMBER_1_ID,
+            CHILD_1_ID, PRODUCT_A_ID, 801L, "110", LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusMonths(3))));
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.lastPurchasedSize").isEqualTo("110");
     }
 
     @Test

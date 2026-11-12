@@ -13,7 +13,6 @@ if [[ $EUID -ne 0 ]]; then
     echo "root 권한이 필요합니다. sudo 로 실행하세요." >&2
     exit 1
 fi
-command -v docker >/dev/null || { echo "docker 가 없습니다. 먼저 설치하세요." >&2; exit 1; }
 
 DOMAIN=$1
 EMAIL=$2
@@ -35,15 +34,13 @@ fi
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 CONF=/etc/nginx/conf.d/kidly.conf
 WEBROOT=/var/www/certbot
-CERTBOT_IMAGE=certbot/certbot:v5.8.0
+# certbot 은 docker 없이 venv 에 고정 버전으로 둔다(#1210). Amazon Linux 2023 의 dnf certbot 은 2.6 으로 오래됐다
+CERTBOT_VERSION=5.8.0
+CERTBOT_VENV=/opt/certbot
 # 인증서는 ZeroSSL 에서 받는다. kro.kr 은 공용 접미사 목록(PSL)에 없어 Let's Encrypt 의
 # "등록 도메인당 주 50장" 한도를 모든 kro.kr 사용자와 나눠 쓰므로 자주 막힌다
 ACME_SERVER=https://acme.zerossl.com/v2/DV90
-CERTBOT_RUN="/usr/bin/docker run --rm \
--v /etc/letsencrypt:/etc/letsencrypt \
--v /var/lib/letsencrypt:/var/lib/letsencrypt \
--v $WEBROOT:$WEBROOT \
-$CERTBOT_IMAGE"
+CERTBOT_RUN="$CERTBOT_VENV/bin/certbot"
 
 render() {
     sed -e "s/__DOMAIN__/$DOMAIN/g" -e "s/__MONITORING_HOST__/$MONITORING_HOST/g" "$SCRIPT_DIR/$1" > "$CONF"
@@ -53,8 +50,15 @@ render() {
     systemctl reload nginx
 }
 
-echo "== nginx 설치"
-dnf install -y nginx
+echo "== nginx · certbot 설치"
+dnf install -y nginx python3.11 augeas-libs
+if [[ "$("$CERTBOT_RUN" --version 2>/dev/null)" != "certbot $CERTBOT_VERSION" ]]; then
+    rm -rf "$CERTBOT_VENV"
+    python3.11 -m venv "$CERTBOT_VENV"
+    "$CERTBOT_VENV/bin/pip" install --quiet --upgrade pip
+    "$CERTBOT_VENV/bin/pip" install --quiet "certbot==$CERTBOT_VERSION"
+fi
+"$CERTBOT_RUN" --version
 mkdir -p "$WEBROOT"
 
 # 인증서가 없으면 발급용 설정으로, 있으면 지금 설정으로 80 을 열어 둔 채 발급 · 이름 추가를 한다
@@ -87,8 +91,8 @@ echo "== 자동 갱신 등록 (매일 10:30 KST)"
 cat > /etc/systemd/system/kidly-certbot-renew.service <<UNIT
 [Unit]
 Description=Kidly 인증서 갱신 (ZeroSSL)
-Wants=docker.service
-After=docker.service
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=oneshot

@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
@@ -28,8 +29,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 class OpenAiSizeChooserTest {
 
-    private static final String PROMPT_VERSION_4_SHA_256 =
-        "fe150d0ab2524816bbbc7b844b184cec471c80cfb04e912d484f1a77e2f60276";
+    private static final String PROMPT_VERSION_5_SHA_256 =
+        "93c219e4fd9c518f6ade49ecf34c6f68c633e4af2ad0617daabda1a83767695e";
 
     // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
     private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
@@ -39,7 +40,7 @@ class OpenAiSizeChooserTest {
         new SizeAiQuestion.Child(82, 115.0, 20.0, BodyType.NORMAL, PreferredFit.LOOSE, BodyType.NORMAL),
         List.of(new SizeAiQuestion.SizeLine("110", 105, 115, Map.of("TOTAL_LENGTH", new BigDecimal("42")))),
         new SizeAiQuestion.RuleResult("110", "TIGHT", List.of("110"), List.of()),
-        null, GROWTH, List.of());
+        null, GROWTH, List.of(), List.of());
 
     // 상의 기준 옷 가슴단면 35cm와 상품 110의 가슴단면 34cm를 비교한 기준 핏을 담은 질문이다
     private static final SizeAiQuestion QUESTION_WITH_FIT = new SizeAiQuestion(
@@ -47,7 +48,7 @@ class OpenAiSizeChooserTest {
         new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(new ReferenceFit.Item("CHEST_WIDTH",
             new BigDecimal("35.0"), List.of(new ReferenceFit.SizeDiff("110", new BigDecimal("34"),
                 new BigDecimal("-1.0")))))),
-        GROWTH, List.of());
+        GROWTH, List.of(), List.of());
 
     @Test
     @DisplayName("시스템 지시와 질문 JSON을 모델에 보내고, 모델이 준 JSON을 사이즈 답으로 읽는다")
@@ -94,6 +95,30 @@ class OpenAiSizeChooserTest {
     }
 
     @Test
+    @DisplayName("PUR-05 지난 구매를 지시 글과 같은 칸 이름(purchases · monthsAgo · sameBrand · expectedGrowthCm 등)으로 보낸다")
+    void sendPurchasesWithInstructedFieldNames() {
+        List<Prompt> prompts = new ArrayList<>();
+        ChatModel model = prompt -> {
+            prompts.add(prompt);
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[],"itemJudgements":[]}
+                """))));
+        };
+        SizeAiQuestion question = new SizeAiQuestion(QUESTION.child(), QUESTION.sizes(), QUESTION.ruleResult(), null,
+            GROWTH, List.of(), List.of(new PurchaseFit("100", 5, true, new BigDecimal("2.5"),
+                List.of(new ReferenceFit.Item("TOTAL_LENGTH", new BigDecimal("40"), List.of(
+                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("2"))))))));
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(question);
+
+        assertThat(prompts.getFirst().getSystemMessage().getText())
+            .contains("purchases", "monthsAgo", "sameBrand", "expectedGrowthCm", "PURCHASE");
+        assertThat(prompts.getFirst().getUserMessage().getText()).contains("\"purchases\":[",
+            "\"size\":\"100\"", "\"monthsAgo\":5", "\"sameBrand\":true", "\"expectedGrowthCm\":2.5",
+            "\"garmentCm\":40", "\"diffCm\":2");
+    }
+
+    @Test
     @DisplayName("FIT-09 모델이 준 항목별 판단(항목 · 차이 · 판단 · 여유 범위)을 읽는다")
     void readItemJudgements() {
         ChatModel model = prompt -> new ChatResponse(List.of(new Generation(new AssistantMessage("""
@@ -110,7 +135,7 @@ class OpenAiSizeChooserTest {
 
     // 프롬프트 판 번호(SizeRecommendationReader.PROMPT_VERSION)는 AI 답 저장 키에 들어가, 판을 올려야 바뀐 프롬프트의 답이 예전 답과 섞이지 않는다
     @Test
-    @DisplayName("FIT-11 시스템 지시 글은 프롬프트 판 4의 글과 같다. 지시를 고치면 판 번호를 올리고 이 해시를 바꾼다")
+    @DisplayName("FIT-11 시스템 지시 글은 프롬프트 판 5의 글과 같다. 지시를 고치면 판 번호를 올리고 이 해시를 바꾼다")
     void systemInstructionIsPinnedToPromptVersion() throws Exception {
         List<Prompt> prompts = new ArrayList<>();
         ChatModel model = prompt -> {
@@ -124,7 +149,7 @@ class OpenAiSizeChooserTest {
 
         byte[] digest = MessageDigest.getInstance("SHA-256")
             .digest(prompts.getFirst().getSystemMessage().getText().getBytes(StandardCharsets.UTF_8));
-        assertThat(HexFormat.of().formatHex(digest)).isEqualTo(PROMPT_VERSION_4_SHA_256);
+        assertThat(HexFormat.of().formatHex(digest)).isEqualTo(PROMPT_VERSION_5_SHA_256);
     }
 
     @Test

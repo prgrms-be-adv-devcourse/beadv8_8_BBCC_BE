@@ -94,10 +94,9 @@ public class SizeRecommendationService {
             reasons.add(new SizeRecommendationResult.Reason(
                 reason.type().name(), reason.detail(), reason.sourceId()));
         }
-        // 지난 구매 사이즈는 아직 채우지 않는다
         return new SizeRecommendationResult(
             draft.productId(), draft.childId(), recommendation.getRecommendedSize(), fit,
-            notices, recommendation.getCandidateSizes(), null,
+            notices, recommendation.getCandidateSizes(), draft.lastPurchasedSize(),
             recommendation.getSource().name(), reasons,
             referenceFitOf(draft.aiQuestion().referenceFit()), itemJudgementsOf(recommendation),
             growthSpeedOf(draft.aiQuestion().growthSpeed()), wearablePeriodsOf(draft.aiQuestion().wearablePeriods()),

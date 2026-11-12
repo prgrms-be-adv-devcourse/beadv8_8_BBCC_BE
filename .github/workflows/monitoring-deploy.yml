@@ -1,6 +1,6 @@
 # 모니터링을 두 서버에 올린다. 둘 다 /opt/app/monitoring 이고 그 deploy.sh 가 실제 배포를 한다
 #   server: t3.medium k3s 에 Prometheus · Loki · Grafana(deploy/monitoring). kubectl apply -k
-#   agent: t3.large(앱 서버)에 수집기 Alloy(deploy/monitoring-agent). docker compose. 받는 쪽이 먼저 떠 있도록 server 다음에 돈다
+#   agent: t3.large(앱 서버)에 수집기 Alloy(deploy/monitoring-agent). 그 서버 k3s 의 namespace monitoring(#1210). 받는 쪽이 먼저 떠 있도록 server 다음에 돈다
 # 설정의 원본은 레포, 비밀의 원본은 Environment dev 의 Secret(SLACK_OPS_WEBHOOK_URL, GRAFANA_ADMIN_PASSWORD)이다. 서버의 비밀 파일 · .env 는 매번 새로 만든다
 # nginx(deploy/nginx)는 여기서 다루지 않는다
 name: monitoring-deploy
@@ -125,24 +125,22 @@ jobs:
         run: |
           out="$RUNNER_TEMP/monitoring-agent"
           mkdir -p "$out"
-          cp deploy/monitoring-agent/{docker-compose.yml,config.alloy,deploy.sh,k3s-metrics.yaml} "$out/"
+          cp deploy/monitoring-agent/{alloy.yaml,config.alloy,deploy.sh} "$out/"
           printf "MONITORING_HOST='%s'\n" "$MONITORING_PRIVATE_IP" > "$out/.env"
 
-      # 이 서버에서 Prometheus · Loki · Grafana 를 돌리던 때의 설정 폴더를 지운다. 옛 docker-compose.yml · deploy.sh · .env(비밀이 들어 있던)는 새것으로 덮인다
-      # targets 는 앱 배포(deploy/deploy.sh)가 쓰는 수집 대상이라 지우지 않는다.
-      # 없는 채로 compose 를 올리면 docker 가 root 소유로 만들어 앱 배포가 못 쓰므로 deploy 유저로 먼저 만든다
+      # 이 서버에서 Prometheus · Loki · Grafana 를 돌리던 때의 설정 폴더를 지운다. deploy.sh · .env 는 새것으로 덮인다
+      # targets 는 앱 배포(deploy/deploy.sh)가 쓰는 운영 상태 표식이라 지우지 않는다
+      # 옛 docker-compose.yml 은 deploy.sh 가 예전 Alloy 컨테이너를 내린 뒤 지운다
       - name: 서버에 설정 파일 올리기
         run: |
           dir=/opt/app/monitoring
-          tar -C "$RUNNER_TEMP/monitoring-agent" -czf - docker-compose.yml config.alloy deploy.sh k3s-metrics.yaml .env \
+          tar -C "$RUNNER_TEMP/monitoring-agent" -czf - alloy.yaml config.alloy deploy.sh .env \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
               set -e
               mkdir -p $dir/targets
               cd $dir
               rm -rf prometheus loki alloy grafana
               tar -xzf - --no-same-owner
-              # 컨테이너가 설정을 읽을 수 있게 한다
-              chmod a+r docker-compose.yml config.alloy
             "
 
       - name: 배포
@@ -156,4 +154,3 @@ jobs:
         run: |
           printf '%s\n' "$MONITORING_KNOWN_HOSTS" >> ~/.ssh/known_hosts
           python3 .github/scripts/environment-operation.py sync dev
-          python3 .github/scripts/environment-operation.py sync prod

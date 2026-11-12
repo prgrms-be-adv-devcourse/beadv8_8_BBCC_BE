@@ -7,7 +7,7 @@ on:
       environment:
         description: 읽기 점검할 환경 (앱 상태 변경 없음)
         type: choice
-        options: [dev, prod]
+        options: [dev]
         default: dev
         required: true
 permissions:
