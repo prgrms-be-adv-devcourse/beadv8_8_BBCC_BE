@@ -187,7 +187,7 @@ public class Review extends ReviewTimeEntity {
 
     /**
      * 작성자가 보낸 값만 고친다. 바꿀 값이 없거나 규칙 위반이면 아무것도 바꾸지 않는다.
-     * 사진을 보냈으면(사진 행은 밖에서 바꾼다) 다른 값이 그대로여도 수정 시각을 바꾼다.
+     * 수정 시각은 바꾸지 않는다: 실제로 바뀐 것이 있으면 부르는 쪽이 {@link #markEdited()}를 부른다.
      *
      * @param sizeApplicable 구매 사이즈가 있는 주문상품인지(아니면 핏을 넣을 수 없다. 지우는 것은 된다)
      */
@@ -199,9 +199,23 @@ public class Review extends ReviewTimeEntity {
         this.rating = (short) newRating;
         this.content = newContent;
         this.fit = newFit;
-        if (change.imagesGiven()) {
-            touch();
-        }
+    }
+
+    /**
+     * 작성자 수정으로 별점 · 핏 · 본문 · 사진 중 실제로 바뀐 것이 있다. 수정 시각을 지금으로 바꾼다.
+     * 사진은 이 엔티티 밖(사진 행)에 있어 바뀌었는지를 부르는 쪽이 판단하므로, 수정 시각도 부르는 쪽이 이 메서드로 바꾼다.
+     */
+    public void markEdited() {
+        touch();
+    }
+
+    /**
+     * 수정 시각은 작성자 수정에서 실제로 바뀐 것이 있을 때만({@link #markEdited()}) 바꾼다.
+     * 검사 반영 · 관리자 조치 · 탈퇴 표시는 바꾸지 않는다.
+     */
+    @Override
+    protected boolean updatesTimeOnFlush() {
+        return false;
     }
 
     /**
