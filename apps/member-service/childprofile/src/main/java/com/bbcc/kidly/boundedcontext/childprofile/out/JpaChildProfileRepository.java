@@ -23,6 +23,11 @@ public interface JpaChildProfileRepository extends JpaRepository<ChildProfile, L
     Optional<ChildProfile> findByIdAndMemberId(Long id, Long memberId);
 
     @Override
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM ChildProfile c WHERE c.id = :id AND c.memberId = :memberId")
+    Optional<ChildProfile> findByIdAndMemberIdForUpdate(@Param("id") Long id, @Param("memberId") Long memberId);
+
+    @Override
     @EntityGraph(attributePaths = "growthRecords")
     @Query("SELECT c FROM ChildProfile c WHERE c.memberId = :memberId ORDER BY c.id")
     List<ChildProfile> findAllByMemberId(@Param("memberId") Long memberId);

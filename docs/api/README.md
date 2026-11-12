@@ -65,6 +65,7 @@
 | PATCH | `/api/v1/children/{childId}` | 자녀 수정(전체 값) | 🔒 |
 | DELETE | `/api/v1/children/{childId}` | 자녀 삭제(논리 삭제) | 🔒 |
 | GET | `/api/v1/children/{childId}/growth-records` | 성장 이력 조회 | 🔒 |
+| DELETE | `/api/v1/children/{childId}/growth-records/{recordId}` | 잘못 입력한 성장 이력 삭제. 가장 최근 이력을 지우면 키 · 체형이 바로 앞 이력 값으로 돌아간다. 이력이 하나뿐이면 409 | 🔒 |
 | GET | `/api/v1/child/profile` | 자녀 계정이 자기 프로필 조회 | 🔒 |
 | GET | `/api/v1/child/onboarding` | 첫 로그인 안내 확인 여부 조회 (`noticeConfirmed`) | 🔒 |
 | POST | `/api/v1/child/onboarding/notice` | 첫 로그인 안내 확인 (204) | 🔒 |
