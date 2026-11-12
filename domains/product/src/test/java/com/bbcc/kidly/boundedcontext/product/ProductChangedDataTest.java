@@ -18,6 +18,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductChangedData;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -218,6 +219,17 @@ class ProductChangedDataTest {
         assertThat(data.categoryPath()).containsExactly(
             new ProductChangedEvent.CategoryPathEntry(CLOTHING_CATEGORY_ID, "의류"),
             new ProductChangedEvent.CategoryPathEntry(CATEGORY_ID, "상의"));
+    }
+
+    @Test
+    @DisplayName("VIS-01 카테고리 경로의 단계마다 그 카테고리의 보일 성별을 담는다")
+    void carryVisibleGenderOfEachCategoryInPath() {
+        top.changeVisibleGender(CategoryVisibleGender.GIRL);
+
+        ProductChangedEvent.Data data = ProductChangedData.of(product, top, Map.of());
+
+        assertThat(data.categoryPath()).extracting(ProductChangedEvent.CategoryPathEntry::visibleGender)
+            .containsExactly(CategoryVisibleGender.ALL, CategoryVisibleGender.GIRL);
     }
 
     @Test

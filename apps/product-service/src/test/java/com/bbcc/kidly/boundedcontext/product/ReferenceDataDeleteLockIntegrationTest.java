@@ -87,21 +87,21 @@ class ReferenceDataDeleteLockIntegrationTest {
                 return new Overlap(
                     () -> test.productTypeService.delete(otherType.getId()),
                     () -> test.categoryService.create(new CategoryCreateRequest(
-                        "모자", saved.clothingCategory().getId(), otherType.getId(), List.of())));
+                        "모자", saved.clothingCategory().getId(), otherType.getId(), List.of(), null)));
             }),
             Named.of("카테고리를 지우는 유형으로 바꾸기", (test, saved) -> {
                 ProductType otherType = test.saver.saveOtherType(saved);
                 return new Overlap(
                     () -> test.productTypeService.delete(otherType.getId()),
                     () -> test.categoryService.change(
-                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())));
+                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of(), null)));
             }),
             Named.of("지우는 중간 카테고리 아래 카테고리 만들기", (test, saved) -> {
                 Category goods = test.saver.save(Category.createMiddle("잡화", null));
                 return new Overlap(
                     () -> test.categoryService.delete(goods.getId()),
                     () -> test.categoryService.create(
-                        new CategoryCreateRequest("모자", goods.getId(), null, List.of())));
+                        new CategoryCreateRequest("모자", goods.getId(), null, List.of(), null)));
             }));
     }
 
@@ -133,14 +133,14 @@ class ReferenceDataDeleteLockIntegrationTest {
                 ProductType otherType = test.saver.saveOtherType(saved);
                 return new Overlap(
                     () -> test.categoryService.create(new CategoryCreateRequest(
-                        "모자", saved.clothingCategory().getId(), otherType.getId(), List.of())),
+                        "모자", saved.clothingCategory().getId(), otherType.getId(), List.of(), null)),
                     () -> test.productTypeService.delete(otherType.getId()));
             }, ProductTypeErrorCode.PRODUCT_TYPE_IN_USE),
             scenario("자식을 만드는 중간 카테고리", (test, saved) -> {
                 Category goods = test.saver.save(Category.createMiddle("잡화", null));
                 return new Overlap(
                     () -> test.categoryService.create(
-                        new CategoryCreateRequest("모자", goods.getId(), null, List.of())),
+                        new CategoryCreateRequest("모자", goods.getId(), null, List.of(), null)),
                     () -> test.categoryService.delete(goods.getId()));
             }, CategoryErrorCode.CATEGORY_IN_USE),
             scenario("카테고리가 필수로 연결하는 실측 항목", (test, saved) -> {
@@ -148,7 +148,7 @@ class ReferenceDataDeleteLockIntegrationTest {
                     test.saver.save(CategoryFixture.headCircumference());
                 return new Overlap(
                     () -> test.categoryService.change(saved.top().getId(), new CategoryChangeRequest(
-                        saved.clothing().type().getId(), List.of(headCircumference.getId()))),
+                        saved.clothing().type().getId(), List.of(headCircumference.getId()), null)),
                     () -> test.measurementItemService.delete(headCircumference.getId()));
             }, MeasurementItemErrorCode.MEASUREMENT_ITEM_IN_USE));
     }

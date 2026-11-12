@@ -170,6 +170,15 @@ public final class RecommendFixture {
     }
 
     /**
+     * {@link #childChangedEvent()}에서 생일만 바꾼다. 나이에 따라 바뀌는 표 값을 실행하는 날과 상관없이 고정할 때 쓴다.
+     */
+    public static ChildChangedEvent childChangedEventBornOn(LocalDate birthDate) {
+        return new ChildChangedEvent(UUID.randomUUID(), CHILD_CHANGED_AT, new ChildChangedEvent.Data(CHILD_1_ID,
+            MEMBER_1_ID, new BigDecimal("115.0"), new BigDecimal("20.0"), Gender.MALE, birthDate, BodyType.NORMAL,
+            PreferredFit.LOOSE, false));
+    }
+
+    /**
      * 자녀 1을 삭제한 자녀 정보 변경됨 이벤트. 삭제 직전 값(키 115.0cm 등)을 그대로 담는다.
      */
     public static ChildChangedEvent childDeletedEvent(LocalDateTime occurredAt) {
@@ -379,6 +388,18 @@ public final class RecommendFixture {
             options.add(productOptionInfo(String.valueOf(size), size - 5, size + 5, prices[i]));
         }
         return productAChangeOf(false, options, PRODUCT_CHANGED_AT);
+    }
+
+    /**
+     * 카테고리 경로가 「의류 > 상의」인 상품 A의 복사본이다. 상의 기준 옷과 비교할 때 쓴다.
+     */
+    public static RecommendReplicaProduct productATopReplica() {
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(PRODUCT_A_ID,
+            PRODUCT_A_SELLER_ID, PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE,
+            PRODUCT_A_THUMBNAIL_URL, PRODUCT_A_REGISTERED_AT, false, productAChange().options(), PRODUCT_A_BRAND,
+            PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), productAInfoValues(), PRODUCT_CHANGED_AT,
+            List.of(new RecommendReplicaProduct.CategoryPathEntryInfo(1L, "의류"),
+                new RecommendReplicaProduct.CategoryPathEntryInfo(PRODUCT_A_CATEGORY_ID, "상의"))));
     }
 
     /**

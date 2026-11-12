@@ -18,6 +18,7 @@ import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
@@ -56,6 +57,18 @@ class CompanionProductApiTest {
     private static final List<ProductChangedEvent.CategoryPathEntry> BOTTOM = List.of(
         new ProductChangedEvent.CategoryPathEntry(1L, "의류"), new ProductChangedEvent.CategoryPathEntry(60L, "하의"));
 
+    private static final Long SKIRT_PRODUCT_ID = 102L;
+
+    private static final List<ProductChangedEvent.CategoryPathEntry> SKIRT = List.of(
+        new ProductChangedEvent.CategoryPathEntry(1L, "의류"),
+        new ProductChangedEvent.CategoryPathEntry(61L, "치마", CategoryVisibleGender.GIRL));
+
+    private static final Long DRESS_PRODUCT_ID = 103L;
+
+    private static final List<ProductChangedEvent.CategoryPathEntry> DRESS = List.of(
+        new ProductChangedEvent.CategoryPathEntry(1L, "의류"),
+        new ProductChangedEvent.CategoryPathEntry(62L, "원피스", CategoryVisibleGender.GIRL));
+
     @Autowired
     private RestTestClient client;
 
@@ -87,6 +100,32 @@ class CompanionProductApiTest {
             .jsonPath("$.source").isEqualTo("RULE")
             .jsonPath("$.products.length()").isEqualTo(1)
             .jsonPath("$.products[0]").value(Map.class, card -> assertThat(card).isEqualTo(bottomCard()));
+    }
+
+    @Test
+    @DisplayName("PAIR-04 남아 자녀면 상의를 보고 있어도 치마 후보를 빼고, 바지 후보는 그대로 준다")
+    void excludeSkirtForBoy() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        saveProduct(BOTTOM_PRODUCT_ID, BOTTOM);
+        saveProduct(SKIRT_PRODUCT_ID, SKIRT);
+
+        companions(VIEWED_PRODUCT_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.products[*].productId").isEqualTo(List.of(String.valueOf(BOTTOM_PRODUCT_ID)));
+    }
+
+    @Test
+    @DisplayName("PAIR-04 남아 자녀가 원피스를 보고 있어도 보고 있는 상품은 거르지 않고 그 짝인 바지 후보를 준다")
+    void keepCompanionsOfDressViewedByBoy() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        saveProduct(DRESS_PRODUCT_ID, DRESS);
+        saveProduct(BOTTOM_PRODUCT_ID, BOTTOM);
+
+        companions(DRESS_PRODUCT_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.products[*].productId").isEqualTo(List.of(String.valueOf(BOTTOM_PRODUCT_ID)));
     }
 
     @Test
@@ -139,6 +178,54 @@ class CompanionProductApiTest {
         expectProblem(companions(VIEWED_PRODUCT_ID), HttpStatus.NOT_FOUND)
             .jsonPath("$.title").isEqualTo("자녀를 찾을 수 없습니다")
             .jsonPath("$.detail").isEqualTo("자녀를 찾을 수 없습니다.");
+    }
+
+    @Test
+    @DisplayName("PAIR-06 스트림(text/event-stream)으로 부르면 규칙 결과를 rule 이벤트로 보내고, AI 결과가 없으면 그대로 닫는다")
+    void streamRuleEventWithoutAi() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        saveProduct(BOTTOM_PRODUCT_ID, BOTTOM);
+
+        String body = companionsStream(VIEWED_PRODUCT_ID)
+            .expectStatus().isOk()
+            .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+            .expectHeader().valueEquals("X-Accel-Buffering", "no")
+            .expectBody(String.class).returnResult().getResponseBody();
+
+        assertThat(body).contains("event:rule", "\"source\":\"RULE\"", "\"productId\":\"101\"")
+            .doesNotContain("event:ai");
+    }
+
+    @Test
+    @DisplayName("스트림으로 불러도 보고 있는 상품이 없으면 스트림을 열기 전에 404 ProblemDetail로 받는다")
+    void rejectUnknownProductBeforeStream() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        expectProblem(companionsStream(999L), HttpStatus.NOT_FOUND)
+            .jsonPath("$.title").isEqualTo("상품을 찾을 수 없습니다");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"*/*", "application/json, text/plain, */*"})
+    @DisplayName("Accept가 */*거나 JSON을 먼저 바라면 스트림이 아니라 지금처럼 JSON으로 받는다")
+    void returnJsonForWildcardOrJsonFirstAccept(String accept) {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        client.get().uri(PATH + "?productId={productId}&childId={childId}", VIEWED_PRODUCT_ID, CHILD_1_ID)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .header("Accept", accept)
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+            .expectBody()
+            .jsonPath("$.source").isEqualTo("RULE");
+    }
+
+    private RestTestClient.ResponseSpec companionsStream(Long productId) {
+        return client.get().uri(PATH + "?productId={productId}&childId={childId}", productId, CHILD_1_ID)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .accept(MediaType.TEXT_EVENT_STREAM)
+            .exchange();
     }
 
     private RestTestClient.ResponseSpec companions(Long productId) {

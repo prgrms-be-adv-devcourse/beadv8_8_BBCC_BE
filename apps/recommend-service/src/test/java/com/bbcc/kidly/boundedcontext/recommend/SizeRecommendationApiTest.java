@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
@@ -17,6 +19,8 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,6 +56,12 @@ class SizeRecommendationApiTest {
     @Autowired
     private RecommendReplicaChildService replicaChildService;
 
+    @Autowired
+    private RecommendReplicaProductRepository replicaProductRepository;
+
+    @Autowired
+    private ReferenceGarmentRepository referenceGarmentRepository;
+
     @Test
     @DisplayName("자녀 1이 상품 A의 사이즈 추천을 받으면 120 · 여유 있음과 후보 110 · 120을 받고, 안내는 빈 목록이고 지난 구매 사이즈는 null이다")
     void recommendSize() {
@@ -71,6 +81,119 @@ class SizeRecommendationApiTest {
                 .containsEntry("productId", String.valueOf(PRODUCT_A_ID))
                 .containsEntry("childId", String.valueOf(CHILD_1_ID))
                 .containsEntry("lastPurchasedSize", null));
+    }
+
+    @Test
+    @DisplayName("FIT-06 기준 옷이 있으면 사이즈마다 상품 실측과 기준 옷 실측의 차이를 기준 핏으로 받고, 규칙 결과라 항목별 판단은 빈 목록이다")
+    void recommendSizeWithReferenceFit() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        // 상의 기준 옷: 총장 40.5cm, 가슴단면 42.0cm. 상품 A 110은 총장 42cm · 가슴단면 34cm다
+        referenceGarmentRepository.save(ReferenceGarmentFixture.top(CHILD_1_ID));
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.referenceFit.productPart").isEqualTo("TOP")
+            .jsonPath("$.referenceFit.comparedPart").isEqualTo("TOP")
+            .jsonPath("$.referenceFit.items[0].code").isEqualTo("TOTAL_LENGTH")
+            .jsonPath("$.referenceFit.items[0].garmentCm").isEqualTo(40.5)
+            .jsonPath("$.referenceFit.items[0].sizes[0].size").isEqualTo("110")
+            .jsonPath("$.referenceFit.items[0].sizes[0].productCm").isEqualTo(42)
+            .jsonPath("$.referenceFit.items[0].sizes[0].diffCm").isEqualTo(1.5)
+            .jsonPath("$.referenceFit.items[1].code").isEqualTo("CHEST_WIDTH")
+            .jsonPath("$.referenceFit.items[1].sizes[0].diffCm").isEqualTo(-8.0)
+            .jsonPath("$.source").isEqualTo("RULE")
+            .jsonPath("$.itemJudgements.length()").isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("기준 옷이 없으면 기준 핏은 칸을 빼지 않고 null로, 항목별 판단은 빈 목록으로 받는다")
+    void recommendSizeWithoutReferenceFit() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.itemJudgements.length()").isEqualTo(0)
+            .jsonPath("$").value(Map.class, body -> assertThat(body).containsEntry("referenceFit", null));
+    }
+
+    // 자녀 1은 키 115cm이고 성장 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 큰다. 실행하는 날과 상관없이 늘 만 7세가 되게 생일을 정한다
+    @Test
+    @DisplayName("GROW-01 · WEAR-03 성장 속도와 사이즈별 입을 수 있는 기간을 받고, 없는 최근 속도와 너비 기준은 칸을 빼지 않고 null로 받는다")
+    void recommendSizeWithGrowthSpeedAndWearablePeriods() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEventBornOn(
+            LocalDate.now(ZoneId.of("Asia/Seoul")).minusYears(7).minusMonths(6)));
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.growthSpeed.cmPerMonth").isEqualTo(0.5)
+            .jsonPath("$.growthSpeed.recordCount").isEqualTo(0)
+            .jsonPath("$.growthSpeed.childSharePercent").isEqualTo(0)
+            .jsonPath("$.growthSpeed.tableSource").isEqualTo("한국아동패널")
+            .jsonPath("$.growthSpeed").value(Map.class,
+                growthSpeed -> assertThat(growthSpeed).containsEntry("recentCmPerMonth", null))
+            .jsonPath("$.wearablePeriods.length()").isEqualTo(2)
+            .jsonPath("$.wearablePeriods[1].size").isEqualTo("120")
+            .jsonPath("$.wearablePeriods[1].lengthMonths").isEqualTo(20)
+            .jsonPath("$.wearablePeriods[1].months").isEqualTo(20)
+            .jsonPath("$.wearablePeriods[1]").value(Map.class,
+                period -> assertThat(period).containsEntry("widthMonths", null));
+    }
+
+    // 자녀 1은 만 7세 남아, 키 115cm다. 만 7세 남 비율로 목뒤 95.1 · 허리 68.1cm이고, 상품 A 상의 총장 42 · 45cm라 밑단은
+    // 53.1cm(엉덩이 56.1 ~ 샅 51.6cm 사이) · 50.1cm(샅 아래, 샅과 무릎의 가운데 40.8cm 위)다. AI 모델이 없는 규칙 결과에서도 받는다
+    @Test
+    @DisplayName("PRV-01 · PRV-03 착용 미리보기로 몸 높이와 사이즈별 밑단 위치를 받고, 소매길이가 없는 사이즈의 소매 칸은 null로 받는다")
+    void recommendSizeWithWearPreview() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEventBornOn(
+            LocalDate.now(ZoneId.of("Asia/Seoul")).minusYears(7).minusMonths(6)));
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.source").isEqualTo("RULE")
+            .jsonPath("$.wearPreview.garment").isEqualTo("TOP")
+            .jsonPath("$.wearPreview.body.neckCm").isEqualTo(95.1)
+            .jsonPath("$.wearPreview.body.waistCm").isEqualTo(68.1)
+            .jsonPath("$.wearPreview.body.armCm").isEqualTo(38.0)
+            .jsonPath("$.wearPreview.sizes.length()").isEqualTo(2)
+            .jsonPath("$.wearPreview.sizes[0].size").isEqualTo("110")
+            .jsonPath("$.wearPreview.sizes[0].hemCm").isEqualTo(53.1)
+            .jsonPath("$.wearPreview.sizes[0].hemAt").isEqualTo("HIP")
+            .jsonPath("$.wearPreview.sizes[1].hemCm").isEqualTo(50.1)
+            .jsonPath("$.wearPreview.sizes[1].hemAt").isEqualTo("THIGH")
+            .jsonPath("$.wearPreview.sizes[1]").value(Map.class,
+                size -> assertThat(size).containsEntry("sleeveCm", null).containsEntry("sleeveAt", null));
+    }
+
+    @Test
+    @DisplayName("PRV-05 사이즈 무관 상품은 착용 미리보기 칸을 빼지 않고 null로 받는다")
+    void recommendSizeFreeProductWithoutWearPreview() {
+        replicaProductRepository.save(RecommendFixture.productASizeFreeReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$").value(Map.class, body -> assertThat(body).containsEntry("wearPreview", null));
+    }
+
+    @Test
+    @DisplayName("WEAR-04 사이즈 무관 상품은 입을 수 있는 기간을 null이 아닌 빈 목록으로 받는다")
+    void recommendSizeFreeProductWithoutWearablePeriods() {
+        replicaProductRepository.save(RecommendFixture.productASizeFreeReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        recommend(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.wearablePeriods.length()").isEqualTo(0);
     }
 
     @Test

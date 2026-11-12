@@ -108,15 +108,18 @@ class OpenAiTextEmbedderTest {
     }
 
     @Test
-    @DisplayName("연속 5번 실패하면 30초 동안 부르지 않고 바로 비워서 돌려준다. 열 때만 한 번 알린다")
+    @DisplayName("연속 5번 실패하면 30초 동안 부르지 않고 바로 비워서 돌려준다. 열 때만 한 번 알리고 열린 상태를 지표로 보인다")
     void opensAfterConsecutiveFailures(CapturedOutput output) {
         OpenAiTextEmbedder embedder = embedder("sk-test", 3);
         server.expect(ExpectedCount.times(5), requestTo("https://api.openai.test/v1/embeddings"))
             .andRespond(withException(new SocketTimeoutException("timeout")));
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 4; i++) {
             assertThat(embedder.embed(TEXT)).isEmpty();
         }
+        assertThat(embedder.isCircuitOpen()).isFalse();
+        assertThat(embedder.embed(TEXT)).isEmpty();
+        assertThat(embedder.isCircuitOpen()).isTrue();
         clock.advance(Duration.ofSeconds(29));
         assertThat(embedder.embed(TEXT)).isEmpty();
         assertThat(embedder.embedKeyword("원피스")).isEmpty();
@@ -164,7 +167,9 @@ class OpenAiTextEmbedderTest {
         server.expect(ExpectedCount.times(2), requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
 
         clock.advance(Duration.ofSeconds(30));
+        assertThat(embedder.isCircuitOpen()).isTrue();
         assertThat(embedder.embed(TEXT)).isPresent();
+        assertThat(embedder.isCircuitOpen()).isFalse();
         assertThat(embedder.embed(TEXT)).isPresent();
 
         server.verify();

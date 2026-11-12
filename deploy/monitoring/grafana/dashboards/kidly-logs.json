@@ -54,16 +54,24 @@
       {
         "name": "env",
         "label": "환경",
-        "type": "query",
-        "datasource": {
-          "type": "loki",
-          "uid": "loki"
+        "type": "custom",
+        "query": "운영 : dev,prod : prod",
+        "current": {
+          "text": "운영",
+          "value": "dev"
         },
-        "query": "label_values(env)",
-        "refresh": 2,
-        "sort": 1,
-        "includeAll": false,
-        "multi": false
+        "options": [
+          {
+            "text": "운영",
+            "value": "dev",
+            "selected": true
+          },
+          {
+            "text": "prod",
+            "value": "prod",
+            "selected": false
+          }
+        ]
       },
       {
         "name": "service",

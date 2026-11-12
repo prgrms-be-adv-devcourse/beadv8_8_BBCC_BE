@@ -62,7 +62,7 @@ public class ReplicaService {
 
     /**
      * 없으면 만들고 있으면 늦은 변경일 때만 덮어쓴다. 삭제도 행을 남기고 삭제 표시만 한다.
-     * 반영 뒤 복사본이 삭제 상태면 그 자녀 프로필의 장바구니를 비운다(#1001, 여러 번 와도 결과가 같다).
+     * 장바구니는 비우지 않는다: 부르는 쪽이 조르기 철회를 알린 뒤 {@link #clearDeletedChildCart}로 비운다(#1001 · #1207).
      *
      * @return 반영 뒤 복사본이 삭제 상태인지(정리 대상)
      */
@@ -86,12 +86,12 @@ public class ReplicaService {
                     }
                 },
                 () -> childReplicaRepository.save(ReplicaChild.create(values)));
-        return cleanUpIfChildDeleted(command.childId());
+        return isChildDeleted(command.childId());
     }
 
     /**
      * 키 · 몸무게 없이 온 자녀 삭제. 복사본이 있으면 늦은 이벤트일 때 삭제 표시만, 없으면 삭제 복사본을 남긴다.
-     * 반영 뒤 삭제 상태면 장바구니를 비운다(#1001).
+     * 장바구니는 비우지 않는다: 부르는 쪽이 조르기 철회를 알린 뒤 {@link #clearDeletedChildCart}로 비운다(#1207).
      *
      * @return 반영 뒤 복사본이 삭제 상태인지
      */
@@ -105,20 +105,23 @@ public class ReplicaService {
                     }
                 },
                 () -> childReplicaRepository.save(ReplicaChild.createDeleted(childId, memberId, occurredAt)));
-        return cleanUpIfChildDeleted(childId);
+        return isChildDeleted(childId);
     }
 
     /**
      * 자녀(#1001): 복사본이 삭제 상태면(이번 이벤트가 늦어 무시됐어도 이미 삭제면) 그 자녀 프로필이 주인인 장바구니를 비운다.
      * 더 최신의 정상 프로필로 되살아난 복사본이면 비우지 않는다(늦게 온 삭제가 지금 장바구니를 지우지 않게).
+     * 조르기 철회(예약을 잠그고 푼다)를 알린 뒤에 부른다(#1207): 그러면 조르기 예약이 먼저 잠기고 풀려, 여기서 잠글 예약이 거의 없다.
      */
-    private boolean cleanUpIfChildDeleted(Long childId) {
-        boolean deleted = childReplicaRepository.findByChildId(childId).map(ReplicaChild::isDeleted).orElse(false);
-        if (deleted) {
+    public void clearDeletedChildCart(Long childId) {
+        if (isChildDeleted(childId)) {
             int removed = cartOwnerCleaner.removeAll(CartOwnerCleaner.OwnerType.CHILD, childId);
             log.info("자녀 삭제 정리: childId={} cartItems={}", childId, removed);
         }
-        return deleted;
+    }
+
+    private boolean isChildDeleted(Long childId) {
+        return childReplicaRepository.findByChildId(childId).map(ReplicaChild::isDeleted).orElse(false);
     }
 
     /**
@@ -141,8 +144,8 @@ public class ReplicaService {
 
     /**
      * 자녀 계정 복사본(#906): 없으면 만들고(삭제 메시지가 먼저 와도 삭제된 행으로), 있으면 삭제는 한 번 · 생성은 늦을 때만 반영한다.
-     * 반영 뒤 계정이 삭제 상태면 그 계정의 자녀 프로필이 주인인 장바구니를 비운다(#1001: 장바구니 주인은 프로필이고, 계정이 없으면 그
-     * 장바구니를 쓸 사람이 없다. 계정을 다시 만들면 새 장바구니). 삭제는 되돌지 않으므로 여러 번 · 순서가 바뀌어 와도 결과가 같다.
+     * 삭제는 되돌지 않으므로 여러 번 · 순서가 바뀌어 와도 결과가 같다. 장바구니는 비우지 않는다: 부르는 쪽이 조르기 철회를 알린 뒤
+     * {@link #clearDeletedAccountCart}로 비운다(#1207).
      *
      * @return 반영 뒤 계정 복사본이 삭제 상태인지
      */
@@ -159,14 +162,23 @@ public class ReplicaService {
                     }
                 },
                 () -> childAccountReplicaRepository.save(ReplicaChildAccount.create(values)));
-        ReplicaChildAccount account = childAccountReplicaRepository.findByAccountId(command.accountId()).orElse(null);
+        return childAccountReplicaRepository.findByAccountId(command.accountId())
+            .map(ReplicaChildAccount::isDeleted)
+            .orElse(false);
+    }
+
+    /**
+     * 계정이 삭제 상태면 그 계정의 자녀 프로필이 주인인 장바구니를 비운다(#1001: 장바구니 주인은 프로필이고, 계정이 없으면 그 장바구니를
+     * 쓸 사람이 없다. 계정을 다시 만들면 새 장바구니). 조르기 철회를 알린 뒤에 부른다(#1207, 조르기 예약을 먼저 잠그고 풀게).
+     */
+    public void clearDeletedAccountCart(Long accountId) {
+        ReplicaChildAccount account = childAccountReplicaRepository.findByAccountId(accountId).orElse(null);
         if (account == null || !account.isDeleted()) {
-            return false;
+            return;
         }
         int removed = cartOwnerCleaner.removeAll(CartOwnerCleaner.OwnerType.CHILD, account.getChildProfileId());
-        log.info("자녀 계정 삭제 정리: accountId={} childId={} cartItems={}", command.accountId(),
-            account.getChildProfileId(), removed);
-        return true;
+        log.info("자녀 계정 삭제 정리: accountId={} childId={} cartItems={}", accountId, account.getChildProfileId(),
+            removed);
     }
 
     private ReplicaProduct.Values toValues(ProductChangedCommand command, ProductChangedCommand.Option option) {

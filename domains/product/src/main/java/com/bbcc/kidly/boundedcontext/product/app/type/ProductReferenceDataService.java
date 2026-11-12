@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItemRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -136,24 +137,28 @@ public class ProductReferenceDataService {
         Category clothingCategory = categoryRepository.save(Category.createMiddle("의류", null));
         saveLeaf(clothingCategory, clothingType, items, "상의",
             "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
-        saveLeaf(clothingCategory, clothingType, items, "하의",
+        saveLeaf(clothingCategory, clothingType, items, "바지",
             "TOTAL_LENGTH", "WAIST_WIDTH", "HIP_WIDTH", "THIGH_WIDTH", "RISE");
         saveLeaf(clothingCategory, clothingType, items, "아우터",
             "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH", "SLEEVE_LENGTH");
-        saveLeaf(clothingCategory, clothingType, items, "원피스", "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH");
+        // 원피스 · 치마는 여아 자녀에게만 보여 준다
+        saveLeaf(clothingCategory, clothingType, items, "원피스", "TOTAL_LENGTH", "SHOULDER_WIDTH", "CHEST_WIDTH")
+            .changeVisibleGender(CategoryVisibleGender.GIRL);
+        saveLeaf(clothingCategory, clothingType, items, "치마", "TOTAL_LENGTH", "WAIST_WIDTH")
+            .changeVisibleGender(CategoryVisibleGender.GIRL);
         Category goodsCategory = categoryRepository.save(Category.createMiddle("잡화", null));
         saveLeaf(goodsCategory, hatType, items, "모자", "HEAD_CIRCUMFERENCE");
         saveLeaf(goodsCategory, sockType, items, "양말", "FOOT_LENGTH");
     }
 
     // 필수 실측 항목은 코드를 적은 순서대로 둔다
-    private void saveLeaf(Category parent, ProductType type, Map<String, MeasurementItem> items, String name,
+    private Category saveLeaf(Category parent, ProductType type, Map<String, MeasurementItem> items, String name,
         String... measurementCodes) {
         List<MeasurementItem> required = new ArrayList<>();
         for (String code : measurementCodes) {
             required.add(items.get(code));
         }
-        categoryRepository.save(Category.createLeaf(new Category.LeafInfo(name, parent, type, required)));
+        return categoryRepository.save(Category.createLeaf(new Category.LeafInfo(name, parent, type, required)));
     }
 
     private static Map<String, String> colors() {

@@ -9,4 +9,7 @@ import org.springframework.data.domain.Pageable;
 public interface SettlementTargetQuery {
 
     Page<SettlementTargetRow> findPending(Long sellerId, Pageable pageable);
+
+    // 정산 대상 전체의 판매금액 합계(수수료 전). 목록 첫 페이지가 아닌 전체 기준이다
+    long sumPendingSalesAmount(Long sellerId);
 }

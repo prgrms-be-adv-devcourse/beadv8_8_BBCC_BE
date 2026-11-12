@@ -158,7 +158,7 @@ class EnvironmentStateTests(unittest.TestCase):
 
     def test_k3s_pods_start_before_gateway_and_stop_after_compose(self):
         (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=gateway\nK3S_PROFILES=member\nGATEWAY_PORT=8083\n')
-        with patch.object(state, 'run', return_value='') as run:
+        with patch.object(state, 'run', side_effect=lambda command, capture=False: 'cronjob.batch/settlement-daily-run' if capture else None) as run:
             state.control('dev', 'resume')
             started = [call.args[0] for call in run.call_args_list]
             run.reset_mock()
@@ -166,10 +166,22 @@ class EnvironmentStateTests(unittest.TestCase):
             stopped = [call.args[0] for call in run.call_args_list]
         self.assertEqual(started[0][-3:], ['--all', '--replicas', '1'])
         self.assertIn('--for=condition=Available', started[1])
-        self.assertEqual(started[2][:2], ['docker', 'compose'])
+        self.assertEqual(started[2][-4:], ['get', 'cronjob', '-o', 'name'])
+        self.assertEqual(started[3][-6:], ['patch', 'cronjob.batch/settlement-daily-run', '--type', 'merge', '-p', '{"spec":{"suspend":false}}'])
+        self.assertEqual(started[4][:2], ['docker', 'compose'])
         self.assertEqual(stopped[0][:2], ['docker', 'compose'])
-        self.assertEqual(stopped[1][-3:], ['--all', '--replicas', '0'])
-        self.assertIn('kidly-dev', stopped[1])
+        self.assertEqual(stopped[1][-4:], ['get', 'cronjob', '-o', 'name'])
+        self.assertEqual(stopped[2][-6:], ['patch', 'cronjob.batch/settlement-daily-run', '--type', 'merge',
+                                          '-p', '{"spec":{"suspend":true}}'])
+        self.assertEqual(stopped[3][-3:], ['--all', '--replicas', '0'])
+        self.assertIn('kidly-dev', stopped[3])
+
+    def test_k3s_without_cronjobs_does_not_patch(self):
+        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=\nK3S_PROFILES=member\n')
+        with patch.object(state, 'run', return_value='') as run:
+            state.control('dev', 'resume')
+            state.control('dev', 'stop')
+        self.assertFalse(any('patch' in call.args[0] for call in run.call_args_list))
 
     def test_compose_only_environment_does_not_touch_k3s(self):
         with patch.object(state, 'run', return_value='') as run:

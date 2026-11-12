@@ -1,8 +1,8 @@
 package com.bbcc.kidly.boundedcontext.settlement.app.port;
 
-import java.time.LocalDate;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementHoliday;
 import java.time.Year;
-import java.util.Set;
+import java.util.List;
 
 /**
  * 한 해의 공휴일(대체공휴일 · 임시공휴일 포함)을 조회한다.
@@ -10,5 +10,5 @@ import java.util.Set;
  */
 public interface SettlementHolidayCalendar {
 
-    Set<LocalDate> holidaysIn(Year year);
+    List<SettlementHoliday> holidaysIn(Year year);
 }

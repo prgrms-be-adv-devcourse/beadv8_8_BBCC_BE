@@ -4,7 +4,7 @@
 
 ## 진행 상태
 - 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`), 검색 이벤트 발행(`search.performed`, #611), 의미 검색(관련도순, #797), 검색 결과 클릭 기록(`search.result-clicked`, #1004)
-- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`와 `POST /api/v1/search/clicks`만 search-service로 넘긴다, `apps/gateway`), dev 처음 채우기, prod 설정(`deploy/.env.prod`, main 첫 배포 때 나간다)
+- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`와 `POST /api/v1/search/clicks`만 search-service로 넘긴다, `apps/gateway`), dev 처음 채우기, prod 설정(`deploy/.env.prod`, main 첫 배포 때 나간다), 장애 대응(#1026: Elasticsearch 시간 제한 · DLT 다시 반영 · 지표 · 알림 · 절차)
 - 남음: prod 처음 채우기(main 배포 뒤 판매자 → 상품 다시 발행 API를 한 번씩, `deploy/search/README.md`)
 - `apps/search-service`로 띄운다. 상품 목록 API 경로는 `GET /api/v1/products`, 클릭 기록은 `POST /api/v1/search/clicks`, 서비스 사이 상품 검색은 `GET /internal/products/search`(#1191)다
 
@@ -14,7 +14,7 @@
 - 이미지: 검색 서비스 `<저장소>-search-service:<커밋 SHA>`, Elasticsearch `<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>`(폴더가 바뀔 때만 빌드). `deploy.yml`이 올린다
 - Elasticsearch는 heap 1g, 포트를 열지 않고 보안(xpack)을 끈다. 검색 서비스는 heap 512m, 서버 `127.0.0.1:<SEARCH_PORT>`에만 연다
 - 검색 서비스의 `/actuator/health`가 Elasticsearch 연결을 보므로 Elasticsearch가 healthy가 된 뒤에 띄운다
-- 모니터링: Prometheus job `kidly-search`(앱 job `kidly`의 대시보드 · 알림과 나눈다), Loki `service_name=kidly-search`
+- 모니터링: Prometheus job `kidly-search`(앱 job `kidly`의 대시보드 · 알림과 나눈다), Loki `service_name=kidly-search`. 검색 전용 알림은 아래 "장애 대응"
 
 ## 검색 문서 (`domain/SearchProduct`)
 - `ProductChangedEvent` 하나로 만든다. 계산 규칙은 상품의 `product_search_document`와 같다
@@ -38,7 +38,7 @@
 - 실패 처리(`in/SearchKafkaListenerConfig`): 한 건씩 처리 완료를 커밋하고, 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT(`<토픽>.search.dlt`)로 보낸다
   - 재시도 없이 바로 DLT: 읽지 못한 본문(`JacksonException`), 검색 문서로 만들 수 없는 값(옵션 없는 상품 · 필수 값 없음 · `eventType` 헤더 없음, `IllegalArgumentException` · `NullPointerException`). 다시 해도 같아서다
   - DLT 로그에는 토픽 · `eventType` · `eventId` · 키 · 예외 종류만 남긴다(본문 · 예외 메시지는 남기지 않는다)
-  - Elasticsearch가 3초 넘게 응답하지 않으면 그동안 받은 메시지는 DLT로 간다. DLT를 다시 넣는 방법은 서버 배포 때 정한다
+  - Elasticsearch가 3초 넘게 응답하지 않으면 그동안 받은 메시지는 DLT로 간다. DLT는 검색이 다시 읽어 반영한다(아래 "장애 대응")
 - 읽기 시작 위치는 앱 설정 `latest`(회의 10-29 안건 4). 구독 그룹이 처음 붙기 전 메시지는 읽지 않으므로 기존 상품은 처음 채우기로 넣는다
 - 상품 · 판매자 토픽은 보내는 쪽이 선언한다. 검색은 DLT 두 개만 선언한다
 
@@ -121,6 +121,23 @@
 - 넣지 않은 것
   - 오타 허용(`fuzziness`): nori가 오타를 다른 형태소로 나눠(`원피수` → 원피 · 수, `맨투멘` → 투 · 멘) `AUTO`로는 평가 세트에서 오타를 하나도 찾지 못했고(얻은 건 사전이 이미 잡는 `가디건` → 카디건뿐), `1`은 2글자 형태소마다 엉뚱한 상품을 붙였다(`코트` → 니트 · 세트 상품). 오타는 의미 검색이 일부 잡는다
   - nori 사용자 사전: 색인 분석기가 바뀌어 새 색인 · 다시 채우기가 든다. 지금 나뉘는 말(`래시가드` → 래시 · 가드, `스웨트셔츠` → 스웨트 · 셔츠)은 형태소를 모두 맞춰 찾으므로 그 말로 찾는 데는 문제가 없고, 짧은 말(`셔츠` · `가드`)로 찾을 때 함께 나오는 정도다. 이 잡음이 실제 클릭 기록(#1004)에서 보이면 새 색인과 함께 넣는다
+
+## 장애 대응 (#1026)
+- 절차(상황별 첫 조치 · 복구 확인 · dev 훈련)는 `deploy/search/README.md` "장애 대응". 여기는 코드가 어떻게 하는지만 적는다
+- Elasticsearch 시간 제한: 연결 1초 · 응답 3초(`search.yml` `spring.elasticsearch.connection-timeout` · `socket-timeout`). 넘으면 검색은 503, 색인은 Kafka 재시도 뒤 DLT
+  - Boot는 `socket-timeout`을 연결 설정에만 넣고, Elasticsearch 클라이언트(Rest5Client)는 요청마다 자기 응답 시간 제한을 따로 건다. 그래서 설정만으로는 요청이 끊기지 않아(멈춘 Elasticsearch에 수 분 묶임) `out/SearchElasticsearchConfig`의 `Rest5ClientBuilderCustomizer`가 요청 설정(응답 · 연결 풀 대기)에도 같은 값을 넣는다
+  - 테스트는 Elasticsearch 컨테이너를 잠시 멈춰(`docker pause`) 본다(`ProductSearchIntegrationTest` · `SearchKafkaIntegrationTest`). 끝나면 꼭 다시 살린다(`finally`). HTTP로 재면 테스트 클라이언트가 503에 다시 요청해 시간이 늘어나므로 포트(`ProductSearch`)로 잰다
+- DLT 다시 반영(`in/SearchDeadLetterListener`): 검색이 자기 DLT 두 개를 구독 그룹 `kidly.search`로 읽어 원래 리스너와 같은 처리를 부른다. 원래 토픽에 다시 넣지 않는다
+  - 같은 팩토리 · 에러 처리기를 쓴다. 에러 처리기가 받은 토픽이 DLT(`.search.dlt`로 끝남)면 DLT로 다시 보내지 않고 1초부터 두 배씩 최대 1분 간격으로 횟수 제한 없이 다시 시도한다(Elasticsearch가 돌아올 때까지). 다시 해도 같은 실패(본문 · 값 오류)는 ERROR 로그만 남기고 건너뛴다
+  - 다시 시도하는 동안 DLT 리스너만 멈춘다(DLT 파티션은 하나라 뒤 메시지도 기다린다). 원래 토픽 리스너는 따로 돈다. 다시 해도 안 되는데 재시도할 수 있는 예외로 보이는 메시지(코드 버그)는 앞을 막으므로 "DLT 미반영" 알림으로 잡는다
+  - 처음 붙을 때는 `latest`라 그 전에 쌓인 DLT는 읽지 않는다(다시 발행으로 채운다). 반영하면 INFO(토픽 · eventType · eventId · 키)를 남긴다
+- 지표(`micrometer-core`, 레지스트리는 검색 서비스가 넣는다)
+  - `kidly.search.embedding.circuit.open`: 임베딩 연속 실패 차단이 열려 있으면 1(`out/SearchEmbeddingConfig`)
+  - `kidly.search.products.without.embedding`: 벡터 없이 저장된 판매중 상품 수(`out/SearchIndexMetrics`). Prometheus가 읽을 때마다(15초) Elasticsearch `count`를 한 번 한다. 의미 검색을 끈 환경은 모든 상품에 벡터가 없어 등록하지 않는다. 셀 수 없으면 NaN · DEBUG 로그
+  - Elasticsearch 응답 시간 지표는 두지 않는다. 검색 API 지연(`http_server_requests`)이 거의 Elasticsearch 시간이고, 3초를 넘으면 503이라 5xx 알림이 잡는다
+  - DLT 도착 · 미반영은 앱 지표 없이 kafka-exporter(토픽 오프셋 · 그룹 lag)로 본다
+- 알림 `deploy/monitoring/grafana/provisioning/alerting/search.yml`(promtool 테스트 `deploy/monitoring/tests/search.test.yml`): DLT 도착(10분 안에 늘면), DLT 미반영(그룹 `kidly.search` lag가 30분), 임베딩 차단(10분), 벡터 없는 상품(1시간). 라벨은 env · topic만
+- 벡터 없는 상품은 색인에 설명이 없어 검색이 혼자 다시 만들 수 없다. 상품 다시 발행으로 채운다(문장이 같은 상품은 저장된 벡터를 써서 API를 부르지 않는다)
 
 ## 검색 이벤트 발행 (`search.performed`, #611)
 - 추천이 회원의 관심사로 쓴다. 토픽 `kidly.search.events`(파티션 3 · 복제 1, `out/SearchKafkaConfig`가 선언), 키는 회원 ID, 본문은 공통 칸 7개 + `data`

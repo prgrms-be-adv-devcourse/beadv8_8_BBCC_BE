@@ -2,23 +2,31 @@ package com.bbcc.kidly.boundedcontext.recommend.app.size;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
+import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.dto.SizeRecommendationResult;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ItemJudgement;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReason;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSource;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
  * 사이즈 추천 유스케이스다. AI 호출은 트랜잭션 밖에서 해야 해서 이 클래스에는 {@code @Transactional}을 붙이지 않고,
  * 복사본 읽기는 {@link SizeRecommendationReader}가 트랜잭션 안에서 맡는다.
  */
+@Slf4j
 @Service
 public class SizeRecommendationService {
 
@@ -38,8 +46,9 @@ public class SizeRecommendationService {
     public SizeRecommendationResult recommend(Long memberId, Long productId, Long childId) {
         SizeRecommendationDraft draft = reader.read(memberId, productId, childId);
         AiSizeAnswer answer = askAi(draft);
-        SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer);
-        return toResult(draft.productId(), draft.childId(), recommendation);
+        SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer, draft.aiEvidence());
+        logOutcome(draft, answer, recommendation);
+        return toResult(draft, recommendation);
     }
 
     // AI 모델이 없거나 사이즈 구분이 없는 상품이면 부르지 않고, 답을 얻지 못하면 null이라 규칙 결과로 답한다
@@ -53,7 +62,28 @@ public class SizeRecommendationService {
             () -> chooser.choose(draft.aiQuestion())).orElse(null);
     }
 
-    private SizeRecommendationResult toResult(Long productId, Long childId, SizeRecommendation recommendation) {
+    // 어떤 프롬프트 판의 AI 답을 채택했는지, 검증에서 버렸는지 남긴다. 자녀 ID, 회원 ID, 자녀 몸 정보는 남기지 않는다.
+    // AI를 부르지 않았거나 답을 얻지 못한 경우(answer가 null)는 남기지 않는다.
+    private void logOutcome(SizeRecommendationDraft draft, AiSizeAnswer answer, SizeRecommendation recommendation) {
+        if (answer == null) {
+            return;
+        }
+        int promptVersion = draft.aiKeyInput().promptVersion();
+        if (recommendation.getSource() != SizeRecommendationSource.AI) {
+            log.info("AI 사이즈 답을 검증에서 버리고 규칙 결과로 답합니다. promptVersion={}, productId={}",
+                promptVersion, draft.productId());
+            return;
+        }
+        List<String> judgements = new ArrayList<>();
+        for (ItemJudgement judgement : recommendation.getItemJudgements()) {
+            judgements.add(judgement.code() + " " + judgement.diffCm() + " " + judgement.fit() + " "
+                + judgement.allowanceMinCm() + "~" + judgement.allowanceMaxCm());
+        }
+        log.info("사이즈 AI 답을 채택했습니다. promptVersion={}, productId={}, itemJudgements={}",
+            promptVersion, draft.productId(), judgements);
+    }
+
+    private SizeRecommendationResult toResult(SizeRecommendationDraft draft, SizeRecommendation recommendation) {
         String fit = recommendation.getFit() == null ? null : recommendation.getFit().name();
         List<SizeRecommendationResult.Notice> notices = new ArrayList<>();
         for (SizeNotice notice : recommendation.getNotices()) {
@@ -66,8 +96,69 @@ public class SizeRecommendationService {
         }
         // 지난 구매 사이즈는 아직 채우지 않는다
         return new SizeRecommendationResult(
-            productId, childId, recommendation.getRecommendedSize(), fit,
+            draft.productId(), draft.childId(), recommendation.getRecommendedSize(), fit,
             notices, recommendation.getCandidateSizes(), null,
-            recommendation.getSource().name(), reasons);
+            recommendation.getSource().name(), reasons,
+            referenceFitOf(draft.aiQuestion().referenceFit()), itemJudgementsOf(recommendation),
+            growthSpeedOf(draft.aiQuestion().growthSpeed()), wearablePeriodsOf(draft.aiQuestion().wearablePeriods()),
+            wearPreviewOf(draft.wearPreview()));
+    }
+
+    private SizeRecommendationResult.GrowthSpeed growthSpeedOf(SizeAiQuestion.GrowthSpeed growthSpeed) {
+        return new SizeRecommendationResult.GrowthSpeed(growthSpeed.cmPerMonth(), growthSpeed.recentCmPerMonth(),
+            growthSpeed.recordCount(), growthSpeed.recordMonths(), growthSpeed.childSharePercent(),
+            growthSpeed.tableCmPerMonth(), growthSpeed.tableSource());
+    }
+
+    private SizeRecommendationResult.WearPreview wearPreviewOf(WearPreview preview) {
+        if (preview == null) {
+            return null;
+        }
+        WearPreview.Body body = preview.body();
+        List<SizeRecommendationResult.SizeWear> sizes = new ArrayList<>();
+        for (WearPreview.SizeWear wear : preview.sizes()) {
+            String hemAt = wear.hemAt() == null ? null : wear.hemAt().name();
+            String sleeveAt = wear.sleeveAt() == null ? null : wear.sleeveAt().name();
+            sizes.add(new SizeRecommendationResult.SizeWear(
+                wear.size(), wear.hemCm(), hemAt, wear.sleeveCm(), sleeveAt));
+        }
+        return new SizeRecommendationResult.WearPreview(preview.garment().name(),
+            new SizeRecommendationResult.Body(body.neckCm(), body.shoulderCm(), body.waistCm(), body.hipCm(),
+                body.crotchCm(), body.kneeCm(), body.ankleCm(), body.armCm()),
+            sizes);
+    }
+
+    private List<SizeRecommendationResult.WearablePeriod> wearablePeriodsOf(List<WearablePeriod> periods) {
+        List<SizeRecommendationResult.WearablePeriod> results = new ArrayList<>();
+        for (WearablePeriod period : periods) {
+            results.add(new SizeRecommendationResult.WearablePeriod(
+                period.size(), period.lengthMonths(), period.widthMonths(), period.months()));
+        }
+        return results;
+    }
+
+    private SizeRecommendationResult.ReferenceFit referenceFitOf(ReferenceFit referenceFit) {
+        if (referenceFit == null) {
+            return null;
+        }
+        List<SizeRecommendationResult.FitItem> items = new ArrayList<>();
+        for (ReferenceFit.Item item : referenceFit.items()) {
+            List<SizeRecommendationResult.SizeDiff> sizes = new ArrayList<>();
+            for (ReferenceFit.SizeDiff diff : item.sizes()) {
+                sizes.add(new SizeRecommendationResult.SizeDiff(diff.size(), diff.productCm(), diff.diffCm()));
+            }
+            items.add(new SizeRecommendationResult.FitItem(item.code(), item.garmentCm(), sizes));
+        }
+        return new SizeRecommendationResult.ReferenceFit(
+            referenceFit.productPart().name(), referenceFit.comparedPart().name(), items);
+    }
+
+    private List<SizeRecommendationResult.ItemJudgement> itemJudgementsOf(SizeRecommendation recommendation) {
+        List<SizeRecommendationResult.ItemJudgement> judgements = new ArrayList<>();
+        for (ItemJudgement judgement : recommendation.getItemJudgements()) {
+            judgements.add(new SizeRecommendationResult.ItemJudgement(judgement.code(), judgement.diffCm(),
+                judgement.fit().name(), judgement.allowanceMinCm(), judgement.allowanceMaxCm()));
+        }
+        return judgements;
     }
 }

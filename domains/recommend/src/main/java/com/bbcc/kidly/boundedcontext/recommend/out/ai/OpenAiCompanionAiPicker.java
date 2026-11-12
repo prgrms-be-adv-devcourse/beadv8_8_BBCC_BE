@@ -23,6 +23,8 @@ public class OpenAiCompanionAiPicker implements CompanionAiPicker {
         너는 키즈 패션 쇼핑몰의 코디 도우미다.
         보고 있는 상품과 함께 사면 좋은 상품을 후보 목록에서만 %d개 고른다.
         고른 순서가 추천 순서다. 후보 목록에 없는 상품 ID는 쓰지 않는다.
+        후보의 순위는 유사도와 짝 종류로 정한 규칙 순서다. 앞 순위를 우선하되, 보고 있는 상품과 어울리지 않으면 건너뛴다.
+        같은 종류만 고르지 않고 짝 종류를 섞어서 고른다.
         이유는 보호자에게 보여 줄 한국어 한 문장이다.
         - 띄어쓰기와 문장 부호를 포함해 40자 안으로 쓴다.
         - 해요체나 합니다체로 끝낸다. 예: "가을에 겹쳐 입기 좋아요.", "단정한 느낌을 줍니다."
@@ -58,8 +60,11 @@ public class OpenAiCompanionAiPicker implements CompanionAiPicker {
     private String userText(CompanionAiRequest request) {
         StringBuilder text = new StringBuilder();
         text.append("보고 있는 상품\n").append(line(request.viewed())).append("\n\n후보 상품\n");
+        // 후보는 규칙 순서로 온다. 순위만 보내고 점수 값은 보내지 않는다
+        int rank = 1;
         for (CompanionAiProduct candidate : request.candidates()) {
-            text.append(line(candidate)).append('\n');
+            text.append("순위 ").append(rank).append(FIELD_SEPARATOR).append(line(candidate)).append('\n');
+            rank++;
         }
         return text.toString();
     }

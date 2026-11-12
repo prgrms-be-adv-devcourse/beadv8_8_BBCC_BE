@@ -15,20 +15,31 @@ import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendati
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.HemPosition;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.SleevePosition;
+import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SizeRecommendationServiceTest {
@@ -43,7 +54,22 @@ class SizeRecommendationServiceTest {
     private static final AiResponseKey.Input KEY_INPUT = new AiResponseKey.Input(
         PRODUCT_ID, CHILD_ID, 82, null, null, null, null, null, null, 1);
 
-    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, null);
+    // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
+    private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
+        null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널");
+
+    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of());
+
+    private static final ReferenceFit REFERENCE_FIT = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
+        new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
+            new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
+
+    private static final SizeAiQuestion QUESTION_WITH_FIT =
+        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, GROWTH, List.of());
+
+    // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
+    private static final SizeAiEvidence EVIDENCE =
+        new SizeAiEvidence(null, Set.of(new BigDecimal("114"), new BigDecimal("110")));
 
     @Mock
     private SizeRecommendationReader reader;
@@ -59,7 +85,7 @@ class SizeRecommendationServiceTest {
     void answerWithAiChoice() {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftOf(RULE_120));
         AiSizeAnswer answer = new AiSizeAnswer("110", "TIGHT",
-            List.of(new AiSizeAnswer.Reason("HEIGHT", "키 114cm는 110의 권장 키 안이에요.", null)));
+            List.of(new AiSizeAnswer.Reason("HEIGHT", "키 114cm는 110의 권장 키 안이에요.", null)), List.of());
         given(aiSizeChooser.choose(QUESTION)).willReturn(answer);
         givenAiResponseServiceCallsChooser();
 
@@ -106,7 +132,7 @@ class SizeRecommendationServiceTest {
     void answerSizeFreeWithoutAi() {
         ProductSizes sizeFreeProduct = ProductSizes.of(true, List.of(SizeRange.of("FREE", 90, 130)));
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION));
+            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION, EVIDENCE, null));
 
         SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
@@ -132,7 +158,117 @@ class SizeRecommendationServiceTest {
 
     private static SizeRecommendationDraft draftOf(SizeRecommendation rule) {
         return new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), rule, KEY_INPUT, QUESTION);
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), rule, KEY_INPUT, QUESTION, EVIDENCE, null);
+    }
+
+    @Test
+    @DisplayName("FIT-09 AI 답을 채택하면 추천 사이즈의 항목별 판단과 기준 핏을 결과에 담는다")
+    void resultHasAdoptedJudgementsAndReferenceFit() {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftWithReferenceFit());
+        given(aiSizeChooser.choose(QUESTION_WITH_FIT)).willReturn(answerWithChestDiff("2.0"));
+        givenAiResponseServiceCallsChooser();
+
+        SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("AI");
+        assertThat(result.itemJudgements()).containsExactly(new SizeRecommendationResult.ItemJudgement(
+            "CHEST_WIDTH", new BigDecimal("2.0"), "ROOMY", new BigDecimal("0.0"), new BigDecimal("3.0")));
+        assertThat(result.referenceFit().productPart()).isEqualTo("TOP");
+        assertThat(result.referenceFit().items()).extracting(SizeRecommendationResult.FitItem::code)
+            .containsExactly("CHEST_WIDTH");
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("FIT-09 · FIT-11 AI 답을 채택하면 프롬프트 판과 항목별 판단을 로그 한 줄로 남기고 자녀 정보는 남기지 않는다")
+    void logAdoptedJudgementsWithPromptVersion(CapturedOutput output) {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftWithReferenceFit());
+        given(aiSizeChooser.choose(QUESTION_WITH_FIT)).willReturn(answerWithChestDiff("2.0"));
+        givenAiResponseServiceCallsChooser();
+
+        service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(output.getOut()).contains("promptVersion=1", "productId=10", "CHEST_WIDTH", "ROOMY")
+            .doesNotContain("childId", "memberId", "=" + CHILD_ID);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("FIT-10 · FIT-11 AI 답을 검증에서 버리면 규칙 결과로 답하고 프롬프트 판과 함께 버렸다는 로그를 남긴다")
+    void logDiscardedAnswerWithPromptVersion(CapturedOutput output) {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftWithReferenceFit());
+        given(aiSizeChooser.choose(QUESTION_WITH_FIT)).willReturn(answerWithChestDiff("2.5"));
+        givenAiResponseServiceCallsChooser();
+
+        SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(output.getOut()).contains("규칙 결과로 답합니다", "promptVersion=1", "productId=10")
+            .doesNotContain("childId", "memberId");
+    }
+
+    @Test
+    @DisplayName("GROW-01 · WEAR-03 AI 모델이 없어 규칙 결과로 답해도 성장 속도와 사이즈별 입을 수 있는 기간을 결과에 담는다")
+    void resultHasGrowthSpeedAndWearablePeriodsWithoutAi() {
+        SizeAiQuestion question = new SizeAiQuestion(null, List.of(), null, null,
+            new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0,
+                new BigDecimal("0.50"), "한국아동패널"),
+            List.of(new WearablePeriod("120", 20, null, 20)));
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, question, EVIDENCE, null));
+
+        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+            .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.source()).isEqualTo("RULE");
+        assertThat(result.growthSpeed()).isEqualTo(new SizeRecommendationResult.GrowthSpeed(
+            new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널"));
+        assertThat(result.wearablePeriods())
+            .containsExactly(new SizeRecommendationResult.WearablePeriod("120", 20, null, 20));
+    }
+
+    @Test
+    @DisplayName("PRV-05 AI 모델이 없어 규칙 결과로 답해도 착용 미리보기를 결과에 담는다")
+    void resultHasWearPreviewWithoutAi() {
+        WearPreview preview = new WearPreview(GarmentPart.TOP,
+            new WearPreview.Body(98.6, 92.8, 71.9, 58.8, 53.5, 30.5, 5.3, 39.4),
+            List.of(new WearPreview.SizeWear("120", 53.6, HemPosition.HIP, 30.0, SleevePosition.ABOVE_WRIST),
+                new WearPreview.SizeWear("130", null, null, null, null)));
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, preview));
+
+        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+            .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.wearPreview()).isEqualTo(new SizeRecommendationResult.WearPreview("TOP",
+            new SizeRecommendationResult.Body(98.6, 92.8, 71.9, 58.8, 53.5, 30.5, 5.3, 39.4),
+            List.of(new SizeRecommendationResult.SizeWear("120", 53.6, "HIP", 30.0, "ABOVE_WRIST"),
+                new SizeRecommendationResult.SizeWear("130", null, null, null, null))));
+    }
+
+    @Test
+    @DisplayName("PRV-05 착용 미리보기가 없는 상품(사이즈 무관 · 모자 · 양말)이면 결과의 착용 미리보기는 null이다")
+    void resultHasNoWearPreviewWhenNotPreviewed() {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, null));
+
+        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+            .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.wearPreview()).isNull();
+    }
+
+    // 상의 기준 옷 가슴단면 34cm와 상품 120의 가슴단면 36cm를 비교한 기준 핏을 넘긴 초안이다
+    private static SizeRecommendationDraft draftWithReferenceFit() {
+        return new SizeRecommendationDraft(PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT,
+            QUESTION_WITH_FIT, new SizeAiEvidence(REFERENCE_FIT, Set.of(new BigDecimal("2.0"))), null);
+    }
+
+    private static AiSizeAnswer answerWithChestDiff(String diffCm) {
+        return new AiSizeAnswer("120", "ROOMY",
+            List.of(new AiSizeAnswer.Reason("MEASUREMENT", "가슴단면이 2cm 넉넉해요.", null)),
+            List.of(new AiSizeAnswer.Judgement("CHEST_WIDTH", new BigDecimal(diffCm), "ROOMY",
+                new BigDecimal("0.0"), new BigDecimal("3.0"))));
     }
 
     // AI 응답 서비스가 저장된 답 없이 넘겨받은 호출을 그대로 실행한 것처럼 한다

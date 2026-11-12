@@ -40,7 +40,8 @@ public final class ProductChangedData {
     private static List<ProductChangedEvent.CategoryPathEntry> toCategoryPath(Category category) {
         List<ProductChangedEvent.CategoryPathEntry> entries = new ArrayList<>();
         for (Category node : category.path()) {
-            entries.add(new ProductChangedEvent.CategoryPathEntry(node.getId(), node.getName()));
+            entries.add(new ProductChangedEvent.CategoryPathEntry(
+                node.getId(), node.getName(), node.getVisibleGender()));
         }
         return entries;
     }

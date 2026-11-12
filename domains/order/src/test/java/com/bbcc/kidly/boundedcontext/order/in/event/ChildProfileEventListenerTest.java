@@ -2,12 +2,15 @@ package com.bbcc.kidly.boundedcontext.order.in.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.order.app.replica.ReplicaService;
 import com.bbcc.kidly.boundedcontext.order.app.replica.dto.ChildChangedCommand;
+import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -25,6 +28,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -41,8 +45,39 @@ class ChildProfileEventListenerTest {
     @Mock
     private ReplicaService replicaService;
 
+    @Mock
+    private EventPublisher eventPublisher;
+
     @InjectMocks
     private ChildProfileEventListener listener;
+
+    @Test
+    @DisplayName("삭제면 조르기 철회 알림(Spring 이벤트)을 먼저 하고 그다음 장바구니를 비운다(#1207 잠금 순서)")
+    void deletionPublishesBeforeClearingCart() {
+        when(replicaService.applyChildChanged(any())).thenReturn(true);
+        ChildChangedEvent event = event(BodyType.NORMAL, true);
+
+        listener.onChildChanged(event);
+
+        InOrder order = inOrder(replicaService, eventPublisher);
+        order.verify(replicaService).applyChildChanged(any());
+        order.verify(eventPublisher).publish(event);
+        order.verify(replicaService).clearDeletedChildCart(1L);
+    }
+
+    @Test
+    @DisplayName("프로필 값 없는 삭제도 철회 알림 뒤에 장바구니를 비운다")
+    void deletionWithoutProfilePublishesBeforeClearingCart() {
+        when(replicaService.applyChildDeleted(1L, 1L, OCCURRED_AT)).thenReturn(true);
+        ChildChangedEvent event = new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT, data(1L, 1L, null, null, true));
+
+        listener.onChildChanged(event);
+
+        InOrder order = inOrder(replicaService, eventPublisher);
+        order.verify(replicaService).applyChildDeleted(1L, 1L, OCCURRED_AT);
+        order.verify(eventPublisher).publish(event);
+        order.verify(replicaService).clearDeletedChildCart(1L);
+    }
 
     @Captor
     private ArgumentCaptor<ChildChangedCommand> command;

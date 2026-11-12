@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementSearchRequest;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementDetailResponse;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementSummaryResponse;
 import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementTargetResponse;
+import com.bbcc.kidly.boundedcontext.settlement.in.dto.SettlementTargetSummaryResponse;
 import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
@@ -33,6 +34,11 @@ public class SellerSettlementController {
         @LoginMember AuthMember seller, @PageableDefault Pageable pageable) {
         return PageResponse.from(
             sellerSettlementService.getTargets(seller.id(), pageable).map(SettlementTargetResponse::from));
+    }
+
+    @GetMapping("/settlement-targets/summary")
+    public SettlementTargetSummaryResponse targetSummary(@LoginMember AuthMember seller) {
+        return new SettlementTargetSummaryResponse(sellerSettlementService.getPendingSalesAmount(seller.id()));
     }
 
     @GetMapping("/settlements")
