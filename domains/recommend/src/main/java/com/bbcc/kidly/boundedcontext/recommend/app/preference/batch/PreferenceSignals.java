@@ -38,8 +38,8 @@ public final class PreferenceSignals {
             case CART_ITEM_ADDED -> PreferenceSignalType.CART_ITEM_ADDED;
             case SEARCH_RESULT_CLICKED -> PreferenceSignalType.SEARCH_RESULT_CLICKED;
             case WISH_SENT -> PreferenceSignalType.WISH_SENT;
-            // 읽기 포트는 장바구니 빼기를 담기 기록의 표시로만 돌려준다. 그 밖의 종류가 오면 읽기가 잘못된 것이다
-            case CART_ITEM_REMOVED ->
+            // 읽기 포트는 장바구니 빼기 · 조르기 철회를 담기 · 조르기 기록의 표시로만 돌려준다. 이 종류가 오면 읽기가 잘못된 것이다
+            case CART_ITEM_REMOVED, WISH_CANCELLED ->
                 throw new IllegalArgumentException("선호 신호로 바꿀 수 없는 활동 종류입니다: " + type);
         };
     }
