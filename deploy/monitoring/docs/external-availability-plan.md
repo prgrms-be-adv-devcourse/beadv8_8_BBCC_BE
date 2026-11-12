@@ -12,7 +12,8 @@ GitHub Actions에서 **external-observation → Run workflow → dev**를 실행
 
 워크플로는 상태 코드·응답 시간·TLS 잔여일을 남깁니다. 응답 본문·헤더·인증정보는 기록에서 제외합니다.
 같은 워크플로를 다시 실행해 실패한 경로의 정상 응답을 확인합니다.
-[최근 외부 수동 실행](https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/actions/runs/43150620655)에서 HTTP 200 세 건과 TLS 잔여 66일을 확인했습니다.
+Actions를 쓸 수 없으면 저장소 루트에서 `python3 deploy/monitoring/external_probe.py --environment dev`를 실행합니다.
+[최근 외부 수동 실행](https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/actions/runs/43150620655)에서 HTTP 200 세 건과 TLS 잔여 66일을 확인했습니다. 수동 실행은 그 시점의 접근 가능성만 확인합니다. 업무 데이터의 정확성·상시 가용성·부하 성능은 별도 검증이 필요합니다.
 
 ## 상시 감시 결정
 
