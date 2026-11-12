@@ -23,11 +23,11 @@ public class ChatController {
     private final ChatService chatService;
 
     /**
-     * 200. 쓴 문서가 없으면 빈 sources, 찾은 상품이 없으면 빈 products. 상품 검색이 실패해도 200이다(답에서 안내).
+     * 200. 쓴 문서가 없으면 빈 sources, 찾은 상품이 없으면 빈 products. 상품 검색 · 주문 조회가 실패해도 200이다(답에서 안내).
      * 오류: 400 INVALID_INPUT, 503 AI_UNAVAILABLE.
      */
     @PostMapping("/messages")
     public ChatResponse send(@LoginMember AuthMember member, @Valid @RequestBody ChatRequest request) {
-        return ChatResponse.from(chatService.answer(request.message(), request.historyTurns()));
+        return ChatResponse.from(chatService.answer(member.id(), request.message(), request.historyTurns()));
     }
 }

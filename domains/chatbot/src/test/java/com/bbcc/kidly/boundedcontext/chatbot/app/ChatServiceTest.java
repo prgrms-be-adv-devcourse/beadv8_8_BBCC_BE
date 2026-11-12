@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 
 import com.bbcc.kidly.boundedcontext.chatbot.FakeChatModel;
 import com.bbcc.kidly.boundedcontext.chatbot.FakeEmbeddingModel;
+import com.bbcc.kidly.boundedcontext.chatbot.FakeMemberOrderHistory;
 import com.bbcc.kidly.boundedcontext.chatbot.FakeProductSearcher;
 import com.bbcc.kidly.boundedcontext.chatbot.app.ChatService.ChatAnswer;
 import com.bbcc.kidly.boundedcontext.chatbot.app.ChatService.Source;
@@ -15,8 +16,10 @@ import com.bbcc.kidly.boundedcontext.chatbot.app.port.ChatbotAi.Turn;
 import com.bbcc.kidly.boundedcontext.chatbot.domain.KnowledgeIndex;
 import com.bbcc.kidly.boundedcontext.chatbot.out.ai.OpenAiChatbotAi;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.order.dto.MemberOrderSummary;
 import com.bbcc.kidly.shared.search.dto.ProductHit;
 import com.bbcc.kidly.shared.search.dto.ProductSearchQuery;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.LongStream;
@@ -36,17 +39,21 @@ class ChatServiceTest {
     private static final String RETURN_POLICY = "반품은 상품을 받은 날부터 7일 안에 마이페이지에서 신청할 수 있습니다.";
     private static final String SIZE_GUIDE = "키 110cm 아이는 110 사이즈를 고르세요. 성장이 빠르면 한 치수 크게 고르세요.";
     private static final String PRODUCT_QUESTION = "5살 여자아이 여름 원피스 3만원 이하로 찾아 주세요";
+    private static final String ORDER_QUESTION = "어제 산 원피스 배송 언제 와요?";
+    private static final Long MEMBER_ID = 424_242L;
 
     private final FakeChatModel chatModel = new FakeChatModel();
     private final FakeEmbeddingModel embeddingModel = new FakeEmbeddingModel();
     private final FakeProductSearcher productSearcher = new FakeProductSearcher();
+    private final FakeMemberOrderHistory orderHistory = new FakeMemberOrderHistory();
     private final KnowledgeIndexCache indexCache = mock(KnowledgeIndexCache.class);
     private ChatService chatService;
 
     @BeforeEach
     void setUp() {
         chatService = new ChatService(indexCache, new OpenAiChatbotAi(provider(ChatModel.class, chatModel),
-            provider(EmbeddingModel.class, embeddingModel)), new ChatbotRetrievalProperties(4, 0.3), productSearcher);
+            provider(EmbeddingModel.class, embeddingModel)), new ChatbotRetrievalProperties(4, 0.3), productSearcher,
+            orderHistory);
         given(indexCache.current()).willReturn(KnowledgeIndex.of(List.of(
             entry(1, 10, "교환 · 반품 정책", RETURN_POLICY),
             entry(2, 20, "사이즈 가이드", SIZE_GUIDE))));
@@ -55,7 +62,7 @@ class ChatServiceTest {
     @Test
     @DisplayName("가까운 조각만 지시문에 넣어 답을 받고, 그 문서를 출처로 준다. 상품을 찾지 않았으면 상품은 비어 있다")
     void answersFromMatchedChunks() {
-        ChatAnswer answer = chatService.answer("반품은 받은 날부터 며칠 안에 신청할 수 있나요?", List.of());
+        ChatAnswer answer = chatService.answer(MEMBER_ID, "반품은 받은 날부터 며칠 안에 신청할 수 있나요?", List.of());
 
         assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
         assertThat(answer.sources()).containsExactly(new Source(10L, "교환 · 반품 정책"));
@@ -69,7 +76,7 @@ class ChatServiceTest {
     void sendsHistoryThenQuestion() {
         List<Turn> history = List.of(new Turn(Speaker.USER, "안녕하세요"), new Turn(Speaker.ASSISTANT, "무엇을 도와드릴까요?"));
 
-        chatService.answer("반품은 며칠 안에 신청하나요?", history);
+        chatService.answer(MEMBER_ID, "반품은 며칠 안에 신청하나요?", history);
 
         List<Message> messages = chatModel.lastPrompt().getInstructions();
         assertThat(messages).extracting(Message::getMessageType).containsExactly(
@@ -80,7 +87,7 @@ class ChatServiceTest {
     @Test
     @DisplayName("기준을 넘는 조각이 없어도 참고 문서 없이 AI를 불러 답하고, 출처는 비어 있다")
     void answersWithoutMatch() {
-        ChatAnswer answer = chatService.answer("우주선 장난감 있어요?", List.of());
+        ChatAnswer answer = chatService.answer(MEMBER_ID, "우주선 장난감 있어요?", List.of());
 
         assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
         assertThat(answer.sources()).isEmpty();
@@ -94,7 +101,7 @@ class ChatServiceTest {
         given(indexCache.current()).willReturn(KnowledgeIndex.of(List.of()));
         embeddingModel.failWith(new IllegalStateException("불리면 안 된다"));
 
-        ChatAnswer answer = chatService.answer("반품은 며칠 안에 신청하나요?", List.of());
+        ChatAnswer answer = chatService.answer(MEMBER_ID, "반품은 며칠 안에 신청하나요?", List.of());
 
         assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
         assertThat(answer.sources()).isEmpty();
@@ -106,7 +113,7 @@ class ChatServiceTest {
         productSearcher.willReturn(List.of(hit(1), hit(2)));
         chatModel.callToolNext("searchProducts", "{\"keyword\":\"여아 여름 원피스\",\"maxPrice\":30000}");
 
-        ChatAnswer answer = chatService.answer(PRODUCT_QUESTION, List.of());
+        ChatAnswer answer = chatService.answer(MEMBER_ID, PRODUCT_QUESTION, List.of());
 
         assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
         assertThat(answer.products()).containsExactly(hit(1), hit(2));
@@ -123,7 +130,7 @@ class ChatServiceTest {
         chatModel.callToolNext("searchProducts", "{\"keyword\":\"원피스\"}");
         chatModel.callToolNext("searchProducts", "{\"keyword\":\"드레스\"}");
 
-        ChatAnswer answer = chatService.answer(PRODUCT_QUESTION, List.of());
+        ChatAnswer answer = chatService.answer(MEMBER_ID, PRODUCT_QUESTION, List.of());
 
         assertThat(answer.products()).extracting(ProductHit::productId).containsExactly(1L, 2L, 3L, 4L, 5L, 6L);
     }
@@ -134,7 +141,7 @@ class ChatServiceTest {
         productSearcher.failWith(new IllegalStateException("상품 검색 호출 실패"));
         chatModel.callToolNext("searchProducts", "{\"keyword\":\"원피스\"}");
 
-        ChatAnswer answer = chatService.answer(PRODUCT_QUESTION, List.of());
+        ChatAnswer answer = chatService.answer(MEMBER_ID, PRODUCT_QUESTION, List.of());
 
         assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
         assertThat(answer.products()).isEmpty();
@@ -150,7 +157,7 @@ class ChatServiceTest {
             chatModel.callToolNext("searchProducts", "{\"keyword\":\"원피스\"}");
         }
 
-        ChatAnswer answer = chatService.answer(PRODUCT_QUESTION, List.of());
+        ChatAnswer answer = chatService.answer(MEMBER_ID, PRODUCT_QUESTION, List.of());
 
         assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
         assertThat(productSearcher.queries()).hasSize(3);
@@ -164,7 +171,7 @@ class ChatServiceTest {
             "{\"keyword\":\"  " + "가".repeat(60) + " \",\"minPrice\":-1,\"maxPrice\":20000}");
         chatModel.callToolNext("searchProducts", "{\"keyword\":\"원피스\",\"minPrice\":30000,\"maxPrice\":10000}");
 
-        chatService.answer(PRODUCT_QUESTION, List.of());
+        chatService.answer(MEMBER_ID, PRODUCT_QUESTION, List.of());
 
         assertThat(productSearcher.queries()).containsExactly(
             new ProductSearchQuery("가".repeat(50), null, 20_000L, 5),
@@ -176,7 +183,7 @@ class ChatServiceTest {
     void blankKeywordIsNotSearched() {
         chatModel.callToolNext("searchProducts", "{\"keyword\":\" \"}");
 
-        ChatAnswer answer = chatService.answer(PRODUCT_QUESTION, List.of());
+        ChatAnswer answer = chatService.answer(MEMBER_ID, PRODUCT_QUESTION, List.of());
 
         assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
         assertThat(productSearcher.queries()).isEmpty();
@@ -185,11 +192,78 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("모델이 내 주문을 부르면 로그인한 회원으로 조회하고(모델이 보낸 회원 ID는 무시), 상태 · 택배사를 한국어로 바꿔 날짜와 함께 준다")
+    void answersWithMyOrders() {
+        orderHistory.willReturn(MEMBER_ID, List.of(shippingDressOrder()));
+        orderHistory.willReturn(1L, List.of(new MemberOrderSummary(99L, LocalDateTime.now(), "PAID",
+            List.of(new MemberOrderSummary.Item("남의 상품", null, 1, "ORDERED", null)))));
+        chatModel.callToolNext("getMyRecentOrders", "{\"memberId\":1,\"limit\":3}");
+
+        ChatAnswer answer = chatService.answer(MEMBER_ID, ORDER_QUESTION, List.of());
+
+        assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
+        assertThat(orderHistory.requests()).containsExactly(new FakeMemberOrderHistory.Request(MEMBER_ID, 3));
+        assertThat(toolResults(chatModel.lastPrompt().getInstructions())).singleElement().asString()
+            .contains("\"orderId\":31", "\"orderedAt\":\"2026-11-11 09:05\"", "\"status\":\"결제 완료\"",
+                "여아 꽃무늬 원피스", "110 / 핑크", "\"quantity\":2", "\"status\":\"배송 중\"", "CJ대한통운",
+                "\"shippedAt\":\"2026-11-11 15:20\"", "\"today\":")
+            .doesNotContain("남의 상품", String.valueOf(MEMBER_ID), "memberId");
+    }
+
+    @Test
+    @DisplayName("모르는 주문 · 상품 · 배송 상태와 택배사는 이름 그대로 모델에 준다")
+    void passesUnknownNamesThrough() {
+        orderHistory.willReturn(MEMBER_ID, List.of(new MemberOrderSummary(32L, LocalDateTime.of(2026, 11, 1, 10, 0),
+            "PARTIALLY_REFUNDED", List.of(new MemberOrderSummary.Item("래시가드", null, 1, "RETURNING",
+                new MemberOrderSummary.Delivery("RETURN_IN_TRANSIT", "KDEXP", null, null))))));
+        chatModel.callToolNext("getMyRecentOrders", "{}");
+
+        chatService.answer(MEMBER_ID, ORDER_QUESTION, List.of());
+
+        assertThat(orderHistory.requests()).containsExactly(new FakeMemberOrderHistory.Request(MEMBER_ID, 5));
+        assertThat(toolResults(chatModel.lastPrompt().getInstructions())).singleElement().asString()
+            .contains("PARTIALLY_REFUNDED", "RETURNING", "RETURN_IN_TRANSIT", "KDEXP");
+    }
+
+    @Test
+    @DisplayName("모델이 보낸 limit이 1~10 밖이면 범위 안으로 고쳐 조회한다")
+    void clampsOrderLimit() {
+        chatModel.callToolNext("getMyRecentOrders", "{\"limit\":50}");
+        chatModel.callToolNext("getMyRecentOrders", "{\"limit\":0}");
+
+        chatService.answer(MEMBER_ID, ORDER_QUESTION, List.of());
+
+        assertThat(orderHistory.requests()).extracting(FakeMemberOrderHistory.Request::limit).containsExactly(10, 1);
+    }
+
+    @Test
+    @DisplayName("주문 조회가 실패하면 모델에 볼 수 없다고 알려 답하게 하고, 질문은 실패시키지 않는다")
+    void orderFailureStillAnswers() {
+        orderHistory.failWith(new IllegalStateException("회원 주문 조회 호출 실패"));
+        chatModel.callToolNext("getMyRecentOrders", "{}");
+
+        ChatAnswer answer = chatService.answer(MEMBER_ID, ORDER_QUESTION, List.of());
+
+        assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
+        assertThat(toolResults(chatModel.lastPrompt().getInstructions()))
+            .singleElement().asString().contains("주문 정보를 지금 볼 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("지시문은 주문 사실을 도구 결과로만 말하고, 취소 · 반품은 직접 하지 않고 안내하라고 한다")
+    void instructsOrderRules() {
+        chatService.answer(MEMBER_ID, ORDER_QUESTION, List.of());
+
+        String system = chatModel.lastPrompt().getInstructions().getFirst().getText();
+        assertThat(system).contains("getMyRecentOrders", "짐작하지 마세요", "직접 처리할 수 없습니다", "주문 상세 화면");
+    }
+
+    @Test
     @DisplayName("모델이 없는 도구를 부르면 503 AI_UNAVAILABLE이다")
     void unknownToolIsUnavailable() {
         chatModel.callToolNext("deleteAllOrders", "{}");
 
-        assertThatThrownBy(() -> chatService.answer(PRODUCT_QUESTION, List.of()))
+        assertThatThrownBy(() -> chatService.answer(MEMBER_ID, PRODUCT_QUESTION, List.of()))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ChatbotErrorCode.AI_UNAVAILABLE));
     }
@@ -199,7 +273,7 @@ class ChatServiceTest {
     void embeddingFailureIsUnavailable() {
         embeddingModel.failWith(new RuntimeException("timeout"));
 
-        assertThatThrownBy(() -> chatService.answer("반품은 며칠 안에 신청하나요?", List.of()))
+        assertThatThrownBy(() -> chatService.answer(MEMBER_ID, "반품은 며칠 안에 신청하나요?", List.of()))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ChatbotErrorCode.AI_UNAVAILABLE));
     }
@@ -209,7 +283,7 @@ class ChatServiceTest {
     void chatFailureIsUnavailable() {
         chatModel.failWith(new RuntimeException("429"));
 
-        assertThatThrownBy(() -> chatService.answer("반품은 며칠 안에 신청하나요?", List.of()))
+        assertThatThrownBy(() -> chatService.answer(MEMBER_ID, "반품은 며칠 안에 신청하나요?", List.of()))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ChatbotErrorCode.AI_UNAVAILABLE));
     }
@@ -220,9 +294,9 @@ class ChatServiceTest {
         ChatService withoutModels = new ChatService(indexCache, new OpenAiChatbotAi(
             new StaticListableBeanFactory().getBeanProvider(ChatModel.class),
             new StaticListableBeanFactory().getBeanProvider(EmbeddingModel.class)),
-            new ChatbotRetrievalProperties(4, 0.3), productSearcher);
+            new ChatbotRetrievalProperties(4, 0.3), productSearcher, orderHistory);
 
-        assertThatThrownBy(() -> withoutModels.answer("반품은 며칠 안에 신청하나요?", List.of()))
+        assertThatThrownBy(() -> withoutModels.answer(MEMBER_ID, "반품은 며칠 안에 신청하나요?", List.of()))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ChatbotErrorCode.AI_UNAVAILABLE));
     }
@@ -233,6 +307,12 @@ class ChatServiceTest {
             .flatMap(message -> ((ToolResponseMessage) message).getResponses().stream())
             .map(ToolResponseMessage.ToolResponse::responseData)
             .toList();
+    }
+
+    private static MemberOrderSummary shippingDressOrder() {
+        return new MemberOrderSummary(31L, LocalDateTime.of(2026, 11, 11, 9, 5), "PAID", List.of(
+            new MemberOrderSummary.Item("여아 꽃무늬 원피스", "110 / 핑크", 2, "ORDERED",
+                new MemberOrderSummary.Delivery("SHIPPING", "CJ", LocalDateTime.of(2026, 11, 11, 15, 20), null))));
     }
 
     private static ProductHit hit(long id) {

@@ -28,7 +28,7 @@
 | 알림 | `./gradlew :apps:notification-service:bootRun` | 8090 | 회원 · 자녀 알림함, 웹 푸시 등록, 관리자 실패 메시지(DLT). 메일 · 푸시는 이벤트를 받아 보낸다 |
 | 주문 | `./gradlew :apps:order-service:bootRun` | 8091 | 주문 · 장바구니 · 배송 · 조르기 |
 | 커뮤니티 | `./gradlew :apps:community-service:bootRun` | 8092 | 리뷰 · 찜 |
-| 챗봇 | `./gradlew :apps:chatbot-service:bootRun` | 8093 | 챗봇 질문(`POST /api/v1/chatbot/messages`) · 관리자 답변 근거 문서. 정책 · FAQ · 사이즈는 등록한 문서로, 상품 찾기는 검색 서비스(8082)를 불러 답한다. OpenAI 키(`OPENAI_API_KEY`)가 없으면 503 |
+| 챗봇 | `./gradlew :apps:chatbot-service:bootRun` | 8093 | 챗봇 질문(`POST /api/v1/chatbot/messages`) · 관리자 답변 근거 문서. 정책 · FAQ · 사이즈는 등록한 문서로, 상품 찾기는 검색 서비스(8082)를, 내 주문 · 배송 질문은 주문 서비스(8091)를 불러 답한다. OpenAI 키(`OPENAI_API_KEY`)가 없으면 503 |
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트는 Gateway 주소(8083)로 붙는다. Swagger는 서비스마다 따로 연다(`http://localhost:<서비스 포트>/swagger-ui.html`, 알림 서비스는 없다). 서비스에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 서비스에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다

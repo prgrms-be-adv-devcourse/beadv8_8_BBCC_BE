@@ -14,9 +14,12 @@ import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.order.dto.MemberOrderSummary;
 import com.bbcc.kidly.shared.order.dto.SellerOrderItemSummary;
+import com.bbcc.kidly.shared.order.out.MemberOrderHistory;
 import com.bbcc.kidly.shared.order.out.SellerOrderItems;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,7 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class OrderQueryService implements SellerOrderItems {
+public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
 
     private final OrderRepository orderRepository;
     private final OrderDeliveries orderDeliveries;
@@ -54,6 +57,49 @@ public class OrderQueryService implements SellerOrderItems {
     public SellerOrderItemSummary summarize(Long sellerId) {
         return new SellerOrderItemSummary(sellerId, orderRepository.countSellerItems(sellerId,
             OrderItem.Status.ORDERED, Order.Status.CANCELLED));
+    }
+
+    /**
+     * 회원의 최근 주문 · 배송({@link MemberOrderHistory}, #1191 챗봇). 주문 · 주문상품 · 배송을 한 번씩 읽는다.
+     */
+    @Override
+    public List<MemberOrderSummary> recent(Long memberId, int limit) {
+        List<Order> orders = orderRepository.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(0, limit))
+            .getContent();
+        if (orders.isEmpty()) {
+            return List.of();
+        }
+        List<Long> orderIds = orders.stream().map(Order::getId).toList();
+        Map<Long, Order> withItems = orderRepository.findAllWithItemsByIdIn(orderIds).stream()
+            .collect(Collectors.toMap(Order::getId, Function.identity()));
+        Map<Long, List<OrderDeliveries.Delivery>> deliveries = orderDeliveries.findByOrders(orderIds).stream()
+            .collect(Collectors.groupingBy(OrderDeliveries.Delivery::orderId));
+        return orders.stream()
+            .map(order -> memberOrderOf(withItems.getOrDefault(order.getId(), order),
+                deliveries.getOrDefault(order.getId(), List.of())))
+            .toList();
+    }
+
+    private static MemberOrderSummary memberOrderOf(Order order, List<OrderDeliveries.Delivery> deliveries) {
+        // 판매자마다 배송이 하나다. 같은 판매자 배송이 여럿이면 나중에 만든 것을 쓴다
+        Map<Long, OrderDeliveries.Delivery> bySeller = deliveries.stream()
+            .collect(Collectors.toMap(OrderDeliveries.Delivery::sellerId, Function.identity(),
+                (first, later) -> later));
+        List<MemberOrderSummary.Item> items = order.getItems().stream()
+            .sorted(Comparator.comparing(OrderItem::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+            .map(item -> new MemberOrderSummary.Item(item.getProduct().productName(), item.getProduct().optionName(),
+                item.getQuantity(), item.getStatus().name(),
+                deliveryOf(bySeller.get(item.getProduct().sellerId()))))
+            .toList();
+        return new MemberOrderSummary(order.getId(), order.getCreatedAt(), order.getStatus().name(), items);
+    }
+
+    private static MemberOrderSummary.Delivery deliveryOf(OrderDeliveries.Delivery delivery) {
+        if (delivery == null) {
+            return null;
+        }
+        return new MemberOrderSummary.Delivery(delivery.status(), delivery.carrier(), delivery.shippedAt(),
+            delivery.deliveredAt());
     }
 
     public OrderDetail getOrder(Long memberId, Long orderId) {

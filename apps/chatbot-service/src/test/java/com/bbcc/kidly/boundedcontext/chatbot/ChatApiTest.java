@@ -1,9 +1,13 @@
 package com.bbcc.kidly.boundedcontext.chatbot;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.order.dto.MemberOrderSummary;
 import com.bbcc.kidly.shared.search.dto.ProductHit;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +26,7 @@ class ChatApiTest {
     private static final long MEMBER_ID = 7L;
     private static final String QUESTION = "반품은 받은 날부터 며칠 안에 신청할 수 있나요?";
     private static final String PRODUCT_QUESTION = "5살 여자아이 여름 원피스 3만원 이하로 찾아 주세요";
+    private static final String ORDER_QUESTION = "어제 산 원피스 배송 언제 와요?";
 
     @Autowired
     private RestTestClient client;
@@ -32,10 +37,14 @@ class ChatApiTest {
     @Autowired
     private FakeProductSearcher productSearcher;
 
+    @Autowired
+    private FakeMemberOrderHistory orderHistory;
+
     @AfterEach
     void restoreFakes() {
         chatModel.reset();
         productSearcher.reset();
+        orderHistory.reset();
     }
 
     @Test
@@ -84,6 +93,35 @@ class ChatApiTest {
             .expectBody()
             .jsonPath("$.answer").isEqualTo(FakeChatModel.ANSWER)
             .jsonPath("$.products.length()").isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("모델이 내 주문을 부르면 헤더의 로그인 회원 주문을 조회해 답한다")
+    void answersWithMyOrders() {
+        orderHistory.willReturn(MEMBER_ID, List.of(new MemberOrderSummary(31L, LocalDateTime.of(2026, 11, 11, 9, 5),
+            "PAID", List.of(new MemberOrderSummary.Item("여아 원피스", "110", 1, "ORDERED",
+                new MemberOrderSummary.Delivery("SHIPPING", "CJ", LocalDateTime.of(2026, 11, 11, 15, 20), null))))));
+        chatModel.callToolNext("getMyRecentOrders", "{}");
+
+        ask(Map.of("message", ORDER_QUESTION))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.answer").isEqualTo(FakeChatModel.ANSWER)
+            .jsonPath("$.products.length()").isEqualTo(0);
+
+        assertThat(orderHistory.requests()).containsExactly(new FakeMemberOrderHistory.Request(MEMBER_ID, 5));
+    }
+
+    @Test
+    @DisplayName("주문 조회가 실패해도 200으로 답한다")
+    void orderFailureStillAnswers() {
+        orderHistory.failWith(new IllegalStateException("회원 주문 조회 호출 실패"));
+        chatModel.callToolNext("getMyRecentOrders", "{}");
+
+        ask(Map.of("message", ORDER_QUESTION))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.answer").isEqualTo(FakeChatModel.ANSWER);
     }
 
     @Test

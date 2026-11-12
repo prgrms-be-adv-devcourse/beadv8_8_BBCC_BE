@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.chatbot.app.port.ChatbotAi.Speaker;
 import com.bbcc.kidly.boundedcontext.chatbot.app.port.ChatbotAi.Turn;
 import com.bbcc.kidly.boundedcontext.chatbot.domain.KnowledgeIndex;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.order.out.MemberOrderHistory;
 import com.bbcc.kidly.shared.search.dto.ProductHit;
 import com.bbcc.kidly.shared.search.out.ProductSearcher;
 import java.util.ArrayList;
@@ -16,7 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * 회원 질문에 답한다. 질문과 가까운 문서 조각을 찾아 지시문에 넣고, 상품 질문이면 모델이 상품 검색 도구를 불러 찾은 상품으로 답한다.
+ * 회원 질문에 답한다. 질문과 가까운 문서 조각을 찾아 지시문에 넣고, 상품 질문이면 모델이 상품 검색 도구를, 주문 · 배송 질문이면
+ * 그 회원의 주문 조회 도구를 불러 그 결과로 답한다.
  * 쓴 문서를 출처로, 찾은 상품을 카드로 준다. 대화는 저장하지 않는다(이전 대화는 화면이 보낸다).
  */
 @Slf4j
@@ -29,6 +31,11 @@ public class ChatService {
         - 상품을 찾거나 추천해 달라는 질문이면 searchProducts 도구로 찾으세요. 상품 이름 · 가격 · 판매처는 도구 결과에 있는 것만 말하고,
           결과에 없는 상품 · 가격은 지어내지 마세요. 찾은 상품은 화면에 카드로 함께 보이므로 목록을 모두 옮겨 적지 말고 고른 이유를 짧게 쓰세요.
           찾지 못했으면 찾지 못했다고 말하세요.
+        - 회원 본인의 주문 · 결제 · 배송 상황을 묻는 질문이면 getMyRecentOrders 도구로 최근 주문을 보고 답하세요. 주문 · 배송 사실은
+          도구 결과에 있는 것만 말하고, 도착 예정일처럼 결과에 없는 날짜는 짐작하지 마세요. 질문한 상품이 결과에 없으면 최근 주문에서
+          찾지 못했다고 말하세요.
+        - 주문 취소 · 반품 · 교환을 해 달라는 요청은 직접 처리할 수 없습니다. [참고 문서]에 방법이 있으면 그대로 안내하고,
+          없으면 주문 상세 화면이나 고객센터를 안내하세요.
         - 배송 · 교환 · 환불 · 사이즈 같은 이용 안내는 아래 [참고 문서]에 있는 내용만으로 답하세요. 참고 문서에 없는 정책 · 기간 · 금액 · 절차는
           지어내지 말고, 모르면 고객센터 문의를 안내하세요.
         - 쇼핑과 관계없는 질문에는 Kidly 쇼핑만 도와드릴 수 있다고 짧게 답하세요.
@@ -42,16 +49,18 @@ public class ChatService {
     private final ChatbotAi ai;
     private final ChatbotRetrievalProperties retrieval;
     private final ProductSearcher productSearcher;
+    private final MemberOrderHistory memberOrderHistory;
 
-    public ChatAnswer answer(String message, List<Turn> history) {
+    public ChatAnswer answer(Long memberId, String message, List<Turn> history) {
         long started = System.nanoTime();
         List<KnowledgeIndex.Match> matches = findMatches(message);
         List<Turn> conversation = new ArrayList<>(history);
         conversation.add(new Turn(Speaker.USER, message));
         ProductSearchTool productSearch = new ProductSearchTool(productSearcher);
+        MyOrdersTool myOrders = new MyOrdersTool(memberOrderHistory, memberId);
         String answer;
         try {
-            answer = ai.answer(instruction(matches), conversation, List.of(productSearch.tool()));
+            answer = ai.answer(instruction(matches), conversation, List.of(productSearch.tool(), myOrders.tool()));
         } catch (ChatbotAi.UnavailableException e) {
             log.warn("챗봇 답변 실패: step=answer, cause={}", e.causeName());
             throw new BusinessException(ChatbotErrorCode.AI_UNAVAILABLE);

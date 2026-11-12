@@ -440,7 +440,7 @@ services:
     logging: *logging
 
   # 챗봇 서비스(apps/chatbot-service, #1191). 회원 챗봇 API 와 답변 근거 문서. Kafka 를 쓰지 않는다
-  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값 · OpenAI 키 · 검색 서비스 주소만 넘긴다. 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
+  # 비밀이 든 .env 를 통째로 넘기지 않고 DB 접속값 · OpenAI 키 · 검색 · 주문 서비스 주소만 넘긴다. 토큰은 Gateway 가 검증하므로 JWT 키를 마운트하지 않는다
   chatbot-service:
     image: ${CHATBOT_IMAGE}
     profiles: [chatbot]
@@ -457,6 +457,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # 상품 검색 도구(#1191)가 부르는 검색 서비스. 검색 서비스가 꺼져 있으면 상품 질문에 상품을 찾지 못했다고 답한다
       KIDLY_SEARCH_URI: ${KIDLY_SEARCH_URI:-http://search-service:8080}
+      # 내 주문 조회 도구(#1191)가 부르는 주문 서비스. 주문 서비스가 꺼져 있으면 주문 질문에 주문을 확인하지 못했다고 답한다
+      KIDLY_ORDER_URI: ${KIDLY_ORDER_URI:-http://order-service:8080}
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${CHATBOT_PORT:-8104}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
