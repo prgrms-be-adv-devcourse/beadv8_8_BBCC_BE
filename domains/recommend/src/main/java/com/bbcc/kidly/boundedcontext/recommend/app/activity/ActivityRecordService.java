@@ -12,6 +12,7 @@ import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
+import com.bbcc.kidly.shared.search.event.SearchResultClickedEvent;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
@@ -47,19 +48,35 @@ public class ActivityRecordService {
             data.attributeValueIds(),
             data.resultCount(),
             event.occurredAt(),
-            verifiedChildId(data));
+            verifiedChildId(data.memberId(), data.childId()));
         activityRecordRepository.save(ActivityRecord.searched(info));
     }
 
-    // 검색 서비스는 자녀가 그 회원의 것인지 확인하지 못한다. 모르는 자녀 · 다른 회원의 자녀 · 지운 자녀는 기록을 실패시키지 않고 자녀 없이 남긴다
-    private Long verifiedChildId(SearchPerformedEvent.Data data) {
-        if (data.childId() == null) {
+    // 검색 서비스는 검색 · 클릭의 자녀가 그 회원의 것인지 확인하지 못한다. 모르는 자녀 · 다른 회원의 자녀 · 지운 자녀는 기록을 실패시키지 않고 자녀 없이 남긴다
+    private Long verifiedChildId(Long memberId, Long childId) {
+        if (childId == null) {
             return null;
         }
-        return replicaChildRepository.findById(data.childId())
-            .filter(child -> child.isVisibleTo(data.memberId()))
-            .map(child -> data.childId())
+        return replicaChildRepository.findById(childId)
+            .filter(child -> child.isVisibleTo(memberId))
+            .map(child -> childId)
             .orElse(null);
+    }
+
+    /**
+     * 검색 결과 클릭 이벤트의 값을 클릭 활동 기록으로 저장한다.
+     * 검색어 · 순위 · 정렬은 선호 계산에 쓰지 않아 남기지 않는다.
+     * 같은 회원 · 자녀 · 상품의 클릭은 같은 날 처음 것만 남긴다.
+     */
+    public void recordSearchResultClicked(SearchResultClickedEvent event) {
+        if (activityRecordRepository.existsByEventId(event.eventId())) {
+            return;
+        }
+        SearchResultClickedEvent.Data data = event.data();
+        ActivityRecord.SearchResultClickedInfo info = new ActivityRecord.SearchResultClickedInfo(
+            event.eventId(), data.memberId(), verifiedChildId(data.memberId(), data.childId()), data.productId(),
+            event.occurredAt());
+        activityRecordRepository.saveSearchResultClickedIfAbsent(ActivityRecord.searchResultClicked(info));
     }
 
     /**

@@ -11,6 +11,7 @@ import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
+import com.bbcc.kidly.shared.search.event.SearchResultClickedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,12 @@ public final class ActivityRecordFixture {
     public static final UUID VIEW_EVENT_ID = UUID.fromString("71e30000-0000-0000-0000-000000000001");
 
     public static final LocalDateTime VIEWED_AT = LocalDateTime.of(2026, 11, 3, 10, 2);
+
+    public static final UUID CLICK_EVENT_ID = UUID.fromString("c11c0000-0000-0000-0000-000000000001");
+
+    public static final LocalDateTime CLICKED_AT = LocalDateTime.of(2026, 11, 3, 10, 1);
+
+    public static final int CLICK_RANK = 3;
 
     public static final UUID WITHDRAWN_EVENT_ID = UUID.fromString("3e3b0000-0000-0000-0000-000000000001");
 
@@ -95,6 +102,15 @@ public final class ActivityRecordFixture {
     public static SearchPerformedEvent searchPerformedEventWithChild(Long childId) {
         return new SearchPerformedEvent(SEARCH_EVENT_ID, SEARCHED_AT, new SearchPerformedEvent.Data(MEMBER_1_ID,
             KEYWORD, PRODUCT_A_CATEGORY_ID, ATTRIBUTE_VALUE_IDS, RESULT_COUNT, childId));
+    }
+
+    /**
+     * 회원 1이 "맨투맨" 검색 결과의 세 번째 상품 A를 눌렀다. 자녀 ID가 null이면 자녀를 고르지 않은 클릭이다.
+     */
+    public static SearchResultClickedEvent searchResultClickedEvent(UUID eventId, LocalDateTime clickedAt,
+        Long childId) {
+        return new SearchResultClickedEvent(eventId, clickedAt, new SearchResultClickedEvent.Data(MEMBER_1_ID,
+            KEYWORD, PRODUCT_A_ID, CLICK_RANK, "RELEVANCE", childId));
     }
 
     public static CartItemAddedEvent cartItemAddedEvent() {
