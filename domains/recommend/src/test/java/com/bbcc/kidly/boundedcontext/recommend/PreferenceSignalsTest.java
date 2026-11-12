@@ -43,6 +43,18 @@ class PreferenceSignalsTest {
     }
 
     @Test
+    @DisplayName("PREF-19 조르기 활동은 조른 상품을 담은 조르기 신호가 되고 철회했는지는 그대로 옮겨진다")
+    void wishSentBecomesWishSignalWithWithdrawnFlag() {
+        List<RecentActivity> activities = List.of(
+            new RecentActivity(ActivityType.WISH_SENT, 5L, 14L, "브랜드E", AT, false),
+            new RecentActivity(ActivityType.WISH_SENT, 6L, 15L, "브랜드F", AT, true));
+
+        assertThat(PreferenceSignals.of(activities, List.of())).containsExactly(
+            new PreferenceSignal(PreferenceSignalType.WISH_SENT, AT, 14L, "브랜드E", 5L, false),
+            new PreferenceSignal(PreferenceSignalType.WISH_SENT, AT, 15L, "브랜드F", 6L, true));
+    }
+
+    @Test
     @DisplayName("PREF-16 구매확정은 카테고리 없이 브랜드 · 상품 · 확정 시각을 담은 구매확정 신호가 된다")
     void purchasesBecomePurchaseConfirmedSignals() {
         List<ConfirmedPurchase> purchases = List.of(new ConfirmedPurchase(3L, "브랜드C", AT.minusDays(90)));

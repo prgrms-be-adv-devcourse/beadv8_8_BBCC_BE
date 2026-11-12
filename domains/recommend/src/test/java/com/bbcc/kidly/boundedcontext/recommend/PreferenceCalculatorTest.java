@@ -249,6 +249,20 @@ class PreferenceCalculatorTest {
         assertThat(snapshot.tasteVector().weightSum()).isCloseTo(0.3, within(1e-9));
     }
 
+    @Test
+    @DisplayName("PREF-18 조르기는 강도 0.8로 카테고리 · 브랜드 친밀도와 취향 벡터에 모두 들어간다")
+    void wishSentCountsForEveryAffinity() {
+        PreferenceSignal wish = signal(PreferenceSignalType.WISH_SENT, BASE_TIME.minusDays(15), CATEGORY_ID, BRAND, 1L);
+
+        PreferenceSnapshot snapshot = calculator.calculate(List.of(wish), Map.of(1L, axis(0)), BASE_TIME);
+
+        // 15일 전이라 최근성은 0.5다
+        assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(0.4, within(1e-9));
+        assertThat(snapshot.brandAffinity(BRAND)).isCloseTo(0.4, within(1e-9));
+        assertThat(snapshot.tasteVector().embedding()).isEqualTo(axis(0));
+        assertThat(snapshot.tasteVector().weightSum()).isCloseTo(0.4, within(1e-9));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("signalsWithoutTasteVector")
     @DisplayName("PREF-13 넣을 활동이 없거나 합이 0 벡터면 취향 벡터는 없다")
