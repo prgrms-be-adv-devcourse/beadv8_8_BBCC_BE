@@ -16,6 +16,9 @@
 | 7 ⑧ | 리뷰 · 찜 카드 | 탈퇴 예정, 찜 API 진행 중 | 탈퇴 받음, 리뷰 API에 `fit` · `imageUrls` · `fitSummary`, + 사진 업로드 주소 · 관리자 리뷰 목록 · 숨김 확정/다시 공개 · MCP, 추가 예정에서 완료한 것(AI 욕설 검사 · 사진 리뷰 · 핏 리뷰) 뺌 |
 | 8 | 커뮤니티 | CM-01 ~ CM-07(CM-06 진행 중 · CM-07 예정), DLT 재처리 화면 없음 | CM-06 · CM-07 머지, + CM-08 ~ CM-15, DLT 보관 · 관리자 재처리 API(#741), `member.withdrawn` 받음, 이벤트 표 `member.withdrawn` 받는 쪽에 커뮤니티 |
 | 9 | 용어 (커뮤니티) | - | + 사이즈 핏 · 검사 상태 · 노출 |
+| 앞 · 1.5 · 2.1 | 주문 (#1321) | 공용 장바구니(`/wishes`) · 조르기 승인 · 이벤트 예정 | 장바구니 하나 · 주인(회원 · 자녀), 조르기 = 구매 요청(`/api/v1/wish/requests`, 승인 = 예약 칸으로 주문해 결제, 대기 · 결제 완료 · 거절 · 철회 · 만료), + 판매자 탈퇴 대응 · 멈춘 주문 AI 진단 · 운영 조회(MCP) · 운영 지표 |
+| 3 · 7 · 8 · 9 | 주문 이벤트 · 카드 · 용어 (#1321) | `cart.item-removed` 발행 요청, `wish.item-added` · `wish.approved` 예정 | `cart.item-removed` · `cart.item-purchased` · `order.paid` · `delivery.shipped` · `delivery.delivered`(autoConfirmAt · items) · `wish.sent` · `wish.paid` · `wish.rejected` · `wish.cancelled` · `wish.expired`, `wish.approved` · `wish.item-added`는 보내지 않음(#999), 용어 공용 장바구니 → 장바구니 주인, 조르기 뜻 |
+| 4 · 5 | 정책 · 환경 (#1321) | 조르기는 자녀 계정 전까지 부모 계정 기준, 외부 API에 주문 AI 없음 | 장바구니 · 조르기가 자녀 로그인(#906)을 받음, 외부 API + OpenAI 호환(기본 Groq, 주문 멈춘 주문 AI 진단, 기본 꺼짐 · 키 없으면 꺼짐) |
 
 ## 11.1 v1.1 예비판 → v2.0 (최종)
 

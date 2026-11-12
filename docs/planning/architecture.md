@@ -25,7 +25,7 @@
 | 회원 | maruhxn | 로그인 · 가입 · 탈퇴 · 정지, 자녀 프로필, 판매자 승인, 가입 환영 메일 — member · childprofile · seller · notification 모듈. 인증(auth) · 자녀 프로필(childprofile)은 회원 서비스(member-service) 안의 모듈(#686 · #809) |
 | 상품 | heojungseok | 상품 · 옵션 · 재고, 상품 상세, 카테고리 · 상품 유형 · 항목 · 실측 항목 기준 데이터, 이미지 업로드 주소 (목록 · 검색은 검색 모듈로) |
 | 추천 | heojungseok | 사이즈 추천 · AI 상품 추천 · 함께 사면 좋은 상품, 활동 기록 · 선호 점수, 기준 옷 비교(2순위). recommend-service로 분리 중(#704) |
-| 주문 | L2J92 | 장바구니 · 공용 장바구니(조르기), 주문, 배송(택배 조회), 구매확정, 판매자 부분 취소 — order · cart · delivery · wish 4개 컨텍스트(포트로만 연결, ArchUnit으로 고정) |
+| 주문 | L2J92 | 장바구니(주인 회원 · 자녀) · 조르기(구매 요청, 승인 = 결제), 주문, 배송(택배 조회), 구매확정, 판매자 부분 취소, 판매자 탈퇴 대응, 멈춘 주문 AI 진단 · 운영 조회(MCP) — order · cart · delivery · wish 4개 컨텍스트(포트로만 연결, ArchUnit으로 고정) |
 | 결제 | codes-gy | 지갑(동결 포함), 충전 · 충전 취소, 주문 결제 · 환불, 정산금 입금, 토스 웹훅. payment-service로 분리 중 |
 | 검색 | codes-gy | 상품 목록 검색(Elasticsearch), 상품 · 판매자 이벤트로 색인, 검색어 이벤트 발행. search-service로 따로 뜸 |
 | 정산 | baiees | 정산 대상, 영업일 일정산(Spring Batch), 지급 요청 · 결과 반영 (지갑 적립은 결제) |
@@ -57,7 +57,7 @@
 | 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 |
 | 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 인증 · 주문 · 추천 · `child.growth-recorded` → 추천 |
 | 상품 | `kidly.product.events` | `product.changed` → 주문 · 추천 · 검색 · 커뮤니티 · `stock.deducted` · `stock.deduction-failed` → 주문 |
-| 주문 | `kidly.order.events` | `order.created` → 상품 · `order.payment-requested` → 결제 · `order.cancelled` → 상품 · 결제 · `order-item.purchase-confirmed` → 정산 · 추천 · 커뮤니티 · `order-item.cancelled` → 결제 · 상품 · `cart.item-added` · `cart.item-removed` · `wish.sent` · `wish.cancelled` → 추천 |
+| 주문 | `kidly.order.events` | `order.created` → 상품 · `order.payment-requested` → 결제 · `order.paid` → 알림 · `order.cancelled` → 상품 · 결제 · 알림 · `order-item.purchase-confirmed` → 정산 · 추천 · 커뮤니티 · 알림 · `order-item.cancelled` → 결제 · 상품 · 알림 · `delivery.shipped` · `delivery.delivered` → 알림 · `cart.item-added` · `cart.item-removed` → 추천 · `cart.item-purchased` → 주문(조르기) · `wish.sent` → 알림 · 추천 · `wish.paid` · `wish.rejected` · `wish.expired` → 알림 · `wish.cancelled` → 추천 |
 | 결제 | `kidly.payment.events` | `payment.completed` · `payment.failed` → 주문 · `payment.payout-completed` · `payment.payout-failed` → 정산 |
 | 정산 | `kidly.settlement.events` | `settlement.payout-requested` → 결제 (dev 켬, prod는 main 반영 때) |
 | 검색 | `kidly.search.events` | `search.performed` · `search.result-clicked` → 추천 |

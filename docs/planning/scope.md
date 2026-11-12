@@ -7,8 +7,8 @@
 | 구분 | 내용 |
 |---|---|
 | 취소 · 실패 (정상 흐름 다음) | 재고 부족 · 결제 실패 · 결제 제한 시간 초과 → 주문 전체 취소 · 재고 복구 · 구매자 취소(발송 전, 2.1 ④ 「결제 후 주문 취소」) |
-| 세미 제외 → 최종 | 판매자 발송 전 부분 취소는 최종에서 구현(스위치). 발송 이후 반품 · 환불(하자 반품 포함), 조르기 기한 · 만료, 거절 상품 재조르기 제한, 장바구니 수량 변경 이벤트, 배송비 · 할인은 범위 밖 |
-| 최종 프로젝트 | 서비스 분리(Kafka · Gateway) · AI 추천(활동 데이터) · 검색(Elasticsearch) · 공용 장바구니 · 조르기 · 판매자 부분 취소 · 택배 조회 · 리뷰 · 찜 · 탈퇴 지갑 동결 · 영업일 일정산. 자녀 계정은 회원 설계 뒤 |
+| 세미 제외 → 최종 | 판매자 발송 전 부분 취소는 최종에서 구현(스위치). 발송 이후 반품 · 환불(하자 반품 포함), 거절 상품 재조르기 제한, 장바구니 수량 변경 이벤트, 배송비 · 할인은 범위 밖 |
+| 최종 프로젝트 | 서비스 분리(Kafka · Gateway) · AI 추천(활동 데이터) · 검색(Elasticsearch) · 장바구니 주인(회원 · 자녀) · 조르기(구매 요청) · 판매자 부분 취소 · 택배 조회 · 리뷰 · 찜 · 탈퇴 지갑 동결 · 영업일 일정산. 자녀 계정은 회원 설계 뒤 |
 
 ### 현재 적용값 · 미정 사항
 
@@ -58,7 +58,7 @@
 | ④ | 결제 완료와 만료가 겹칠 때 | 주문이 결제대기일 때만 상태를 바꿔, 먼저 바꾼 쪽이 이김. 만료가 이기면 결제가 `order.cancelled`를 받아 환불하고, 취소된 주문을 기억해 그 뒤에 온 결제 요청은 차감하지 않음. 결제 완료를 반영하지 못한 주문은 결제 복구 대기 목록에 남아 관리자가 재처리 · 취소 |
 | ④ | 결제 후 주문 취소 | 구매자는 **발송 전까지** 주문 전체를 취소할 수 있음 (`POST /orders/{orderId}/cancel`, 사유 `BUYER_CANCELLED`, 결제대기 주문도 가능). 판매자 배송이 하나라도 발송됐으면 409. 취소하면 배송은 `CANCELLED`, `order.cancelled`를 받아 상품이 재고를 복구하고 결제가 예치금을 환불. 발송 뒤 반품 · 부분 취소는 세미 제외 → 최종: 판매자 발송 전 부분 취소는 아래 줄, 발송 뒤 반품 · 환불은 범위 밖 |
 | ④ | 판매자 발송 전 부분 취소 | 판매자가 발송 전 자기 몫(배송 한 건)을 취소(`POST /seller/orders/{sellerOrderId}/cancel`, 사유 OUT_OF_STOCK · WRONG_PRODUCT_INFO · OTHER) → `order-item.cancelled`(환불 금액 · 재고 복구 수량 포함). 마지막 몫이 취소돼 주문 전체가 취소돼도 이 이벤트만 나감(`order.cancelled`는 나가지 않아 환불 · 재고 복구가 두 번 일어나지 않음). 결제 환불(#713) · 상품 재고 복구(#716)가 머지돼, dev 배포 확인 뒤 스위치 `ORDER_PARTIAL_CANCEL_ENABLED`를 켬. 그때까지 API는 409 |
-| ④ | 공용 장바구니 · 조르기 | 자녀별 공용 장바구니(`/wishes`, 개인 장바구니와 별도)를 부모 · 자녀가 같이 봄. 자녀가 조르기(`/wish-requests`)를 보내면 부모가 승인(일부 · 수량 조정) 또는 거절(사유 선택). 승인하면 바로 결제하거나 부모 장바구니로 옮김. 동시 승인은 한 번만, 현재 가격 · 판매 상태를 보여 줌. 자녀 로그인 연동 전까지 부모 계정 기준(K31). 조르기 이벤트 4종 · 타임라인은 예정 |
+| ④ | 장바구니 · 조르기 | 장바구니는 하나(`/api/v1/cart`), 주인은 회원 또는 자녀(자녀 로그인, #998). 조르기는 구매 요청(`/api/v1/wish/requests`, #999): 자녀가 자기 장바구니 칸을 골라 보내면 칸이 예약되고, 보호자가 예약 칸(`cartItemId`)으로 주문해 결제하면 승인(결제 완료, 일부 · 수량 조정 가능, 승인 단계는 따로 없음). 상태 대기 `REQUESTED` · 결제 완료 `PAID` · 거절 `REJECTED`(사유) · 철회 `CANCELLED` · 만료 `EXPIRED`(7일, #1008). 이벤트 `wish.sent` · `wish.paid` · `wish.rejected` · `wish.cancelled` · `wish.expired`, 타임라인 있음 |
 | ④ | 주문 멱등 · 동시성 | 상태 조건 전이 + 낙관적 잠금(`@Version`)으로 같은 요청 · 이벤트가 여러 번 와도 한 번만 반영. 상품 · 판매자 · 자녀 복사본은 이벤트 발생 시각이 더 늦을 때만 반영. 결제 이벤트가 밀려 있으면 결제 마감 만료를 미룸 |
 | ④ | 삭제된 자녀가 담긴 장바구니 | 담을 때 없는 · 남의 · 삭제된 자녀면 404. 담은 뒤 자녀가 삭제되면 주문할 때 409 (선택할 수 없는 자녀) |
 | ④ | 토스 승인 뒤 DB 저장 실패 | 토스를 부르기 전에 충전을 승인 중(`CONFIRMING`)으로 저장하고, 토스 호출 동안 DB 트랜잭션을 잡지 않음. 결과를 모르면 승인 중으로 두고 202. 1분마다 도는 정리 작업이 5분 넘은 승인 중 충전을 토스에 다시 조회해 입금 · 실패로 맞춤 (요청 뒤 30분 지난 충전은 만료) |
@@ -117,7 +117,7 @@
 | P8 | ④ | PG 환불 범위 | 충전 취소(토스 취소)를 PG 취소 · 환불로, 주문 취소 때 예치금 환불을 서비스 환불로 정리하고 멘토 확인 | 결제 |
 | P9 | ③ | 상품 이벤트 보강 **(채택 · 구현, #610 · PR #712)** | `ProductChangedEvent`에 `brand` · `description` · `sizeSpecs[{size, minHeightCm, maxHeightCm, measurements}]` 추가. 기존 칸은 그대로 | 상품 · 공통 · 검색 |
 | P10 | ③ | 검색어 활동 이벤트 수신 | 검색 서비스가 이미 발행하는 `search.performed`(memberId · keyword · categoryId · attributeValueIds · resultCount)를 추천이 `kidly.search.events`에서 받아 활동 기록으로 저장. 발행 쪽 변경 없음 | 추천 |
-| P11 | ③ | 장바구니 활동 이벤트 | 담기는 주문 서비스가 이미 발행하는 `cart.item-added`(cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity)를 받음. 빼기 `cart.item-removed`(같은 칸)는 주문 서비스에 발행을 요청 → 주문이 예정으로 받음(#709) | 주문 |
+| P11 | ③ | 장바구니 활동 이벤트 | 담기는 주문 서비스가 이미 발행하는 `cart.item-added`(cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity)를 받음. 빼기 `cart.item-removed`(같은 칸)는 주문이 보냄(#709, 사용자가 뺄 때만) | 주문 |
 | P12 | ③ | 추천 응답 칸 추가 | `recommendations/size`에 `reasons[]` + `source`, `recommendations/products`에 `reason` + `source`. 기존 칸은 유지 | 추천 · FE |
 | P13 | ③ | 함께 사면 좋은 상품 | 새 API `GET /api/v1/recommendations/companions?productId=&childId=`. 상품 상세 아래에 4개 | 추천 · FE |
 | P14 | ③ | 상세 진입 기록 | 화면이 `POST /api/v1/recommendations/product-views`(본문: productId와 선택 칸 childId(고른 자녀))를 호출. 같은 회원 · 자녀 · 상품이 같은 날 다시 들어가도 한 번만 기록. 로그인 사용자만 | 추천 · FE |
