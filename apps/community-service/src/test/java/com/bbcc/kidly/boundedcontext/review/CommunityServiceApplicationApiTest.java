@@ -64,7 +64,11 @@ class CommunityServiceApplicationApiTest {
             "kidly_community_moderation_pending_oldest_age_seconds",
             "kidly_community_moderation_checks_total{cause=\"none\",result=\"passed\"}",
             "kidly_community_review_image_storage_unavailable_total{operation=\"upload_check\"}",
-            "kidly_community_replica_product_last_changed_age_seconds");
+            "kidly_community_replica_product_last_changed_age_seconds",
+            "kidly_community_outbox_messages{state=\"pending\"}",
+            "kidly_community_outbox_messages{state=\"quarantined\"}",
+            "kidly_community_outbox_oldest_age_seconds",
+            "kidly_community_outbox_send_failures_total");
         // 테스트 프로필은 검사 · 사진 정리 스케줄러를 끈다
         assertThat(body).doesNotContain("kidly_community_scheduler_last_success_seconds{");
     }

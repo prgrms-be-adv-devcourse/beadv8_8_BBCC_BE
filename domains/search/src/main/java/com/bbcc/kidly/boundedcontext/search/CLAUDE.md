@@ -6,7 +6,7 @@
 - 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`), 검색 이벤트 발행(`search.performed`, #611), 의미 검색(관련도순, #797), 검색 결과 클릭 기록(`search.result-clicked`, #1004)
 - 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`와 `POST /api/v1/search/clicks`만 search-service로 넘긴다, `apps/gateway`), dev 처음 채우기, prod 설정(`deploy/.env.prod`, main 첫 배포 때 나간다), 장애 대응(#1026: Elasticsearch 시간 제한 · DLT 다시 반영 · 지표 · 알림 · 절차)
 - 남음: prod 처음 채우기(main 배포 뒤 판매자 → 상품 다시 발행 API를 한 번씩, `deploy/search/README.md`)
-- `apps/search-service`로 띄운다. 상품 목록 API 경로는 `GET /api/v1/products`, 클릭 기록은 `POST /api/v1/search/clicks`다
+- `apps/search-service`로 띄운다. 상품 목록 API 경로는 `GET /api/v1/products`, 클릭 기록은 `POST /api/v1/search/clicks`, 서비스 사이 상품 검색은 `GET /internal/products/search`(#1191)다
 
 ## 서버 배포 (`deploy/`)
 - 별도 서버 없이 기존 EC2의 같은 compose 프로젝트(`-p dev`)에 컨테이너 `elasticsearch` · `search-service`를 더한다. Kafka는 같은 네트워크의 `kafka:9092`를 쓴다
@@ -79,6 +79,12 @@
 - 관련도순(`RELEVANCE`)은 검색에만 있다
 - 공개 API지만 로그인했으면 Gateway가 붙인 회원 ID 헤더(`MemberHeaders.MEMBER_ID`)를 읽어 검색 이벤트에 쓴다. `@LoginMember`는 헤더가 없으면 401이라 쓰지 않는다. 헤더가 없거나 잘못되면 비로그인으로 찾는다
 - 도메인 모듈의 컨트롤러 단위 테스트는 스프링을 띄우지 않고 `MockMvcBuilders.standaloneSetup` + `GlobalExceptionHandler`로 한다. HTTP 전체는 `apps/search-service`의 기능 테스트(`ProductListApiTest`)가 본다
+
+## 서비스 사이 상품 검색 (#1191)
+- 챗봇이 상품을 찾을 때 쓴다. 계약 `shared.search.out.ProductSearcher`(조건 `shared.search.dto.ProductSearchQuery`, 결과 `ProductHit`)를 `app/ProductListService.search`가 구현하고, `in/InternalProductSearchController`가 같은 모양으로 `GET /internal/products/search`에 낸다(인증 헤더 없음 · Gateway가 `/internal/**` 차단)
+- 목록 API와 같은 검색이다: 판매중만, 관련도순(검색어 + 의미 검색), 첫 페이지 `limit`개(1~10, 기본 5). 카테고리 · 항목 값은 받지 않는다
+- 가격 범위(`minPrice` · `maxPrice`, 원, 이상 · 이하)는 표시 가격 필드 `minPrice`에 `range` filter로 건다(kNN에도 같은 조건). 목록 API는 가격 범위를 받지 않는다
+- 회원 정보를 받지 않아 `search.performed`를 보내지 않는다. 색인을 쓸 수 없으면 목록 API처럼 503 `SEARCH_UNAVAILABLE`
 
 ## 의미 검색 (#797)
 - 상품명에 없는 말로도 찾게 한다(`여름 물놀이 옷` → 래시가드). 관련도순은 점수로 섞고, 최신순 · 가격순은 검색어 조건이나 kNN 중 하나만 맞으면 찾아 정한 필드로 정렬한다(#956)

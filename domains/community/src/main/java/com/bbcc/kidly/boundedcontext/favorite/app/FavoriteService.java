@@ -52,7 +52,7 @@ public class FavoriteService {
                 Favorite saved = favorites.saveAndFlush(favorite);
                 favoriteStatsCounter.increase(id, FavoriteTimes.now());
                 // 새로 생긴 찜만 남는다(동시 찜으로 막힌 저장은 이 트랜잭션과 함께 되돌려진다)
-                activityLog.favoriteAdded(saved.getId(), id);
+                activityLog.favoriteAdded(saved.getId(), memberId, id);
             });
         } catch (DataIntegrityViolationException e) {
             // 같은 찜이 먼저 저장됐다. 다시 보지 않고 이미 찜으로 끝낸다(그 사이 해제됐어도 해제가 뒤에 일어난 것과 같은 결과)
@@ -72,7 +72,7 @@ public class FavoriteService {
         if (favoriteStatsCounter.decreaseBy(id, 1, FavoriteTimes.now()) == 0) {
             throw new IllegalStateException("찜 수 행이 없습니다: productId=" + id);
         }
-        activityLog.favoriteRemoved(deleted.getFirst(), id);
+        activityLog.favoriteRemoved(deleted.getFirst(), memberId, id);
     }
 
     private static Favorite create(Long memberId, Long productId, boolean saleEnded) {

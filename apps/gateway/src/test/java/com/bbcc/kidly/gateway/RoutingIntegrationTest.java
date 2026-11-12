@@ -59,6 +59,10 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     @Qualifier(RecordingBackendConfiguration.PAYMENT)
     private RecordingBackend paymentBackend;
 
+    @Autowired
+    @Qualifier(RecordingBackendConfiguration.CHATBOT)
+    private RecordingBackend chatbotBackend;
+
     @BeforeEach
     void resetServiceBackends() {
         memberBackend.reset();
@@ -544,6 +548,35 @@ class RoutingIntegrationTest extends GatewayTestSupport {
 
         assertNoBackendRequests();
         assertThat(notificationBackend.lastRequest()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/v1/chatbot/messages", "/api/v1/chatbot/conversations/3?x=1",
+        "/api/v1/admin/chatbot/documents", "/api/v1/admin/chatbot/documents/3"
+    })
+    @DisplayName("챗봇 · 챗봇 관리자 API는 같은 메서드 · 경로 · 쿼리로 챗봇 서비스에 넘긴다")
+    void routesChatbotApisToChatbotService(String path) {
+        var request = client.patch().uri(path);
+        if (path.startsWith("/api/v1/admin/")) {
+            request.header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path));
+        }
+        request.exchange().expectStatus().isOk();
+
+        assertThat(chatbotBackend.lastRequest()).hasValueSatisfying(recorded -> {
+            assertThat(recorded.method()).isEqualTo("PATCH");
+            assertThat(recorded.uri()).isEqualTo(URI.create(path));
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/chatbotx", "/api/v1/admin/chatbotx"})
+    @DisplayName("챗봇 경로와 이름만 비슷한 다른 경로는 404로 응답한다")
+    void routesChatbotLookalikesToNotFound(String path) {
+        client.get().uri(path).header(HttpHeaders.AUTHORIZATION, bearerAllowedOn(path)).exchange()
+            .expectStatus().isNotFound();
+
+        assertNoBackendRequests();
     }
 
     @Test

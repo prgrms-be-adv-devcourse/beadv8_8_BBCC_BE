@@ -6,6 +6,15 @@ kind: Namespace
 metadata:
   name: edge
 ---
+# 모든 요청이 nginx 를 지난다. 노드 request 가 꽉 차도(추천 2개 · 정산 Job 이 겹칠 때 등) 다시 뜰 수 있게, 자리가 없으면 우선순위가 낮은 Pod 를 밀어낸다
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: kidly-edge
+value: 1000000
+globalDefault: false
+description: t3.large 의 nginx(namespace edge). 자리가 없으면 다른 Pod 를 밀어내고 뜬다(#1309)
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,6 +35,7 @@ spec:
     spec:
       # 80 · 443 을 이 서버 주소로 받고, Gateway(127.0.0.1:30200) · Grafana(medium 사설 IP)에 예전 주소 그대로 붙는다
       hostNetwork: true
+      priorityClassName: kidly-edge
       enableServiceLinks: false
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 15

@@ -1,11 +1,8 @@
 package com.bbcc.kidly.gateway.ratelimit;
 
 import com.bbcc.kidly.gateway.web.ProblemResponse;
-import com.bbcc.kidly.shared.auth.PrincipalHeaders;
-import com.bbcc.kidly.shared.auth.PrincipalType;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.net.InetSocketAddress;
 import java.time.Clock;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -32,7 +29,7 @@ class SearchRateLimitFilter implements GlobalFilter, Ordered {
     // RoleFilter(AccessTokenFilter.ORDER + 1) 다음
     static final int ORDER = Ordered.HIGHEST_PRECEDENCE + 2;
 
-    static final String REAL_IP = "X-Real-IP";
+    static final String REAL_IP = RateLimitKeys.REAL_IP;
     private static final String PRODUCT_LIST_PATH = "/api/v1/products";
     private static final String KEYWORD = "keyword";
 
@@ -56,7 +53,7 @@ class SearchRateLimitFilter implements GlobalFilter, Ordered {
         if (!isKeywordSearch(request)) {
             return chain.filter(exchange);
         }
-        long retryAfterSeconds = limiter.tryAcquire(keyOf(request));
+        long retryAfterSeconds = limiter.tryAcquire(RateLimitKeys.keyOf(request));
         if (retryAfterSeconds == 0) {
             return chain.filter(exchange);
         }
@@ -72,29 +69,6 @@ class SearchRateLimitFilter implements GlobalFilter, Ordered {
         }
         var keywords = request.getQueryParams().get(KEYWORD);
         return keywords != null && !keywords.isEmpty() && !String.join(",", keywords).isBlank();
-    }
-
-    private static String keyOf(ServerHttpRequest request) {
-        var headers = request.getHeaders();
-        for (PrincipalType type : PrincipalType.values()) {
-            var id = headers.getFirst(PrincipalHeaders.idHeader(type));
-            if (id != null) {
-                return type.name() + ":" + id;
-            }
-        }
-        return "IP:" + clientIp(request);
-    }
-
-    private static String clientIp(ServerHttpRequest request) {
-        var realIp = request.getHeaders().getFirst(REAL_IP);
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.strip();
-        }
-        InetSocketAddress remote = request.getRemoteAddress();
-        if (remote == null) {
-            return "unknown";
-        }
-        return remote.getAddress() == null ? remote.getHostString() : remote.getAddress().getHostAddress();
     }
 
     @Override

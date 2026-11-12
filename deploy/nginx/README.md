@@ -15,7 +15,7 @@
 | --- | --- |
 | Deployment `nginx` | `nginx:1.28.0`, 호스트 네트워크(80 · 443). 설정은 ConfigMap `nginx-conf-<해시>`. 인증서는 호스트 `/etc/letsencrypt` 를 읽기 전용으로 읽는다. 6시간마다 `nginx -s reload` 로 갱신된 인증서를 읽는다 |
 | CronJob `certbot-renew` | `certbot/certbot:v5.8.0` 으로 매일 10:30 KST `certbot renew`. 호스트 `/etc/letsencrypt` · `/var/lib/letsencrypt` · `/var/www/certbot` 를 쓴다(예전 docker certbot 과 같은 마운트). 서버가 꺼져 그 시간을 놓치면 켜진 뒤 돈다 |
-| 메모리 request | nginx 32Mi, certbot Job 64Mi(하루 한 번 잠깐) |
+| 메모리 request | nginx 32Mi, certbot Job 64Mi(하루 한 번 잠깐). nginx 는 PriorityClass `kidly-edge` 라 노드 request 가 꽉 차면 다른 Pod 를 밀어내고 뜬다 |
 
 인증서는 ZeroSSL 에서 받았습니다(ACME). `kro.kr` 은 공용 접미사 목록(PSL)에 없어 Let's Encrypt 의 "등록 도메인당 주 50장" 한도를 모든 `kro.kr` 사용자와 나눠 쓰기 때문에 자주 막힙니다.
 ZeroSSL 계정은 `/etc/letsencrypt/accounts` 에 있어 갱신에 EAB 키가 필요 없습니다. 인증서는 90일짜리이고 만료 30일 전부터 실제로 새로 받습니다.

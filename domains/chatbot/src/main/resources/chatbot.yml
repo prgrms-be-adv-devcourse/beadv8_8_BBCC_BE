@@ -1,0 +1,22 @@
+# 챗봇 도메인 설정. application.yml이 가져온다
+
+kidly:
+  chatbot:
+    # 답변 근거 찾기. 질문과 코사인 유사도가 min-score 이상인 조각을 점수 순으로 top-k개까지 답에 넣는다
+    # 넘는 조각이 없어도 AI를 부른다(상품 질문은 문서가 아니라 상품 검색 도구로 답한다)
+    retrieval:
+      top-k: 4
+      min-score: 0.3
+    # 상품 검색 도구가 부르는 검색 서비스(#1191). 내부 경로 GET /internal/products/search를 부른다
+    search:
+      uri: ${KIDLY_SEARCH_URI:http://localhost:8082}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "dev | prod"
+kidly:
+  chatbot:
+    search:
+      uri: ${KIDLY_SEARCH_URI}

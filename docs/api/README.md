@@ -25,6 +25,7 @@
 | POST | `/api/v1/auth/child-accounts` | 자녀 계정 만들기 | 🔒 |
 | PATCH | `/api/v1/auth/child-accounts/{id}/password` | 자녀 계정 비밀번호 변경 | 🔒 |
 | DELETE | `/api/v1/auth/child-accounts/{id}` | 자녀 계정 삭제 | 🔒 |
+| GET | `/api/v1/admin/admins` | 관리자 계정 목록(status로 거름, 없으면 전체) | 🛠 |
 | POST | `/api/v1/admin/admins` | 관리자 계정 만들기 | 🛠 |
 | POST | `/api/v1/admin/admins/{adminId}/disable` | 관리자 계정 끄기 | 🛠 |
 | GET | `/api/v1/admin/auth-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
@@ -132,6 +133,7 @@
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
 | GET | `/api/v1/products` | 상품 목록 · 검색(카테고리 · 키워드 · 항목 값 · 정렬 `NEWEST` · `PRICE_ASC` · `PRICE_DESC` · `RELEVANCE`). 쿼리 `childId`(선택, 보호자가 고른 자녀 프로필 ID)는 결과를 바꾸지 않고 `search.performed`에만 담긴다(회원의 자녀인지는 받는 쪽이 확인). 검색어가 있으면 정렬과 관계없이 의미 검색(OpenAI 임베딩 · kNN)으로 뜻이 가까운 상품을 더한다. 관련도순은 검색어가 있는 상품을 먼저 보이고, 검색어가 없으면 최신순과 같다. 검색 서비스가 Elasticsearch에서 읽음 | 🌐 |
+| GET | `/internal/products/search` | 서비스 사이 전용 상품 검색(#1191, 챗봇). 쿼리 `keyword`(필수, 1~50자) · `minPrice` · `maxPrice`(선택, 원, 0 이상, 표시 가격 기준 이상 · 이하) · `limit`(1~10, 기본 5). 판매중 상품을 관련도순(검색어 + 의미 검색)으로 준다. 200 `[{"productId": 10, "name": "여아 원피스", "businessName": "키들리 상점", "price": 25000, "thumbnailUrl": "https://...", "soldOut": false}]`(없으면 `[]`, ID · 가격은 숫자, 없는 상호명 · 썸네일은 `null`). 회원 정보를 받지 않아 `search.performed`를 보내지 않는다. 같은 모양의 계약 `shared.search.out.ProductSearcher`를 검색이 구현한다. 잘못된 값(검색어 없음 · 음수 가격 · 최저가가 최고가보다 큼 · `limit` 범위 밖)은 400, 색인을 쓸 수 없으면 503 `SEARCH_UNAVAILABLE`. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
 | POST | `/api/v1/search/clicks` | 검색 결과 클릭 기록(본문 `keyword` · `productId` · `rank`(보여 준 목록에서의 위치, 1부터) · `sort`(목록 정렬, 없으면 `NEWEST`) · `childId`(선택, 고른 자녀 프로필 ID)). 저장하지 않고 `search.result-clicked` 이벤트로 보낸다. 응답 204 | 🔒 |
 
 ## 추천
@@ -387,3 +389,23 @@
 웹 푸시는 FCM으로 보낸다. 대상은 등록 토큰이 아니라 FID(Firebase Installation ID)다. 프론트는 Firebase Messaging의 `register(messaging, { vapidKey })`와 `onRegistered`로 받은 FID를 사이트에 들어올 때와 `onRegistered`가 불릴 때마다 `PUT`하고, 로그아웃 때 `DELETE`한다(서비스 워커 `firebase-messaging-sw.js` 필요).
 푸시로 보내는 알림은 회원이 사이트를 떠난 뒤 일어나는 일이다: 주문 확인(`ORDER_PAID`), 구매자가 하지 않은 주문 취소(`ORDER_CANCELLED` · `ORDER_ITEM_CANCELLED`), 배송 출발 · 완료(`DELIVERY_SHIPPED` · `DELIVERY_DELIVERED`), 판매자 새 주문(`SELLER_ORDER_PAID`). 제목 · 본문은 알림함 알림과 같고, 누르면 알림함 `linkPath`(없으면 사이트 첫 화면)를 연다. 자녀 계정에는 보내지 않는다.
 회원 한 명의 FID는 10개까지 두고(넘으면 마지막 등록이 오래된 것부터 지운다), 270일 동안 다시 등록되지 않은 FID와 FCM이 무효라고 답한 FID는 지운다(매일 04:10 KST). 탈퇴하면 그 회원의 FID를 모두 지운다.
+
+## 챗봇
+
+| 메서드 | 경로 | 설명 | 권한 |
+|---|---|---|---|
+| POST | `/api/v1/chatbot/messages` | 챗봇에게 묻기. 본문 `message`(1~500자) · `history`(선택, 오래된 것부터 최대 10개, 각 `role` `USER` · `ASSISTANT`, `content` 1~1000자). 응답 `{ answer, sources: [{ documentId, title }], products: [{ productId, name, businessName, price, thumbnailUrl, soldOut }] }`. `products`는 이번 답에서 찾은 상품 카드(최대 6개, 없으면 `[]`, ID · 가격은 숫자, 없는 상호명 · 썸네일은 `null`). 대화는 저장하지 않는다 | 🔒 |
+| POST | `/api/v1/admin/chatbot/documents` | 답변 근거 문서 저장(201 + `Location`). 본문 `title`(1~200자) · `category`(`FAQ` · `POLICY` · `SIZE_GUIDE`) · `content`(1~20,000자). 응답에 만든 조각 수 `chunkCount` | 🛠 |
+| GET | `/api/v1/admin/chatbot/documents` | 문서 목록(최신순, `page` · `size` 1~100, 기본 0 · 20). 본문은 넣지 않는다 | 🛠 |
+| GET | `/api/v1/admin/chatbot/documents/{id}` | 문서 상세(본문 · `chunkCount` 포함) | 🛠 |
+| PUT | `/api/v1/admin/chatbot/documents/{id}` | 문서 수정(제목 · 분류 · 본문 모두 보낸다). 조각을 모두 다시 만든다 | 🛠 |
+| DELETE | `/api/v1/admin/chatbot/documents/{id}` | 문서 삭제(204). 조각도 함께 지운다 | 🛠 |
+
+**답변 근거(#1191)**: 문서를 저장 · 수정하면 본문을 문단 단위로 800자 안팎의 조각으로 나눠(이웃 조각은 100자 안팎 겹친다) OpenAI 임베딩(`text-embedding-3-small`)으로 바꿔 둔다. 질문이 오면 질문을 임베딩해 코사인 유사도가 `kidly.chatbot.retrieval.min-score`(기본 0.3) 이상인 조각을 점수 순으로 `top-k`(기본 4)개까지 골라 지시문에 넣고, 이용 안내는 그 조각만으로 답하게 한다. `sources`는 고른 조각의 문서(점수 순, 문서마다 한 번)다. 넘는 조각이 없거나 문서가 하나도 없어도 AI를 부른다(문서가 없으면 질문을 임베딩하지 않는다). 저장한 문서는 다음 질문부터 쓴다(서버가 여러 대여도 같다).
+
+**상품 찾기(#1191)**: 상품을 찾거나 추천해 달라는 질문이면 AI가 상품 검색 도구(`searchProducts`, 검색어 · 최저가 · 최고가)를 불러 검색 서비스(`/internal/products/search`, 한 번에 5개)에서 찾고, 그 결과에 있는 상품 이름 · 가격만으로 답한다. 한 질문에서 도구는 세 번까지 부르고, 찾은 상품은 처음 찾은 순서대로 한 번씩 최대 6개를 `products`로 준다. 검색 서비스에는 검색어 · 가격만 보내고 회원 정보는 보내지 않는다. 검색 서비스가 실패하거나 응답하지 않으면(연결 1초 · 응답 4초) 질문은 200이고 AI가 상품을 찾지 못했다고 안내하며 `products`는 `[]`다. 쇼핑과 관계없는 질문에는 짧게 거절하도록 지시한다. OpenAI 호출이 실패하면 503 `AI를 쓸 수 없습니다`.
+
+오류 코드(상태 · `title` · `detail`은 `ChatbotErrorCode`에 있다):
+
+- `INVALID_CATEGORY`(400), `DOCUMENT_NOT_FOUND`(404)
+- `AI_UNAVAILABLE`(503): OpenAI 키가 없거나 호출이 실패 · 시간 초과했다. 문서 저장 · 수정은 반영되지 않는다

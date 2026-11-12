@@ -159,6 +159,11 @@ spring:
               uri: ${kidly.gateway.notification-uri}
               predicates:
                 - Path=/api/v1/notifications/**,/api/v1/child/notifications/**,/api/v1/admin/notification-dead-letters/**
+            # 챗봇 API(회원)와 챗봇 관리자 API(답변 근거 문서)는 챗봇 서비스로 간다(#1191)
+            - id: chatbot
+              uri: ${kidly.gateway.chatbot-uri}
+              predicates:
+                - Path=/api/v1/chatbot/**,/api/v1/admin/chatbot/**
             # 나머지는 어느 서비스에도 넘기지 않고 404 ProblemDetail로 답한다. 인증 · 역할 검사(GlobalFilter)는 라우트가 있어야 돌므로 모든 경로를 받아 둔다.
             # 새 서비스 경로는 이 위에 더한다
             - id: not-found
@@ -203,6 +208,12 @@ kidly:
         period: 1m
         # 키 하나는 약 200바이트라 상한까지 차도 약 10MB(-Xmx256m). 넘으면 쓰지 않는 키를 지우고, 그래도 넘으면 새 키는 세지 않는다
         max-keys: 50000
+      # 챗봇 질문(POST /api/v1/chatbot/messages) 요청 수 제한(#1191, ratelimit/ChatRateLimitFilter). 질문마다 챗봇 서비스가 OpenAI를 부른다.
+      # 키 · 메모리 동작은 search와 같다. capacity가 한꺼번에 보낼 수 있는 상한이기도 하다
+      chat:
+        capacity: 10
+        period: 1m
+        max-keys: 50000
 
 jwt:
   # Access Token 유효 기간. 회원 서비스 auth.yml과 같은 값이어야 한다. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
@@ -214,7 +225,7 @@ spring:
     activate:
       on-profile: local
 
-# member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · product-service(8089) · order-service(8091) · community-service(8092) · notification-service(8090)와 같이 띄운다
+# member-service(8081) · search-service(8082) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) · product-service(8089) · order-service(8091) · community-service(8092) · notification-service(8090) · chatbot-service(8093)와 같이 띄운다
 server:
   port: 8083
 
@@ -238,6 +249,8 @@ kidly:
     community-uri: ${KIDLY_COMMUNITY_URI:http://localhost:8092}
     # notification-service(8090)를 띄워야 알림함 API가 된다
     notification-uri: ${KIDLY_NOTIFICATION_URI:http://localhost:8090}
+    # chatbot-service(8093)를 띄워야 챗봇 API가 된다
+    chatbot-uri: ${KIDLY_CHATBOT_URI:http://localhost:8093}
 
 cors:
   allowed-origins: http://localhost:5173
@@ -273,6 +286,7 @@ kidly:
     order-uri: ${KIDLY_ORDER_URI}
     community-uri: ${KIDLY_COMMUNITY_URI}
     notification-uri: ${KIDLY_NOTIFICATION_URI}
+    chatbot-uri: ${KIDLY_CHATBOT_URI}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}

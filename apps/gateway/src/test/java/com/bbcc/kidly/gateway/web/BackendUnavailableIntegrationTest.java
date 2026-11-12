@@ -44,6 +44,7 @@ class BackendUnavailableIntegrationTest {
         registry.add("kidly.gateway.order-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.community-uri", () -> "http://127.0.0.1:" + closedPort);
         registry.add("kidly.gateway.notification-uri", () -> "http://127.0.0.1:" + closedPort);
+        registry.add("kidly.gateway.chatbot-uri", () -> "http://127.0.0.1:" + closedPort);
     }
 
     @BeforeEach

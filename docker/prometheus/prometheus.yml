@@ -18,5 +18,6 @@ scrape_configs:
           - host.docker.internal:8090
           - host.docker.internal:8091
           - host.docker.internal:8092
+          - host.docker.internal:8093
         labels:
           env: local
