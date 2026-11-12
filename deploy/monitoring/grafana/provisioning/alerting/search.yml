@@ -2,6 +2,10 @@
 # 검색 서비스 장애 알림(#1026). 대응 절차는 deploy/search/README.md "장애 대응"
 # 라벨에는 env · topic만 둔다(검색어 · 상품 ID를 넣지 않는다)
 apiVersion: 1
+# 파일에서 규칙을 빼도 Grafana는 DB(PVC)에 저장한 규칙을 지우지 않는다. 지운 규칙은 여기 uid를 남겨 지운다
+deleteRules:
+- orgId: 1
+  uid: kidly-search-products-without-embedding  # 의미 검색 벡터 없는 상품(#1333)
 groups:
 - orgId: 1
   name: kidly-search
