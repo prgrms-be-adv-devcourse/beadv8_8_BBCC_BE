@@ -36,7 +36,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 ## 지켜야 할 것
 - CORS 값(허용 origin · 메서드 · 노출 헤더)은 Gateway(`application.yml`)에서만 바꾼다
 - 주체 헤더 이름 · 접두어는 `PrincipalHeaders`, 토큰 주체는 `PrincipalId`에 있다. 회원 헤더 이름 · 역할 목록(쉼표) · 닉네임 인코딩(UTF-8 퍼센트 인코딩, 공백 `%20`) · 회원 ID 해석은 `MemberHeaders`, 역할은 `Role`, 토큰 클레임 이름은 `AccessTokenClaims`에 있다(모두 `shared`의 `com.bbcc.kidly.shared.auth`). Gateway · `common` · 회원이 같은 코드를 쓰므로 한 곳만 고친다
-- 400 · 401 · 403 · 404 · 500 본문은 서비스와 같아야 한다(문구 `common` `CommonErrorCode`의 `INVALID_INPUT` · `UNAUTHORIZED` · `FORBIDDEN` · `NOT_FOUND` · `INTERNAL_ERROR`, 5필드 `ProblemDetails`). 모듈이 달라 테스트로 묶지 못하므로 한쪽을 바꾸면 `web/ProblemResponse`도 바꾼다
+- 400 · 401 · 403 · 404 · 500 본문은 서비스와 같아야 한다(문구 `common` `CommonErrorCode`의 `INVALID_INPUT` · `UNAUTHORIZED` · `FORBIDDEN` · `NOT_FOUND` · `INTERNAL_ERROR`, 5필드와 오류 코드 `code`(같은 상수 이름) `ProblemDetails`). 모듈이 달라 테스트로 묶지 못하므로 한쪽을 바꾸면 `web/ProblemResponse`도 바꾼다
 - 로그아웃(`/api/v1/auth/logout`)은 Refresh Token 쿠키로만 인증하므로 Access Token을 검증하지 않고 주체 헤더 없이 넘긴다. 탈퇴로 무효화된 토큰이 함께 와도 쿠키를 지울 수 있어야 한다(`auth/AccessTokenFilter`)
 - 역할이 필요한 경로를 더하면 `auth/RoleFilter`의 `RULES`에 더한다. 서비스는 역할 경로를 검사하지 않는다
 - 역할 검사(`auth/RoleFilter`)는 원래 요청 경로로 한다. 경로를 바꾸는 라우트 필터(`RewritePath` · `StripPrefix` 등)로 `/api/v1/admin` · `/api/v1/seller`에 닿게 하는 라우트를 만들지 않는다(바뀐 경로는 역할 검사를 받지 않는다)

@@ -97,7 +97,9 @@ public abstract class GatewayTestSupport {
         assertThat(backends).allSatisfy(backend -> assertThat(backend.lastRequest()).isEmpty());
     }
 
-    // 5필드 ProblemDetail 본문을 본다. 백엔드까지 갔다가 실패한 응답(503 · 504)에도 쓰므로 백엔드 호출 여부는 보지 않는다.
+    // 5필드 ProblemDetail 본문과 오류 코드(code)를 본다.
+    // code는 서비스의 CommonErrorCode 상수 이름과 같다(400 · 500만 이름이 상태와 다르다).
+    // 백엔드까지 갔다가 실패한 응답(503 · 504)에도 쓰므로 백엔드 호출 여부는 보지 않는다.
     // BackendUnavailableIntegrationTest는 이 클래스를 상속하지 않으므로 public이다
     public static void expectProblem(ResponseSpec response, HttpStatus status, String title, String detail,
         String instance) {
@@ -108,7 +110,16 @@ public abstract class GatewayTestSupport {
             .jsonPath("$.title").isEqualTo(title)
             .jsonPath("$.status").isEqualTo(status.value())
             .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(instance);
+            .jsonPath("$.instance").isEqualTo(instance)
+            .jsonPath("$.code").isEqualTo(codeOf(status));
+    }
+
+    private static String codeOf(HttpStatus status) {
+        return switch (status) {
+            case BAD_REQUEST -> "INVALID_INPUT";
+            case INTERNAL_SERVER_ERROR -> "INTERNAL_ERROR";
+            default -> status.name();
+        };
     }
 
     private String baseUrl() {

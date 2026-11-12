@@ -31,7 +31,7 @@ class GlobalExceptionHandlerTest {
         .build();
 
     @Test
-    @DisplayName("업무 예외는 ErrorCode의 상태와 제목으로 ProblemDetail을 만든다")
+    @DisplayName("업무 예외는 ErrorCode의 상태 · 제목 · 오류 코드로 ProblemDetail을 만든다")
     void businessException() throws Exception {
         mockMvc.perform(get("/test/business"))
             .andExpect(status().isConflict())
@@ -40,7 +40,8 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.title").value("가격이 바뀌었습니다"))
             .andExpect(jsonPath("$.status").value(409))
             .andExpect(jsonPath("$.detail").value("장바구니 단가와 현재 단가가 다릅니다."))
-            .andExpect(jsonPath("$.instance").value("/test/business"));
+            .andExpect(jsonPath("$.instance").value("/test/business"))
+            .andExpect(jsonPath("$.code").value("PRICE_CHANGED"));
     }
 
     @Test
@@ -59,7 +60,8 @@ class GlobalExceptionHandlerTest {
             .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.title").value("잘못된 요청입니다"))
             .andExpect(jsonPath("$.detail").value("name: 이름을 입력해 주세요."))
-            .andExpect(jsonPath("$.instance").value("/test/valid"));
+            .andExpect(jsonPath("$.instance").value("/test/valid"))
+            .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
 
     @Test
@@ -82,7 +84,8 @@ class GlobalExceptionHandlerTest {
             .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.title").value("서버 오류가 발생했습니다"))
             .andExpect(jsonPath("$.detail").value("잠시 후 다시 시도해 주세요."))
-            .andExpect(jsonPath("$.instance").value("/test/unexpected"));
+            .andExpect(jsonPath("$.instance").value("/test/unexpected"))
+            .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
     }
 
     @Test
@@ -93,7 +96,8 @@ class GlobalExceptionHandlerTest {
             .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.title").value("다른 요청과 겹쳤습니다"))
             .andExpect(jsonPath("$.status").value(409))
-            .andExpect(jsonPath("$.instance").value("/test/data-integrity"));
+            .andExpect(jsonPath("$.instance").value("/test/data-integrity"))
+            .andExpect(jsonPath("$.code").value("CONFLICT"));
     }
 
     @Test

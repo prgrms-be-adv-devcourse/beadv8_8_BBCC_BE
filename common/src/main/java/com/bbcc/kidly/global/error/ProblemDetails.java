@@ -4,7 +4,7 @@ import java.net.URI;
 import org.springframework.http.ProblemDetail;
 
 /**
- * ProblemDetail 5필드(type, title, status, detail, instance)를 채운다.
+ * ProblemDetail 5필드(type, title, status, detail, instance)와 오류 코드(code)를 채운다.
  */
 public final class ProblemDetails {
 
@@ -19,6 +19,7 @@ public final class ProblemDetails {
         problem.setType(DEFAULT_TYPE);
         problem.setTitle(errorCode.title());
         problem.setInstance(URI.create(instance));
+        problem.setProperty("code", errorCode.name());
         return problem;
     }
 

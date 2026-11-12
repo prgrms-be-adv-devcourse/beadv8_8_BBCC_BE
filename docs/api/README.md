@@ -3,7 +3,7 @@
 도메인마다 어떤 API가 있고 무엇을 하는지 적는다. 요청 · 응답 칸과 타입은 Swagger에서 본다.
 
 - Swagger: 서비스마다 연다(로컬 `http://localhost:<서비스 포트>/swagger-ui.html`, 포트는 README의 로컬 실행 표). 서비스에 직접 붙으므로 로그인이 필요한 API는 Gateway 헤더(`X-Member-*`)를 직접 넣어야 한다
-- 오류 응답은 ProblemDetail 5필드(`type`, `title`, `status`, `detail`, `instance`)다. 도메인 오류의 상태 · `title` · `detail`은 각 도메인의 `XxxErrorCode` enum에 있다
+- 오류 응답은 ProblemDetail 5필드(`type`, `title`, `status`, `detail`, `instance`)와 오류 코드 `code`다. `code`는 오류 enum 상수 이름(예: `IDEMPOTENCY_KEY_REUSED`)이라 문구가 바뀌어도 그대로이므로, 화면은 `title` 문장 대신 `code`로 분기한다. 도메인 오류의 상태 · `title` · `detail` · `code`는 각 도메인의 `XxxErrorCode` enum에 있다. Gateway가 직접 내는 오류도 같은 `code`를 쓴다(400 `INVALID_INPUT` · 401 `UNAUTHORIZED` · 403 `FORBIDDEN` · 404 `NOT_FOUND` · 429 `TOO_MANY_REQUESTS` · 500 `INTERNAL_ERROR` · 503 `SERVICE_UNAVAILABLE` · 504 `GATEWAY_TIMEOUT`). 스프링이 직접 만드는 오류(405 등)에는 `code`가 없다
 - API를 추가 · 변경 · 삭제하는 PR에서 이 표도 같이 고친다
 - 권한: 🌐 누구나 · 🔒 로그인 · 🏪 판매자 · 🛠 관리자 · 내부(서비스끼리만 부름. Gateway가 `/internal/**`을 밖에서 404로 막는다). 판매자 · 관리자 역할은 Gateway가 `/api/v1/seller/**` · `/api/v1/admin/**` 경로로 검사한다
 - 요청 수 제한: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 분당 30번까지 받는다. 넘으면 429 ProblemDetail(`title` "요청이 너무 많습니다")과 `Retry-After`(초)다(#816)
