@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 @Accessors(fluent = true)
 @RequiredArgsConstructor
 public enum ChildProfileErrorCode implements ErrorCode {
+    ONLY_GROWTH_RECORD(HttpStatus.CONFLICT, "지울 수 없는 기록입니다", "성장 기록이 하나뿐이면 지울 수 없습니다."),
     OPTIONAL_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "선택 동의가 필요합니다", "체형과 선호 핏 입력에는 선택 동의가 필요합니다."),
     CHILD_TOO_OLD(HttpStatus.BAD_REQUEST, "등록할 수 없는 나이입니다", "만 14세 미만 자녀만 등록할 수 있습니다."),
     GUARDIAN_UNDERAGE(HttpStatus.BAD_REQUEST, "인증할 수 없는 나이입니다", "만 19세 이상만 보호자로 인증할 수 있습니다."),

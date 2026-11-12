@@ -56,6 +56,14 @@ public class Seller extends BaseTimeEntity {
         return new Seller(application.getApplicantId(), application.getBusinessName());
     }
 
+    public boolean changeBusinessName(String businessName) {
+        if (this.businessName.equals(businessName)) {
+            return false;
+        }
+        this.businessName = businessName;
+        return true;
+    }
+
     public void suspend(Long adminId, String reason, LocalDateTime now) {
         if (status == SellerStatus.CLOSED) {
             throw new BusinessException(SellerErrorCode.SELLER_CLOSED);

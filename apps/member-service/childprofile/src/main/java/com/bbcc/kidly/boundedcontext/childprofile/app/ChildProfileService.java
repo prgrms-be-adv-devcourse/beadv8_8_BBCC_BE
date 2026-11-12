@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileErrorCode;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
+import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordDeletedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -123,6 +124,18 @@ public class ChildProfileService {
         return childProfileRepository.getByIdAndMemberId(childId, memberId).getGrowthRecords().stream()
             .map(GrowthRecordResult::from)
             .toList();
+    }
+
+    @Transactional
+    public void deleteGrowthRecord(Long memberId, Long childId, Long recordId) {
+        var child = childProfileRepository.getByIdAndMemberIdForUpdate(childId, memberId);
+        var deleted = child.deleteGrowthRecord(recordId);
+        var now = LocalDateTime.now();
+        if (deleted.restored()) {
+            publish(child, false, now);
+        }
+        eventPublisher.publishEvent(new ChildGrowthRecordDeletedEvent(UUID.randomUUID(), now,
+            new ChildGrowthRecordDeletedEvent.Data(deleted.record().getId(), childId)));
     }
 
     private void publishGrowthRecorded(GrowthRecord record) {

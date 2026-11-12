@@ -4,13 +4,17 @@ import com.bbcc.kidly.boundedcontext.auth.app.dto.AdminResponse;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccount;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminPassword;
+import com.bbcc.kidly.boundedcontext.auth.domain.AdminStatus;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,9 +28,20 @@ public class AdminAccountService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final AccessTokenRevocationService accessTokenRevocationService;
 
+    @Transactional(readOnly = true)
+    public Page<AdminAccount> list(String status, Pageable pageable) {
+        var filter = Optional.ofNullable(status).map(AdminStatus::valueOf).orElse(null);
+        return adminAccountRepository.findAccounts(filter, pageable);
+    }
+
     @Transactional
     public AdminResponse create(Long actorId, String email, String rawPassword) {
         lockActiveActor(actorId);
+        var normalizedEmail = AdminAccount.normalizeEmail(email);
+        if (adminAccountRepository.existsByEmail(normalizedEmail)) {
+            throw new BusinessException(AuthErrorCode.ADMIN_EMAIL_ALREADY_USED);
+        }
+        // 동시 생성 경합은 이메일 유니크 제약이 공통 409로 막는다.
         AdminPassword password;
         try {
             password = new AdminPassword(rawPassword);
@@ -34,7 +49,7 @@ public class AdminAccountService {
             throw new BusinessException(AuthErrorCode.INVALID_ADMIN_PASSWORD, e.getMessage());
         }
         var hash = passwordEncoder.encode(password.value());
-        var account = adminAccountRepository.saveAccount(AdminAccount.create(email, hash, actorId));
+        var account = adminAccountRepository.saveAccount(AdminAccount.create(normalizedEmail, hash, actorId));
         return AdminResponse.from(account);
     }
 

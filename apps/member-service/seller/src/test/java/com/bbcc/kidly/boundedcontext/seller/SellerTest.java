@@ -44,6 +44,24 @@ class SellerTest {
     }
 
     @Test
+    @DisplayName("상호명이 다르면 바꾸고 변경을 알린다")
+    void changeBusinessName() {
+        var seller = SellerFixture.activeSeller(APPLICANT_ID);
+
+        assertThat(seller.changeBusinessName("새 상호")).isTrue();
+        assertThat(seller.getBusinessName()).isEqualTo("새 상호");
+    }
+
+    @Test
+    @DisplayName("상호명이 같으면 변경하지 않는다")
+    void changeBusinessNameToSame() {
+        var seller = SellerFixture.activeSeller(APPLICANT_ID);
+
+        assertThat(seller.changeBusinessName(BUSINESS_NAME)).isFalse();
+        assertThat(seller.getBusinessName()).isEqualTo(BUSINESS_NAME);
+    }
+
+    @Test
     @DisplayName("정지하면 SUSPENDED이고 사유 · 관리자 · 시각이 저장된다")
     void suspend() {
         var seller = SellerFixture.activeSeller(APPLICANT_ID);
