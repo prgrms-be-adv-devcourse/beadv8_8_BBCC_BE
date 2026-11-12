@@ -53,7 +53,7 @@ public class SizeRecommendationService {
         SizeRecommendationDraft draft = reader.read(memberId, productId, childId);
         AiSizeAnswer answer = askAi(draft);
         SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer, draft.aiEvidence());
-        logOutcome(draft, answer, recommendation);
+        recordOutcome(draft, answer, recommendation);
         return toResult(draft, recommendation);
     }
 
@@ -80,7 +80,7 @@ public class SizeRecommendationService {
             return Optional.empty();
         }
         SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer, draft.aiEvidence());
-        logOutcome(draft, answer, recommendation);
+        recordOutcome(draft, answer, recommendation);
         if (recommendation.getSource() != SizeRecommendationSource.AI) {
             return Optional.empty();
         }
@@ -103,9 +103,10 @@ public class SizeRecommendationService {
             () -> chooser.choose(draft.aiQuestion())).orElse(null);
     }
 
-    // 어떤 프롬프트 판의 AI 답을 채택했는지, 검증에서 버렸는지 남긴다. 자녀 ID, 회원 ID, 자녀 몸 정보는 남기지 않는다.
+    // 어떤 프롬프트 판의 AI 답을 채택했는지, 검증에서 버렸는지 로그로 남기고, 버렸으면 검증 버림 수를 센다.
+    // 자녀 ID, 회원 ID, 자녀 몸 정보는 남기지 않는다.
     // AI를 부르지 않았거나 답을 얻지 못한 경우(answer가 null)는 남기지 않는다.
-    private void logOutcome(SizeRecommendationDraft draft, AiSizeAnswer answer, SizeRecommendation recommendation) {
+    private void recordOutcome(SizeRecommendationDraft draft, AiSizeAnswer answer, SizeRecommendation recommendation) {
         if (answer == null) {
             return;
         }

@@ -382,7 +382,6 @@ class SizeRecommendationApiTest {
             .expectStatus().isUnauthorized();
     }
 
-    // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다
     @Test
     @DisplayName("스트림(text/event-stream)으로 부르면 규칙 결과를 rule 이벤트로 바로 보내고, AI 결과가 없으면 그대로 닫는다")
     void streamRuleEventWithoutAi() {
@@ -403,6 +402,19 @@ class SizeRecommendationApiTest {
             .doesNotContain("event:ai");
     }
 
+    @Test
+    @DisplayName("스트림으로 불러도 없는 자녀면 스트림을 열기 전에 404 \"자녀를 찾을 수 없습니다.\"를 ProblemDetail로 받는다")
+    void rejectUnknownChildBeforeStream() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+
+        expectProblem(client.get().uri(PATH + "?productId={productId}&childId={childId}", PRODUCT_A_ID, 9999L)
+                .headers(TestMembers.buyer(MEMBER_1_ID))
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .exchange(),
+            HttpStatus.NOT_FOUND, "자녀를 찾을 수 없습니다", "자녀를 찾을 수 없습니다.");
+    }
+
+    // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다
     private static void expectProblem(
         RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
         response
