@@ -1,0 +1,118 @@
+spring:
+  application:
+    name: kidly-chatbot
+  # 챗봇 도메인 설정(답변 근거 찾기)
+  config:
+    import: classpath:chatbot.yml
+  profiles:
+    default: local
+  # 자기 스키마만 다룬다. 처음부터 이 서비스만 챗봇 마이그레이션을 적용하므로 baseline이 없다
+  flyway:
+    locations: classpath:db/migration
+    # 이력 테이블은 chatbot 스키마에 둔다. 나중에 DB를 나눌 때 스키마와 같이 옮겨지고, 다른 스키마를 건드리지 않는다
+    default-schema: chatbot
+    schemas: chatbot
+    table: flyway_schema_history_chatbot
+    # 버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있으므로 옛 버전도 적용한다
+    out-of-order: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        # 트랜잭션이 끝나면 DB 연결을 바로 돌려주고, 그래서 DB가 막지 못하는 읽기 전용 트랜잭션의 쓰기를 SQL을 보내기 전에 막는다
+        connection:
+          handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
+        session_factory:
+          statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
+  # OpenAI(Chat Completions · 임베딩). 챗봇은 chat과 임베딩만 쓰므로 나머지 모델의 자동 설정은 끈다.
+  # 키가 없는 로컬 · 테스트 · CI에서는 ChatbotAiKeyApplicationListener가 chat과 임베딩 모델 빈도 만들지 않고, 문서 저장 · 근거가 있는 질문의 답변은 503이다
+  ai:
+    model:
+      image: none
+      audio:
+        speech: none
+        transcription: none
+      moderation: none
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        model: gpt-6.1-terra
+        # 이 모델은 추론을 켠 채 함수 도구(상품 검색)를 쓰면 400을 낸다. 도구를 쓰려면 none이어야 한다
+        reasoning-effort: none
+        # 추론 토큰도 이 상한에 들어간다
+        max-completion-tokens: 2048
+        # 회원이 화면에서 기다리므로 한 번 부를 때 기다리는 시간을 짧게 두고, 일시적인 오류(429 · 5xx 등)는 한 번만 다시 부른다
+        timeout: 15s
+        max-retries: 1
+      embedding:
+        # 이름을 바꾸면 이미 저장한 조각과 차원이 달라 비교하지 않는다. 바꾼 뒤에는 문서를 다시 저장한다
+        model: text-embedding-3-small
+        timeout: 10s
+        max-retries: 1
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha
+
+# 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kidly
+    username: kidly
+    password: kidly
+
+# member-service(8081) · search-service(8082) · gateway(8083) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) ·
+# product-service(8089) · notification-service(8090) · order-service(8091) · community-service(8092)와 같이 띄울 수 있게 포트를 나눈다
+server:
+  port: 8093
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "dev | prod"
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    # dev · prod 가 DB 인스턴스 하나(max_connections 120)를 나눠 쓴다. 기본 10 이면 서비스 수 × 두 환경만큼 연결이 는다
+    hikari:
+      maximum-pool-size: 5
+
+server:
+  forward-headers-strategy: native
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
+  # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
+  structured:
+    json:
+      stacktrace:
+        max-throwable-depth: 30
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+# 운영에는 API 명세를 열지 않는다
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

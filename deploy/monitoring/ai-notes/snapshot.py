@@ -9,7 +9,7 @@ import uuid
 from contracts import AnalysisContext, Evidence
 
 JOBS = ('kidly-gateway', 'kidly-search', 'kidly-recommend', 'kidly-member', 'kidly-payment',
-        'kidly-product', 'kidly-order', 'kidly-community', 'kidly-settlement', 'kidly-notification')
+        'kidly-product', 'kidly-order', 'kidly-community', 'kidly-chatbot', 'kidly-settlement', 'kidly-notification')
 MATCH = '|'.join(JOBS)
 
 

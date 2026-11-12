@@ -44,7 +44,7 @@ public class MemberFavoritesRemovalService implements MemberFavoritesRemover {
             }
         });
         // 지운 행을 그대로 한 문장으로 남긴다(까닭 withdrawn, 행마다 한 건)
-        activityLog.favoritesRemovedByWithdrawal(deleted.stream()
+        activityLog.favoritesRemovedByWithdrawal(memberId, deleted.stream()
             .map(favorite -> new RemovedFavorite(favorite.getId(), favorite.getProductId()))
             .toList());
         return deleted.size();

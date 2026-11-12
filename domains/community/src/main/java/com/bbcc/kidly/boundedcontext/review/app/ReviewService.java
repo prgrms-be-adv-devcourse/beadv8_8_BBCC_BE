@@ -208,8 +208,8 @@ public class ReviewService {
         }
         // 실제로 바뀐 것이 있을 때만 남긴다(같은 값으로 보낸 수정은 남지 않는다)
         if (edited) {
-            activityLog.reviewUpdated(saved.getId(), saved.getProductId(), saved.getRating(), fitName(saved.getFit()),
-                imageUrls.size(), contentChanged, imagesChanged);
+            activityLog.reviewUpdated(saved.getId(), saved.getProductId(), saved.getOrderItemId(), saved.getRating(),
+                fitName(saved.getFit()), imageUrls.size(), contentChanged, imagesChanged, saved.isPublic());
         }
         return ReviewView.from(saved, purchasedSize, imageUrls);
     }
@@ -229,7 +229,8 @@ public class ReviewService {
         if (review.isPublic()) {
             adjustStats(review.getProductId(), -1, -review.getRating(), FitDelta.of(review.getFit(), null));
         }
-        activityLog.reviewDeleted(review.getId(), review.getProductId(), review.getRating(), review.isPublic());
+        activityLog.reviewDeleted(review.getId(), review.getProductId(), review.getOrderItemId(), review.getRating(),
+            fitName(review.getFit()), review.isPublic());
     }
 
     private static String fitName(Fit fit) {

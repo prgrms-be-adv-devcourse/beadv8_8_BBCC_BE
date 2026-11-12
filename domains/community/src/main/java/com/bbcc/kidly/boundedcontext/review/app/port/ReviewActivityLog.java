@@ -15,16 +15,24 @@ public interface ReviewActivityLog {
 
     /**
      * 수정 뒤 값과 본문 · 사진이 바뀌었는지.
+     *
+     * @param visible 수정 뒤 공개 상태인지
      */
-    void reviewUpdated(Long reviewId, Long productId, int rating, String fit, int imageCount, boolean contentChanged,
-        boolean imagesChanged);
-
-    void reviewDeleted(Long reviewId, Long productId, int rating, boolean wasPublic);
+    void reviewUpdated(Long reviewId, Long productId, Long orderItemId, int rating, String fit, int imageCount,
+        boolean contentChanged, boolean imagesChanged, boolean visible);
 
     /**
+     * @param wasPublic 지우기 전 공개 상태였는지
+     */
+    void reviewDeleted(Long reviewId, Long productId, Long orderItemId, int rating, String fit, boolean wasPublic);
+
+    /**
+     * @param rating · fit 결정 때 리뷰 값(이벤트 본문용)
      * @param byAdmin 관리자 조치면 true, 검사 결과면 false
      * @param status 바뀐 검사 상태 이름
      * @param reason 걸린 이유 분류 이름(없으면 null)
+     * @param visible 결정 뒤 리뷰가 공개인지({@code Review.isPublic()})
      */
-    void moderationDecided(Long reviewId, Long productId, boolean byAdmin, String status, String reason);
+    void moderationDecided(Long reviewId, Long productId, Long orderItemId, int rating, String fit, boolean byAdmin,
+        String status, String reason, boolean visible);
 }

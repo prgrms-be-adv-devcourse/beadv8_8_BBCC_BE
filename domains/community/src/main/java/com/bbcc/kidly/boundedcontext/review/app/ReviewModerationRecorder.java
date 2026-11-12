@@ -34,15 +34,17 @@ public class ReviewModerationRecorder {
         return switch (result.verdict()) {
             case PASSED -> {
                 review.pass(ReviewTimes.now());
-                activityLog.moderationDecided(review.getId(), review.getProductId(), false,
-                    ModerationStatus.PASSED.name(), null);
+                activityLog.moderationDecided(review.getId(), review.getProductId(), review.getOrderItemId(),
+                    review.getRating(), fitName(review), false, ModerationStatus.PASSED.name(), null,
+                    review.isPublic());
                 yield Recorded.PASSED;
             }
             case FLAGGED -> {
                 review.hideByModeration(result.reason(), ReviewTimes.now());
                 statsShare.remove(review);
-                activityLog.moderationDecided(review.getId(), review.getProductId(), false,
-                    ModerationStatus.HIDDEN.name(), result.reason() == null ? null : result.reason().name());
+                activityLog.moderationDecided(review.getId(), review.getProductId(), review.getOrderItemId(),
+                    review.getRating(), fitName(review), false, ModerationStatus.HIDDEN.name(),
+                    result.reason() == null ? null : result.reason().name(), review.isPublic());
                 yield Recorded.HIDDEN;
             }
             case UNDECIDED -> {
@@ -53,6 +55,10 @@ public class ReviewModerationRecorder {
                 yield Recorded.UNDECIDED;
             }
         };
+    }
+
+    private static String fitName(Review review) {
+        return review.getFit() == null ? null : review.getFit().name();
     }
 
     public enum Recorded {

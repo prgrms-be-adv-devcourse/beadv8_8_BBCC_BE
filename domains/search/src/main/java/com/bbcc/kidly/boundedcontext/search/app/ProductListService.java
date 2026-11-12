@@ -10,7 +10,10 @@ import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
 import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.search.dto.ProductHit;
+import com.bbcc.kidly.shared.search.dto.ProductSearchQuery;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
+import com.bbcc.kidly.shared.search.out.ProductSearcher;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,18 +24,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 /**
  * 구매자 상품 목록 조회 유스케이스다. 요청을 검색 조건으로 바꿔 검색 색인에서 찾는다.
  * 로그인 회원이 검색어로 찾은 첫 페이지면 검색 이벤트(search.performed)를 보낸다(#611).
  * 검색어로 찾으면 정렬과 관계없이 검색어를 의미 검색 벡터로 바꿔 함께 넘긴다(#797). 바꾸지 못하면 키워드로만 찾는다.
+ * 다른 도메인(챗봇)의 상품 검색 계약 {@link ProductSearcher}도 같은 검색으로 구현한다(#1191). 회원을 모르므로 검색 이벤트는 보내지 않는다.
  * DB를 쓰지 않으므로 트랜잭션을 열지 않는다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ProductListService {
+public class ProductListService implements ProductSearcher {
 
     private final ProductSearch productSearch;
     private final SearchEventSender searchEventSender;
@@ -50,16 +55,28 @@ public class ProductListService {
             groupByCode(request.attributesOrEmpty()),
             sort,
             keywordVector(keyword));
-        Page<ProductSearchItem> result = search(condition, request);
+        Page<ProductSearchItem> result = search(condition,
+            PageRequest.of(request.pageOrDefault(), request.sizeOrDefault()));
         if (isNewSearchByMember(memberId, condition, request)) {
             searchEventSender.send(searchPerformed(memberId, condition, result.getTotalElements(), request.childId()));
         }
         return result;
     }
 
-    private Page<ProductSearchItem> search(ProductSearchCondition condition, ProductListRequest request) {
+    @Override
+    public List<ProductHit> search(ProductSearchQuery query) {
+        String keyword = stripKeyword(query.keyword());
+        ProductSearchCondition condition = new ProductSearchCondition(null, keyword, Map.of(),
+            ProductSearchSort.RELEVANCE, keywordVector(keyword), query.minPrice(), query.maxPrice());
+        return search(condition, PageRequest.of(0, query.limit())).stream()
+            .map(item -> new ProductHit(item.productId(), item.name(), item.businessName(), item.minPrice(),
+                item.thumbnailUrl(), item.soldOut()))
+            .toList();
+    }
+
+    private Page<ProductSearchItem> search(ProductSearchCondition condition, Pageable pageable) {
         try {
-            return productSearch.search(condition, PageRequest.of(request.pageOrDefault(), request.sizeOrDefault()));
+            return productSearch.search(condition, pageable);
         } catch (SearchUnavailableException e) {
             // 요청마다 같은 장애가 반복되므로 스택 트레이스 대신 위치(색인 · 상태)와 원인 종류만 남긴다.
             // 원인 메시지에는 Elasticsearch가 돌려준 요청 일부(검색어)가 들어갈 수 있어 남기지 않는다

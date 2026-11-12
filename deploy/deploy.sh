@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 열 개(SEARCH_IMAGE · GATEWAY_IMAGE · RECOMMEND_IMAGE · SETTLEMENT_IMAGE · MEMBER_IMAGE · PAYMENT_IMAGE · PRODUCT_IMAGE · NOTIFICATION_IMAGE · ORDER_IMAGE · COMMUNITY_IMAGE)을 넘긴다
-# 검색 서비스 이미지는 profile search, Gateway 이미지는 profile gateway, 추천 이미지는 profile recommend, 정산 이미지는 profile settlement, 회원 이미지는 profile member, 결제 이미지는 profile payment, 상품 이미지는 profile product, 알림 이미지는 profile notification, 주문 이미지는 profile order, 커뮤니티 이미지는 profile community 가 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
+# 서버에서 실행한다. 워크플로가 APP_ENV(dev|prod) 와 이미지 열한 개(SEARCH_IMAGE · GATEWAY_IMAGE · RECOMMEND_IMAGE · SETTLEMENT_IMAGE · MEMBER_IMAGE · PAYMENT_IMAGE · PRODUCT_IMAGE · NOTIFICATION_IMAGE · ORDER_IMAGE · COMMUNITY_IMAGE · CHATBOT_IMAGE)을 넘긴다
+# 검색 서비스 이미지는 profile search, Gateway 이미지는 profile gateway, 추천 이미지는 profile recommend, 정산 이미지는 profile settlement, 회원 이미지는 profile member, 결제 이미지는 profile payment, 상품 이미지는 profile product, 알림 이미지는 profile notification, 주문 이미지는 profile order, 커뮤니티 이미지는 profile community, 챗봇 이미지는 profile chatbot 이 켜진 환경(.env 의 COMPOSE_PROFILES)에서만 받고 띄운다. Elasticsearch 는 t3.medium k3s(deploy/search)에 있다
 # .env 의 K3S_PROFILES 에 있는 서비스는 compose 대신 이 서버의 단독 k3s(namespace kidly-<환경>, deploy/k3s)에 하나씩 차례로 올린다(#1142)
 set -euo pipefail
 : "${APP_ENV:?APP_ENV 가 필요합니다}"
@@ -9,6 +9,7 @@ set -euo pipefail
 : "${SETTLEMENT_IMAGE:?SETTLEMENT_IMAGE 가 필요합니다}" "${MEMBER_IMAGE:?MEMBER_IMAGE 가 필요합니다}" "${PAYMENT_IMAGE:?PAYMENT_IMAGE 가 필요합니다}"
 : "${PRODUCT_IMAGE:?PRODUCT_IMAGE 가 필요합니다}" "${NOTIFICATION_IMAGE:?NOTIFICATION_IMAGE 가 필요합니다}"
 : "${ORDER_IMAGE:?ORDER_IMAGE 가 필요합니다}" "${COMMUNITY_IMAGE:?COMMUNITY_IMAGE 가 필요합니다}"
+: "${CHATBOT_IMAGE:?CHATBOT_IMAGE 가 필요합니다}"
 [[ "$APP_ENV" == dev || "$APP_ENV" == prod ]] || { echo "Invalid APP_ENV"; exit 1; }
 cd "$(dirname "$0")"
 # docker 가 없는 디렉터리를 root 소유로 만들지 않도록 미리 만든다 (컨테이너는 UID 1001 = deploy 로 돈다)
@@ -24,8 +25,8 @@ if [[ "$mode" == stopped ]]; then
   exit 0
 fi
 mkdir -p logs
-printf 'SEARCH_IMAGE=%s\nGATEWAY_IMAGE=%s\nRECOMMEND_IMAGE=%s\nSETTLEMENT_IMAGE=%s\nMEMBER_IMAGE=%s\nPAYMENT_IMAGE=%s\nPRODUCT_IMAGE=%s\nNOTIFICATION_IMAGE=%s\nORDER_IMAGE=%s\nCOMMUNITY_IMAGE=%s\n' \
-  "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE" > image.env
+printf 'SEARCH_IMAGE=%s\nGATEWAY_IMAGE=%s\nRECOMMEND_IMAGE=%s\nSETTLEMENT_IMAGE=%s\nMEMBER_IMAGE=%s\nPAYMENT_IMAGE=%s\nPRODUCT_IMAGE=%s\nNOTIFICATION_IMAGE=%s\nORDER_IMAGE=%s\nCOMMUNITY_IMAGE=%s\nCHATBOT_IMAGE=%s\n' \
+  "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE" "$CHATBOT_IMAGE" > image.env
 compose() { docker compose -p "$APP_ENV" --env-file .env --env-file image.env "$@"; }
 # docker 데몬이 도는지. 모든 서비스가 k3s 에 뜨는 서버는 데몬 없이 docker CLI 만 쓴다(#1210): compose config 로 매니페스트를 만들고 manifest inspect 로 이미지를 확인한다
 # 데몬이 있어야 하는 일(compose pull · up · rm, 이미지 정리)은 데몬이 있을 때만 한다
@@ -80,6 +81,11 @@ fi
 community_on=false
 if grep -qx community-service <<< "$services"; then
   community_on=true
+fi
+# 챗봇 서비스가 켜진 환경인지. 꺼진 환경에서는 chatbot-service 가 목록에 없다
+chatbot_on=false
+if grep -qx chatbot-service <<< "$services"; then
+  chatbot_on=true
 fi
 if [[ -n "$services" ]]; then
   compose pull
@@ -144,7 +150,7 @@ if [[ -n "$services" ]] && ! compose up -d --wait --remove-orphans; then
   echo "::group::앱 로그 (마지막 1000줄)"
   compose logs --no-log-prefix --no-color --tail 1000 || true
   echo "::endgroup::"
-  # startup-error.sh 는 위 전체 서비스 로그 구간을 읽는다. 검색 · Gateway · 추천 · 정산 · 회원 · 결제 · 상품 · 알림 · 주문 · 커뮤니티 쪽 원인은 실행 화면에서 본다
+  # startup-error.sh 는 위 전체 서비스 로그 구간을 읽는다. 검색 · Gateway · 추천 · 정산 · 회원 · 결제 · 상품 · 알림 · 주문 · 커뮤니티 · 챗봇 쪽 원인은 실행 화면에서 본다
   if [[ "$search_on" == true ]]; then
     echo "::group::검색 서비스 로그 (마지막 300줄)"
     compose logs search-service --no-log-prefix --no-color --tail 300 || true
@@ -196,6 +202,11 @@ if [[ -n "$services" ]] && ! compose up -d --wait --remove-orphans; then
     compose logs community-service --no-log-prefix --no-color --tail 300 || true
     echo "::endgroup::"
   fi
+  if [[ "$chatbot_on" == true ]]; then
+    echo "::group::챗봇 서비스 로그 (마지막 300줄)"
+    compose logs chatbot-service --no-log-prefix --no-color --tail 300 || true
+    echo "::endgroup::"
+  fi
   exit 1
 fi
 # k3s 로 옮겨 간 서비스의 옛 compose 컨테이너를 지운다. --remove-orphans 는 꺼진 profile 의 컨테이너를 남긴다
@@ -218,7 +229,7 @@ python3 environment-state.py targets "$APP_ENV"
 if docker_on; then
   removed=0
   # 이미지는 <저장소>@sha256:… (digest, #1169) 또는 <저장소>:<태그> 로 온다. 저장소 이름만 남긴다
-  for image in "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE"; do
+  for image in "$SEARCH_IMAGE" "$GATEWAY_IMAGE" "$RECOMMEND_IMAGE" "$SETTLEMENT_IMAGE" "$MEMBER_IMAGE" "$PAYMENT_IMAGE" "$PRODUCT_IMAGE" "$NOTIFICATION_IMAGE" "$ORDER_IMAGE" "$COMMUNITY_IMAGE" "$CHATBOT_IMAGE"; do
     repo=${image%%@*}
     repo=${repo%:*}
     for old in $(docker images -a "$repo" --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}' | tail -n +4); do

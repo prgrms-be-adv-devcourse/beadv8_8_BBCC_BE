@@ -28,6 +28,7 @@
 | 알림 | `./gradlew :apps:notification-service:bootRun` | 8090 | 회원 · 자녀 알림함, 웹 푸시 등록, 관리자 실패 메시지(DLT). 메일 · 푸시는 이벤트를 받아 보낸다 |
 | 주문 | `./gradlew :apps:order-service:bootRun` | 8091 | 주문 · 장바구니 · 배송 · 조르기 |
 | 커뮤니티 | `./gradlew :apps:community-service:bootRun` | 8092 | 리뷰 · 찜 |
+| 챗봇 | `./gradlew :apps:chatbot-service:bootRun` | 8093 | 챗봇 질문(`POST /api/v1/chatbot/messages`) · 관리자 답변 근거 문서. 정책 · FAQ · 사이즈는 등록한 문서로, 상품 찾기는 검색 서비스(8082)를, 내 주문 · 배송 질문은 주문 서비스(8091)를 불러 답한다. OpenAI 키(`OPENAI_API_KEY`)가 없으면 503 |
 
 - pgAdmin: http://localhost:5050 — 로그인 `admin@kidly.dev` / `kidly`, 등록된 PostgreSQL 서버 접속 비밀번호 `kidly` (로컬 개발용)
 - 프론트는 Gateway 주소(8083)로 붙는다. Swagger는 서비스마다 따로 연다(`http://localhost:<서비스 포트>/swagger-ui.html`, 알림 서비스는 없다). 서비스에 직접 붙으면 Gateway가 붙이는 헤더가 없어 로그인이 필요한 API는 401이고, 서비스에는 CORS 설정이 없어 브라우저(프론트 5173)에서는 공개 API도 막힌다
@@ -57,6 +58,7 @@
 | `apps/product-service` | 상품 서비스(#791). 상품 도메인은 이 서비스에만 있다. 상품 마이그레이션(`domains/product`의 `db/migration/product`)은 이 서비스만 적용한다. 서비스 baseline은 처음 기동 때 한 번만 잡혀 올려도 소용없다 |
 | `apps/order-service` | 주문 서비스(주문 · 장바구니 · 배송 · 조르기, #826). 주문 도메인은 이 서비스에만 있다. 주문 마이그레이션은 이 서비스만 적용한다. 주문 표가 이미 있는 DB는 baseline(`202611031100`, 고정)으로 건너뛰고, 빠진 표는 보강 마이그레이션이 만든다 |
 | `apps/community-service` | 커뮤니티 서비스(리뷰 · 찜, #827). 커뮤니티 도메인은 이 서비스에만 있다. 마이그레이션은 도메인 모듈에만 있고 이 서비스만 적용한다. 이미 테이블이 있는 DB는 baseline(`202611031200`, 고정)으로 건너뛴다 |
+| `apps/chatbot-service` | 챗봇 서비스(#1191). 챗봇 도메인은 이 서비스에만 있다. 마이그레이션은 도메인 모듈(`db/migration/chatbot`)에만 있고 이 서비스만 적용한다. Kafka를 쓰지 않는다 |
 | `apps/notification-service` | 알림 서비스(#833). 알림 도메인은 이 서비스에만 있다. 회원 · 판매자 · 상품 · 주문 · 결제 · 인증 토픽을 받아(구독 그룹 `kidly.notification`) 메일 · 알림함 · 웹 푸시(FCM, `FIREBASE_CREDENTIALS`가 비면 보내지 않음)를 남긴다. 받기 실패 메시지는 DB에 보관해 관리자가 재처리하고, 회원이 탈퇴하면 알림함 · 발송 주소 · 본문 · 푸시 FID를 바로 지운다. 알림함 API는 Gateway가 넘긴다. 알림 테이블이 이미 있는 DB는 `202610190901`(고정)에서 baseline을 잡는다. 새 알림 마이그레이션은 `domains/notification`의 `db/migration/notification`에 둔다 |
 | `common` | 공통 코드(`global`): 이벤트 발행, 메일, 엔티티 기반 클래스, 오류 · 응답 형식. JPA 공통 동작은 `integrationTest`로 실제 PostgreSQL에서 확인한다 |
 | `shared` | 도메인 사이 계약: 이벤트(`DomainEvent`), 도메인별 `event` · `dto` · `domain` · `out` |
