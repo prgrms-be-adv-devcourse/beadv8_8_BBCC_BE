@@ -25,6 +25,7 @@
 | POST | `/api/v1/auth/child-accounts` | 자녀 계정 만들기 | 🔒 |
 | PATCH | `/api/v1/auth/child-accounts/{id}/password` | 자녀 계정 비밀번호 변경 | 🔒 |
 | DELETE | `/api/v1/auth/child-accounts/{id}` | 자녀 계정 삭제 | 🔒 |
+| GET | `/api/v1/admin/admins` | 관리자 계정 목록(status로 거름, 없으면 전체) | 🛠 |
 | POST | `/api/v1/admin/admins` | 관리자 계정 만들기 | 🛠 |
 | POST | `/api/v1/admin/admins/{adminId}/disable` | 관리자 계정 끄기 | 🛠 |
 | GET | `/api/v1/admin/auth-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
