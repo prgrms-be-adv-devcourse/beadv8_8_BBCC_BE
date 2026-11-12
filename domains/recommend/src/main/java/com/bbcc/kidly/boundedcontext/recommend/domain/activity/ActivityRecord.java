@@ -106,16 +106,22 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "cart_qty")
     private Integer cartQty;
 
+    // 모든 활동 기록에 있어야 하는 종류 · 이벤트 ID · 회원 ID를 채운다. 회원 ID는 탈퇴하면 그 회원의 기록을 지우는 데 쓴다
+    private static ActivityRecord of(ActivityType type, UUID eventId, Long memberId) {
+        ActivityRecord record = new ActivityRecord();
+        record.type = type;
+        record.eventId = requireNonNull(eventId, "eventId는 필수입니다");
+        record.memberId = requireNonNull(memberId, "memberId는 필수입니다");
+        return record;
+    }
+
     public record SearchInfo(UUID eventId, Long memberId, String keyword, Long categoryId,
         Map<String, List<Long>> attributeValueIds, long resultCount, LocalDateTime occurredAt, Long childProfileId) {
     }
 
     public static ActivityRecord searched(SearchInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = new ActivityRecord();
-        record.type = ActivityType.SEARCH;
-        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
-        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        ActivityRecord record = of(ActivityType.SEARCH, info.eventId(), info.memberId());
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         record.keyword = requireNonNull(info.keyword(), "keyword는 필수입니다");
         record.categoryId = info.categoryId();
@@ -131,11 +137,8 @@ public class ActivityRecord extends BaseTimeEntity {
 
     public static ActivityRecord cartItemAdded(CartItemAddedInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = new ActivityRecord();
-        record.type = ActivityType.CART_ITEM_ADDED;
-        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        ActivityRecord record = of(ActivityType.CART_ITEM_ADDED, info.eventId(), info.memberId());
         record.cartItemId = requireNonNull(info.cartItemId(), "cartItemId는 필수입니다");
-        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.childProfileId = info.childProfileId();
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.productOptionId = requireNonNull(info.productOptionId(), "productOptionId는 필수입니다");
@@ -151,11 +154,8 @@ public class ActivityRecord extends BaseTimeEntity {
 
     public static ActivityRecord cartItemRemoved(CartItemRemovedInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = new ActivityRecord();
-        record.type = ActivityType.CART_ITEM_REMOVED;
-        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        ActivityRecord record = of(ActivityType.CART_ITEM_REMOVED, info.eventId(), info.memberId());
         record.cartItemId = requireNonNull(info.cartItemId(), "cartItemId는 필수입니다");
-        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.childProfileId = info.childProfileId();
         // 주문이 상품 정보를 받아 두지 않았으면 상품 ID 없이 온다
         record.productId = info.productId();
@@ -171,10 +171,7 @@ public class ActivityRecord extends BaseTimeEntity {
 
     public static ActivityRecord productViewed(ProductViewedInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = new ActivityRecord();
-        record.type = ActivityType.PRODUCT_VIEWED;
-        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
-        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        ActivityRecord record = of(ActivityType.PRODUCT_VIEWED, info.eventId(), info.memberId());
         record.childProfileId = info.childProfileId();
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
@@ -187,10 +184,7 @@ public class ActivityRecord extends BaseTimeEntity {
 
     public static ActivityRecord searchResultClicked(SearchResultClickedInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = new ActivityRecord();
-        record.type = ActivityType.SEARCH_RESULT_CLICKED;
-        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
-        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        ActivityRecord record = of(ActivityType.SEARCH_RESULT_CLICKED, info.eventId(), info.memberId());
         record.childProfileId = info.childProfileId();
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
@@ -232,11 +226,8 @@ public class ActivityRecord extends BaseTimeEntity {
 
     // 조르기는 늘 자녀의 활동이라 자녀 ID도 필수다. 수량은 선호 계산에 쓰지 않아 남기지 않는다
     private static ActivityRecord wishSentItem(WishSentInfo info, UUID itemEventId, WishedItem item) {
-        ActivityRecord record = new ActivityRecord();
-        record.type = ActivityType.WISH_SENT;
-        record.eventId = itemEventId;
+        ActivityRecord record = of(ActivityType.WISH_SENT, itemEventId, info.memberId());
         record.wishRequestId = requireNonNull(info.wishRequestId(), "wishRequestId는 필수입니다");
-        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
         record.productId = item.productId();
         record.productOptionId = requireNonNull(item.productOptionId(), "productOptionId는 필수입니다");
@@ -264,11 +255,8 @@ public class ActivityRecord extends BaseTimeEntity {
     // 철회는 조르기 한 건 전체의 취소라 상품 ID를 남기지 않는다. 선호 집계가 조르기 ID로 같은 조르기의 몫을 뺀다
     public static ActivityRecord wishCancelled(WishCancelledInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = new ActivityRecord();
-        record.type = ActivityType.WISH_CANCELLED;
-        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        ActivityRecord record = of(ActivityType.WISH_CANCELLED, info.eventId(), info.memberId());
         record.wishRequestId = requireNonNull(info.wishRequestId(), "wishRequestId는 필수입니다");
-        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;
@@ -281,11 +269,8 @@ public class ActivityRecord extends BaseTimeEntity {
     // 찜은 회원 단위라 자녀가 없다
     public static ActivityRecord favoriteAdded(FavoriteAddedInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = new ActivityRecord();
-        record.type = ActivityType.FAVORITE_ADDED;
-        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        ActivityRecord record = of(ActivityType.FAVORITE_ADDED, info.eventId(), info.memberId());
         record.favoriteId = requireNonNull(info.favoriteId(), "favoriteId는 필수입니다");
-        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;
