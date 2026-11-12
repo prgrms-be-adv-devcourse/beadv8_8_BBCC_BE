@@ -31,4 +31,22 @@ class RecommendReplicaReviewTest {
                 RecommendReplicaReview::getEventOccurredAt)
             .containsExactly(REVIEW_ID, ORDER_ITEM_ID, PRODUCT_ID, ReviewFit.SMALL, REVIEWED_AT);
     }
+
+    @Test
+    @DisplayName("FIT-10 더 늦은 숨김 이벤트를 받으면 핏을 쓰지 않고, 그 뒤 늦게 도착한 예전 공개 이벤트는 핏을 되살리지 않는다")
+    void hiddenReviewIsNotRevivedByLateEvent() {
+        RecommendReplicaReview review = RecommendReplicaReview.create(
+            new RecommendReplicaReview.ChangeInfo(REVIEW_ID, ORDER_ITEM_ID, PRODUCT_ID, ReviewFit.SMALL, true,
+                REVIEWED_AT));
+
+        LocalDateTime hiddenAt = REVIEWED_AT.plusDays(1);
+        review.applyIfNewer(new RecommendReplicaReview.ChangeInfo(REVIEW_ID, ORDER_ITEM_ID, PRODUCT_ID,
+            ReviewFit.SMALL, false, hiddenAt));
+        review.applyIfNewer(new RecommendReplicaReview.ChangeInfo(REVIEW_ID, ORDER_ITEM_ID, PRODUCT_ID,
+            ReviewFit.LARGE, true, REVIEWED_AT.plusHours(1)));
+
+        assertThat(review)
+            .extracting(RecommendReplicaReview::countedFit, RecommendReplicaReview::getEventOccurredAt)
+            .containsExactly(null, hiddenAt);
+    }
 }

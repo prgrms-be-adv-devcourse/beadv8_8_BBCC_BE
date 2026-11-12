@@ -64,6 +64,21 @@ public class RecommendReplicaReview extends BaseTimeEntity {
     }
 
     /**
+     * 저장된 시각보다 늦은 리뷰 변경만 반영한다. 숨긴 뒤 늦게 도착한 예전 공개 이벤트가 핏을 되살리지 못하게 시각을 먼저 비교한다.
+     */
+    public void applyIfNewer(ChangeInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
+        if (!info.occurredAt().isAfter(eventOccurredAt)) {
+            return;
+        }
+        requireValues(info);
+        this.fit = info.fit();
+        this.visible = info.visible();
+        this.eventOccurredAt = info.occurredAt();
+    }
+
+    /**
      * 사이즈 AI 입력에 쓸 핏이다. 숨기거나 삭제한 리뷰는 핏이 있어도 쓰지 않는다.
      */
     public ReviewFit countedFit() {
