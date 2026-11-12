@@ -20,7 +20,7 @@ public final class PreferenceSignals {
         List<PreferenceSignal> signals = new ArrayList<>();
         for (RecentActivity activity : activities) {
             signals.add(new PreferenceSignal(signalTypeOf(activity.type()), activity.occurredAt(),
-                activity.categoryId(), activity.brand(), activity.productId(), activity.removedFromCart()));
+                activity.categoryId(), activity.brand(), activity.productId(), activity.withdrawn()));
         }
         // 방금 산 종류가 목록 위를 차지하지 않게 구매확정에는 카테고리를 담지 않는다
         for (ConfirmedPurchase purchase : purchases) {
@@ -37,8 +37,9 @@ public final class PreferenceSignals {
             case PRODUCT_VIEWED -> PreferenceSignalType.PRODUCT_VIEWED;
             case CART_ITEM_ADDED -> PreferenceSignalType.CART_ITEM_ADDED;
             case SEARCH_RESULT_CLICKED -> PreferenceSignalType.SEARCH_RESULT_CLICKED;
-            // 읽기 포트는 장바구니 빼기를 담기 기록의 표시로만 돌려준다. 그 밖의 종류가 오면 읽기가 잘못된 것이다
-            case CART_ITEM_REMOVED ->
+            case WISH_SENT -> PreferenceSignalType.WISH_SENT;
+            // 읽기 포트는 장바구니 빼기 · 조르기 철회를 담기 · 조르기 기록의 표시로만 돌려준다. 이 종류가 오면 읽기가 잘못된 것이다
+            case CART_ITEM_REMOVED, WISH_CANCELLED ->
                 throw new IllegalArgumentException("선호 신호로 바꿀 수 없는 활동 종류입니다: " + type);
         };
     }

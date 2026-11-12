@@ -32,7 +32,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | cart.item-removed 장바구니 빠짐(발행 요청) | 주문 → 추천 | 활동 기록 저장(선호 점수는 하루 한 번 배치가 계산) | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
 | search.performed 검색어 기록됨(발행은 이미 있음) | 검색 → 추천 | 활동 기록 저장 | memberId · keyword · categoryId · attributeValueIds · resultCount | 최종 |
 | `auth.tokens-revoked` 토큰 무효화됨 | 인증 → API Gateway | 무효화 목록에 넣어 그 주체의 기존 토큰 거절 (도메인 아님) | principalType · principalId · 무효화 시각 | 최종 |
-| `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected` 조르기 | 주문 → (추천 · 알림 예정) | 활동 신호 · 인앱 알림 | 키 = 자녀 프로필 ID | 최종(예정) |
+| `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected` 조르기 | 주문 → 알림 · 추천(`wish.sent` · 직접 철회한 `wish.cancelled`, #1284) | 활동 신호 · 인앱 알림 | 키 = 자녀 프로필 ID | 최종(예정) |
 | `review.created` 리뷰 작성됨 | 커뮤니티 → (미정) | 추천 · 검색 신호 (K28) | 리뷰 ID · 상품 ID · 주문상품 ID · 회원 ID · 별점 · 작성 시각(본문 · 닉네임 제외) | 최종(보류) |
 
 이벤트 형식 · 보내고 받는 법은 6.2.

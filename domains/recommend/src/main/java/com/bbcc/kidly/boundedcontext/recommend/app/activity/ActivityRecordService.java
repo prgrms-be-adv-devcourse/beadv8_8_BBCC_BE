@@ -11,10 +11,13 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
+import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
+import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import com.bbcc.kidly.shared.search.event.SearchResultClickedEvent;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -118,6 +121,42 @@ public class ActivityRecordService {
             data.quantity(),
             event.occurredAt());
         activityRecordRepository.save(ActivityRecord.cartItemRemoved(info));
+    }
+
+    /**
+     * 조르기 이벤트의 값을 조른 상품마다 조르기 활동 기록 한 줄로 저장한다.
+     * 같은 이벤트를 다시 받으면 같은 기록 ID가 나오므로 이미 있는 줄은 조용히 건너뛴다.
+     */
+    public void recordWishSent(WishSentEvent event) {
+        WishSentEvent.Data data = event.data();
+        List<ActivityRecord.WishedItem> items = data.items().stream()
+            .map(item -> new ActivityRecord.WishedItem(item.productId(), item.optionId()))
+            .toList();
+        ActivityRecord.WishSentInfo info = new ActivityRecord.WishSentInfo(
+            event.eventId(), data.wishRequestId(), data.memberId(), data.childId(), items, event.occurredAt());
+        for (ActivityRecord record : ActivityRecord.wishSent(info)) {
+            if (activityRecordRepository.existsByEventId(record.getEventId())) {
+                continue;
+            }
+            activityRecordRepository.save(record);
+        }
+    }
+
+    /**
+     * 조르기 철회 이벤트의 값을 철회 활동 기록 한 줄로 저장한다.
+     * 보낸 자녀가 직접 거둔 철회만 남기고, 같은 이벤트의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다.
+     */
+    public void recordWishCancelled(WishCancelledEvent event) {
+        WishCancelledEvent.Data data = event.data();
+        if (!ActivityRecord.isWithdrawnByChild(data.cancelReason())) {
+            return;
+        }
+        if (activityRecordRepository.existsByEventId(event.eventId())) {
+            return;
+        }
+        ActivityRecord.WishCancelledInfo info = new ActivityRecord.WishCancelledInfo(
+            event.eventId(), data.wishRequestId(), data.memberId(), data.childId(), event.occurredAt());
+        activityRecordRepository.save(ActivityRecord.wishCancelled(info));
     }
 
     public void recordProductViewed(Long memberId, Long productId, Long childId) {

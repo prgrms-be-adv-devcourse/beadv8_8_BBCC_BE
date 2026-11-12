@@ -10,6 +10,8 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
+import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
+import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import com.bbcc.kidly.shared.search.event.SearchResultClickedEvent;
 import java.time.LocalDateTime;
@@ -57,6 +59,16 @@ public final class ActivityRecordFixture {
     public static final LocalDateTime CLICKED_AT = LocalDateTime.of(2026, 11, 3, 10, 1);
 
     public static final int CLICK_RANK = 3;
+
+    public static final UUID WISH_EVENT_ID = UUID.fromString("3a5e0000-0000-0000-0000-000000000001");
+
+    public static final UUID WISH_CANCEL_EVENT_ID = UUID.fromString("3a5e0000-0000-0000-0000-000000000002");
+
+    public static final Long WISH_REQUEST_ID = 301L;
+
+    public static final LocalDateTime WISHED_AT = LocalDateTime.of(2026, 11, 3, 10, 3);
+
+    public static final LocalDateTime WISH_CANCELLED_AT = LocalDateTime.of(2026, 11, 3, 10, 30);
 
     public static final UUID WITHDRAWN_EVENT_ID = UUID.fromString("3e3b0000-0000-0000-0000-000000000001");
 
@@ -111,6 +123,23 @@ public final class ActivityRecordFixture {
         Long childId) {
         return new SearchResultClickedEvent(eventId, clickedAt, new SearchResultClickedEvent.Data(MEMBER_1_ID,
             KEYWORD, PRODUCT_A_ID, CLICK_RANK, "RELEVANCE", childId));
+    }
+
+    /**
+     * 회원 1의 자녀 1이 조르기 301로 상품을 졸랐다. 조른 상품은 넘긴 순서대로 담긴다.
+     */
+    public static WishSentEvent wishSentEvent(WishSentEvent.Item... items) {
+        return new WishSentEvent(WISH_EVENT_ID, WISHED_AT,
+            new WishSentEvent.Data(WISH_REQUEST_ID, CHILD_1_ID, MEMBER_1_ID, List.of(items)));
+    }
+
+    /**
+     * 조르기 301을 철회했다. 원인이 null이면 원인 칸이 없던 예전 메시지다.
+     */
+    public static WishCancelledEvent wishCancelledEvent(String cancelReason) {
+        return new WishCancelledEvent(WISH_CANCEL_EVENT_ID, WISH_CANCELLED_AT, new WishCancelledEvent.Data(
+            WISH_REQUEST_ID, CHILD_1_ID, MEMBER_1_ID,
+            List.of(new WishCancelledEvent.Item(PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, 1)), cancelReason));
     }
 
     public static CartItemAddedEvent cartItemAddedEvent() {
