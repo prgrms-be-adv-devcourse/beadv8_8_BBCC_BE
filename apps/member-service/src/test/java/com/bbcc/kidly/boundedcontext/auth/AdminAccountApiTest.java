@@ -84,7 +84,8 @@ class AdminAccountApiTest {
     void rejectsDuplicateEmail() {
         create(actorId, "new@kidly.test", PASSWORD).expectStatus().isCreated();
 
-        create(actorId, " NEW@KIDLY.TEST ", PASSWORD).expectStatus().isEqualTo(409);
+        create(actorId, " NEW@KIDLY.TEST ", PASSWORD).expectStatus().isEqualTo(409)
+            .expectBody().jsonPath("$.title").isEqualTo("이미 등록된 이메일입니다");
     }
 
     @Test

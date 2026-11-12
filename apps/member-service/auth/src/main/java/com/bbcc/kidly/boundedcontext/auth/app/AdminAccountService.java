@@ -37,6 +37,11 @@ public class AdminAccountService {
     @Transactional
     public AdminResponse create(Long actorId, String email, String rawPassword) {
         lockActiveActor(actorId);
+        var normalizedEmail = AdminAccount.normalizeEmail(email);
+        if (adminAccountRepository.existsByEmail(normalizedEmail)) {
+            throw new BusinessException(AuthErrorCode.ADMIN_EMAIL_ALREADY_USED);
+        }
+        // 동시 생성 경합은 이메일 유니크 제약이 공통 409로 막는다.
         AdminPassword password;
         try {
             password = new AdminPassword(rawPassword);
@@ -44,7 +49,7 @@ public class AdminAccountService {
             throw new BusinessException(AuthErrorCode.INVALID_ADMIN_PASSWORD, e.getMessage());
         }
         var hash = passwordEncoder.encode(password.value());
-        var account = adminAccountRepository.saveAccount(AdminAccount.create(email, hash, actorId));
+        var account = adminAccountRepository.saveAccount(AdminAccount.create(normalizedEmail, hash, actorId));
         return AdminResponse.from(account);
     }
 

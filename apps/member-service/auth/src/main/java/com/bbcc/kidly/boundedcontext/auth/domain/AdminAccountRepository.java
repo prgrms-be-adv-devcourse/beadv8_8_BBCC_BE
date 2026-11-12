@@ -9,6 +9,8 @@ public interface AdminAccountRepository {
 
     Page<AdminAccount> findAccounts(AdminStatus status, Pageable pageable);
 
+    boolean existsByEmail(String email);
+
     AdminAccount saveAccount(AdminAccount account);
 
     Optional<AdminAccount> findByIdForUpdate(Long id);
