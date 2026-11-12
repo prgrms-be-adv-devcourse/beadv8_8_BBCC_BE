@@ -281,21 +281,21 @@ class ActivityRecordingIntegrationTest {
         double added = counter("kidly.community.favorites", "action", "added", "cause", "none");
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
-            activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, PRODUCT));
+            activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT));
             throw new IllegalStateException("기록 뒤 실패");
         })).isInstanceOf(IllegalStateException.class);
         assertThat(jdbcTemplate.queryForObject("select count(*) from community.activity", Long.class)).isZero();
         assertThat(counter("kidly.community.favorites", "action", "added", "cause", "none")).isEqualTo(added);
 
         transactionTemplate.executeWithoutResult(status ->
-            activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, PRODUCT)));
+            activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT)));
         assertThat(counter("kidly.community.favorites", "action", "added", "cause", "none")).isEqualTo(added + 1);
     }
 
     @Test
     @DisplayName("트랜잭션 밖에서 기록을 부르면 실패한다(MANDATORY)")
     void mandatoryTransaction() {
-        assertThatThrownBy(() -> activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, PRODUCT)))
+        assertThatThrownBy(() -> activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT)))
             .isInstanceOf(IllegalTransactionStateException.class);
         assertThat(jdbcTemplate.queryForObject("select count(*) from community.activity", Long.class)).isZero();
     }
