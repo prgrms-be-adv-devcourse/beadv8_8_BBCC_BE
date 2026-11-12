@@ -383,6 +383,26 @@ class SizeRecommendationApiTest {
     }
 
     // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다
+    @Test
+    @DisplayName("스트림(text/event-stream)으로 부르면 규칙 결과를 rule 이벤트로 바로 보내고, AI 결과가 없으면 그대로 닫는다")
+    void streamRuleEventWithoutAi() {
+        replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        String body = client.get()
+            .uri(PATH + "?productId={productId}&childId={childId}", PRODUCT_A_ID, CHILD_1_ID)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .accept(MediaType.TEXT_EVENT_STREAM)
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+            .expectHeader().valueEquals("X-Accel-Buffering", "no")
+            .expectBody(String.class).returnResult().getResponseBody();
+
+        assertThat(body).contains("event:rule", "\"source\":\"RULE\"", "\"recommendedSize\":\"120\"")
+            .doesNotContain("event:ai");
+    }
+
     private static void expectProblem(
         RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
         response
