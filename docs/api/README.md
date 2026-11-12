@@ -329,6 +329,7 @@
 | GET | `/api/v1/favorites/summary` | 찜 요약(찜 수) | 🌐 |
 | GET | `/api/v1/admin/community/reviews` | 검사 상태별 리뷰 목록(`status` 필수: `PENDING` · `PASSED` · `HIDDEN` · `CONFIRMED_HIDDEN` · `RESTORED`, `cursor` · `size`, 최신순) | 🛠 |
 | PATCH | `/api/v1/admin/community/reviews/{reviewId}/visibility` | 숨김 확정 · 다시 공개(본문 `visibility` `HIDDEN` → `CONFIRMED_HIDDEN`, `VISIBLE` → `RESTORED`). 같은 값을 다시 보내도 200 | 🛠 |
+| POST | `/api/v1/admin/community/reviews/moderation/retry-exhausted` | 재시도 상한에 닿은 검사 대기 리뷰를 다시 검사 대기로 되돌림. 응답 `{"resetCount": n}`, 다시 불러도 200 | 🛠 |
 | GET | `/api/v1/admin/community/dead-letters` | DLT에 남은 메시지 목록(`status` 기본 OPEN, `page` · `size` 기본 0 · 20, 1~100) | 🛠 |
 | GET | `/api/v1/admin/community/dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/community/dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
