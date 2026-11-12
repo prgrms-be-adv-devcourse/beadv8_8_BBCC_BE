@@ -36,9 +36,6 @@ public class ActivityRecord extends BaseTimeEntity {
     // 보낸 사람이 직접 거둔 조르기 철회의 원인 값이다
     private static final String DIRECT_CANCEL_REASON = "DIRECT";
 
-    // 회원이 직접 해제한 찜의 해제 원인 값이다
-    private static final String USER_FAVORITE_REMOVAL = "USER";
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -270,28 +267,19 @@ public class ActivityRecord extends BaseTimeEntity {
         LocalDateTime occurredAt) {
     }
 
-    // 찜은 회원 단위라 자녀가 없다
     public static ActivityRecord favoriteAdded(FavoriteInfo info) {
-        requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = of(ActivityType.FAVORITE_ADDED, info.eventId(), info.memberId());
-        record.favoriteId = requireNonNull(info.favoriteId(), "favoriteId는 필수입니다");
-        record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
-        record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
-        return record;
-    }
-
-    /**
-     * 찜 해제가 회원이 직접 거둔 것인지 알려 준다. 탈퇴로 지운 찜은 탈퇴 처리가 그 회원의 활동 기록을 이미 지우고,
-     * 모르는 원인은 회원의 관심이 바뀐 것인지 알 수 없어 거둔 것으로 보지 않는다.
-     */
-    public static boolean isFavoriteWithdrawnByMember(String cause) {
-        return USER_FAVORITE_REMOVAL.equals(cause);
+        return favorite(ActivityType.FAVORITE_ADDED, info);
     }
 
     // 선호 집계가 찜 ID로 같은 찜의 몫을 뺀다
     public static ActivityRecord favoriteRemoved(FavoriteInfo info) {
+        return favorite(ActivityType.FAVORITE_REMOVED, info);
+    }
+
+    // 찜은 회원 단위라 자녀가 없다
+    private static ActivityRecord favorite(ActivityType type, FavoriteInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = of(ActivityType.FAVORITE_REMOVED, info.eventId(), info.memberId());
+        ActivityRecord record = of(type, info.eventId(), info.memberId());
         record.favoriteId = requireNonNull(info.favoriteId(), "favoriteId는 필수입니다");
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");

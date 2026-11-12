@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord.FavoriteInfo;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.activity.FavoriteRemoval;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -74,15 +75,29 @@ class ActivityRecordFavoriteTest {
     @Test
     @DisplayName("PREF-21 회원이 직접 해제한 찜(USER)은 관심을 거둔 찜이다")
     void userRemovalIsWithdrawnByMember() {
-        assertThat(ActivityRecord.isFavoriteWithdrawnByMember("USER")).isTrue();
+        assertThat(FavoriteRemoval.isWithdrawnByMember("USER")).isTrue();
     }
 
     @ParameterizedTest(name = "해제 원인 {0}")
     @NullSource
     @ValueSource(strings = {"MEMBER_WITHDRAWN", "ADMIN"})
-    @DisplayName("PREF-21 탈퇴로 지운 찜과 모르는 원인은 관심을 거둔 찜으로 보지 않는다")
+    @DisplayName("PREF-21 탈퇴로 지운 찜과 USER가 아닌 원인은 관심을 거둔 찜으로 보지 않는다")
     void otherRemovalIsNotWithdrawnByMember(String cause) {
-        assertThat(ActivityRecord.isFavoriteWithdrawnByMember(cause)).isFalse();
+        assertThat(FavoriteRemoval.isWithdrawnByMember(cause)).isFalse();
+    }
+
+    @Test
+    @DisplayName("PREF-21 회원 탈퇴로 지운 찜(MEMBER_WITHDRAWN)이면 늦게 온 그 찜 기록을 지울 대상이다")
+    void withdrawalRemovalIsByWithdrawal() {
+        assertThat(FavoriteRemoval.isByWithdrawal("MEMBER_WITHDRAWN")).isTrue();
+    }
+
+    @ParameterizedTest(name = "해제 원인 {0}")
+    @NullSource
+    @ValueSource(strings = "USER")
+    @DisplayName("PREF-21 회원이 직접 해제한 찜이나 원인이 없으면 지울 대상이 아니다")
+    void otherRemovalIsNotByWithdrawal(String cause) {
+        assertThat(FavoriteRemoval.isByWithdrawal(cause)).isFalse();
     }
 
     @ParameterizedTest(name = "{0}")

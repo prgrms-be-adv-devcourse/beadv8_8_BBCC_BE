@@ -84,8 +84,11 @@ class FavoriteRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("PREF-21 회원 탈퇴로 지운 찜은 탈퇴 처리가 기록을 이미 지우므로 해제 기록을 남기지 않는다")
-    void skipFavoriteRemovedByWithdrawal() {
+    @DisplayName("PREF-21 회원 탈퇴로 지운 찜은 해제 기록을 남기지 않고, 탈퇴 처리 뒤에 늦게 온 그 찜 기록도 지운다")
+    void deleteFavoriteRemovedByWithdrawal() {
+        activityRecordService.recordFavoriteAdded(favoriteAddedEvent());
+
+        activityRecordService.recordFavoriteRemoved(favoriteRemovedEvent(FavoriteRemovalCause.MEMBER_WITHDRAWN));
         activityRecordService.recordFavoriteRemoved(favoriteRemovedEvent(FavoriteRemovalCause.MEMBER_WITHDRAWN));
 
         assertThat(activityRecordRepository.findAll()).isEmpty();

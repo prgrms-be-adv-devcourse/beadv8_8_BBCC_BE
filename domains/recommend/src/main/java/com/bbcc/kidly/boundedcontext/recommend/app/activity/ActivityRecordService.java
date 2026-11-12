@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecordRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.activity.FavoriteRemoval;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
@@ -177,12 +178,17 @@ public class ActivityRecordService {
 
     /**
      * 찜 해제 이벤트의 값을 그 찜의 해제 활동 기록으로 저장한다.
+     * 회원 탈퇴로 지운 찜은 탈퇴 처리 뒤에 늦게 온 그 찜 기록까지 지운다. 여러 번 받아도 결과가 같다.
      * 회원이 직접 거둔 해제만 남기고, 같은 이벤트의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다.
      */
     public void recordFavoriteRemoved(FavoriteRemovedEvent event) {
         FavoriteRemovedEvent.Data data = event.data();
         String cause = data.cause() == null ? null : data.cause().name();
-        if (!ActivityRecord.isFavoriteWithdrawnByMember(cause)) {
+        if (FavoriteRemoval.isByWithdrawal(cause)) {
+            activityRecordRepository.deleteByFavoriteId(requireNonNull(data.favoriteId(), "favoriteId는 필수입니다"));
+            return;
+        }
+        if (!FavoriteRemoval.isWithdrawnByMember(cause)) {
             return;
         }
         if (activityRecordRepository.existsByEventId(event.eventId())) {
