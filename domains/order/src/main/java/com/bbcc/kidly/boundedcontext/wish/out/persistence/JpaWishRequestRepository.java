@@ -18,6 +18,11 @@ import org.springframework.data.repository.Repository;
 @ConditionalOnProperty(name = "kidly.order.wish.enabled", havingValue = "true", matchIfMissing = true)
 public interface JpaWishRequestRepository extends Repository<WishRequest, Long>, WishRequestRepository {
 
+    @Override
+    @Query("select r.id from WishRequest r where r.requestedByType = :type and r.requestedById = :requestedById "
+        + "and r.status = :status order by r.id")
+    List<Long> findIdsByRequester(PrincipalType type, Long requestedById, WishRequest.Status status);
+
     /**
      * 목록은 줄을 함께 읽는다(조르기마다 줄을 따로 읽지 않음).
      */

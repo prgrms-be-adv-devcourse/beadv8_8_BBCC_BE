@@ -21,14 +21,17 @@ import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemPurchasedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -174,6 +177,14 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
     public void clearOrdered(Long orderId, List<OrderedLine> lines) {
         Set<Long> deleted = new HashSet<>();
         LocalDateTime now = LocalDateTime.now();
+        // 칸을 읽기 전에 주문 줄들의 예약 행을 (예약 ID, id) 순서로 한꺼번에 잠근다(#1207): 만료 · 거절 · 철회 · 자녀 삭제의 예약 해제와
+        // 같은 예약 → 칸 순서라 교착하지 않고 먼저 잠근 쪽이 이긴다. 칸 ID로 예약 ID만 읽고(칸을 올리지 않음) 잠근 뒤 칸을 읽으므로
+        // 그 사이 풀렸으면 풀린 칸(예약 없음)을 본다
+        Map<String, List<CartReservation>> lockedRows = lockReservations(lines.stream()
+            .map(OrderedLine::cartItemId)
+            .filter(Objects::nonNull)
+            .map(id -> cartItemRepository.findReservationIdById(id).orElse(null))
+            .toList());
         for (OrderedLine line : lines) {
             // 주문에 기록된 칸(주문 때 requireOrderable로 확인됨)은 칸 ID로만 찾아 결제자 · 예약 상태와 상관없이 정리한다:
             // 결제자가 칸의 결제 회원과 달라도(보호자 2명 · 예약 허용 주체), 예약이 결제 전에 풀려도(철회 · 거절) 산 칸이 남지 않는다.
@@ -184,7 +195,7 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
                     line.optionId(), line.childId());
             target.filter(item -> !deleted.contains(item.getId())).ifPresent(item -> {
                 // 예약 칸이면 그 예약에 결제 정리 시각을 남긴다(칸이 남는 일부 결제도 예약한 쪽이 알 수 있게, #999)
-                markPurchased(item.getReservationId(), now);
+                markPurchased(item.getReservationId(), lockedRows, now);
                 // 산 수량만큼 뺀다. 수량을 모르는 예전 줄은 칸 전체를 산 것으로 본다
                 int purchased = line.quantity() == null ? item.getQuantity() : line.quantity();
                 if (item.deductPurchased(purchased) <= 0) {
@@ -196,15 +207,39 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
         }
     }
 
-    private void markPurchased(String reservationId, LocalDateTime at) {
-        if (reservationId != null) {
-            reservationRepository.findAllByReservationId(reservationId).forEach(saved -> saved.markPurchased(at));
+    // 앞에서 잠근 그 예약의 행에 표시한다. 칸 ID 없는 예전 방식 줄(구매자 회원 칸, 조르기는 예약하지 않는다)이나 잠근 뒤 칸의 예약 ID가
+    // 바뀐 경우는 칸을 읽은 뒤 그 자리에서 잠근다: 이때는 앞선 칸 갱신이 자동 flush로 먼저 나가 예약 → 칸 순서가 어긋날 수 있고, 교착이면
+    // 한쪽 트랜잭션이 되돌아가 결제 정리는 수신 쪽(Kafka)이 다시 처리한다
+    private void markPurchased(String reservationId, Map<String, List<CartReservation>> lockedRows, LocalDateTime at) {
+        if (reservationId == null) {
+            return;
         }
+        List<CartReservation> rows = lockedRows.containsKey(reservationId) ? lockedRows.get(reservationId)
+            : reservationRepository.lockAllByReservationId(reservationId);
+        rows.forEach(saved -> saved.markPurchased(at));
+    }
+
+    // 예약 ID들(null · 중복 무시)의 행을 (예약 ID, id) 순서로 한 번에 잠그고 예약 ID별로 묶어 돌려준다(#1207)
+    private Map<String, List<CartReservation>> lockReservations(Collection<String> reservationIds) {
+        Set<String> ids = reservationIds.stream().filter(Objects::nonNull)
+            .collect(Collectors.toCollection(TreeSet::new));
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<CartReservation>> byId = new LinkedHashMap<>();
+        reservationRepository.lockAllByReservationIdIn(ids)
+            .forEach(row -> byId.computeIfAbsent(row.getReservationId(), key -> new ArrayList<>()).add(row));
+        ids.forEach(id -> byId.putIfAbsent(id, List.of()));
+        return byId;
     }
 
     @Override
     public int removeOwnerItems(String ownerType, Long ownerId) {
         OwnerType type = OwnerType.valueOf(ownerType);
+        // 칸을 읽기 전에 그 주인 칸들의 예약 행을 (예약 ID, id) 순서로 한꺼번에 잠근다(#1207): 뒤이은 조르기 철회의 예약 잠금 · 결제
+        // 정리와 같은 예약 → 칸 순서가 된다(칸 삭제가 먼저 flush돼도 예약은 이미 잡혀 있다). 잠근 뒤 칸을 읽으므로 그 사이 결제 정리가
+        // 지운 칸은 보지 않는다
+        lockReservations(cartItemRepository.findReservationIdsByOwner(type, ownerId));
         List<CartItem> items = cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(type, ownerId);
         items.forEach(cartItemRepository::delete);
         return items.size();
@@ -268,6 +303,20 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
     }
 
     @Override
+    public boolean lock(String reservationId) {
+        if (reservationId == null) {
+            return false;
+        }
+        return reservationRepository.lockAllByReservationId(reservationId).stream()
+            .anyMatch(CartReservation::isPurchased);
+    }
+
+    @Override
+    public void lockAll(Collection<String> reservationIds) {
+        lockReservations(reservationIds);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public boolean hasPurchase(String reservationId) {
         if (reservationId == null) {
@@ -289,7 +338,8 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
             return 0;
         }
         Set<String> changed = new HashSet<>();
-        for (CartReservation saved : reservationRepository.findAllByReservationIdIn(wanted.keySet())) {
+        // 여러 예약의 기한을 바꾸므로 (예약 ID, id) 순서로 잠근 뒤 바꾼다(#1207, 결제 정리 · 해제와 같은 전체 순서)
+        for (CartReservation saved : reservationRepository.lockAllByReservationIdIn(wanted.keySet())) {
             LocalDateTime validUntil = wanted.get(saved.getReservationId());
             if (!Objects.equals(saved.getValidUntil(), validUntil)) {
                 saved.changeValidUntil(validUntil);
@@ -304,8 +354,10 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
         if (reservationId == null) {
             return;
         }
+        // 예약 행을 먼저 잠그고(결제 정리와 같은 순서, #1207) 칸을 푼 뒤 잠근 행을 지운다
+        List<CartReservation> rows = reservationRepository.lockAllByReservationId(reservationId);
         cartItemRepository.findAllByReservationId(reservationId).forEach(CartItem::release);
-        reservationRepository.findAllByReservationId(reservationId).forEach(reservationRepository::delete);
+        rows.forEach(reservationRepository::delete);
     }
 
     @Override

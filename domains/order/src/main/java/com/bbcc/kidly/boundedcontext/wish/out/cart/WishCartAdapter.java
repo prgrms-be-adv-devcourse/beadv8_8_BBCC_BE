@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.cart.app.port.in.CartReservations;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishApprovers.Principal;
 import com.bbcc.kidly.boundedcontext.wish.app.port.WishCart;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -44,6 +45,16 @@ public class WishCartAdapter implements WishCart {
     @Override
     public boolean hasPurchase(String reservationId) {
         return cartReservations.hasPurchase(reservationId);
+    }
+
+    @Override
+    public boolean lock(String reservationId) {
+        return cartReservations.lock(reservationId);
+    }
+
+    @Override
+    public void lockAll(Collection<String> reservationIds) {
+        cartReservations.lockAll(reservationIds);
     }
 
     @Override

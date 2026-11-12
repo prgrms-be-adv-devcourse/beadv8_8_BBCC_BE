@@ -57,22 +57,34 @@ groups:
         to: 0
       model:
         refId: A
-        expr: ((sum by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
-          and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+        expr: ((sum by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"} unless on(env,instance,topic,partition) (kafka_topic_partition_current_offset{job="kidly-kafka"} == 0
+            and (time() - timestamp(kafka_topic_partition_current_offset{job="kidly-kafka"}) < 60)))
+          and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"} unless on(env,instance,topic,partition) (kafka_topic_partition_current_offset{job="kidly-kafka"} == 0
+            and (time() - timestamp(kafka_topic_partition_current_offset{job="kidly-kafka"}) < 60)))
           >= 0)) > 0) and on(env,consumergroup,topic) (deriv((sum by(env,consumergroup,topic)
-          (kafka_consumergroup_lag{job="kidly-kafka"}) and on(env,consumergroup,topic)
-          (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          (kafka_consumergroup_lag{job="kidly-kafka"} unless on(env,instance,topic,partition) (kafka_topic_partition_current_offset{job="kidly-kafka"} == 0
+            and (time() - timestamp(kafka_topic_partition_current_offset{job="kidly-kafka"}) < 60))) and on(env,consumergroup,topic)
+          (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"} unless on(env,instance,topic,partition) (kafka_topic_partition_current_offset{job="kidly-kafka"} == 0
+            and (time() - timestamp(kafka_topic_partition_current_offset{job="kidly-kafka"}) < 60)))
           >= 0))[10m:30s]) > 0) and on(env,consumergroup,topic) (min_over_time((sum
-          by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
-          and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"} unless on(env,instance,topic,partition) (kafka_topic_partition_current_offset{job="kidly-kafka"} == 0
+            and (time() - timestamp(kafka_topic_partition_current_offset{job="kidly-kafka"}) < 60)))
+          and on(env,consumergroup,topic) (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"} unless on(env,instance,topic,partition) (kafka_topic_partition_current_offset{job="kidly-kafka"} == 0
+            and (time() - timestamp(kafka_topic_partition_current_offset{job="kidly-kafka"}) < 60)))
           >= 0))[10m:30s]) > 0) and on(env) max by(env) (kidly_kafka_exporter_expected
           == 1) and on(env) max by(env) ((up{job="kidly-kafka"} == 1) and on(env,instance)
           (time() - timestamp(up{job="kidly-kafka"}) < 60) and on(env,instance) (kafka_brokers{job="kidly-kafka"}
           >= 1)) and on(env,consumergroup,topic) (count_over_time((sum by(env,consumergroup,topic)
-          (kafka_consumergroup_lag{job="kidly-kafka"}) and on(env,consumergroup,topic)
-          (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
+          (kafka_consumergroup_lag{job="kidly-kafka"} unless on(env,instance,topic,partition) (kafka_topic_partition_current_offset{job="kidly-kafka"} == 0
+            and (time() - timestamp(kafka_topic_partition_current_offset{job="kidly-kafka"}) < 60))) and on(env,consumergroup,topic)
+          (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"} unless on(env,instance,topic,partition) (kafka_topic_partition_current_offset{job="kidly-kafka"} == 0
+            and (time() - timestamp(kafka_topic_partition_current_offset{job="kidly-kafka"}) < 60)))
           >= 0))[10m:30s]) >= 20)
-          and on(env,consumergroup,topic) kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
+          and on(env,consumergroup,topic) (
+            kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup=~"kidly[.](payment|notification)",topic="kidly.order.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.settlement",topic="kidly.payment.events"}
+          )
         instant: true
     - refId: B
       datasourceUid: __expr__
@@ -129,7 +141,11 @@ groups:
             )
             and on(env) max by(env) (kidly_kafka_exporter_expected == 1)
           )
-          and on(env,consumergroup,topic) kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
+          and on(env,consumergroup,topic) (
+            kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup=~"kidly[.](payment|notification)",topic="kidly.order.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.settlement",topic="kidly.payment.events"}
+          )
         instant: true
     - refId: B
       datasourceUid: __expr__

@@ -13,8 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 받는 곳(#541): Kafka 리스너({@link ChildProfileEventKafkaListener}), 스위치가 꺼졌을 때 Spring 수신({@link SpringEventReceiver}).
  * 처리 메서드는 부르는 쪽 트랜잭션에 합류하고(Spring 수신), 없으면 새로 연다(Kafka 리스너).
  * 리스너는 재시도가 없어 저장이 실패하면 이벤트가 사라지므로, 깨진 값은 여기서 걸러 예외 없이 처리한다.
- * 자녀가 삭제 상태가 되면(#1001) 복사본 반영과 같은 트랜잭션에서 그 자녀 장바구니를 비우고(ReplicaService), 받은 이벤트를 앱 안
- * Spring 이벤트로 그대로 다시 알린다(EventPublisher, 아웃박스 · Kafka로 나가지 않는다). 조르기가 이것을 받아 진행 중 조르기를 철회한다
+ * 자녀가 삭제 상태가 되면(#1001) 복사본 반영과 같은 트랜잭션에서 받은 이벤트를 앱 안 Spring 이벤트로 그대로 다시 알리고(EventPublisher,
+ * 아웃박스 · Kafka로 나가지 않는다) 그다음 그 자녀 장바구니를 비운다(ReplicaService, #1207 순서). 조르기가 이것을 받아 진행 중 조르기를 철회한다
  * (주문은 조르기를 모르므로 컨텍스트 규칙상 직접 부르지 않는다). 같은 트랜잭션이라 조르기 처리가 실패하면 함께 롤백되고 재시도된다.
  */
 @Component
@@ -37,16 +37,20 @@ public class ChildProfileEventListener {
         }
         ChildChangedEvent.Data data = event.data();
         String missingBody = missingProfile(data);
+        // 삭제면 조르기 철회(앱 안 Spring 이벤트, 조르기 예약을 잠그고 푼다)를 먼저 알리고 그다음 장바구니를 비운다(#1207): 조르기 예약이
+        // 먼저 잠기고 풀려 장바구니 비우기가 잠글 예약이 거의 없다(예약 잠금을 두 번 나눠 잡는 일을 줄인다)
         if (missingBody != null && data.deleted()) {
             if (replicaService.applyChildDeleted(data.childId(), data.memberId(), event.occurredAt())) {
                 eventPublisher.publish(event);
             }
+            replicaService.clearDeletedChildCart(data.childId());
             return;
         }
         if (EventGuard.accept("자녀", event, "childId", childId, missingBody)) {
             if (replicaService.applyChildChanged(toCommand(event)) && data.deleted()) {
                 eventPublisher.publish(event);
             }
+            replicaService.clearDeletedChildCart(data.childId());
         }
     }
 
