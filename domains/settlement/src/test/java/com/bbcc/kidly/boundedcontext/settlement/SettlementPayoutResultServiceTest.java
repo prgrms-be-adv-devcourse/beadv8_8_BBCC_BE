@@ -107,6 +107,8 @@ class SettlementPayoutResultServiceTest {
 
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.FAILED);
         assertThat(settlement.getFailReason()).isEqualTo("WALLET_NOT_FOUND");
+        service.markPaymentFailed(failed(1L, SELLER_ID, AMOUNT));
+        then(metrics).should(times(1)).countPayoutFailed();
     }
 
     private static PaymentPayoutCompletedEvent.Data completed(Long settlementId, Long sellerId, long amount) {

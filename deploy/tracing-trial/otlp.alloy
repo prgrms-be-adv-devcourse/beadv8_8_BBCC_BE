@@ -1,0 +1,80 @@
+// Add to the existing Alloy configuration only during the approved dev trial.
+otelcol.receiver.otlp "tracing_trial" {
+  http {
+    endpoint = sys.env("TRIAL_OTLP_LISTEN")
+  }
+
+  output {
+    traces = [otelcol.processor.memory_limiter.tracing_trial.input]
+  }
+}
+
+otelcol.processor.memory_limiter "tracing_trial" {
+  check_interval = "1s"
+  limit = "384MiB"
+  spike_limit = "64MiB"
+
+  output {
+    traces = [otelcol.processor.filter.tracing_trial.input]
+  }
+}
+
+otelcol.processor.filter "tracing_trial" {
+  error_mode = "propagate"
+
+  traces {
+    span = [
+      `resource.attributes["deployment.environment.name"] != "tracing-trial"`,
+      `resource.attributes["service.name"] != "kidly-gateway" and resource.attributes["service.name"] != "kidly-order"`,
+      `attributes["http.request.method"] == nil and attributes["http.method"] == nil and instrumentation_scope.name != "io.opentelemetry.jdbc" and instrumentation_scope.name != "io.opentelemetry.hibernate-6.0" and instrumentation_scope.name != "io.opentelemetry.spring-data-1.8"`,
+    ]
+    spanevent = ["true"]
+  }
+
+  output {
+    traces = [otelcol.processor.transform.tracing_trial.input]
+  }
+}
+
+otelcol.processor.transform "tracing_trial" {
+  error_mode = "propagate"
+
+  trace_statements {
+    context = "resource"
+    statements = [`keep_keys(attributes, ["service.name", "deployment.environment.name"])`]
+  }
+  trace_statements {
+    context = "span"
+    statements = [
+      `set(name, "HTTP")`,
+      `set(name, "JDBC") where instrumentation_scope.name == "io.opentelemetry.jdbc"`,
+      `set(name, "Hibernate") where instrumentation_scope.name == "io.opentelemetry.hibernate-6.0"`,
+      `set(name, "Spring Data") where instrumentation_scope.name == "io.opentelemetry.spring-data-1.8"`,
+      `set(status.message, "")`,
+      `keep_keys(attributes, ["http.response.status_code", "http.status_code"])`,
+    ]
+  }
+
+  output {
+    traces = [otelcol.processor.batch.tracing_trial.input]
+  }
+}
+
+otelcol.processor.batch "tracing_trial" {
+  send_batch_size = 128
+  send_batch_max_size = 256
+
+  output {
+    traces = [otelcol.exporter.otlphttp.tracing_trial.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tracing_trial" {
+  client {
+    endpoint = "http://tempo-trial:4318"
+  }
+
+  sending_queue {
+    enabled = false
+  }
+}

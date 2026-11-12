@@ -1,9 +1,13 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
 
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,8 +26,15 @@ public class RecommendReplicaCategoryPathEntry {
     @Column(name = "category_name", nullable = false)
     private String categoryName;
 
-    public RecommendReplicaCategoryPathEntry(Long categoryId, String categoryName) {
+    // 이 카테고리를 보여 줄 자녀 성별이다. 칸이 없는 예전 메시지로 만든 행은 ALL이다
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visible_gender", nullable = false)
+    private CategoryVisibleGender visibleGender;
+
+    public RecommendReplicaCategoryPathEntry(
+        Long categoryId, String categoryName, CategoryVisibleGender visibleGender) {
         this.categoryId = requireNonNull(categoryId, "categoryId는 필수입니다");
         this.categoryName = requireNonNull(categoryName, "categoryName은 필수입니다");
+        this.visibleGender = requireNonNullElse(visibleGender, CategoryVisibleGender.ALL);
     }
 }

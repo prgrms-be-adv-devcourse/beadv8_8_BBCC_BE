@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.product.in.type.dto;
 
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryResult;
 import com.bbcc.kidly.boundedcontext.product.app.type.dto.MeasurementItemResult;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,6 +10,7 @@ import java.util.List;
  * @param parentId 최상위 카테고리이면 null
  * @param productTypeId 중간 카테고리이면 null
  * @param productTypeName 중간 카테고리이면 null
+ * @param visibleGender 이 카테고리를 보여 줄 자녀 성별이다. ALL · GIRL
  */
 public record CategoryResponse(
     String categoryId,
@@ -17,6 +19,7 @@ public record CategoryResponse(
     boolean leaf,
     String productTypeId,
     String productTypeName,
+    CategoryVisibleGender visibleGender,
     List<MeasurementItemResponse> measurementItems) {
 
     public static CategoryResponse from(CategoryResult result) {
@@ -31,6 +34,7 @@ public record CategoryResponse(
             result.leaf(),
             idOrNull(result.productTypeId()),
             result.productTypeName(),
+            result.visibleGender(),
             measurementItems);
     }
 

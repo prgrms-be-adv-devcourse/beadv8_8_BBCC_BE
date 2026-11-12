@@ -6,19 +6,24 @@ deploy.sh 가 `docker compose config --format json <서비스>` 결과를 stdin 
 비밀은 명령줄 · 출력 로그에 남기지 않고 stdout 으로만 kubectl 에 넘어간다.
 """
 import base64
+import copy
 import hashlib
 import json
 import sys
 from pathlib import Path
 
 # HPA 로 늘리는 서비스: (최소, 최대, CPU 사용률 %). 추천은 구독 토픽이 파티션 3 이라 4번째 Pod 부터는 이벤트를 받지 않는다(#1028)
-AUTOSCALE = {'recommend': (1, 3, 70)}
+# 추천은 노드(8GB)에 메모리 상한 576Mi Pod 를 3개 둘 자리가 없어 2개까지만 늘린다. 파티션 3개는 Pod 2개가 나눠 받는다(#1237)
+AUTOSCALE = {'recommend': (1, 2, 70)}
 # HPA 기준이 되는 서비스만 CPU request 를 크게 잡는다. 나머지는 노드(vCPU 2)에 9개가 함께 올라가도록 작게 둔다
 CPU_REQUEST = {'recommend': '200m'}
 DEFAULT_CPU_REQUEST = '50m'
 # 두 프로세스가 함께 돌면 안 되는 스케줄러가 있는 서비스. 롤링 배포의 겹치는 시간을 두지 않고 옛 Pod 를 먼저 내린다(compose 때와 같다)
 # 상품: 아웃박스 릴레이에 잠금이 없다(domains/product CLAUDE.md). 알림: 재발송 스케줄러가 같은 알림을 두 번 보낼 수 있다
 SINGLE_INSTANCE = {'product', 'notification'}
+# 하루 한 번 실행하는 CronJob: Deployment 이름 → (CronJob 이름, 일정, 인자)
+DAILY_JOBS = {'settlement': ('settlement-daily-run', '0 10 * * *',
+                             ['--spring.profiles.include=settlement-run-once'])}
 # 이미지의 앱 유저 그룹(Dockerfile 의 groupadd -g 1001)
 APP_GID = 1001
 # 다른 서비스를 클러스터 안 이름으로 부르는 입구. 다른 서비스가 모두 뜬 뒤 맨 마지막에 올린다
@@ -182,6 +187,24 @@ def manifest(env, name, node_port, job, service, project_dir):
         items.insert(1, {'apiVersion': 'v1', 'kind': 'Secret', 'metadata': {'name': name + '-jwt', 'namespace': ns},
                          'type': 'Opaque',
                          'data': {key: base64.b64encode(value).decode() for key, value in jwt_files.items()}})
+    if name in DAILY_JOBS:
+        job_name, schedule, args = DAILY_JOBS[name]
+        template = copy.deepcopy(next(item for item in items if item['kind'] == 'Deployment')['spec']['template'])
+        template['metadata']['labels'] = {'app': job_name, 'kidly/job': job}
+        pod = template['spec']
+        pod['restartPolicy'] = 'Never'
+        job_container = pod['containers'][0]
+        for key in ('ports', 'lifecycle', 'startupProbe', 'readinessProbe', 'livenessProbe'):
+            job_container.pop(key, None)
+        job_container['args'] = args
+        items.append({'apiVersion': 'batch/v1', 'kind': 'CronJob',
+                      'metadata': {'name': job_name, 'namespace': ns, 'labels': labels},
+                      'spec': {'schedule': schedule, 'timeZone': 'Asia/Seoul', 'concurrencyPolicy': 'Forbid',
+                               'startingDeadlineSeconds': 25200, 'successfulJobsHistoryLimit': 3,
+                               'failedJobsHistoryLimit': 3,
+                               'jobTemplate': {'spec': {'backoffLimit': 2, 'podReplacementPolicy': 'Failed',
+                                                        'activeDeadlineSeconds': 7200,
+                                                        'template': template}}}})
     if name in AUTOSCALE:
         low, high, cpu = AUTOSCALE[name]
         items.append({'apiVersion': 'autoscaling/v2', 'kind': 'HorizontalPodAutoscaler',
@@ -190,8 +213,10 @@ def manifest(env, name, node_port, job, service, project_dir):
                                'minReplicas': low, 'maxReplicas': high,
                                'metrics': [{'type': 'Resource', 'resource': {
                                    'name': 'cpu', 'target': {'type': 'Utilization', 'averageUtilization': cpu}}}],
+                               # 늘릴 때도 5분 동안 높게 유지될 때만 늘린다. JVM 이 켜지며 잠깐 쓰는 CPU 로 Pod 를 늘리지 않는다(#1237)
                                # 줄일 때는 5분 동안 낮게 유지될 때만 1분에 하나씩 줄인다(Kafka 리밸런스를 줄인다)
-                               'behavior': {'scaleDown': {'stabilizationWindowSeconds': 300,
+                               'behavior': {'scaleUp': {'stabilizationWindowSeconds': 300},
+                                            'scaleDown': {'stabilizationWindowSeconds': 300,
                                                           'policies': [{'type': 'Pods', 'value': 1, 'periodSeconds': 60}]}}}})
     return {'apiVersion': 'v1', 'kind': 'List', 'items': items}
 

@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRange;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -272,6 +273,22 @@ class RecommendReplicaProductIntegrationTest {
     }
 
     @Test
+    @DisplayName("VIS-01 상품 정보 변경됨의 경로마다 보일 성별을 저장하고, 더 늦게 일어난 이벤트의 값으로 덮어쓴다")
+    void storeCategoryVisibleGenders() {
+        replicaProductService.applyProductChanged(eventWithCategoryPath(List.of(
+            new ProductChangedEvent.CategoryPathEntry(1L, "의류", CategoryVisibleGender.ALL),
+            new ProductChangedEvent.CategoryPathEntry(5L, "원피스", CategoryVisibleGender.GIRL)), PRODUCT_CHANGED_AT));
+        List<String> stored = visibleGendersOf(PRODUCT_A_ID);
+
+        replicaProductService.applyProductChanged(eventWithCategoryPath(List.of(
+            new ProductChangedEvent.CategoryPathEntry(1L, "의류", CategoryVisibleGender.ALL),
+            new ProductChangedEvent.CategoryPathEntry(5L, "원피스", CategoryVisibleGender.ALL)), LATER));
+
+        assertThat(stored).containsExactly("ALL", "GIRL");
+        assertThat(visibleGendersOf(PRODUCT_A_ID)).containsExactly("ALL", "ALL");
+    }
+
+    @Test
     @DisplayName("카테고리 경로가 빈 상품 정보 변경됨을 받으면 경로 행 없이 저장되고 다시 읽으면 빈 목록이다")
     void storeEmptyCategoryPathAsNoRows() {
         replicaProductService.applyProductChanged(RecommendFixture.productAChangedEvent());
@@ -336,6 +353,11 @@ class RecommendReplicaProductIntegrationTest {
             data.productId(), data.sellerId(), data.name(), data.categoryId(), data.status(), data.thumbnailUrl(),
             data.createdAt(), data.sizeFree(), data.options(), data.infoValues(), data.brand(), data.description(),
             data.sizeSpecs(), categoryPath));
+    }
+
+    private List<String> visibleGendersOf(Long productId) {
+        return jdbcTemplate.queryForList("select visible_gender from recommend.replica_product_category_path "
+            + "where product_id = ? order by position", String.class, productId);
     }
 
     private long count(String sql) {

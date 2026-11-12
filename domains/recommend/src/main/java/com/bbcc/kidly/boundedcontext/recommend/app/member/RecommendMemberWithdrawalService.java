@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend.app.member;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.activity.ActivityRecordService;
+import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecordRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
@@ -20,10 +21,13 @@ public class RecommendMemberWithdrawalService {
 
     private final ReferenceGarmentRepository referenceGarmentRepository;
 
+    private final RecommendGrowthRecordRepository growthRecordRepository;
+
     @Transactional
     public void deleteDataOfWithdrawnMember(MemberWithdrawnEvent event) {
         Long memberId = requireNonNull(event.data().memberId(), "memberId는 필수입니다");
         activityRecordService.deleteActivityRecordsOfWithdrawnMember(event);
         referenceGarmentRepository.deleteAllOfMember(memberId);
+        growthRecordRepository.deleteAllOfMember(memberId);
     }
 }

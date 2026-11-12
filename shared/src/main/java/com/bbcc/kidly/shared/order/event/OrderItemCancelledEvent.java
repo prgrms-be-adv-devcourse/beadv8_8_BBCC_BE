@@ -15,7 +15,8 @@ public record OrderItemCancelledEvent(UUID eventId, LocalDateTime occurredAt, Da
     /**
      * @param sellerId 취소한 몫의 판매자(회원 ID)
      * @param cancellationId 이 취소의 ID. 결제가 환불(payment.refunded)에 실어 어느 취소의 환불인지 맞춘다
-     * @param reason 취소 사유(OUT_OF_STOCK · WRONG_PRODUCT_INFO · OTHER)
+     * @param reason 취소 사유(OUT_OF_STOCK · WRONG_PRODUCT_INFO · OTHER · SELLER_UNAVAILABLE).
+     *     SELLER_UNAVAILABLE은 판매자가 판매할 수 없게 돼 주문이 그 판매자의 배송 전 몫을 취소했다(#1121)
      * @param items 이번에 취소한 주문상품
      */
     public record Data(

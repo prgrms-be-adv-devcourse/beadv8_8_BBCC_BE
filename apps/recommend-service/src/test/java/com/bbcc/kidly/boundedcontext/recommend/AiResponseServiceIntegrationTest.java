@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
+import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.Clock;
 import java.time.Duration;
@@ -21,14 +22,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * AI 응답 서비스가 실제 PostgreSQL의 응답 표와 하루 횟수 표로 지난 답을 다시 쓰고 호출 횟수를 세는지 확인한다.
+ * AI 응답 서비스가 실제 Redis의 응답 저장소와 PostgreSQL의 하루 횟수 표로 지난 답을 다시 쓰고 호출 횟수를 세는지 확인한다.
  */
 @IntegrationTest
 class AiResponseServiceIntegrationTest {
@@ -61,6 +60,8 @@ class AiResponseServiceIntegrationTest {
         AiResponseService service = fixedClockService();
 
         Optional<Answer> first = service.respond(TYPE, INPUT, Answer.class, countingCall(calls));
+        // 답은 다른 스레드에서 저장하므로 저장될 때까지 기다린다
+        AsyncWait.until(() -> store.find(TYPE, AiResponseKey.of(INPUT)).isPresent());
         Optional<Answer> second = service.respond(TYPE, INPUT, Answer.class, countingCall(calls));
 
         assertThat(first).contains(answer());
@@ -69,23 +70,10 @@ class AiResponseServiceIntegrationTest {
         assertThat(callCountOn(NOW.toLocalDate())).isEqualTo(1);
     }
 
-    @ParameterizedTest
-    @CsvSource({"0, 0, 저장한 답", "1, 1, 새로 부른 답"})
-    @DisplayName("재사용 기간(24시간) 경계: 정확히 24시간 전에 저장한 답은 다시 쓰고, 24시간 1초 전에 저장한 답은 다시 쓰지 않고 AI를 부른다")
-    void reuseBoundary(long secondsBeyondReusePeriod, int expectedCalls, String expectedReason) {
-        store.save(TYPE, AiResponseKey.of(INPUT), "{\"productIds\":[1,2],\"reason\":\"저장한 답\"}",
-            NOW.minusHours(24).minusSeconds(secondsBeyondReusePeriod));
-        AtomicInteger calls = new AtomicInteger();
-
-        Optional<Answer> answer = fixedClockService().respond(TYPE, INPUT, Answer.class, countingCall(calls));
-
-        assertThat(calls).hasValue(expectedCalls);
-        assertThat(answer).contains(new Answer(List.of(1L, 2L), expectedReason));
-    }
-
     private AiResponseService fixedClockService() {
         return new AiResponseService(
-            store, quota, jsonMapper, CLOCK, 2_000, Map.of(TYPE, Duration.ofSeconds(2)), Duration.ofHours(24));
+            store, quota, jsonMapper, CLOCK, 2_000, Map.of(TYPE, Duration.ofSeconds(2)), Duration.ofSeconds(10),
+            Duration.ofHours(24));
     }
 
     private Integer callCountOn(LocalDate date) {

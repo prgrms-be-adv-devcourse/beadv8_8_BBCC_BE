@@ -8,6 +8,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.TODAY;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInput;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWith;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.childSizeInputWithHeight;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.productAReplica;
@@ -25,6 +26,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.time.LocalDateTime;
@@ -211,6 +213,31 @@ class RecommendedProductSelectorTest {
             List.of(smallestId, largestId, middleId), TODAY);
 
         assertThat(result).extracting(RecommendedProduct::productId).containsExactly(3L, 2L, 1L);
+    }
+
+    @Test
+    @DisplayName("VIS-02 남아 자녀면 카테고리 경로에 GIRL이 있는 상품을 목록에서 뺀다")
+    void excludeGirlCategoryProductForBoy() {
+        RecommendReplicaProduct pants = sizeFreeProductInPath(1L, "바지", CategoryVisibleGender.ALL);
+        RecommendReplicaProduct skirt = sizeFreeProductInPath(2L, "치마", CategoryVisibleGender.GIRL);
+
+        List<RecommendedProduct> result = selector.select(childSizeInput(), List.of(pants, skirt), TODAY);
+
+        assertThat(result).extracting(RecommendedProduct::productId).containsExactly(1L);
+    }
+
+    // 사이즈 계산과 상관없이 거르기만 보려고, 판매할 수 있는 FREE 옵션 하나를 가진 사이즈 무관 상품을 의류 > {종류} 경로로 만든다
+    private static RecommendReplicaProduct sizeFreeProductInPath(
+        Long productId, String leafName, CategoryVisibleGender leafVisibleGender) {
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId, PRODUCT_A_SELLER_ID,
+            PRODUCT_A_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL,
+            PRODUCT_A_REGISTERED_AT, true,
+            List.of(new RecommendReplicaProduct.OptionInfo("FREE", null, null, 25_000L, false,
+                OptionSaleStatus.ON_SALE)),
+            null, null, List.of(), List.of(), PRODUCT_A_REGISTERED_AT, List.of(
+                new RecommendReplicaProduct.CategoryPathEntryInfo(1L, "의류", CategoryVisibleGender.ALL),
+                new RecommendReplicaProduct.CategoryPathEntryInfo(PRODUCT_A_CATEGORY_ID, leafName,
+                    leafVisibleGender))));
     }
 
     private static RecommendReplicaProduct productAReplicaSaleStartedAt(LocalDateTime saleStartedAt) {

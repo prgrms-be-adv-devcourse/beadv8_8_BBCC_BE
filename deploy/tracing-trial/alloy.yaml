@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alloy-trial
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alloy-trial
+  template:
+    metadata:
+      labels:
+        app: alloy-trial
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.10.1@sha256:582f5a5169cd67a2bdbf98777c1a6f596203f573cdef5c021749fd3279605768
+          args: ["run", "/etc/alloy/otlp.alloy"]
+          env:
+            - name: TRIAL_OTLP_LISTEN
+              value: "0.0.0.0:4318"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: alloy-trial-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alloy-trial
+spec:
+  selector:
+    app: alloy-trial
+  ports:
+    - name: otlp
+      port: 4318
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: alloy-trial
+spec:
+  podSelector:
+    matchLabels:
+      app: alloy-trial
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, order]
+      ports:
+        - protocol: TCP
+          port: 4318

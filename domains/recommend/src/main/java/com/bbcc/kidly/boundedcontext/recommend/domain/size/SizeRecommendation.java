@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -19,6 +20,7 @@ public class SizeRecommendation {
     private final List<String> candidateSizes;
     private final SizeRecommendationSource source;
     private final List<SizeReason> reasons;
+    private final List<ItemJudgement> itemJudgements;
 
     public static SizeRecommendation noMatchingSize() {
         return new SizeRecommendation(
@@ -27,6 +29,7 @@ public class SizeRecommendation {
                 List.of(SizeNotice.NO_MATCHING_SIZE),
                 List.of(),
                 SizeRecommendationSource.RULE,
+                List.of(),
                 List.of()
         );
     }
@@ -38,6 +41,7 @@ public class SizeRecommendation {
                 List.of(SizeNotice.SIZE_FREE),
                 List.of(),
                 SizeRecommendationSource.RULE,
+                List.of(),
                 List.of()
         );
     }
@@ -62,17 +66,21 @@ public class SizeRecommendation {
                 List.copyOf(notices),
                 List.copyOf(candidateSizes),
                 SizeRecommendationSource.RULE,
+                List.of(),
                 List.of()
         );
     }
 
     /**
      * 규칙 결과에 AI 답을 합친 최종 결과를 돌려준다. AI가 고른 사이즈는 규칙 후보 밖이어도 상품에 있으면 채택한다.
-     * 사이즈 무관 상품이거나, AI 답이 없거나, 상품에 없는 사이즈이거나, 적합도가 모르는 값이면 규칙 결과를 그대로 돌려준다.
+     * 사이즈 무관 상품이거나, AI 답이 없거나, 상품에 없는 사이즈이거나, 적합도가 모르는 값이거나,
+     * 항목별 판단이 넘긴 기준 핏과 맞지 않거나
+     * 근거 문장에 AI에게 주지 않은 숫자가 있으면 규칙 결과를 그대로 돌려준다.
      * AI 답을 채택하면 후보는 규칙 후보를 그대로 두고, 규칙 계산을 설명하는 안내는 비우고, 쓸 수 있는 근거만 남긴다.
      */
-    public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer) {
+    public SizeRecommendation decideWith(ProductSizes productSizes, AiSizeAnswer answer, SizeAiEvidence evidence) {
         requireNonNull(productSizes, "productSizes는 필수입니다");
+        requireNonNull(evidence, "evidence는 필수입니다");
         // 사이즈 무관 상품도 사이즈 이름(FREE 등)을 가질 수 있어, 상품 사이즈 검사보다 먼저 거른다
         if (productSizes.isSizeFree()) {
             return this;
@@ -84,13 +92,23 @@ public class SizeRecommendation {
         if (aiFit == null) {
             return this;
         }
+        Optional<List<ItemJudgement>> judgements = ItemJudgementVerifier.verify(
+                answer.itemJudgements(), answer.recommendedSize(), evidence);
+        if (judgements.isEmpty()) {
+            return this;
+        }
+        List<SizeReason> reasons = usableReasons(answer.reasons());
+        if (!ReasonNumberChecker.allNumbersGiven(reasons, evidence, judgements.get())) {
+            return this;
+        }
         return new SizeRecommendation(
                 answer.recommendedSize(),
                 aiFit,
                 List.of(),
                 candidateSizes,
                 SizeRecommendationSource.AI,
-                usableReasons(answer.reasons())
+                reasons,
+                judgements.get()
         );
     }
 
@@ -113,7 +131,7 @@ public class SizeRecommendation {
     }
 
     // 모델이 준 문자열이 모르는 값일 수 있어, valueOf의 예외 대신 이름이 정확히 같은지 비교하고 없으면 null을 돌려준다.
-    private static <E extends Enum<E>> E findByName(Class<E> type, String name) {
+    static <E extends Enum<E>> E findByName(Class<E> type, String name) {
         for (E constant : type.getEnumConstants()) {
             if (constant.name().equals(name)) {
                 return constant;

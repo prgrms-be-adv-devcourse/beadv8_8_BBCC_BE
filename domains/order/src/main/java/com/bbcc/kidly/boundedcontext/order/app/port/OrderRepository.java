@@ -179,6 +179,13 @@ public interface OrderRepository {
     long countSellerItems(Long sellerId, OrderItem.Status itemStatus, Order.Status excludedOrderStatus);
 
     /**
+     * 그 판매자 상품의 주문됨(ORDERED) 주문상품이 든 이 상태들의 주문 ID(#1121 판매 불가 판매자 정리). afterId보다 큰 ID만
+     * 오름차순으로 limit건(ID 커서).
+     */
+    List<Long> findOrderIdsWithSellerItems(Long sellerId, OrderItem.Status itemStatus,
+        Collection<Order.Status> statuses, Long afterId, Limit limit);
+
+    /**
      * 전체 주문 수. 목록을 읽을 수 없는 큰 page의 빈 페이지에 전체 건수를 채운다.
      */
     long count();

@@ -13,7 +13,8 @@ import java.util.UUID;
 public record OrderCancelledEvent(UUID eventId, LocalDateTime occurredAt, Data data) implements DomainEvent {
 
     /**
-     * @param reason 취소 사유 이름 (PAYMENT_FAILED · PAYMENT_EXPIRED · OUT_OF_STOCK · BUYER_CANCELLED)
+     * @param reason 취소 사유 이름 (PAYMENT_FAILED · PAYMENT_EXPIRED · OUT_OF_STOCK · BUYER_CANCELLED · SELLER_UNAVAILABLE).
+     *     SELLER_UNAVAILABLE은 판매자가 판매할 수 없게 돼 주문이 결제 전 주문 전체를 취소했다(#1121)
      * @param items 주문상품 전체, 주문한 순서(주문상품 ID 오름차순)
      */
     public record Data(

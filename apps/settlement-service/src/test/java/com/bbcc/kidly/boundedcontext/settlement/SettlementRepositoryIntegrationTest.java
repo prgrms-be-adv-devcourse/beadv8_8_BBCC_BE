@@ -129,18 +129,14 @@ class SettlementRepositoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("기준 시각 이전에 완료된 COMPLETED 건수를 센다")
-    void countBefore() {
+    @DisplayName("상태에 해당하는 가장 이른 완료 시각을 조회한다")
+    void oldestCompletedAt() {
+        assertThat(settlementRepository.findOldestCompletedAt(SettlementStatus.COMPLETED)).isEmpty();
         saveCompleted(1L);
-        saveCompleted(2L);
-        var paid = saveCompleted(3L);
+        var paid = saveCompleted(2L);
         paid.markPaid(NOW.plusMinutes(5));
         settlementRepository.save(paid);
-
-        assertThat(settlementRepository.countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW.plusSeconds(1))).isEqualTo(2);
-        assertThat(settlementRepository.countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW)).isZero();
+        assertThat(settlementRepository.findOldestCompletedAt(SettlementStatus.COMPLETED)).contains(NOW);
     }
 
     @Test

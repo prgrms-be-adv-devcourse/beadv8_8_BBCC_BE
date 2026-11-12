@@ -6,8 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -28,6 +30,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,13 +77,14 @@ class AiResponseServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUTS, REUSE_PERIOD);
+        service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUTS,
+            Duration.ofSeconds(10), REUSE_PERIOD);
     }
 
     @Test
     @DisplayName("재사용 기간 안에 같은 종류 · 키로 저장한 응답이 있으면 그 응답을 돌려주고, AI를 부르지 않고 횟수도 세지 않는다")
     void reuseStoredResponseWithoutCallingAi() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD)))
+        given(store.find(TYPE, KEY))
             .willReturn(Optional.of("{\"productIds\":[1,2],\"reason\":\"저장된 답\"}"));
         AtomicInteger calls = new AtomicInteger();
 
@@ -94,7 +99,7 @@ class AiResponseServiceTest {
     @Test
     @DisplayName("저장한 응답이 없으면 한국 시간 날짜로 횟수를 세고, AI를 불러, 같은 종류 · 키 · 지금 시각으로 저장한 뒤 돌려준다")
     void callAiAndSaveWhenNothingStored() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
         given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
         AtomicInteger calls = new AtomicInteger();
 
@@ -103,14 +108,33 @@ class AiResponseServiceTest {
         assertThat(answer).contains(freshAnswer());
         assertThat(calls).hasValue(1);
         ArgumentCaptor<String> savedJson = ArgumentCaptor.forClass(String.class);
-        verify(store).save(eq(TYPE), eq(KEY), savedJson.capture(), eq(NOW));
+        verify(store, timeout(1_000)).save(eq(TYPE), eq(KEY), savedJson.capture(), eq(REUSE_PERIOD));
         assertThat(jsonMapper.readValue(savedJson.getValue(), Answer.class)).isEqualTo(freshAnswer());
+    }
+
+    @Test
+    @DisplayName("AI 답을 저장소에 쓰는 동안 기다리지 않고 바로 돌려준다(저장소가 느려도 응답이 늦어지지 않는다)")
+    void returnWithoutWaitingForSave() {
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        CountDownLatch release = new CountDownLatch(1);
+        willAnswer(invocation -> release.await(5, TimeUnit.SECONDS)).given(store).save(any(), any(), any(), any());
+
+        long startedAt = System.nanoTime();
+        Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, countingCall(new AtomicInteger(),
+            freshAnswer()));
+        Duration elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
+        release.countDown();
+
+        assertThat(answer).contains(freshAnswer());
+        assertThat(elapsed).isLessThan(Duration.ofSeconds(1));
+        verify(store, timeout(1_000)).save(eq(TYPE), eq(KEY), any(), eq(REUSE_PERIOD));
     }
 
     @Test
     @DisplayName("하루 상한에 닿았으면 AI를 부르지 않고 AI 결과 없음을 돌려준다")
     void returnNothingWhenDailyLimitReached() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
         given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(false);
         AtomicInteger calls = new AtomicInteger();
 
@@ -124,7 +148,7 @@ class AiResponseServiceTest {
     @Test
     @DisplayName("AI 호출이 예외를 던지면 예외를 밖으로 던지지 않고 AI 결과 없음을 돌려주며, 저장하지 않고 로그에 예외 메시지를 남기지 않는다")
     void returnNothingWhenAiCallFails() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
         given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
         ListAppender<ILoggingEvent> logs = attachLogs();
 
@@ -149,7 +173,7 @@ class AiResponseServiceTest {
     @Test
     @DisplayName("AI가 null을 돌려주면 AI 결과 없음을 돌려주고 저장하지 않는다")
     void returnNothingWhenAiReturnsNull() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
         given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
 
         Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, () -> null);
@@ -161,15 +185,17 @@ class AiResponseServiceTest {
     @Test
     @DisplayName("응답 저장이 실패해도 이미 받은 AI 답을 돌려주고, 로그에 예외 메시지를 남기지 않는다")
     void returnAnswerEvenWhenSavingFails() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
         given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
         willThrow(new DataIntegrityViolationException("Failing row contains (비밀 값)"))
-            .given(store).save(eq(TYPE), eq(KEY), any(), eq(NOW));
+            .given(store).save(eq(TYPE), eq(KEY), any(), eq(REUSE_PERIOD));
         ListAppender<ILoggingEvent> logs = attachLogs();
 
         Optional<Answer> answer;
         try {
             answer = service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+            // 저장은 다른 스레드에서 하므로 저장 실패 로그가 남을 때까지 기다린다
+            waitUntilLogged(logs);
         } finally {
             detachLogs(logs);
         }
@@ -185,19 +211,19 @@ class AiResponseServiceTest {
     @Test
     @DisplayName("저장한 응답을 지금 응답 형식으로 읽지 못하면 저장한 응답이 없는 것으로 보고 AI를 다시 불러 저장한다")
     void callAiAgainWhenStoredResponseDoesNotMatchType() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.of("[1,2,3]"));
+        given(store.find(TYPE, KEY)).willReturn(Optional.of("[1,2,3]"));
         given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
 
         Optional<Answer> answer = service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
 
         assertThat(answer).contains(freshAnswer());
-        verify(store).save(eq(TYPE), eq(KEY), any(), eq(NOW));
+        verify(store, timeout(1_000)).save(eq(TYPE), eq(KEY), any(), eq(REUSE_PERIOD));
     }
 
     @Test
     @DisplayName("저장한 응답을 찾다 DB 오류가 나면 저장한 응답이 없는 것으로 보고 AI를 불러 답을 돌려준다")
     void callAiWhenFindingStoredResponseFails() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD)))
+        given(store.find(TYPE, KEY))
             .willThrow(new QueryTimeoutException("조회 시간 초과"));
         given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT)).willReturn(true);
 
@@ -209,7 +235,7 @@ class AiResponseServiceTest {
     @Test
     @DisplayName("하루 횟수를 세다 DB 오류가 나면 셀 수 없으므로 AI를 부르지 않고 AI 결과 없음을 돌려준다")
     void returnNothingWhenCountingCallsFails() {
-        given(store.findLatestSince(TYPE, KEY, NOW.minus(REUSE_PERIOD))).willReturn(Optional.empty());
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
         given(quota.tryAcquire(LocalDate.of(2026, 11, 11), DAILY_LIMIT))
             .willThrow(new QueryTimeoutException("횟수 갱신 시간 초과"));
         AtomicInteger calls = new AtomicInteger();
@@ -247,6 +273,13 @@ class AiResponseServiceTest {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
+        }
+    }
+
+    private static void waitUntilLogged(ListAppender<ILoggingEvent> logs) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(1).toNanos();
+        while (logs.list.isEmpty() && System.nanoTime() < deadline) {
+            sleep(Duration.ofMillis(10));
         }
     }
 

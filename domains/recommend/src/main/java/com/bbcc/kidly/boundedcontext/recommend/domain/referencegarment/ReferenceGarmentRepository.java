@@ -10,7 +10,7 @@ public interface ReferenceGarmentRepository {
     Optional<ReferenceGarment> findByChildProfileIdAndPart(Long childProfileId, GarmentPart part);
 
     /**
-     * 그 자녀의 기준 옷을 상의, 하의 순서로 돌려준다.
+     * 그 자녀의 기준 옷을 GarmentPart 선언 순서로 돌려준다.
      */
     List<ReferenceGarment> findAllByChildProfileId(Long childProfileId);
 

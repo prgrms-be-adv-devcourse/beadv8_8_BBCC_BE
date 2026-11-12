@@ -66,13 +66,20 @@ public class Order extends OrderTimeEntity {
     /**
      * 주문 취소 사유. SELLER_CANCELLED는 판매자들이 발송 전 자기 몫을 모두 취소해 주문이 취소된 것이다(#655).
      * 그때는 order.cancelled를 보내지 않으므로 이 값은 다른 도메인으로 나가지 않는다(주문 상세 · 관리자 목록 · 타임라인에만 보인다).
+     * SELLER_UNAVAILABLE은 판매자가 판매할 수 없게 돼 시스템이 정리한 것이다(#1121): 결제 전 주문 전체 취소(order.cancelled로 나간다),
+     * 또는 결제완료 주문의 그 판매자 몫이 다 취소돼 주문 전체가 취소된 것(이때는 SELLER_CANCELLED처럼 order.cancelled를 보내지 않는다).
      */
     public enum CancelReason {
         OUT_OF_STOCK,
         PAYMENT_FAILED,
         PAYMENT_EXPIRED,
         BUYER_CANCELLED,
-        SELLER_CANCELLED
+        SELLER_CANCELLED,
+        /**
+         * 판매자가 판매할 수 없게 돼(ACTIVE 아님, #1121) 정리했다: 결제 전 주문 전체 취소, 또는 결제완료 주문의 그 판매자 몫이 다 취소돼
+         * 주문 전체가 취소됐다
+         */
+        SELLER_UNAVAILABLE
     }
 
     /**
@@ -404,6 +411,25 @@ public class Order extends OrderTimeEntity {
     }
 
     /**
+     * 판매자가 판매할 수 없게 돼(#1121, seller.changed의 상태가 ACTIVE 아님) 결제 전 주문 전체를 취소한다(사유 SELLER_UNAVAILABLE).
+     * 결제 전이라 그 판매자 몫만 부분 취소하지 않고 주문 전체 · 사유 하나로 취소한다(#1121 결정, 나중에 다시 볼 수 있음).
+     * 결제대기가 아니면 그대로 둔다(결제완료는 판매자 몫 취소로 따로 정리한다).
+     *
+     * @return APPLIED 이번에 취소함 · ALREADY_DONE 이미 취소 · NOT_APPLICABLE 결제대기가 아님
+     */
+    public TransitionResult cancelForSellerUnavailable() {
+        if (status == Status.CANCELLED) {
+            return TransitionResult.ALREADY_DONE;
+        }
+        if (status != Status.PENDING_PAYMENT) {
+            return TransitionResult.NOT_APPLICABLE;
+        }
+        this.status = Status.CANCELLED;
+        this.cancelReason = CancelReason.SELLER_UNAVAILABLE;
+        return TransitionResult.APPLIED;
+    }
+
+    /**
      * 결제 마감 만료로 취소한다. 결제대기이고 마감 시각이 지났을 때(마감 시각 포함)만 바꾼다.
      * 마감 전 · 결제완료 · 이미 취소된 주문은 그대로 둔다.
      *
@@ -423,7 +449,8 @@ public class Order extends OrderTimeEntity {
 
     /**
      * 판매자가 발송 전 자기 몫을 취소한다(#655). 결제완료 주문에서 그 판매자의 주문됨 · 배송 전 주문상품을 모두 취소하고,
-     * 모든 주문상품이 취소됐으면 주문도 취소한다(사유 SELLER_CANCELLED). 배송이 READY인지는 배송이 먼저 확인한다.
+     * 모든 주문상품이 취소됐으면 주문도 취소한다(사유 SELLER_CANCELLED, 판매 불가 판매자 정리(#1121, 주문상품 사유 SELLER_UNAVAILABLE)면
+     * SELLER_UNAVAILABLE). 배송이 READY인지는 배송이 먼저 확인한다.
      *
      * @param cancellationId 이 취소의 기록 ID(주문상품에 남긴다)
      * @return 이번에 취소한 주문상품(주문상품 순서). 결제완료가 아니거나 취소할 주문상품이 없으면 빈 목록이고 아무것도 바꾸지 않는다
@@ -439,7 +466,9 @@ public class Order extends OrderTimeEntity {
             .toList();
         if (!cancelled.isEmpty() && items.stream().allMatch(item -> item.getStatus() == OrderItem.Status.CANCELLED)) {
             this.status = Status.CANCELLED;
-            this.cancelReason = CancelReason.SELLER_CANCELLED;
+            // 판매 불가 판매자 정리(#1121)로 취소됐으면 판매자가 스스로 취소한 것과 구분되게 주문 사유도 SELLER_UNAVAILABLE
+            this.cancelReason = reason == OrderItem.CancelReason.SELLER_UNAVAILABLE
+                ? CancelReason.SELLER_UNAVAILABLE : CancelReason.SELLER_CANCELLED;
         }
         return cancelled;
     }

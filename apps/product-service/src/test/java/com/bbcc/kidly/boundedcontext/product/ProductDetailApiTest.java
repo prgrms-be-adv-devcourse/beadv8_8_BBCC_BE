@@ -156,6 +156,49 @@ class ProductDetailApiTest {
     }
 
     @Test
+    @DisplayName("상세의 옵션 항목은 상품 유형에서 사이즈 역할로 연결한 항목만 사이즈 역할로 담는다")
+    void optionAttributeCarriesSizeRole() {
+        Product product = savedProductOnSale(10, 10, 10);
+
+        // 의류 유형은 색상을 일반 옵션 항목으로, 사이즈를 사이즈 역할 옵션 항목으로 연결했다
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.optionAttributes[*].code").isEqualTo(List.of("COLOR", "SIZE"))
+            .jsonPath("$.optionAttributes[*].sizeRole").isEqualTo(List.of(false, true));
+    }
+
+    @Test
+    @DisplayName("상세는 등록한 대표 이미지를 상세 이미지 목록과 따로 담는다")
+    void thumbnailUrlIsSeparateFromImageUrls() {
+        Product product = savedProductOnSale(10, 10, 10);
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.thumbnailUrl").isEqualTo("https://…/a-thumbnail.jpg")
+            .jsonPath("$.imageUrls").isEqualTo(List.of("https://…/a-1.jpg"));
+    }
+
+    @Test
+    @DisplayName("대표 이미지 없이 등록한 상품은 대표 이미지 칸을 빼지 않고 null로 담는다")
+    void thumbnailUrlIsNullWhenSellerLeftItEmpty() {
+        Product product = savedProductOnSale(10, 10, 10);
+        // 상품 A 등록 정보에는 대표 이미지가 있어서, 대표 이미지 없이 등록한 상품을 만들려고 그 칸을 비운다
+        jdbcTemplate.update("update product.product set thumbnail_url = null where id = ?", product.getId());
+
+        client.get().uri("/api/v1/products/{productId}", product.getId())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.thumbnailUrl").hasJsonPath()
+            .jsonPath("$.thumbnailUrl").isEqualTo(null)
+            .jsonPath("$.imageUrls").isEqualTo(List.of("https://…/a-1.jpg"));
+    }
+
+    @Test
     @DisplayName("판매자 복사본이 있는 판매자의 상품은 상세에 판매자 상호명을 담는다")
     void businessNameFromReplicaSeller() {
         Product product = savedProductOnSale(10, 10, 10);
