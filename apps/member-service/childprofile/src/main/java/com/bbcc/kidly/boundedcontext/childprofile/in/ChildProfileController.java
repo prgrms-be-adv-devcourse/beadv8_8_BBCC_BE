@@ -71,4 +71,11 @@ public class ChildProfileController {
             .map(GrowthRecordResponse::from)
             .toList();
     }
+
+    @DeleteMapping("/{childId}/growth-records/{recordId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteGrowthRecord(@LoginMember AuthMember member, @PathVariable Long childId,
+        @PathVariable Long recordId) {
+        childProfileService.deleteGrowthRecord(member.id(), childId, recordId);
+    }
 }

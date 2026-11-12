@@ -20,6 +20,7 @@
 ## Kafka 발행 (아웃박스, #548 · #562)
 - 자녀 프로필이 발행한 이벤트(`child.changed` · `child.growth-recorded`)를 토픽 `kidly.childprofile.events`로 보낸다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
 - 등록과 키 · 체형 수정으로 성장 이력이 생기면 `child.changed` 다음에 `child.growth-recorded`를 보낸다. `occurredAt`은 이력의 `recordedAt`과 같다
+- 성장 이력을 삭제하면 `child.growth-record-deleted`를 보낸다. 최근 기록 삭제로 프로필이 되돌아가면 그 전에 `child.changed`를 보낸다
 - 키 = `correlationId`(자녀 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON). `__TypeId__`는 붙이지 않는다
 - 받는 쪽(인증 · 주문 · 추천)은 모두 Kafka로 받는다
 - 저장(`app/outbox/ChildProfileOutboxRecorder`): 커밋 직전(`BEFORE_COMMIT`)에 자녀 프로필이 발행한 이벤트만 `childprofile.child_profile_outbox`에 저장한다
