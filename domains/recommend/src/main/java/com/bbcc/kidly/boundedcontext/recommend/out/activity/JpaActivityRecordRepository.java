@@ -52,4 +52,37 @@ public interface JpaActivityRecordRepository extends JpaRepository<ActivityRecor
             activityRecord.getOccurredAt());
         return inserted == 1;
     }
+
+    // 상세 진입과 같은 방식이다. 같은 날 중복 색인과의 충돌만 건너뛴다.
+    @Modifying
+    @Query(nativeQuery = true, value = """
+        INSERT INTO recommend.activity_record
+            (event_id, type, member_id, child_profile_id, product_id, occurred_at, created_at, updated_at)
+        VALUES
+            (:eventId, 'SEARCH_RESULT_CLICKED', :memberId, :childProfileId, :productId, :occurredAt, :occurredAt,
+             :occurredAt)
+        ON CONFLICT (member_id, child_profile_id, product_id, ((occurred_at)::date))
+            WHERE type = 'SEARCH_RESULT_CLICKED' DO NOTHING
+        """)
+    int insertSearchResultClickedIfAbsent(
+        @Param("eventId") UUID eventId,
+        @Param("memberId") Long memberId,
+        @Param("childProfileId") Long childProfileId,
+        @Param("productId") Long productId,
+        @Param("occurredAt") LocalDateTime occurredAt);
+
+    @Override
+    default boolean saveSearchResultClickedIfAbsent(ActivityRecord activityRecord) {
+        requireNonNull(activityRecord, "activityRecord는 필수입니다");
+        if (activityRecord.getType() != ActivityType.SEARCH_RESULT_CLICKED) {
+            throw new IllegalArgumentException("검색 결과 클릭 기록만 저장할 수 있습니다");
+        }
+        int inserted = insertSearchResultClickedIfAbsent(
+            activityRecord.getEventId(),
+            activityRecord.getMemberId(),
+            activityRecord.getChildProfileId(),
+            activityRecord.getProductId(),
+            activityRecord.getOccurredAt());
+        return inserted == 1;
+    }
 }

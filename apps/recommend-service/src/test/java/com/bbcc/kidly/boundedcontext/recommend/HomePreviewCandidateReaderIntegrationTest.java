@@ -109,6 +109,28 @@ class HomePreviewCandidateReaderIntegrationTest {
             });
     }
 
+    @Test
+    @DisplayName("HOME-05 검색 결과 클릭도 찾아본 횟수에 들어가 검색 4번과 클릭 1번이면 자주 찾아본 카테고리 · 브랜드다")
+    void countSearchResultClickAsLookedUp() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        replicaProductService.applyProductChanged(productAWithColorsAndInfo());
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        for (int i = 0; i < 4; i++) {
+            insertActivity(ActivityType.SEARCH, now.minusDays(1), PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, null);
+        }
+        // 클릭 기록은 카테고리 · 브랜드 칸 없이 상품만 남고, 읽을 때 상품 복사본 값으로 채운다
+        PreferenceTestData.insertActivity(jdbc, ActivityType.SEARCH_RESULT_CLICKED, MEMBER_1_ID, CHILD_1_ID,
+            now.minusDays(1), PRODUCT_A_ID, null, null, null);
+
+        HomePreviewCandidates candidates = candidateReader.read(MEMBER_1_ID, CHILD_1_ID);
+
+        assertThat(candidates.aiRequest().candidates())
+            .filteredOn(candidate -> candidate.productId().equals(PRODUCT_A_ID))
+            .singleElement()
+            .satisfies(candidate -> assertThat(candidate.evidence())
+                .contains("자주 찾아본 카테고리: 상의", "자주 찾아본 브랜드: 키들리"));
+    }
+
     private void insertActivity(ActivityType type, LocalDateTime occurredAt, Long categoryId, String brand,
         Long cartItemId) {
         PreferenceTestData.insertActivity(jdbc, type, MEMBER_1_ID, CHILD_1_ID, occurredAt, null, categoryId, brand,
