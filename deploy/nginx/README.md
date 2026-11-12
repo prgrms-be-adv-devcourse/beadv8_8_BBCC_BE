@@ -2,7 +2,7 @@
 
 앱 서버(t3.large)에서 nginx 가 443 을 받아 운영 Gateway(`127.0.0.1:8084`), 개발 Gateway(t3.large k3s 의 NodePort `127.0.0.1:30200`, deploy/k3s), Grafana(모니터링 서버 t3.medium 의 Traefik `<사설 IP>:80`)로 넘깁니다.
 `/actuator` 와 그 아래 경로는 `/actuator/health` 만 밖으로 열고 나머지는 404 입니다.
-인증서는 ZeroSSL 에서 무료로 받고(ACME), certbot 도커 이미지로 발급·갱신합니다.
+인증서는 ZeroSSL 에서 무료로 받고(ACME), `/opt/certbot` venv 에 고정 버전으로 설치한 certbot 으로 발급·갱신합니다(docker 를 쓰지 않습니다, #1210).
 `kro.kr` 은 공용 접미사 목록(PSL)에 없어 Let's Encrypt 의 "등록 도메인당 주 50장" 한도를 모든 `kro.kr` 사용자와 나눠 쓰기 때문에 자주 막힙니다.
 
 | 주소 | 연결되는 곳 |
@@ -21,7 +21,6 @@
    - `grafana` → 탄력적 IP
    - `dig +short api.<도메인>` 이 탄력적 IP 를 돌려주면 준비된 것입니다.
 3. 보안 그룹에서 80, 443 이 열려 있어야 합니다. 80 은 인증서 발급·갱신에 씁니다.
-4. 서버에 docker 가 설치되어 있어야 합니다.
 
 ## 설치
 

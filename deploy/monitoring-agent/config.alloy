@@ -1,120 +1,9 @@
-// t3.large(앱 서버)의 수집기. 앱 로그 · 앱 메트릭 · 호스트 · 컨테이너 메트릭을 t3.medium k3s(deploy/monitoring)로 보낸다
-// 받는 곳은 medium 의 NodePort(Loki 31100, Prometheus 30090)다. 주소는 .env 의 MONITORING_HOST(medium 사설 IP)
+// t3.large(앱 서버)의 수집기. 이 서버 k3s 의 namespace monitoring 에 Pod 하나로 뜬다(alloy.yaml, #1210)
+// 앱 로그 · 앱 메트릭 · 호스트 · Pod 자원 지표를 t3.medium k3s(deploy/monitoring)로 보낸다
+// 받는 곳은 medium 의 NodePort(Loki 31100, Prometheus 30090)다. 주소는 환경 변수 MONITORING_HOST(medium 사설 IP)
+// 앱은 모두 k3s 에 뜬다(#1142). 로그 · 메트릭은 아래 discovery.kubernetes 로 Pod 를 찾아 모은다
 
-// dev · prod 앱 컨테이너(compose 서비스 search-service · gateway · recommend-service · settlement-service · member-service · payment-service · product-service · notification-service · order-service · community-service · chatbot-service) 로그를 Loki 로 보낸다
-// env 라벨은 compose 프로젝트 이름(dev · prod), service_name 은 compose 서비스(search-service → kidly-search, gateway → kidly-gateway, recommend-service → kidly-recommend, settlement-service → kidly-settlement, member-service → kidly-member, payment-service → kidly-payment, product-service → kidly-product, notification-service → kidly-notification, order-service → kidly-order, community-service → kidly-community, chatbot-service → kidly-chatbot), level 라벨은 로그 줄에서 뽑는다
-// 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이라 전환 기간에만 쓰인다
-
-discovery.docker "containers" {
-	host = "unix:///var/run/docker.sock"
-}
-
-discovery.relabel "kidly_app" {
-	targets = discovery.docker.containers.targets
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "search-service|gateway|recommend-service|settlement-service|member-service|payment-service|product-service|notification-service|order-service|community-service|chatbot-service"
-		action        = "keep"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
-		regex         = "dev|prod"
-		action        = "keep"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
-		target_label  = "env"
-	}
-
-	// Drilldown → Logs 가 서비스 이름으로 묶는다. 없으면 Loki 가 unknown_service 를 붙인다
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "search-service"
-		target_label  = "service_name"
-		replacement   = "kidly-search"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "gateway"
-		target_label  = "service_name"
-		replacement   = "kidly-gateway"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "recommend-service"
-		target_label  = "service_name"
-		replacement   = "kidly-recommend"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "settlement-service"
-		target_label  = "service_name"
-		replacement   = "kidly-settlement"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "member-service"
-		target_label  = "service_name"
-		replacement   = "kidly-member"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "payment-service"
-		target_label  = "service_name"
-		replacement   = "kidly-payment"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "product-service"
-		target_label  = "service_name"
-		replacement   = "kidly-product"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "notification-service"
-		target_label  = "service_name"
-		replacement   = "kidly-notification"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "order-service"
-		target_label  = "service_name"
-		replacement   = "kidly-order"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "community-service"
-		target_label  = "service_name"
-		replacement   = "kidly-community"
-	}
-
-	rule {
-		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-		regex         = "chatbot-service"
-		target_label  = "service_name"
-		replacement   = "kidly-chatbot"
-	}
-}
-
-loki.source.docker "kidly_app" {
-	host       = "unix:///var/run/docker.sock"
-	targets    = discovery.relabel.kidly_app.output
-	forward_to = [loki.process.kidly_app.receiver]
-}
-
+// 앱 로그 공통 처리. 서버 콘솔은 ECS JSON 한 줄이다. 텍스트 줄은 JSON 이전 이미지가 남긴 것이다
 loki.process "kidly_app" {
 	// 텍스트 줄의 스택 트레이스 여러 줄을 로그 한 건으로 묶는다 (로그 줄은 날짜 또는 JSON 의 { 로 시작한다)
 	stage.multiline {
@@ -160,57 +49,14 @@ loki.write "medium" {
 	}
 }
 
-// 검색 서비스(apps/search-service). 서비스별 job 을 쓴다
-// 검색이 켜진 환경만 앱 배포가 targets/search/<환경>.yml 로 써 둔다
-discovery.file "kidly_search" {
-	files = ["/etc/alloy/targets/search/*.yml"]
-}
-
-prometheus.scrape "kidly_search" {
-	job_name        = "kidly-search"
-	targets         = discovery.file.kidly_search.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// Gateway(apps/gateway). 검색 서비스와 같은 이유로 job 을 나눈다
-// Gateway 가 켜진 환경만 앱 배포가 targets/gateway/<환경>.yml 로 써 둔다
-discovery.file "kidly_gateway" {
-	files = ["/etc/alloy/targets/gateway/*.yml"]
-}
-
-prometheus.scrape "kidly_gateway" {
-	job_name        = "kidly-gateway"
-	targets         = discovery.file.kidly_gateway.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 추천 서비스(apps/recommend-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// compose 에 뜨는 환경은 앱 배포가 targets/recommend/<환경>.yml 로 써 둔다
-discovery.file "kidly_recommend" {
-	files = ["/etc/alloy/targets/recommend/*.yml"]
-}
-
-prometheus.scrape "kidly_recommend" {
-	job_name        = "kidly-recommend"
-	targets         = discovery.file.kidly_recommend.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
 // k3s 에 뜨는 서비스(namespace kidly-<환경>, deploy/k3s, #1142)는 이 서버의 단독 k3s API 로 Pod 를 찾는다
-// kubeconfig 는 docker-compose.yml 이 마운트한다. 호스트 네트워크라 API(127.0.0.1:6443)와 Pod IP 에 바로 닿는다
-// Pod 라벨 kidly/job(deploy/k3s/k3s.py 가 붙임)을 job · service_name 으로 쓴다. compose 때와 같은 kidly-<서비스> · kidly-kafka 다
+// Pod 의 ServiceAccount(alloy.yaml 의 kidly-alloy, Pod 조회 · 로그 읽기 · kubelet 지표만)로 k3s API 에 붙는다. 호스트 네트워크라 Pod IP 에 바로 닿는다
+// Pod 라벨 kidly/job(deploy/k3s/k3s.py 가 붙임)을 job · service_name 으로 쓴다(kidly-<서비스> · kidly-kafka)
 discovery.kubernetes "kidly_pods" {
-	role            = "pod"
-	kubeconfig_file = "/etc/rancher/k3s/k3s.yaml"
+	role = "pod"
 
 	namespaces {
-		names = ["kidly-dev", "kidly-prod"]
+		names = ["kidly-dev"]
 	}
 }
 
@@ -245,7 +91,7 @@ discovery.relabel "kidly_pods" {
 
 	rule {
 		source_labels = ["__meta_kubernetes_namespace"]
-		regex         = "kidly-(dev|prod)"
+		regex         = "kidly-(.+)"
 		target_label  = "env"
 	}
 }
@@ -277,8 +123,7 @@ discovery.relabel "kidly_pod_metrics" {
 	}
 }
 
-// 종료된 Job Pod 의 마지막 로그도 모은다. 로그에는 compose 컨테이너와 같은 service_name 을 붙인다. instance(Pod) · job 은 loki.source.kubernetes 가 붙인다
-// k3s.yaml 이 없으면 이 컴포넌트들이 만들어지지 않아 Alloy 가 뜨지 않는다. deploy.sh 가 미리 확인한다
+// 종료된 Job Pod 의 마지막 로그도 모은다. 로그에는 service_name(kidly-<서비스>)을 붙인다. instance(Pod) · job 은 loki.source.kubernetes 가 붙인다
 discovery.relabel "kidly_pod_logs" {
 	targets = discovery.relabel.kidly_pods.output
 
@@ -291,10 +136,6 @@ discovery.relabel "kidly_pod_logs" {
 loki.source.kubernetes "kidly_pods" {
 	targets    = discovery.relabel.kidly_pod_logs.output
 	forward_to = [loki.process.kidly_app.receiver]
-
-	client {
-		kubeconfig_file = "/etc/rancher/k3s/k3s.yaml"
-	}
 }
 
 // 앱 서비스 Pod. kafka-exporter(kidly-kafka)는 아래 kidly_kafka 가 지표를 걸러 긁는다
@@ -328,129 +169,12 @@ prometheus.scrape "kidly_pods" {
 	forward_to      = [prometheus.remote_write.medium.receiver]
 }
 
-// 정산 서비스(apps/settlement-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// 정산 서비스가 켜진 환경만 앱 배포가 targets/settlement/<환경>.yml 로 써 둔다
-discovery.file "kidly_settlement" {
-	files = ["/etc/alloy/targets/settlement/*.yml"]
-}
-
-prometheus.scrape "kidly_settlement" {
-	job_name        = "kidly-settlement"
-	targets         = discovery.file.kidly_settlement.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 회원 서비스(apps/member-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// 회원 서비스가 켜진 환경만 앱 배포가 targets/member/<환경>.yml 로 써 둔다
-discovery.file "kidly_member" {
-	files = ["/etc/alloy/targets/member/*.yml"]
-}
-
-prometheus.scrape "kidly_member" {
-	job_name        = "kidly-member"
-	targets         = discovery.file.kidly_member.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 결제 서비스(apps/payment-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// 결제 서비스가 켜진 환경만 앱 배포가 targets/payment/<환경>.yml 로 써 둔다
-discovery.file "kidly_payment" {
-	files = ["/etc/alloy/targets/payment/*.yml"]
-}
-
-prometheus.scrape "kidly_payment" {
-	job_name        = "kidly-payment"
-	targets         = discovery.file.kidly_payment.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 상품 서비스(apps/product-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// 상품 서비스가 켜진 환경만 앱 배포가 targets/product/<환경>.yml 로 써 둔다
-discovery.file "kidly_product" {
-	files = ["/etc/alloy/targets/product/*.yml"]
-}
-
-prometheus.scrape "kidly_product" {
-	job_name        = "kidly-product"
-	targets         = discovery.file.kidly_product.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 알림 서비스(apps/notification-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// 알림 서비스가 켜진 환경만 앱 배포가 targets/notification/<환경>.yml 로 써 둔다
-discovery.file "kidly_notification" {
-	files = ["/etc/alloy/targets/notification/*.yml"]
-}
-
-prometheus.scrape "kidly_notification" {
-	job_name        = "kidly-notification"
-	targets         = discovery.file.kidly_notification.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 주문 서비스(apps/order-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// 주문 서비스가 켜진 환경만 앱 배포가 targets/order/<환경>.yml 로 써 둔다(deploy/environment-state.py)
-discovery.file "kidly_order" {
-	files = ["/etc/alloy/targets/order/*.yml"]
-}
-
-prometheus.scrape "kidly_order" {
-	job_name        = "kidly-order"
-	targets         = discovery.file.kidly_order.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 커뮤니티 서비스(apps/community-service). 검색 서비스와 같은 이유로 job 을 나눈다
-// 커뮤니티 서비스가 켜진 환경만 앱 배포가 targets/community/<환경>.yml 로 써 둔다(deploy/environment-state.py)
-discovery.file "kidly_community" {
-	files = ["/etc/alloy/targets/community/*.yml"]
-}
-
-prometheus.scrape "kidly_community" {
-	job_name        = "kidly-community"
-	targets         = discovery.file.kidly_community.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 챗봇 서비스(apps/chatbot-service, #1191). 검색 서비스와 같은 이유로 job 을 나눈다
-// 챗봇 서비스가 켜진 환경만 앱 배포가 targets/chatbot/<환경>.yml 로 써 둔다(deploy/environment-state.py)
-discovery.file "kidly_chatbot" {
-	files = ["/etc/alloy/targets/chatbot/*.yml"]
-}
-
-prometheus.scrape "kidly_chatbot" {
-	job_name        = "kidly-chatbot"
-	targets         = discovery.file.kidly_chatbot.targets
-	metrics_path    = "/actuator/prometheus"
-	scrape_interval = "15s"
-	forward_to      = [prometheus.remote_write.medium.receiver]
-}
-
-// 호스트(EC2)와 컨테이너별 자원 사용량. 새 컨테이너 없이 Alloy 내장 exporter 로 모아 Prometheus 에 remote write 한다
-// 호스트 경로는 docker-compose.yml 이 읽기 전용으로 마운트한다
+// 호스트(EC2) 자원 사용량. Alloy 내장 node exporter 로 모아 Prometheus 에 remote write 한다
+// 호스트 경로는 alloy.yaml 이 읽기 전용으로 마운트한다
 prometheus.exporter.unix "host" {
 	procfs_path = "/host/proc"
+	sysfs_path  = "/host/sys"
 	rootfs_path = "/rootfs"
-}
-
-// 컨테이너는 name 라벨(dev-app-1 처럼 compose 프로젝트가 앞에 붙은 컨테이너 이름)로 구분한다. docker 라벨 · 환경 변수는 가져오지 않는다
-prometheus.exporter.cadvisor "containers" {
-	docker_only            = true
-	store_container_labels = false
 }
 
 // 서비스 메트릭과 같은 15초 간격
@@ -460,31 +184,16 @@ prometheus.scrape "host" {
 	scrape_interval = "15s"
 }
 
-prometheus.scrape "containers" {
-	targets         = prometheus.exporter.cadvisor.containers.targets
-	forward_to      = [prometheus.remote_write.medium.receiver]
-	scrape_interval = "15s"
-}
-
-// k3s Pod 컨테이너 CPU · 메모리. 위 cAdvisor 는 docker 컨테이너만 본다(docker_only). k3s 의 Pod 는 kubelet 이 내장한 cAdvisor 에서 읽는다
-// 토큰은 deploy.sh 가 적용한 k3s-metrics.yaml 의 ServiceAccount(nodes/metrics get 만)의 Secret 을 k3s API 로 읽는다. Secret 이 없으면 Alloy 가 뜨지 않으므로 deploy.sh 가 먼저 확인한다
-remote.kubernetes.secret "kidly_metrics_reader" {
-	namespace = "kube-system"
-	name      = "kidly-metrics-reader-token"
-
-	client {
-		kubeconfig_file = "/etc/rancher/k3s/k3s.yaml"
-	}
-}
-
-// instance 는 docker 컨테이너 지표와 같은 호스트 이름이라 Kidly 서버 대시보드의 서버 선택으로 함께 거른다
+// k3s Pod 컨테이너 CPU · 메모리. kubelet 이 내장한 cAdvisor 에서 읽는다
+// 토큰은 Pod 의 ServiceAccount 토큰이다(alloy.yaml 의 kidly-alloy 에 nodes/metrics get 을 준다). 쿠버네티스가 갱신하고 긁을 때마다 파일을 다시 읽는다
+// instance 는 호스트 지표와 같은 호스트 이름이라 Kidly 서버 대시보드의 서버 선택으로 함께 거른다
 prometheus.scrape "k3s_cadvisor" {
 	job_name        = "integrations/kubelet-cadvisor"
 	targets         = [{"__address__" = "127.0.0.1:10250", "instance" = constants.hostname}]
 	scheme          = "https"
 	metrics_path    = "/metrics/cadvisor"
 	scrape_interval = "15s"
-	bearer_token    = remote.kubernetes.secret.kidly_metrics_reader.data["token"]
+	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 	// kubelet 은 자체 서명 인증서를 쓴다. 이 서버 안(127.0.0.1)에서만 붙는다
 	tls_config {
@@ -540,14 +249,9 @@ prometheus.relabel "alloy_health" {
     }
 }
 
-// Broker metrics use /metrics, not the application actuator path.
-discovery.file "kidly_kafka" {
-    refresh_interval = "30s"
-    files = ["/etc/alloy/targets/kafka/*.yml"]
-}
 prometheus.scrape "kidly_kafka" {
     job_name = "kidly-kafka"
-    targets = array.concat(discovery.file.kidly_kafka.targets, discovery.relabel.kidly_kafka_pods.output)
+    targets = discovery.relabel.kidly_kafka_pods.output
     scrape_interval = "30s"
     forward_to = [prometheus.relabel.kafka_metrics.receiver]
 }
