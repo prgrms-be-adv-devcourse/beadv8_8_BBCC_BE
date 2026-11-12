@@ -140,14 +140,14 @@ class PreferenceSourceReaderIntegrationTest {
 
     @ParameterizedTest
     @CsvSource({"-60, true", "0, true", "1, false"})
-    @DisplayName("PREF-07 담은 장바구니 줄은 기간 끝 시각까지 뺐을 때만 removedFromCart다")
+    @DisplayName("PREF-07 담은 장바구니 줄은 기간 끝 시각까지 뺐을 때만 관심을 거둔 활동(withdrawn)이다")
     void markCartItemRemovedOnlyUntilEndOfPeriod(long removedSecondsAfterEnd, boolean removed) {
         LocalDateTime to = SINCE.plusHours(3);
         insert(ActivityType.CART_ITEM_ADDED, 7L, SINCE.plusHours(1), 100L, 10L, "Nike", 5L);
         insert(ActivityType.CART_ITEM_REMOVED, 7L, to.plusSeconds(removedSecondsAfterEnd), 100L, null, null, 5L);
         insert(ActivityType.CART_ITEM_ADDED, 7L, SINCE.plusHours(2), 101L, 10L, "Nike", 6L);
 
-        assertThat(reader.findChildActivities(7L, SINCE, to)).extracting(RecentActivity::removedFromCart)
+        assertThat(reader.findChildActivities(7L, SINCE, to)).extracting(RecentActivity::withdrawn)
             .containsExactly(removed, false);
     }
 
@@ -170,7 +170,7 @@ class PreferenceSourceReaderIntegrationTest {
         insertWish(ActivityType.WISH_CANCELLED, 301L, to.plusSeconds(cancelledSecondsAfterEnd), null);
         insertWish(ActivityType.WISH_SENT, 302L, SINCE.plusHours(2), 101L);
 
-        assertThat(reader.findChildActivities(7L, SINCE, to)).extracting(RecentActivity::removedFromCart)
+        assertThat(reader.findChildActivities(7L, SINCE, to)).extracting(RecentActivity::withdrawn)
             .containsExactly(withdrawn, false);
     }
 

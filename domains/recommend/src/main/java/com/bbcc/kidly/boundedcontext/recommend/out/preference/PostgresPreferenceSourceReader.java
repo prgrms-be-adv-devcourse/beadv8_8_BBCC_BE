@@ -111,7 +111,7 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
     }
 
     // 상세 진입 · 담기 · 검색 결과 클릭 · 조르기 기록은 카테고리 · 브랜드 칸을 채우지 않을 수 있어 상품 복사본의 지금 값으로 채운다.
-    // 뺀 장바구니 줄의 담기와 철회한 조르기는 removed_from_cart로 표시해 선호 계산이 무게 0으로 센다
+    // 뺀 장바구니 줄의 담기와 철회한 조르기는 withdrawn으로 표시해 선호 계산이 무게 0으로 센다
     private List<RecentActivity> findActivities(String ownerCondition, Long id, LocalDateTime from, LocalDateTime to) {
         return jdbcClient.sql("""
                 SELECT a.type, a.product_id, COALESCE(a.category_id, p.category_id) AS category_id,
@@ -123,7 +123,7 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
                         OR (a.type = 'WISH_SENT' AND EXISTS (
                            SELECT 1 FROM recommend.activity_record w
                            WHERE w.type = 'WISH_CANCELLED' AND w.wish_request_id = a.wish_request_id
-                             AND w.occurred_at <= :to))) AS removed_from_cart
+                             AND w.occurred_at <= :to))) AS withdrawn
                 FROM recommend.activity_record a
                 LEFT JOIN recommend.replica_product p ON p.product_id = a.product_id
                 WHERE %s
@@ -140,7 +140,7 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
                 rs.getObject("category_id", Long.class),
                 rs.getString("brand"),
                 rs.getObject("occurred_at", LocalDateTime.class),
-                rs.getBoolean("removed_from_cart")))
+                rs.getBoolean("withdrawn")))
             .list();
     }
 }

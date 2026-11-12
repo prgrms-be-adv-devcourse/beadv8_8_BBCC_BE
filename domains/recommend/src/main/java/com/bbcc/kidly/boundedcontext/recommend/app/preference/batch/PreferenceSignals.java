@@ -20,7 +20,7 @@ public final class PreferenceSignals {
         List<PreferenceSignal> signals = new ArrayList<>();
         for (RecentActivity activity : activities) {
             signals.add(new PreferenceSignal(signalTypeOf(activity.type()), activity.occurredAt(),
-                activity.categoryId(), activity.brand(), activity.productId(), activity.removedFromCart()));
+                activity.categoryId(), activity.brand(), activity.productId(), activity.withdrawn()));
         }
         // 방금 산 종류가 목록 위를 차지하지 않게 구매확정에는 카테고리를 담지 않는다
         for (ConfirmedPurchase purchase : purchases) {

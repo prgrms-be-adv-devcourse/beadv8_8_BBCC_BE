@@ -131,6 +131,27 @@ class HomePreviewCandidateReaderIntegrationTest {
                 .contains("자주 찾아본 카테고리: 상의", "자주 찾아본 브랜드: 키들리"));
     }
 
+    @Test
+    @DisplayName("HOME-05 조른 상품은 장바구니 담기로 이미 세었으므로 조르기는 찾아본 횟수에 넣지 않는다")
+    void notCountWishSentAsLookedUp() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        replicaProductService.applyProductChanged(productAWithColorsAndInfo());
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        for (int i = 0; i < 4; i++) {
+            insertActivity(ActivityType.SEARCH, now.minusDays(1), PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, null);
+        }
+        PreferenceTestData.insertActivity(jdbc, ActivityType.WISH_SENT, MEMBER_1_ID, CHILD_1_ID,
+            now.minusDays(1), PRODUCT_A_ID, null, null, null);
+
+        HomePreviewCandidates candidates = candidateReader.read(MEMBER_1_ID, CHILD_1_ID);
+
+        assertThat(candidates.aiRequest().candidates())
+            .filteredOn(candidate -> candidate.productId().equals(PRODUCT_A_ID))
+            .singleElement()
+            .satisfies(candidate -> assertThat(candidate.evidence())
+                .doesNotContain("자주 찾아본 카테고리: 상의", "자주 찾아본 브랜드: 키들리"));
+    }
+
     private void insertActivity(ActivityType type, LocalDateTime occurredAt, Long categoryId, String brand,
         Long cartItemId) {
         PreferenceTestData.insertActivity(jdbc, type, MEMBER_1_ID, CHILD_1_ID, occurredAt, null, categoryId, brand,
