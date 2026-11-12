@@ -88,6 +88,21 @@ class SizeRecommendationServiceAiLaterTest {
             new SizeRecommendationResult.Reason("HEIGHT", "키 114cm는 110의 권장 키 안이에요.", null));
     }
 
+    @Test
+    @DisplayName("기다리지 않는 사이즈 추천에서 AI가 상품에 없는 사이즈를 고르면 검증에서 버려 AI 결과는 빈 값으로 끝난다")
+    void completeAiEmptyWhenAnswerRejected() {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draft());
+        AiSizeAnswer answer = new AiSizeAnswer("150", "PROPER", List.of(), List.of());
+        given(aiResponseService.respondAsync(
+            eq(AiResponseType.SIZE_RECOMMENDATION), eq(KEY_INPUT), eq(AiSizeAnswer.class), any()))
+            .willReturn(CompletableFuture.completedFuture(Optional.of(answer)));
+
+        SizeRecommendationWithAi result = service().recommendWithAiLater(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.rule().recommendedSize()).isEqualTo("120");
+        assertThat(result.ai().join()).isEmpty();
+    }
+
     private SizeRecommendationService service() {
         return new SizeRecommendationService(reader, aiResponseService, Optional.of(aiSizeChooser));
     }
