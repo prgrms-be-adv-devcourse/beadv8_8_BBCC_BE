@@ -3,6 +3,12 @@ spring:
     name: kidly-gateway
   profiles:
     default: local
+  # 토큰 무효화 목록(#1327, revocation/AccessTokenRevocations). 서버 주소는 SPRING_DATA_REDIS_HOST로, 테스트는 Testcontainers가 덮어쓴다.
+  # Lettuce 기본 명령 제한 시간(60초)이면 Redis가 멈췄을 때 요청이 그만큼 붙잡힌다. 짧게 두고, 넘기면 무효화 확인 없이 통과시킨다
+  data:
+    redis:
+      timeout: 300ms
+      connect-timeout: 300ms
   cloud:
     gateway:
       server:
@@ -204,6 +210,10 @@ management:
     web:
       exposure:
         include: health,prometheus
+  # Redis가 죽어도 요청은 무효화 확인 없이 통과시킨다(#1327). 전체 health(nginx · 외부 확인이 보는 /actuator/health)가 DOWN이 되지 않게 뺀다
+  health:
+    redis:
+      enabled: false
 
 kidly:
   gateway:

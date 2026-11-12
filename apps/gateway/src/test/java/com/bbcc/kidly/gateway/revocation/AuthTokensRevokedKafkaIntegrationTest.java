@@ -47,6 +47,7 @@ import org.springframework.boot.availability.ReadinessState;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -75,6 +76,9 @@ class AuthTokensRevokedKafkaIntegrationTest {
 
     @Autowired
     private KafkaContainer kafka;
+
+    @Autowired
+    private GenericContainer<?> redisContainer;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -150,8 +154,8 @@ class AuthTokensRevokedKafkaIntegrationTest {
         // 다른 시간대로 읽으면 무효화 시각이 몇 시간 밀려 1초 뒤 토큰도 거절되거나 그 시각 토큰이 통과한다
         var revokedInstant = revokedAt.atZone(KST).toInstant();
         var now = Instant.now();
-        assertThat(revocations.isRevoked(member(memberId), revokedInstant, now)).isTrue();
-        assertThat(revocations.isRevoked(member(memberId), revokedInstant.plusSeconds(1), now)).isFalse();
+        assertThat(revocations.isRevoked(member(memberId), revokedInstant, now).block()).isTrue();
+        assertThat(revocations.isRevoked(member(memberId), revokedInstant.plusSeconds(1), now).block()).isFalse();
     }
 
     @Test
@@ -192,6 +196,25 @@ class AuthTokensRevokedKafkaIntegrationTest {
     }
 
     @Test
+    @DisplayName("Redis에 쓰지 못하면 DLT로 보내지 않고 Redis가 돌아올 때까지 다시 시도한다")
+    void retriesUntilRedisRecovers(CapturedOutput output) throws Exception {
+        var memberId = newMemberId();
+        startListener();
+
+        var docker = redisContainer.getDockerClient();
+        docker.pauseContainerCmd(redisContainer.getContainerId()).exec();
+        try {
+            send(null, null, memberId, TOKENS_REVOKED, tokensRevoked(memberId));
+            AsyncWait.until(TIMEOUT, () -> output.getOut().contains("토큰 무효화를 Redis에 쓰지 못했습니다"));
+        } finally {
+            docker.unpauseContainerCmd(redisContainer.getContainerId()).exec();
+        }
+
+        AsyncWait.until(TIMEOUT, () -> isRevoked(memberId));
+        assertThat(deadLetters(memberId)).isEmpty();
+    }
+
+    @Test
     @DisplayName("본문을 읽지 못하면 DLT로 보내고, 로그에 본문을 남기지 않는다")
     void deadLettersUnreadableBody(CapturedOutput output) throws Exception {
         var memberId = newMemberId();
@@ -228,7 +251,7 @@ class AuthTokensRevokedKafkaIntegrationTest {
 
     private boolean isRevoked(long memberId) {
         var now = Instant.now();
-        return revocations.isRevoked(member(memberId), now.minus(ISSUED_BEFORE), now);
+        return revocations.isRevoked(member(memberId), now.minus(ISSUED_BEFORE), now).block();
     }
 
     private static PrincipalId member(long memberId) {

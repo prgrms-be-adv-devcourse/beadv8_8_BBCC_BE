@@ -18,7 +18,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 목록이 메모리라 Gateway가 다시 뜨면 빈다. 그래서 파티션을 받을 때마다 "지금 − 보존 기간(31분)"으로 되감아
  * 그동안의 무효화를 다시 읽는다. 그보다 오래된 무효화로 막을 토큰은 이미 만료됐다. 구독 그룹의 책갈피는 쓰지 않는다
  * (그 시각 뒤 메시지가 없는 파티션은 책갈피 · auto.offset.reset 위치에서 읽는다. 거기 있는 메시지는 보존 기간이 지나 목록에 남지 않는다).
- * 같은 메시지를 다시 받아도 가장 늦은 시각만 남아 결과가 같다. 예외는 잡지 않는다(재시도 없이 DLT, GatewayKafkaListenerConfig).
+ * 같은 메시지를 다시 받아도 가장 늦은 시각만 남아 결과가 같다. 예외는 잡지 않는다(Redis 쓰기 실패는 다시 시도, 그 밖은 DLT. GatewayKafkaListenerConfig).
  * 다시 다 읽기 전에는 Gateway 가 요청을 받지 않는다(RevocationReplay).
  */
 @Component

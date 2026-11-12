@@ -1,52 +1,72 @@
 package com.bbcc.kidly.gateway.revocation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.shared.auth.PrincipalId;
-import com.bbcc.kidly.shared.auth.PrincipalType;
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.time.Duration;
 import java.time.Instant;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 
+/**
+ * Redis에 닿지 못할 때(닫힌 포트). Docker 없이 돈다.
+ */
+@ExtendWith(OutputCaptureExtension.class)
 class AccessTokenRevocationsTest {
 
-    private static final Duration RETENTION = Duration.ofMinutes(31);
-    private static final PrincipalId MEMBER_1 = new PrincipalId(PrincipalType.MEMBER, 1L);
-    private static final PrincipalId MEMBER_2 = new PrincipalId(PrincipalType.MEMBER, 2L);
-    private static final Instant REVOKED_AT = Instant.parse("2026-10-30T00:00:00.500Z");
+    private static final PrincipalId MEMBER = PrincipalId.member(987_654_321L);
 
-    private final AccessTokenRevocations revocations = new AccessTokenRevocations(RETENTION);
+    private final LettuceConnectionFactory connectionFactory = unreachable();
+    private final AccessTokenRevocations revocations =
+        new AccessTokenRevocations(new ReactiveStringRedisTemplate(connectionFactory), Duration.ofMinutes(31));
 
-    @Test
-    @DisplayName("무효화 시각과 같은 초까지 발급된 토큰을 거절한다")
-    void rejectsUntilSameSecond() {
-        revocations.revoke(MEMBER_1, REVOKED_AT, REVOKED_AT);
-
-        var now = REVOKED_AT.plusSeconds(10);
-        assertThat(revocations.isRevoked(MEMBER_1, Instant.parse("2026-10-29T23:59:59Z"), now)).isTrue();
-        assertThat(revocations.isRevoked(MEMBER_1, Instant.parse("2026-10-30T00:00:00Z"), now)).isTrue();
-        assertThat(revocations.isRevoked(MEMBER_1, Instant.parse("2026-10-30T00:00:01Z"), now)).isFalse();
-        assertThat(revocations.isRevoked(MEMBER_2, Instant.parse("2026-10-29T23:59:59Z"), now)).isFalse();
+    @AfterEach
+    void close() {
+        connectionFactory.destroy();
     }
 
     @Test
-    @DisplayName("보존 기간이 지나면 거절하지 않는다")
-    void expires() {
-        revocations.revoke(MEMBER_1, REVOKED_AT, REVOKED_AT);
+    @DisplayName("무효화를 확인하지 못하면 통과시키고 ERROR 로그를 남긴다. 로그에 주체를 넣지 않는다")
+    void passesWhenRedisUnavailable(CapturedOutput output) {
+        var now = Instant.now();
 
-        var issuedAt = REVOKED_AT.minusSeconds(1);
-        assertThat(revocations.isRevoked(MEMBER_1, issuedAt, REVOKED_AT.plus(RETENTION).minusMillis(1))).isTrue();
-        assertThat(revocations.isRevoked(MEMBER_1, issuedAt, REVOKED_AT.plus(RETENTION))).isFalse();
+        assertThat(revocations.isRevoked(MEMBER, now.minusSeconds(60), now).block()).isFalse();
+        assertThat(output.getOut()).contains("ERROR").doesNotContain(MEMBER.toSubject());
     }
 
     @Test
-    @DisplayName("같은 주체에 여러 번 오면 가장 늦은 시각을 남긴다")
-    void keepsLatest() {
-        var later = REVOKED_AT.plusSeconds(60);
-        revocations.revoke(MEMBER_1, later, later);
-        revocations.revoke(MEMBER_1, REVOKED_AT, later);
+    @DisplayName("무효화를 쓰지 못하면 DataAccessException을 던진다(리스너가 DLT 대신 재시도한다)")
+    void revokeThrowsWhenRedisUnavailable() {
+        var now = Instant.now();
 
-        assertThat(revocations.isRevoked(MEMBER_1, REVOKED_AT.plusSeconds(30), later)).isTrue();
+        assertThatThrownBy(() -> revocations.revoke(MEMBER, now, now)).isInstanceOf(DataAccessException.class);
+    }
+
+    private static LettuceConnectionFactory unreachable() {
+        var factory = new LettuceConnectionFactory(new RedisStandaloneConfiguration("127.0.0.1", closedPort()),
+            LettuceClientConfiguration.builder().commandTimeout(Duration.ofMillis(300)).build());
+        factory.afterPropertiesSet();
+        factory.start();
+        return factory;
+    }
+
+    private static int closedPort() {
+        try (var socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        } catch (IOException e) {
+            throw new IllegalStateException("빈 포트를 찾지 못했습니다", e);
+        }
     }
 }
