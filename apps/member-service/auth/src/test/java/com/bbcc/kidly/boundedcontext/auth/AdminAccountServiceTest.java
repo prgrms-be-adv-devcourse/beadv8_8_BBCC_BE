@@ -49,6 +49,19 @@ class AdminAccountServiceTest {
     private AdminAccountService service;
 
     @Test
+    @DisplayName("정규화한 이메일이 이미 존재하면 전용 중복 오류를 반환한다")
+    void rejectsDuplicateEmail() {
+        givenAdmins(1L);
+        when(accounts.existsByEmail("admin@kidly.test")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.create(1L, " ADMIN@KIDLY.TEST ", "password-12345"))
+            .isInstanceOf(BusinessException.class)
+            .extracting(e -> ((BusinessException) e).getErrorCode())
+            .isEqualTo(AuthErrorCode.ADMIN_EMAIL_ALREADY_USED);
+        verify(accounts, never()).saveAccount(any());
+    }
+
+    @Test
     @DisplayName("처음 비활성화할 때만 Refresh Token을 지우고 Access Token을 무효화한다")
     void disableRevokesOnlyOnce() {
         givenAdmins(1L, 2L);

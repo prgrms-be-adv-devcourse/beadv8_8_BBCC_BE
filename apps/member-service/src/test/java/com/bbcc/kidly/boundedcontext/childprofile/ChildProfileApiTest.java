@@ -38,6 +38,7 @@ class ChildProfileApiTest {
     private static final String CHILDREN_PATH = "/api/v1/children";
     private static final String CHILD_PATH = "/api/v1/children/{childId}";
     private static final String GROWTH_RECORDS_PATH = "/api/v1/children/{childId}/growth-records";
+    private static final String GROWTH_RECORD_PATH = GROWTH_RECORDS_PATH + "/{recordId}";
     private static final Long MEMBER_ID = 1L;
     private static final Long OTHER_MEMBER_ID = 2L;
     private static final ChildProfileRequest REQUEST = new ChildProfileRequest(
@@ -263,6 +264,49 @@ class ChildProfileApiTest {
             .returnResult(ChildProfileResponse.class)
             .getResponseBody()
             .id();
+    }
+
+    @Test
+    @DisplayName("최근 성장 이력을 삭제하면 이전 키와 체형을 조회한다")
+    void deleteGrowthRecordRestoresProfile() {
+        var childId = register(MEMBER_ID);
+        client.patch().uri(CHILD_PATH, childId).headers(TestMembers.buyer(MEMBER_ID))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new ChildProfileUpdateRequest("첫째", LocalDate.of(2019, 1, 15), Gender.MALE,
+                new BigDecimal("118.0"), new BigDecimal("21.0"), BodyType.SLIM, PreferredFit.SLIM))
+            .exchange().expectStatus().isOk();
+        var records = growthRecordsOf(childId);
+        client.delete().uri(GROWTH_RECORD_PATH, childId, records.getLast().id())
+            .headers(TestMembers.buyer(MEMBER_ID)).exchange().expectStatus().isNoContent();
+        assertThat(growthRecordsOf(childId)).hasSize(1);
+        client.get().uri(CHILD_PATH, childId).headers(TestMembers.buyer(MEMBER_ID)).exchange()
+            .expectStatus().isOk().expectBody().jsonPath("$.heightCm").isEqualTo(115.0)
+            .jsonPath("$.bodyType").isEqualTo("NORMAL").jsonPath("$.weightKg").isEqualTo(21.0)
+            .jsonPath("$.preferredFit").isEqualTo("SLIM");
+    }
+
+    @Test
+    @DisplayName("다른 자녀의 이력과 하나뿐인 이력은 삭제할 수 없다")
+    void deleteGrowthRecordChecksOwnershipAndLastRecord() {
+        var childId = register(MEMBER_ID);
+        var otherChildId = register(MEMBER_ID);
+        var recordId = growthRecordsOf(childId).getFirst().id();
+        client.delete().uri(GROWTH_RECORD_PATH, childId, recordId).headers(TestMembers.buyer(OTHER_MEMBER_ID))
+            .exchange().expectStatus().isNotFound();
+        client.delete().uri(GROWTH_RECORD_PATH, otherChildId, recordId).headers(TestMembers.buyer(MEMBER_ID))
+            .exchange().expectStatus().isNotFound();
+        client.delete().uri(GROWTH_RECORD_PATH, childId, recordId).headers(TestMembers.buyer(MEMBER_ID))
+            .exchange().expectStatus().isEqualTo(409)
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody().jsonPath("$.title").isEqualTo("지울 수 없는 기록입니다")
+            .jsonPath("$.detail").isEqualTo("성장 기록이 하나뿐이면 지울 수 없습니다.");
+    }
+
+    private List<GrowthRecordResponse> growthRecordsOf(Long childId) {
+        return client.get().uri(GROWTH_RECORDS_PATH, childId).headers(TestMembers.buyer(MEMBER_ID))
+            .exchange().expectStatus().isOk()
+            .expectBody(new ParameterizedTypeReference<List<GrowthRecordResponse>>() { })
+            .returnResult().getResponseBody();
     }
 
     // detail에 "필드명: 메시지"가 들어 있다

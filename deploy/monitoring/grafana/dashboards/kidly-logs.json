@@ -330,6 +330,86 @@
           }
         }
       ]
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "API 처리 시간 (필요할 때 펼치기)",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "panels": [
+        {
+          "id": 7,
+          "type": "table",
+          "title": "처리 시간이 긴 API (p95)",
+          "description": "선택한 종료 시각 직전 30분 동안 요청이 20건 이상인 서비스·메서드·경로 중 상위 10개입니다. p95는 요청의 약 95%가 이 시간 안에 처리됐다는 뜻입니다. 앱에서 기록한 처리 시간이며, 목록이 비어 있으면 조건을 충족한 경로가 없는지 확인하세요.",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 41
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "sortBy": [
+              {
+                "displayName": "p95",
+                "desc": true
+              }
+            ]
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "topk(10, quantile_over_time(0.95, {env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json method=\"http.request.method\", route=\"http.route\", duration_ms=\"duration_ms\" | method!=\"\" | route!=\"\" | route!=\"UNKNOWN\" | route!~\"/actuator.*\" | duration_ms >= 0 | __error__=\"\" | unwrap duration_ms | __error__=\"\" [30m]) by (service_name, method, route) and on (service_name, method, route) (sum by (service_name, method, route) (count_over_time({env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json method=\"http.request.method\", route=\"http.route\", duration_ms=\"duration_ms\" | method!=\"\" | route!=\"\" | route!=\"UNKNOWN\" | route!~\"/actuator.*\" | duration_ms >= 0 | __error__=\"\" [30m])) >= 20))",
+              "queryType": "instant"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "indexByName": {
+                  "service_name": 0,
+                  "method": 1,
+                  "route": 2,
+                  "Value #A": 3
+                },
+                "renameByName": {
+                  "service_name": "서비스",
+                  "method": "메서드",
+                  "route": "API 경로",
+                  "Value #A": "p95"
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

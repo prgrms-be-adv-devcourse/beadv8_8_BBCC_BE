@@ -114,9 +114,11 @@ public class ReviewModerationAdminService {
         }
         // 상태가 실제로 바뀐 조치만 남긴다(같은 값을 다시 보낸 요청은 남지 않는다)
         if (review.getModerationStatus() != before) {
-            activityLog.moderationDecided(review.getId(), review.getProductId(), true,
+            activityLog.moderationDecided(review.getId(), review.getProductId(), review.getOrderItemId(),
+                review.getRating(), review.getFit() == null ? null : review.getFit().name(), true,
                 review.getModerationStatus().name(),
-                review.getModerationReason() == null ? null : review.getModerationReason().name());
+                review.getModerationReason() == null ? null : review.getModerationReason().name(),
+                review.isPublic());
         }
         return new VisibilityChanged(review.getId(), review.getModerationStatus().name());
     }

@@ -25,6 +25,7 @@
 | POST | `/api/v1/auth/child-accounts` | 자녀 계정 만들기 | 🔒 |
 | PATCH | `/api/v1/auth/child-accounts/{id}/password` | 자녀 계정 비밀번호 변경 | 🔒 |
 | DELETE | `/api/v1/auth/child-accounts/{id}` | 자녀 계정 삭제 | 🔒 |
+| GET | `/api/v1/admin/admins` | 관리자 계정 목록(status로 거름, 없으면 전체) | 🛠 |
 | POST | `/api/v1/admin/admins` | 관리자 계정 만들기 | 🛠 |
 | POST | `/api/v1/admin/admins/{adminId}/disable` | 관리자 계정 끄기 | 🛠 |
 | GET | `/api/v1/admin/auth-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
@@ -65,6 +66,7 @@
 | PATCH | `/api/v1/children/{childId}` | 자녀 수정(전체 값) | 🔒 |
 | DELETE | `/api/v1/children/{childId}` | 자녀 삭제(논리 삭제) | 🔒 |
 | GET | `/api/v1/children/{childId}/growth-records` | 성장 이력 조회 | 🔒 |
+| DELETE | `/api/v1/children/{childId}/growth-records/{recordId}` | 잘못 입력한 성장 이력 삭제. 가장 최근 이력을 지우면 키 · 체형이 바로 앞 이력 값으로 돌아간다. 이력이 하나뿐이면 409 | 🔒 |
 | GET | `/api/v1/child/profile` | 자녀 계정이 자기 프로필 조회 | 🔒 |
 | GET | `/api/v1/child/onboarding` | 첫 로그인 안내 확인 여부 조회 (`noticeConfirmed`) | 🔒 |
 | POST | `/api/v1/child/onboarding/notice` | 첫 로그인 안내 확인 (204) | 🔒 |
@@ -81,6 +83,7 @@
 | POST | `/api/v1/members/me/seller-application` | 판매자 신청(상호명 · 대표자명 · 사업자등록번호 10자리) | 🔒 |
 | GET | `/api/v1/members/me/seller-application` | 내 판매자 신청 상태(가장 최근 신청) | 🔒 |
 | GET | `/api/v1/seller/me` | 내 판매자 정보 | 🏪 |
+| PATCH | `/api/v1/seller/me` | 내 상호명 수정 | 🏪 |
 | GET | `/api/v1/admin/seller-applications` | 판매자 신청 목록 | 🛠 |
 | POST | `/api/v1/admin/seller-applications/{applicationId}/approve` | 판매자 승인 | 🛠 |
 | POST | `/api/v1/admin/seller-applications/{applicationId}/reject` | 판매자 거절(사유) | 🛠 |

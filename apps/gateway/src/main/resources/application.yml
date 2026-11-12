@@ -208,6 +208,12 @@ kidly:
         period: 1m
         # 키 하나는 약 200바이트라 상한까지 차도 약 10MB(-Xmx256m). 넘으면 쓰지 않는 키를 지우고, 그래도 넘으면 새 키는 세지 않는다
         max-keys: 50000
+      # 챗봇 질문(POST /api/v1/chatbot/messages) 요청 수 제한(#1191, ratelimit/ChatRateLimitFilter). 질문마다 챗봇 서비스가 OpenAI를 부른다.
+      # 키 · 메모리 동작은 search와 같다. capacity가 한꺼번에 보낼 수 있는 상한이기도 하다
+      chat:
+        capacity: 10
+        period: 1m
+        max-keys: 50000
 
 jwt:
   # Access Token 유효 기간. 회원 서비스 auth.yml과 같은 값이어야 한다. 무효화 기록 보존 기간(+ 시계 오차 60초)도 여기서 나온다
