@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentDetail;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentSummary;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.PaymentTotals;
 import com.bbcc.kidly.boundedcontext.payment.domain.DailyPaymentTotal;
+import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentStatus;
@@ -33,9 +34,15 @@ public class PaymentQueryService {
 
     private final PaymentRepository paymentRepository;
 
-    public Page<PaymentSummary> getPayments(Long memberId, int page, int size) {
-        return paymentRepository.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(page, size))
-            .map(PaymentSummary::from);
+    /**
+     * 내 결제를 최신순으로 준다. orderId를 주면 그 주문의 내 결제만(주문당 하나라 0 또는 1건) 준다.
+     */
+    public Page<PaymentSummary> getPayments(Long memberId, Long orderId, int page, int size) {
+        PageRequest pageable = PageRequest.of(page, size);
+        Page<Payment> payments = orderId == null
+            ? paymentRepository.findAllByMemberIdOrderByIdDesc(memberId, pageable)
+            : paymentRepository.findAllByMemberIdAndOrderIdOrderByIdDesc(memberId, orderId, pageable);
+        return payments.map(PaymentSummary::from);
     }
 
     public Page<PaymentSummary> getAllPayments(int page, int size) {

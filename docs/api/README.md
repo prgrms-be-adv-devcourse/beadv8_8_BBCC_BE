@@ -278,7 +278,7 @@
 | POST | `/api/v1/wallets/me/charges/fail` | 결제창 실패 · 취소를 충전 실패로 반영 | 🔒 |
 | POST | `/api/v1/wallets/me/charges/{chargeId}/cancel` | 충전 취소 | 🔒 |
 | POST | `/api/v1/dev/wallets/me/charges` | 개발용 예치금 충전(토스 없이 내 지갑에 입금, 원장 `DEV_CHARGE`). local · test · dev 프로필에서만 | 🔒 |
-| GET | `/api/v1/payments` | 주문 결제 · 환불 내역 | 🔒 |
+| GET | `/api/v1/payments` | 주문 결제 · 환불 내역. `orderId`를 주면 그 주문의 내 결제만(0 또는 1건) | 🔒 |
 | GET | `/api/v1/payments/{paymentId}` | 주문 결제 · 환불 상세 | 🔒 |
 | POST | `/api/v1/webhooks/toss` | 토스 웹훅. 토스에서 직접 취소한 충전을 맞춤 | 🌐 |
 | GET | `/api/v1/admin/payments` | 전체 결제 · 환불 조회 | 🛠 |
