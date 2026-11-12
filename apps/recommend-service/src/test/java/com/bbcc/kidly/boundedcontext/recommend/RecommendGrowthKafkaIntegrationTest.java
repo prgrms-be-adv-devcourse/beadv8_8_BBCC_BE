@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthReco
 import com.bbcc.kidly.boundedcontext.recommend.out.growth.JpaRecommendGrowthRecordRepository;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordedEvent;
+import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordDeletedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.math.BigDecimal;
@@ -122,6 +123,22 @@ class RecommendGrowthKafkaIntegrationTest {
         return growthRecordRepository.findAll().stream()
             .filter(record -> childId.equals(record.getChildProfileId()))
             .toList();
+    }
+
+    @Test
+    @DisplayName("성장 기록 삭제를 두 번 받아도 기록은 삭제된 채로 남는다")
+    void deleteGrowthRecordTwice() throws Exception {
+        Long recordId = newId();
+        Long childId = newId();
+        messages.send(CHILD_TOPIC, growthRecorded(recordId, childId));
+        AsyncWait.until(TIMEOUT, () -> growthRecordRepository.findById(recordId).isPresent());
+        var deleted = new ChildGrowthRecordDeletedEvent(UUID.randomUUID(), RECORDED_AT,
+            new ChildGrowthRecordDeletedEvent.Data(recordId, childId));
+        messages.send(CHILD_TOPIC, deleted);
+        var second = messages.send(CHILD_TOPIC, deleted);
+        messages.awaitProcessed(CHILD_TOPIC, second);
+        assertThat(growthRecordRepository.findById(recordId)).isEmpty();
+        assertThat(messages.deadLetters(CHILD_DLT, String.valueOf(childId))).isEmpty();
     }
 
     private static Long newId() {

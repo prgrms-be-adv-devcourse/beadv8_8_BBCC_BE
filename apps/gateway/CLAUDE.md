@@ -44,7 +44,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 
 ## 서버 배포 (`deploy/`)
 - dev · prod(#638). compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(dev) · `127.0.0.1:8084`(prod)(`GATEWAY_PORT`), compose 네트워크로 각 서비스에 넘긴다
-- 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev · prod는 `.env.dev` · `.env.prod`에 `http://search-service:8080`을 둔다(profile `search`도 켜져 있어야 한다). 기본값도 `http://search-service:8080`이다
+- 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev는 `.env.dev`에 k3s 안 이름 `http://search:8080`을 둔다(#1142). 기본값도 `http://search-service:8080`이다
 - 추천은 `KIDLY_RECOMMEND_URI`로 넘긴다. 기본값은 `http://recommend-service:8080`이다. profile `recommend`가 꺼진 환경에서는 추천 API가 실패한다
 - 정산은 `KIDLY_SETTLEMENT_URI`로 넘긴다. 기본값은 `http://settlement-service:8080`이다. 정산 API를 쓰는 환경은 profile `settlement`를 켠다(#729)
 - 결제는 `KIDLY_PAYMENT_URI`로 넘긴다. 기본값은 `http://payment-service:8080`이다. profile `payment`가 꺼진 환경에서는 결제 API가 실패한다. 토스 웹훅(`/api/v1/webhooks/toss`)은 토큰 없이 오는 공개 API라 그대로 넘긴다

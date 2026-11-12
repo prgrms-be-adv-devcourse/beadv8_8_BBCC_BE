@@ -1,0 +1,122 @@
+# t3.large(앱 서버)의 수집기 Alloy 를 이 서버의 단독 k3s 에 띄운다(#1210). 예전에는 docker compose 로 띄웠다
+# deploy.sh 가 설정(config.alloy)과 보낼 곳(MONITORING_HOST)을 ConfigMap 으로 만든 뒤 적용한다
+# 호스트 네트워크를 쓴다: kubelet(127.0.0.1:10250) · Pod IP · medium 사설 IP 에 바로 닿고, 자기 지표(127.0.0.1:12345)를 예전 주소 그대로 긁는다
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kidly-alloy
+  namespace: monitoring
+---
+# Pod 를 찾고 로그를 읽고, kubelet 의 cAdvisor 지표를 읽는 것만 허용한다
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kidly-alloy
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [nodes/metrics]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kidly-alloy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kidly-alloy
+subjects:
+  - kind: ServiceAccount
+    name: kidly-alloy
+    namespace: monitoring
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alloy
+  namespace: monitoring
+spec:
+  replicas: 1
+  # 호스트 포트 12345 를 쓰므로 새 Pod 가 옛 Pod 와 겹쳐 뜰 수 없다. 옛 Pod 를 먼저 내린다
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+      annotations:
+        # deploy.sh 가 설정 내용의 해시를 넣는다. 설정이 바뀌면 Pod 를 새로 띄운다
+        kidly/config-hash: __CONFIG_HASH__
+    spec:
+      serviceAccountName: kidly-alloy
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.10.1
+          args:
+            - run
+            - --server.http.listen-addr=127.0.0.1:12345
+            - --storage.path=/var/lib/alloy/data
+            - /etc/alloy/config.alloy
+          envFrom:
+            - configMapRef:
+                name: alloy-env
+          resources:
+            # request 는 노드 할당량(약 7.6Gi) 안에 앱 · 정산 Job 과 함께 들어가도록 작게 잡는다(deploy/k3s/README.md)
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              host: 127.0.0.1
+              port: 12345
+              path: /-/ready
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/alloy/data
+            # 호스트 지표(prometheus.exporter.unix). 읽기 전용
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+            - name: rootfs
+              mountPath: /rootfs
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: alloy-config
+        # 보내지 못한 지표 · 로그 위치(WAL). Pod 를 다시 띄워도 이어 보내도록 호스트에 둔다
+        - name: data
+          hostPath:
+            path: /var/lib/kidly-alloy
+            type: DirectoryOrCreate
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: rootfs
+          hostPath:
+            path: /

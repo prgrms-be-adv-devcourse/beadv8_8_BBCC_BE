@@ -10,6 +10,7 @@
 | | `seller.application-rejected` | 신청 ID | | notification |
 | `kidly.childprofile.events` | `child.changed` | 자녀 ID | childprofile | auth, order, recommend |
 | | `child.growth-recorded` | 자녀 ID | | recommend |
+| | `child.growth-record-deleted` | 자녀 ID | | recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
 | | `child-account.changed` | 자녀 계정 ID | | childprofile, notification, order |
 | `kidly.product.events` | `product.changed`(data에 관리자 판매 중지 `stoppedByAdmin`, 판매 시작 시각 `saleStartedAt`, 카테고리 경로마다 보일 성별 `visibleGender`) | 상품 ID | product | community, notification, order, recommend, search |
@@ -25,17 +26,17 @@
 | | `cart.item-added`(#998 추가 칸 `ownerType` · `ownerId`: 장바구니 주인 MEMBER · CHILD, 키 = 결제 회원(보호자) ID) | 회원 ID | | recommend |
 | | `cart.item-removed`(사용자가 뺄 때만, #709. #998 추가 칸 `ownerType` · `ownerId`) | 회원 ID | | recommend |
 | | `cart.item-purchased`(결제완료로 산 칸 정리, #998: `cartItemId` · `ownerType` · `ownerId` · `memberId`(줄의 결제 회원, 실제 결제자와 다를 수 있음) · `optionId` · `childId` · `quantity`(이번에 산 수량. 칸에서 그만큼 빠지고 0이 되면 칸이 지워진다) · `orderId` · `orderItemId` · `reservationId`(예약 칸이었으면)) | 회원 ID | | order(조르기 결제 완료, 자기 토픽 #999) |
-| | `wish.sent` | 자녀 ID | | notification |
+| | `wish.sent` | 자녀 ID | | notification, recommend(#1284: 조른 상품을 자녀 선호 점수의 활동으로 기록) |
 | | `wish.paid`(조르기 예약 칸이 결제됨, 조르기마다 1번. data `payerType` · `payerId` · `orderId`, #999) | 자녀 ID | | notification |
 | | `wish.rejected` | 자녀 ID | | notification |
 | | `wish.expired`(기한 안에 결제 · 거절이 없어 시스템이 만료, #1008. data는 wish.sent와 같은 모양) | 자녀 ID | | notification |
-| | `wish.cancelled`(처리 전에 철회, #968. #999 추가 칸 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM, 없는 예전 메시지는 DIRECT) | 자녀 ID | | (아직 없음) |
+| | `wish.cancelled`(처리 전에 철회, #968. #999 추가 칸 `cancelReason` DIRECT · CHILD_DELETED · ACCOUNT_DELETED · SYSTEM, 없는 예전 메시지는 DIRECT) | 자녀 ID | | recommend(#1284: 직접 철회(DIRECT)면 그 조르기를 선호 점수에서 뺌) |
 | `kidly.payment.events` | `payment.completed` · `payment.failed` | 주문 ID | payment | order |
 | | `payment.refunded` | 주문 ID | | notification |
 | | `payment.payout-completed` · `payment.payout-failed` | 정산서 ID | | settlement, notification(payout-completed) |
 | `kidly.settlement.events` | `settlement.payout-requested` | 정산서 ID | settlement | payment |
 | `kidly.search.events` | `search.performed`(#1089 추가 칸 `childId` 고른 자녀, 없는 예전 메시지는 자녀 없음) | 회원 ID | search | recommend |
-| | `search.result-clicked`(검색 결과 클릭, #1004. #1089 추가 칸 `childId`) | 회원 ID | | 없음(추천이 필요할 때 받는다) |
+| | `search.result-clicked`(검색 결과 클릭, #1004. #1089 추가 칸 `childId`) | 회원 ID | | recommend(#1284: 누른 상품을 자녀 선호 점수의 활동으로 기록) |
 
 - 순서는 **같은 토픽 + 같은 키** 안에서만 보장됩니다. 한 주문의 이벤트(생성 → 결제 요청 → 취소 → 구매확정)는 모두 `kidly.order.events`에 주문 ID 키로 들어가므로 순서가 지켜집니다.
 - member는 `seller.changed`를 회원 서비스에서 Kafka로 받습니다. 토큰 무효화는 auth가 `auth.tokens-revoked`를 보내고 Gateway가 받아 처리합니다.
@@ -44,6 +45,7 @@
 - `wish.approved` · `wish.item-added`는 #999에서 보내지 않습니다(승인 단계 · 공용 장바구니를 없앰, 받는 도메인 없음).
 - `child.changed`는 관리자 `POST /api/v1/admin/children/changed-events`로 삭제되지 않은 자녀 전체를 지금 값으로 다시 보낼 수 있습니다(#1055). 형식 · 키는 같고 `eventId` · `occurredAt`만 새로 정합니다. 받는 도메인(auth · order · recommend)은 여러 번 받아도 결과가 같습니다.
 - `child.growth-recorded`는 관리자 `POST /api/v1/admin/children/growth-recorded-events`로 삭제되지 않은 자녀의 성장 이력을 다시 보낼 수 있습니다(#1110). `eventId`만 새로 정하며 받는 쪽은 `growthRecordId`로 중복을 거릅니다.
+- `child.growth-record-deleted`는 보호자가 잘못 입력한 성장 이력을 지울 때 보냅니다(#1293). 추천은 같은 `growthRecordId`의 기록을 지우고, 없으면 그대로 둡니다. 추천을 먼저 배포한 뒤 자녀 프로필을 배포합니다.
 - 새 이벤트를 만들거나 토픽, 키, 메시지 형식을 바꾸려면 팀에 먼저 묻습니다. 결정되면 이 표에 추가합니다.
 
 ---

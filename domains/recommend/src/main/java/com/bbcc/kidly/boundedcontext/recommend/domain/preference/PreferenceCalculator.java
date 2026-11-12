@@ -50,8 +50,8 @@ public class PreferenceCalculator {
     }
 
     private double weightOf(PreferenceSignal signal, LocalDateTime baseTime) {
-        // 담았다가 뺀 상품이 30일 동안 순서를 끌어당기지 않게 한다
-        if (signal.removed()) {
+        // 담았다가 뺀 상품이나 직접 철회한 조르기가 30일 동안 순서를 끌어당기지 않게 한다
+        if (signal.withdrawn()) {
             return 0;
         }
         PreferenceSignalType type = signal.type();

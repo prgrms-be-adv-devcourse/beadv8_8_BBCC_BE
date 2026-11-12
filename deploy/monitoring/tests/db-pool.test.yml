@@ -1,0 +1,45 @@
+rule_files:
+- rules.yml
+evaluation_interval: 1m
+tests:
+- name: only sustained waiting in an expected pool without idle connections alerts
+  interval: 30s
+  input_series:
+  - series: kidly_app_expected{env="dev",app_job="kidly-order"}
+    values: 1+0x20
+  - series: hikaricp_connections_pending{env="dev",job="kidly-order",instance="order",pool="main"}
+    values: 2+0x12 0+0x7
+  - series: hikaricp_connections_idle{env="dev",job="kidly-order",instance="order",pool="main"}
+    values: 0+0x20
+  - series: kidly_app_expected{env="dev",app_job="kidly-payment"}
+    values: 0+0x20
+  - series: hikaricp_connections_pending{env="dev",job="kidly-payment",instance="payment",pool="main"}
+    values: 2+0x20
+  - series: hikaricp_connections_idle{env="dev",job="kidly-payment",instance="payment",pool="main"}
+    values: 0+0x20
+  - series: kidly_app_expected{env="dev",app_job="kidly-member"}
+    values: 1+0x20
+  - series: hikaricp_connections_pending{env="dev",job="kidly-member",instance="member",pool="main"}
+    values: 1+0x20
+  - series: hikaricp_connections_idle{env="dev",job="kidly-member",instance="member",pool="main"}
+    values: 1+0x20
+  - series: kidly_app_expected{env="dev",app_job="kidly-search"}
+    values: 1+0x20
+  - series: hikaricp_connections_pending{env="dev",job="kidly-search",instance="search",pool="main"}
+    values: 2 2 _x19
+  - series: hikaricp_connections_idle{env="dev",job="kidly-search",instance="search",pool="main"}
+    values: 0+0x20
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: kidly-db-pool-waiting
+    exp_alerts: []
+  - eval_time: 5m
+    alertname: kidly-db-pool-waiting
+    exp_alerts:
+    - exp_labels:
+        env: dev
+        job: kidly-order
+        pool: main
+  - eval_time: 7m
+    alertname: kidly-db-pool-waiting
+    exp_alerts: []

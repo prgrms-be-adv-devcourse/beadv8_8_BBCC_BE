@@ -4,6 +4,8 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityCalculator;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriodCalculator;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseHistory;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
@@ -26,6 +28,8 @@ import java.util.Set;
  * @param growthSpeed 자녀의 키 성장 속도이고, 늘 있다
  * @param wearablePeriods 사이즈별로 앞으로 몇 개월 입을 수 있는지이고,
  *     사이즈 무관 상품이나 모자 · 양말처럼 계산하지 않는 상품은 빈 목록이다
+ * @param purchases 이 자녀가 12개월 안에 같은 기준 옷 칸에서 구매확정한 최근 구매(최대 3개)를 지금 상품과 견준 결과이고,
+ *     같은 칸의 구매가 없거나 사이즈 무관 상품이나 모자 · 양말이면 빈 목록이다
  */
 public record SizeAiQuestion(
     Child child,
@@ -33,11 +37,13 @@ public record SizeAiQuestion(
     RuleResult ruleResult,
     ReferenceFit referenceFit,
     GrowthSpeed growthSpeed,
-    List<WearablePeriod> wearablePeriods) {
+    List<WearablePeriod> wearablePeriods,
+    List<PurchaseFit> purchases) {
 
     public SizeAiQuestion {
         Objects.requireNonNull(growthSpeed, "growthSpeed는 필수입니다");
         Objects.requireNonNull(wearablePeriods, "wearablePeriods는 필수입니다");
+        Objects.requireNonNull(purchases, "purchases는 필수입니다");
     }
 
     /**
@@ -61,14 +67,32 @@ public record SizeAiQuestion(
         }
         addReferenceFitNumbers(numbers);
         addGrowthNumbers(numbers);
+        addPurchaseNumbers(numbers);
         return numbers;
+    }
+
+    // 지난 구매의 산 옷 실측 · 실측 차이 · 개월 수 · 예상 성장량과, 지시 글에 나오는 최근 개수 · 기간을 담는다
+    private void addPurchaseNumbers(Set<BigDecimal> numbers) {
+        for (PurchaseFit purchase : purchases) {
+            addIfNumber(numbers, purchase.size());
+            addIfNumber(numbers, purchase.monthsAgo());
+            numbers.add(purchase.expectedGrowthCm());
+            addItemNumbers(numbers, purchase.items());
+        }
+        addIfNumber(numbers, PurchaseHistory.MAX_PURCHASES);
+        addIfNumber(numbers, PurchaseHistory.WINDOW_MONTHS);
     }
 
     private void addReferenceFitNumbers(Set<BigDecimal> numbers) {
         if (referenceFit == null) {
             return;
         }
-        for (ReferenceFit.Item item : referenceFit.items()) {
+        addItemNumbers(numbers, referenceFit.items());
+    }
+
+    // 실측 항목마다 견준 옷의 실측과 사이즈별 상품 실측 · 차이를 담는다
+    private static void addItemNumbers(Set<BigDecimal> numbers, List<ReferenceFit.Item> items) {
+        for (ReferenceFit.Item item : items) {
             numbers.add(item.garmentCm());
             for (ReferenceFit.SizeDiff diff : item.sizes()) {
                 numbers.add(diff.productCm());
@@ -110,7 +134,7 @@ public record SizeAiQuestion(
     }
 
     /**
-     * 지난 AI 답을 찾는 키에 넣을 글이다. 답에 영향을 주는 기준 핏 · 성장 속도 · 입을 수 있는 기간을
+     * 지난 AI 답을 찾는 키에 넣을 글이다. 답에 영향을 주는 기준 핏 · 성장 속도 · 입을 수 있는 기간 · 지난 구매를
      * 늘 같은 순서의 글로 이어 붙이고, 이 질문에 넣은 반올림 값으로 만든다.
      */
     public String keyText() {
@@ -132,7 +156,21 @@ public record SizeAiQuestion(
                 .append(Objects.toString(period.widthMonths(), "")).append(':')
                 .append(Objects.toString(period.months(), "")).append(';');
         }
+        text.append("|purchases=");
+        for (PurchaseFit purchase : purchases) {
+            appendPurchaseKey(text, purchase);
+        }
         return text.toString();
+    }
+
+    // 구매 하나를 「사이즈:개월:같은 브랜드:예상 성장량」 뒤에 기준 핏과 같은 형식의 항목 글을 이어 붙이고 「#」으로 끝낸다
+    private static void appendPurchaseKey(StringBuilder text, PurchaseFit purchase) {
+        text.append(purchase.size()).append(':').append(purchase.monthsAgo()).append(':')
+            .append(purchase.sameBrand()).append(':').append(plain(purchase.expectedGrowthCm()));
+        for (ReferenceFit.Item item : purchase.items()) {
+            text.append(item.keyText());
+        }
+        text.append('#');
     }
 
     private static String plain(BigDecimal value) {

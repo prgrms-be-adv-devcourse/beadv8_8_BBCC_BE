@@ -83,7 +83,7 @@ groups:
           and on(env,consumergroup,topic) (
             kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
             or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup=~"kidly[.](payment|notification)",topic="kidly.order.events"}
-            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.settlement",topic="kidly.payment.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup=~"kidly[.](settlement|order|notification)",topic="kidly.payment.events"}
           )
         instant: true
     - refId: B
@@ -144,7 +144,7 @@ groups:
           and on(env,consumergroup,topic) (
             kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
             or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup=~"kidly[.](payment|notification)",topic="kidly.order.events"}
-            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.settlement",topic="kidly.payment.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup=~"kidly[.](settlement|order|notification)",topic="kidly.payment.events"}
           )
         instant: true
     - refId: B

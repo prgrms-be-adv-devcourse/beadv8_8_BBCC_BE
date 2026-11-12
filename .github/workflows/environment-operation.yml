@@ -6,7 +6,7 @@ on:
       environment:
         description: 운영 상태를 변경할 환경
         type: choice
-        options: [dev, prod]
+        options: [dev]
         required: true
       operation:
         description: stop=운영 중지, resume=운영 재개 (기존 이미지 사용)
@@ -31,14 +31,6 @@ jobs:
       host: ${{ steps.location.outputs.host }}
       known_hosts: ${{ steps.location.outputs.known_hosts }}
     steps:
-      - name: prod 실행 브랜치 확인
-        env:
-          TARGET_ENV: ${{ inputs.environment }}
-        run: |
-          if [[ "$TARGET_ENV" == prod && "$GITHUB_REF_NAME" != main ]]; then
-            echo "::error::prod 운영 변경은 main 브랜치에서 실행하세요"
-            exit 1
-          fi
       - id: location
         env:
           MONITORING_SSH_HOST: ${{ vars.MONITORING_SSH_HOST }}
@@ -51,7 +43,6 @@ jobs:
     needs: location
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    # Preserve the repository's prod Environment approval policy.
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v7
