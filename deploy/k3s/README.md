@@ -67,5 +67,6 @@ curl -s localhost:30200/actuator/health     # nginx 가 붙는 Gateway
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)
 - **메모리**: request 합이 노드 할당량(약 7.6Gi)을 넘으면 새 Pod 가 Pending 이 된다. compose 컨테이너 몫은 스케줄러가 모르므로 `free -m` 으로 함께 본다
-  - request 합은 6,816Mi(dev 서비스 10개 5,888 · Gateway 512 · kafka-exporter 128 · Redis 128, 수집기 Alloy 128(namespace monitoring, #1210), nginx 32(namespace edge, #1309))다. 추천이 2개로 늘면 7,392Mi. 정산 Job Pod 가 10시에 640Mi를 잠깐 더 요청하면 8,032Mi로 할당량을 넘어, 추천 2개와 정산 Job 이 겹칠 때는 둘 중 하나가 자리가 날 때까지 Pending 이다(#1191 챗봇 448Mi). 인증서 갱신 Job(10:30, 64Mi)도 자리가 나면 돈다. nginx 는 우선순위 `kidly-edge` 라 자리가 없으면 다른 Pod 를 밀어내고 뜬다. 여기에 k3s 자체가 더해진다
+  - request 합은 6,560Mi(dev 서비스 10개 5,632 · Gateway 512 · kafka-exporter 128 · Redis 128, 수집기 Alloy 128(namespace monitoring, #1210), nginx 32(namespace edge, #1309))다. 추천이 2개로 늘면 7,136Mi. 정산 Job Pod 가 10시에 640Mi를 잠깐 더 요청하면 7,776Mi로 할당량에 거의 닿는다. 인증서 갱신 Job(10:30, 64Mi)도 자리가 나면 돈다. nginx 는 우선순위 `kidly-edge` 라 자리가 없으면 다른 Pod 를 밀어내고 뜬다. 여기에 k3s 자체가 더해진다
+  - 롤링 배포는 새 Pod 를 먼저 띄우므로 그 서비스 request 만큼 자리가 더 있어야 한다. 가장 큰 검색(768Mi)이 7,328Mi 로 들어간다. 검색이 1g 일 때는 챗봇을 더한 뒤 7,840Mi 로 넘어 배포가 멈췄다(#1191)
   - 추천은 Pod 하나가 576Mi 라 3개를 둘 자리가 없어 HPA 최대를 2개로 둔다(#1237)
