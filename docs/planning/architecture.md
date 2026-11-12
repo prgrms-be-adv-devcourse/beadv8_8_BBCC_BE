@@ -60,7 +60,7 @@
 | 주문 | `kidly.order.events` | `order.created` → 상품 · `order.payment-requested` → 결제 · `order.cancelled` → 상품 · 결제 · `order-item.purchase-confirmed` → 정산 · 추천 · 커뮤니티 · `order-item.cancelled` → 결제 · 상품 · `cart.item-added` → (추천 예정) |
 | 결제 | `kidly.payment.events` | `payment.completed` · `payment.failed` → 주문 · `payment.payout-completed` · `payment.payout-failed` → 정산 |
 | 정산 | `kidly.settlement.events` | `settlement.payout-requested` → 결제 (dev 켬, prod는 main 반영 때) |
-| 검색 | `kidly.search.events` | `search.performed` → (추천 예정) · `search.result-clicked`(받는 도메인 없음) |
+| 검색 | `kidly.search.events` | `search.performed` · `search.result-clicked` → 추천 |
 
 - 결제 · 주문 · 정산 · 커뮤니티에는 Spring 이벤트 수신 코드도 남아 있습니다. Kafka 수신 스위치를 끌 때 되돌아가는 길입니다. 상품은 Kafka로만 받아, 상품 수신 스위치를 끄면 주문 이벤트 수신이 멈춥니다. 판매자 부분 취소(`order-item.cancelled`)는 Kafka로만 받습니다.
 - 다른 도메인 정보가 필요하면 이벤트로 받아 **자기 복사본**을 둡니다 (6.3). 예: 추천은 자녀 정보 · 상품 사이즈 정보를, 주문은 자녀 정보 · 상품 가격을 복사본으로 가집니다.
