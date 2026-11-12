@@ -77,13 +77,7 @@ public record SizeAiQuestion(
             addIfNumber(numbers, purchase.size());
             addIfNumber(numbers, purchase.monthsAgo());
             numbers.add(purchase.expectedGrowthCm());
-            for (ReferenceFit.Item item : purchase.items()) {
-                numbers.add(item.garmentCm());
-                for (ReferenceFit.SizeDiff diff : item.sizes()) {
-                    numbers.add(diff.productCm());
-                    numbers.add(diff.diffCm());
-                }
-            }
+            addItemNumbers(numbers, purchase.items());
         }
         addIfNumber(numbers, PurchaseHistory.MAX_PURCHASES);
         addIfNumber(numbers, PurchaseHistory.WINDOW_MONTHS);
@@ -93,7 +87,12 @@ public record SizeAiQuestion(
         if (referenceFit == null) {
             return;
         }
-        for (ReferenceFit.Item item : referenceFit.items()) {
+        addItemNumbers(numbers, referenceFit.items());
+    }
+
+    // 실측 항목마다 견준 옷의 실측과 사이즈별 상품 실측 · 차이를 담는다
+    private static void addItemNumbers(Set<BigDecimal> numbers, List<ReferenceFit.Item> items) {
+        for (ReferenceFit.Item item : items) {
             numbers.add(item.garmentCm());
             for (ReferenceFit.SizeDiff diff : item.sizes()) {
                 numbers.add(diff.productCm());
@@ -164,18 +163,14 @@ public record SizeAiQuestion(
         return text.toString();
     }
 
-    // 구매 하나를 「사이즈:개월:같은 브랜드:예상 성장량」 뒤에 항목마다 「,코드=산 옷 실측」과 사이즈마다 「/사이즈:상품 실측:차이」로 쓴다
+    // 구매 하나를 「사이즈:개월:같은 브랜드:예상 성장량」 뒤에 기준 핏과 같은 형식의 항목 글을 이어 붙이고 「#」으로 끝낸다
     private static void appendPurchaseKey(StringBuilder text, PurchaseFit purchase) {
         text.append(purchase.size()).append(':').append(purchase.monthsAgo()).append(':')
             .append(purchase.sameBrand()).append(':').append(plain(purchase.expectedGrowthCm()));
         for (ReferenceFit.Item item : purchase.items()) {
-            text.append(',').append(item.code()).append('=').append(plain(item.garmentCm()));
-            for (ReferenceFit.SizeDiff diff : item.sizes()) {
-                text.append('/').append(diff.size()).append(':').append(plain(diff.productCm()))
-                    .append(':').append(plain(diff.diffCm()));
-            }
+            text.append(item.keyText());
         }
-        text.append(';');
+        text.append('#');
     }
 
     private static String plain(BigDecimal value) {

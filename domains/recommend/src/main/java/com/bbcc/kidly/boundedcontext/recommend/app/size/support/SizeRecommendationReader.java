@@ -42,10 +42,8 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -117,7 +115,8 @@ public class SizeRecommendationReader {
             new WearablePeriodCalculator.WearInfo(
                 productSizes, categoryPathNames, childInput, today, velocity, referenceFit));
         SizeAiQuestion.GrowthSpeed growthSpeed = SizeAiQuestion.GrowthSpeed.from(velocity);
-        PurchaseHistory purchaseHistory = purchaseHistoryOf(product, fitProduct, childId, growthSpeed, today);
+        PurchaseHistory purchaseHistory = purchaseHistoryOf(
+            product, fitProduct, childId, growthSpeed.cmPerMonth(), today);
         SizeAiQuestion question = new SizeAiQuestion(
             questionChildOf(child, childInput, ageMonths, today), sizeLines, ruleResultOf(rule), referenceFit,
             growthSpeed, wearablePeriods, purchaseHistory.purchases());
@@ -130,10 +129,10 @@ public class SizeRecommendationReader {
 
     // 보는 기간 안의 이 자녀 구매 기록을 읽고, 구매마다 산 상품 복사본에서 칸 · 브랜드 · 산 사이즈의 실측을 찾아 지금 상품과 견준다
     private PurchaseHistory purchaseHistoryOf(RecommendReplicaProduct product, FitProduct fitProduct, Long childId,
-        SizeAiQuestion.GrowthSpeed growthSpeed, LocalDate today) {
+        BigDecimal cmPerMonth, LocalDate today) {
         LocalDateTime since = today.minusMonths(PurchaseHistory.WINDOW_MONTHS).atStartOfDay();
         List<PurchaseRecord> records = purchaseRecordRepository.findConfirmedSince(childId, since);
-        Set<Long> productIds = new HashSet<>();
+        List<Long> productIds = new ArrayList<>();
         for (PurchaseRecord record : records) {
             productIds.add(record.getProductId());
         }
@@ -150,18 +149,22 @@ public class SizeRecommendationReader {
             }
         }
         return PurchaseHistory.of(new PurchaseHistory.CompareInfo(
-            fitProduct, product.getBrand(), garments, growthSpeed.cmPerMonth(), today));
+            fitProduct, product.getBrand(), garments, cmPerMonth, today));
     }
 
     private PurchasedGarment purchasedGarmentOf(PurchaseRecord record, RecommendReplicaProduct bought) {
-        Map<String, BigDecimal> measurements = Map.of();
+        return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), bought.getCategoryId(),
+            categoryPathNamesOf(bought), bought.getBrand(), measurementsOf(bought, record.getSize()));
+    }
+
+    // 산 사이즈의 실측이고, 그 사이즈 줄이 없으면 빈 Map이다
+    private Map<String, BigDecimal> measurementsOf(RecommendReplicaProduct bought, String size) {
         for (RecommendReplicaSizeSpec spec : bought.getSizeSpecs()) {
-            if (spec.getSize().equals(record.getSize())) {
-                measurements = spec.getMeasurements();
+            if (spec.getSize().equals(size)) {
+                return spec.getMeasurements();
             }
         }
-        return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), bought.getCategoryId(),
-            categoryPathNamesOf(bought), bought.getBrand(), measurements);
+        return Map.of();
     }
 
     // AI에 보내는 사이즈 줄과 같은 실측으로 만든 상품 입력이다

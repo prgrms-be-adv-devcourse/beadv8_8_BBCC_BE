@@ -41,11 +41,7 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
         StringBuilder text = new StringBuilder();
         text.append(productPart).append('>').append(comparedPart);
         for (Item item : items) {
-            text.append(';').append(item.code()).append('=').append(plain(item.garmentCm()));
-            for (SizeDiff diff : item.sizes()) {
-                text.append(',').append(diff.size()).append(':').append(plain(diff.productCm()))
-                    .append(':').append(plain(diff.diffCm()));
-            }
+            text.append(item.keyText());
         }
         return text.toString();
     }
@@ -61,6 +57,19 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
 
         public Item {
             sizes = List.copyOf(requireNonNull(sizes, "sizes는 필수입니다"));
+        }
+
+        /**
+         * AI 답 키에 넣을 글이다. 「;코드=옷 실측」 뒤에 사이즈마다 「,사이즈:상품 실측:차이」를 쓰고, 숫자 끝의 0은 뗀다.
+         */
+        public String keyText() {
+            StringBuilder text = new StringBuilder();
+            text.append(';').append(code).append('=').append(plain(garmentCm));
+            for (SizeDiff diff : sizes) {
+                text.append(',').append(diff.size()).append(':').append(plain(diff.productCm()))
+                    .append(':').append(plain(diff.diffCm()));
+            }
+            return text.toString();
         }
     }
 
@@ -114,7 +123,7 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
         if (garment == null) {
             return Optional.empty();
         }
-        List<Item> items = itemsOf(product, garment);
+        List<Item> items = itemsOf(product, garment.getCategoryId(), garment.getMeasurements());
         // 견줄 항목이 하나도 없으면 기준 핏으로 알려 줄 것이 없다.
         if (items.isEmpty()) {
             return Optional.empty();
@@ -129,10 +138,6 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
             }
         }
         return null;
-    }
-
-    private static List<Item> itemsOf(FitProduct product, ReferenceGarment garment) {
-        return itemsOf(product, garment.getCategoryId(), garment.getMeasurements());
     }
 
     /**
