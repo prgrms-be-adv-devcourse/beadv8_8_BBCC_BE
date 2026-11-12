@@ -147,3 +147,46 @@ groups:
       summary: "{{ $labels.instance }} 최근 5분 OOM 종료가 감지됐습니다"
       description: 서버 커널 기록과 해당 컨테이너의 OOMKilled·재시작 상태를 확인하세요. 자동 재시작으로 서비스가 복구돼도
         메모리 원인을 확인하세요. 해결 알림은 최근 5분 창에서 OOM 증가가 사라졌다는 뜻이며 서비스 복구를 보장하지 않습니다.
+  - uid: kidly-db-pool-waiting
+    title: DB 연결 대기 지속
+    condition: B
+    for: 5m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: >-
+          max by(env,job) (
+            (hikaricp_connections_pending > 0)
+            and (time() - timestamp(hikaricp_connections_pending) < 60)
+            and on(env,job,instance,pool) (
+              (hikaricp_connections_idle == 0)
+              and (time() - timestamp(hikaricp_connections_idle) < 60)
+            )
+          )
+          and on(env,job) label_replace(
+            max by(env,app_job)(kidly_app_expected == 1), "job", "$1", "app_job", "(.+)"
+          )
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: warning
+    annotations:
+      summary: '{{ $labels.job }}에서 여유 DB 연결 없이 5분간 요청이 대기했습니다'
+      description: DB 연결 대기와 타임아웃을 확인하세요. 같은 시간의 요청량, 연결 획득 시간, DB 쿼리 지연을 확인해 원인을 좁히세요.
