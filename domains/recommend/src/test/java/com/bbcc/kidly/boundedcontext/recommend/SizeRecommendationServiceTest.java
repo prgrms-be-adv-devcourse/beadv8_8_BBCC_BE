@@ -58,14 +58,14 @@ class SizeRecommendationServiceTest {
     private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
         null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널");
 
-    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of());
+    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of(), List.of());
 
     private static final ReferenceFit REFERENCE_FIT = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
         new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
             new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
 
     private static final SizeAiQuestion QUESTION_WITH_FIT =
-        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, GROWTH, List.of());
+        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, GROWTH, List.of(), List.of());
 
     // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
     private static final SizeAiEvidence EVIDENCE =
@@ -213,7 +213,7 @@ class SizeRecommendationServiceTest {
         SizeAiQuestion question = new SizeAiQuestion(null, List.of(), null, null,
             new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0,
                 new BigDecimal("0.50"), "한국아동패널"),
-            List.of(new WearablePeriod("120", 20, null, 20)));
+            List.of(new WearablePeriod("120", 20, null, 20)), List.of());
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
             PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, question, EVIDENCE, null, null));
 

@@ -8,8 +8,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecordRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +42,9 @@ class SizeRecommendationPurchaseIntegrationTest {
     private static final Long BOUGHT_TOP_ID = 71L;
 
     private static final Long BOUGHT_PANTS_ID = 72L;
+
+    // 추천에 상품 복사본이 없는 상품이다
+    private static final Long PRODUCT_WITHOUT_REPLICA_ID = 73L;
 
     @Autowired
     private SizeRecommendationReader reader;
@@ -68,6 +74,35 @@ class SizeRecommendationPurchaseIntegrationTest {
         assertThat(draft.lastPurchasedSize()).isEqualTo("110");
     }
 
+    @Test
+    @DisplayName("PUR-02 · PUR-04 AI 질문에는 12개월 안 같은 칸 구매를 산 옷의 실측과 견준 결과로 넣고, 상품 복사본이 없는 구매는 칸을 몰라 뺀다")
+    void putPurchasesIntoAiQuestion() {
+        saveProductAndChild();
+        replicaProductRepository.save(boughtProduct(BOUGHT_TOP_ID, 52L, "상의"));
+        savePurchase(1L, CHILD_1_ID, BOUGHT_TOP_ID, "110", NOW.minusMonths(5));
+        savePurchase(2L, CHILD_1_ID, BOUGHT_TOP_ID, "120", NOW.minusMonths(12).minusDays(1));
+        savePurchase(3L, CHILD_1_ID, PRODUCT_WITHOUT_REPLICA_ID, "120", NOW.minusMonths(2));
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        List<PurchaseFit> purchases = draft.aiQuestion().purchases();
+        assertThat(purchases).hasSize(1);
+        PurchaseFit purchase = purchases.getFirst();
+        assertThat(purchase.size()).isEqualTo("110");
+        assertThat(purchase.monthsAgo()).isEqualTo(5);
+        assertThat(purchase.sameBrand()).isTrue();
+        // 상품 A 110 · 120(총장 42 · 45, 가슴단면 34 · 36)에서 산 110(총장 43, 가슴단면 33)을 뺀다
+        assertThat(purchase.items())
+            .usingRecursiveFieldByFieldElementComparator(cmComparison())
+            .containsExactly(
+                new ReferenceFit.Item("TOTAL_LENGTH", new BigDecimal("43"), List.of(
+                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("-1")),
+                    new ReferenceFit.SizeDiff("120", new BigDecimal("45"), new BigDecimal("2")))),
+                new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("33"), List.of(
+                    new ReferenceFit.SizeDiff("110", new BigDecimal("34"), new BigDecimal("1")),
+                    new ReferenceFit.SizeDiff("120", new BigDecimal("36"), new BigDecimal("3")))));
+    }
+
     private void saveProductAndChild() {
         replicaProductRepository.save(RecommendFixture.productATopReplica());
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
@@ -77,6 +112,12 @@ class SizeRecommendationPurchaseIntegrationTest {
         LocalDateTime confirmedAt) {
         purchaseRecordRepository.save(PurchaseRecord.create(new PurchaseRecord.RecordInfo(orderItemId, 900L,
             MEMBER_1_ID, childProfileId, productId, 800L + orderItemId, size, confirmedAt)));
+    }
+
+    private static RecursiveComparisonConfiguration cmComparison() {
+        return RecursiveComparisonConfiguration.builder()
+            .withComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+            .build();
     }
 
     // 110 · 120에 총장 · 가슴단면 실측이 있는 상품 복사본이다

@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocityCalculator;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriodCalculator;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
@@ -26,6 +27,8 @@ import java.util.Set;
  * @param growthSpeed 자녀의 키 성장 속도이고, 늘 있다
  * @param wearablePeriods 사이즈별로 앞으로 몇 개월 입을 수 있는지이고,
  *     사이즈 무관 상품이나 모자 · 양말처럼 계산하지 않는 상품은 빈 목록이다
+ * @param purchases 이 자녀가 12개월 안에 같은 기준 옷 칸에서 구매확정한 최근 구매(최대 3개)를 지금 상품과 견준 결과이고,
+ *     같은 칸의 구매가 없거나 사이즈 무관 상품이나 모자 · 양말이면 빈 목록이다
  */
 public record SizeAiQuestion(
     Child child,
@@ -33,11 +36,13 @@ public record SizeAiQuestion(
     RuleResult ruleResult,
     ReferenceFit referenceFit,
     GrowthSpeed growthSpeed,
-    List<WearablePeriod> wearablePeriods) {
+    List<WearablePeriod> wearablePeriods,
+    List<PurchaseFit> purchases) {
 
     public SizeAiQuestion {
         Objects.requireNonNull(growthSpeed, "growthSpeed는 필수입니다");
         Objects.requireNonNull(wearablePeriods, "wearablePeriods는 필수입니다");
+        Objects.requireNonNull(purchases, "purchases는 필수입니다");
     }
 
     /**
