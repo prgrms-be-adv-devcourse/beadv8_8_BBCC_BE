@@ -19,6 +19,7 @@ export const PHASES = [
   ['addresses', seedAddresses],
   ['children', seedChildren],
   ['products', seedProducts],
+  ['product-info', seedProductInfo],
   ['wallets', seedWallets],
   ['favorites', seedFavorites],
   ['orders', seedOrders],
@@ -198,14 +199,7 @@ function toRegisterRequest(plan, category) {
   }));
   const prices = [...priceGroups.values()].map((valueIds) => ({ valueIds, price: plan.price }));
 
-  const attributes = [];
-  for (const attribute of category.attributes.filter((a) => a.role === 'INFO')) {
-    if (attribute.inputType === 'TEXT') {
-      attributes.push({ attributeId: attribute.attributeId, valueIds: [], text: '면 95%, 스판덱스 5%' });
-    } else if (attribute.required) {
-      attributes.push({ attributeId: attribute.attributeId, valueIds: [rng.pick(attribute.values).valueId], text: null });
-    }
-  }
+  const attributes = infoAttributes(plan, category);
 
   const sizeSpecs = sizes.filter(Boolean).map((size) => {
     const position = sizeValues.indexOf(size);
@@ -219,6 +213,64 @@ function toRegisterRequest(plan, category) {
     name: plan.name, brand: plan.brand, categoryId: plan.categoryId, description: plan.description,
     thumbnailUrl: null, imageUrls: [], attributes, options, prices, sizeSpecs,
   };
+}
+
+// 주요소재별 혼용률. 고른 주요소재와 어긋나지 않는 값 중에서 고른다
+const COMPOSITIONS = {
+  면: ['면 100%', '면 95%, 스판덱스 5%', '면 80%, 폴리에스테르 20%', '면 60%, 폴리에스테르 40%'],
+  폴리에스테르: ['폴리에스테르 100%', '폴리에스테르 90%, 스판덱스 10%', '폴리에스테르 65%, 면 35%'],
+  아크릴: ['아크릴 100%', '아크릴 70%, 울 30%', '아크릴 60%, 나일론 40%'],
+  기타: ['레이온 70%, 나일론 30%', '나일론 85%, 스판덱스 15%', '린넨 55%, 면 45%'],
+};
+const DEFAULT_COMPOSITIONS = ['면 70%, 폴리에스테르 30%', '폴리에스테르 80%, 면 20%'];
+
+// 정보 항목은 필수 · 선택을 가리지 않고 모두 채운다. 고르는 항목은 무작위, 글 항목은 고른 값에 맞춰 적는다
+function infoAttributes(plan, category) {
+  const rng = rngFor(`product-info:${plan.seed}`);
+  const info = category.attributes.filter((a) => a.role === 'INFO');
+  const picked = [];
+  for (const attribute of info.filter((a) => a.inputType !== 'TEXT' && a.values.length > 0)) {
+    const count = attribute.inputType === 'MULTI_LIST' ? rng.int(1, Math.min(2, attribute.values.length)) : 1;
+    const values = new Set();
+    while (values.size < count) values.add(rng.pick(attribute.values));
+    picked.push({ attribute, values: [...values] });
+  }
+  const material = picked.find((p) => p.attribute.code === 'MAIN_MATERIAL')?.values[0].value;
+  const attributes = picked.map((p) => ({ attributeId: p.attribute.attributeId, valueIds: p.values.map((v) => v.valueId), text: null }));
+  for (const attribute of info.filter((a) => a.inputType === 'TEXT')) {
+    attributes.push({ attributeId: attribute.attributeId, valueIds: [], text: rng.pick(COMPOSITIONS[material] ?? DEFAULT_COMPOSITIONS) });
+  }
+  return attributes;
+}
+
+const attributeKey = (attributes) => JSON.stringify(attributes
+  .map((a) => [String(a.attributeId), a.valueIds.map(String).sort(), a.text ?? null])
+  .sort((x, y) => x[0].localeCompare(y[0])));
+
+// 이미 등록한 상품의 정보 항목을 지금 계획대로 맞춘다. 같으면 건너뛰므로 다시 돌려도 된다
+async function seedProductInfo(ctx) {
+  const { products, sellers } = SCALES[ctx.scale];
+  const categories = await loadCategories(ctx);
+  return runPool(range(products), ctx.concurrency, async (k) => {
+    const plan = productPlan(k, sellers, categories);
+    const { productId } = productEntry(ctx, k);
+    const token = await sellerToken(ctx, plan.sellerIndex);
+    return converge(async () => {
+      const detail = (await ctx.api.send('GET', `/api/v1/seller/products/${productId}`, { token })).body;
+      const category = categories.find((c) => String(c.categoryId) === String(detail.categoryId));
+      const wanted = infoAttributes(plan, category);
+      if (attributeKey(wanted) === attributeKey(detail.attributes)) return false;
+      await ctx.api.send('PUT', `/api/v1/seller/products/${productId}`, {
+        token,
+        body: {
+          version: detail.version, name: detail.name, brand: detail.brand, categoryId: Number(detail.categoryId),
+          description: detail.description, thumbnailUrl: detail.thumbnailUrl, imageUrls: detail.imageUrls,
+          attributes: wanted, options: null, prices: null, sizeSpecs: null,
+        },
+      });
+      return true;
+    });
+  });
 }
 
 // 판매자의 상품 목록을 이름으로 찾는다. 등록 응답을 기록하기 전에 멈춘 실행의 상품을 다시 만들지 않으려고 쓴다

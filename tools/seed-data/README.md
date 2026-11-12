@@ -91,6 +91,7 @@ SEED_BASE_URL=https://<dev Gateway> SEED_ADMIN_EMAIL=<관리자 이메일> \
 | `addresses` | 기본 배송지 등록 | 배송지가 있으면 그것을 쓴다 |
 | `children` | `POST /api/v1/dev/guardian-verifications` → 자녀 등록 | 자녀 목록에서 이름으로 찾고 없는 자녀만 등록 |
 | `products` | 상품 등록 → 판매 시작 | 판매자 상품 목록에서 이름으로 찾는다(이름 끝의 `KD-번호`) |
+| `product-info` | 정보 항목(필수 · 선택 모두)을 무작위로 채운다. 혼용률은 고른 주요소재에 맞춘다 | 판매자 상품 상세를 읽어 계획과 같으면 건너뛴다. 이미 넣은 상품에 다시 돌리면 정보 항목만 고친다(`--only product-info`) |
 | `wallets` | 개발용 예치금 충전 | 잔액을 읽고, 아직 넣지 않은 주문 금액보다 모자란 만큼만 충전 |
 | `favorites` | `PUT /api/v1/favorites/{productId}` | 같은 요청은 그대로 204 |
 | `orders` | 주문 → 결제완료까지 기다림 | 주문마다 고정 `Idempotency-Key`라 같은 주문을 돌려준다 |
