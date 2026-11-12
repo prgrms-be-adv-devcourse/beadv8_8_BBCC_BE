@@ -18,7 +18,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -171,26 +170,25 @@ public class AiResponseService {
         return settleWithin(type, task);
     }
 
-    // 답이 먼저 끝나면 ANSWERED나 ERROR를, 최대 대기가 먼저 끝나면 TIMEOUT을 하나만 세고 그 결과로 끝낸다.
-    // 최대 대기를 넘긴 뒤에 온 답은 세지 않는다
+    // 답이 먼저 끝나면 ANSWERED나 ERROR를, 최대 대기가 먼저 끝나면 TIMEOUT을 세고 그 결과로 끝낸다.
+    // orTimeout은 둘 중 먼저 끝난 쪽으로 한 번만 끝나므로 결과도 한 번만 센다. 최대 대기를 넘긴 뒤에 온 답은 세지 않는다
     private <T> CompletableFuture<Optional<T>> settleWithin(AiResponseType type, CompletableFuture<T> task) {
-        AtomicBoolean settled = new AtomicBoolean();
-        CompletableFuture<Optional<T>> result = new CompletableFuture<>();
-        task.whenComplete((answer, error) -> {
-            Optional<T> found = toResult(type, answer, error);
-            if (settled.compareAndSet(false, true)) {
-                metrics.recordRequest(type, found.isPresent()
-                    ? RecommendAiMetrics.RequestResult.ANSWERED : RecommendAiMetrics.RequestResult.ERROR);
-                result.complete(found);
-            }
-        });
-        CompletableFuture.delayedExecutor(asyncWait.toMillis(), TimeUnit.MILLISECONDS).execute(() -> {
-            if (settled.compareAndSet(false, true)) {
-                metrics.recordRequest(type, RecommendAiMetrics.RequestResult.TIMEOUT);
-                result.complete(Optional.empty());
-            }
-        });
-        return result;
+        return task.handle((answer, error) -> toResult(type, answer, error))
+            .orTimeout(asyncWait.toMillis(), TimeUnit.MILLISECONDS)
+            .handle((found, timeout) -> recordSettled(type, found, timeout));
+    }
+
+    private <T> Optional<T> recordSettled(AiResponseType type, Optional<T> found, Throwable timeout) {
+        if (timeout != null) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.TIMEOUT);
+            return Optional.empty();
+        }
+        if (found.isPresent()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ANSWERED);
+        } else {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
+        }
+        return found;
     }
 
     // AI 호출이 실패하면 클래스 이름만 남기고 빈 값으로 끝낸다
