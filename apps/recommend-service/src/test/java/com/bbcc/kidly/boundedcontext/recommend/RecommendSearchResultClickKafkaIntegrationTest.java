@@ -29,7 +29,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 회원 ID(키)를 테스트마다 새로 만든다.
  */
 @KafkaIntegrationTest
-class RecommendSearchClickKafkaIntegrationTest {
+class RecommendSearchResultClickKafkaIntegrationTest {
 
     private static final String SEARCH_TOPIC = "kidly.search.events";
     private static final String SEARCH_DLT = "kidly.search.events.recommend.dlt";

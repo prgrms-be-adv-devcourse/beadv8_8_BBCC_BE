@@ -9,6 +9,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.activity.ActivityRecordService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
@@ -22,11 +23,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 활동 기록 서비스가 검색 결과 클릭을 실제 DB에 저장하는 규칙을 확인한다.
- * Kafka로 받는 연결은 RecommendActivityKafkaIntegrationTest가 확인한다.
+ * Kafka로 받는 연결은 RecommendSearchResultClickKafkaIntegrationTest가 확인한다.
  */
 @IntegrationTest
 class SearchResultClickRecordIntegrationTest {
@@ -40,6 +44,9 @@ class SearchResultClickRecordIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @Test
     @DisplayName("PREF-17 검색 결과 클릭 이벤트를 누른 상품 · 회원 · 누른 시각의 활동 기록으로 저장한다")
@@ -131,5 +138,54 @@ class SearchResultClickRecordIntegrationTest {
         assertThat(activityRecordRepository.findAll()).singleElement()
             .extracting(ActivityRecord::getMemberId, ActivityRecord::getChildProfileId)
             .containsExactly(memberId, null);
+    }
+
+    @Test
+    @DisplayName("PREF-17 같은 회원 · 상품 · 날짜라도 상세 진입과 검색 결과 클릭은 종류가 달라 둘 다 저장한다")
+    void keepProductViewAndClickOfSameDay() {
+        activityRecordRepository.saveAndFlush(ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+            UUID.randomUUID(), MEMBER_1_ID, null, PRODUCT_A_ID, CLICKED_AT)));
+
+        boolean saved = saveIfAbsent(clicked(UUID.randomUUID(), PRODUCT_A_ID));
+
+        assertThat(saved).isTrue();
+        assertThat(activityRecordRepository.findAll()).extracting(ActivityRecord::getType)
+            .containsExactlyInAnyOrder(ActivityType.PRODUCT_VIEWED, ActivityType.SEARCH_RESULT_CLICKED);
+    }
+
+    @Test
+    @DisplayName("같은 eventId로 다른 상품의 클릭을 저장하면 같은 날 한 번 규칙과 달리 조용히 버리지 않고 예외가 난다")
+    void failWhenEventIdIsAlreadyUsed() {
+        saveIfAbsent(clicked(CLICK_EVENT_ID, PRODUCT_A_ID));
+
+        assertThatThrownBy(() -> saveIfAbsent(clicked(CLICK_EVENT_ID, PRODUCT_A_ID + 1)))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .extracting(ActivityRecord::getProductId).isEqualTo(PRODUCT_A_ID);
+    }
+
+    // 저장소 프록시가 IllegalArgumentException을 Spring 예외로 바꾸므로 원인으로 확인한다
+    @Test
+    @DisplayName("검색 결과 클릭이 아닌 기록을 클릭으로 저장하려 하면 예외가 나고 아무것도 저장하지 않는다")
+    void rejectRecordOtherThanClick() {
+        ActivityRecord viewed = ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+            UUID.randomUUID(), MEMBER_1_ID, null, PRODUCT_A_ID, CLICKED_AT));
+
+        assertThatThrownBy(() -> saveIfAbsent(viewed))
+            .isInstanceOf(InvalidDataAccessApiUsageException.class)
+            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("검색 결과 클릭 기록만 저장할 수 있습니다");
+        assertThat(activityRecordRepository.findAll()).isEmpty();
+    }
+
+    // 저장소의 조건부 INSERT는 수정 쿼리라 트랜잭션 안에서 불러야 한다
+    private boolean saveIfAbsent(ActivityRecord record) {
+        return Boolean.TRUE.equals(transactionTemplate.execute(
+            status -> activityRecordRepository.saveSearchResultClickedIfAbsent(record)));
+    }
+
+    private static ActivityRecord clicked(UUID eventId, Long productId) {
+        return ActivityRecord.searchResultClicked(new ActivityRecord.SearchResultClickedInfo(
+            eventId, MEMBER_1_ID, null, productId, CLICKED_AT));
     }
 }

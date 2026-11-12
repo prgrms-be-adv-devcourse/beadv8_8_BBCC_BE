@@ -46,7 +46,7 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    // 검색 · 장바구니 담기 · 빼기 · 상세 진입은 자녀를 고른 경우만 값이 있다
+    // 검색 · 검색 결과 클릭 · 장바구니 담기 · 빼기 · 상세 진입은 자녀를 고른 경우만 값이 있다
     @Column(name = "child_profile_id")
     private Long childProfileId;
 

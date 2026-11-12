@@ -30,6 +30,7 @@ public final class PreferenceSignals {
         return signals;
     }
 
+    // default를 두지 않아 활동 종류가 늘면 컴파일이 실패해 신호로 바꿀지 정하게 된다
     private static PreferenceSignalType signalTypeOf(ActivityType type) {
         return switch (type) {
             case SEARCH -> PreferenceSignalType.SEARCH;
@@ -37,7 +38,8 @@ public final class PreferenceSignals {
             case CART_ITEM_ADDED -> PreferenceSignalType.CART_ITEM_ADDED;
             case SEARCH_RESULT_CLICKED -> PreferenceSignalType.SEARCH_RESULT_CLICKED;
             // 읽기 포트는 장바구니 빼기를 담기 기록의 표시로만 돌려준다. 그 밖의 종류가 오면 읽기가 잘못된 것이다
-            default -> throw new IllegalArgumentException("선호 신호로 바꿀 수 없는 활동 종류입니다: " + type);
+            case CART_ITEM_REMOVED ->
+                throw new IllegalArgumentException("선호 신호로 바꿀 수 없는 활동 종류입니다: " + type);
         };
     }
 }
