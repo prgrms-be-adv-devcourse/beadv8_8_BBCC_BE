@@ -62,7 +62,7 @@ curl -s localhost:30200/actuator/health     # nginx 가 붙는 Gateway
 ## 알려진 한계
 
 - **environment-operation 의 dev 끄기 · 켜기**: k3s CronJob 을 suspend · 재개하고 Deployment 를 0개 · 1개로 돌린다(추천은 다시 HPA 가 맡는다)
-- **Gateway 를 다시 띄울 때**: 옛 Pod 와 새 Pod 가 겹치는 몇 초 동안 구독 그룹 `kidly.gateway` 의 파티션을 나눠 가져, 새 Pod 가 토큰 무효화 목록을 일부만 안다. 옛 Pod 가 내려가면 모든 파티션을 31분 전부터 다시 읽는다(apps/gateway CLAUDE.md 의 무효화 목록)
+- **Redis 를 다시 띄울 때**: 비어 있으므로 Gateway 가 토큰 무효화 목록을 Kafka 에서 31분 전부터 다시 채운다(1초 안에 알아챈다). 그 몇 초 동안 무효화된 토큰이 통과할 수 있다. Gateway 재시작 · 롤링 배포는 같은 Redis 를 보므로 공백이 없다(apps/gateway CLAUDE.md 의 무효화 목록, #1327)
 - **노드가 이미지를 지우면 다음 배포까지 다시 받지 못한다.** pull secret 의 토큰이 배포 잡이 끝나면 만료된다. `deploy/search/README.md` 의 ImagePullBackOff 와 같다. 배포 끝의 이미지 정리는 k3s 가 쓰는 이미지를 남기므로 떠 있는 Pod 에는 닿지 않고, 지운 옛 이미지로 롤백할 때만 다음 배포가 다시 받는다
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)

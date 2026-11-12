@@ -7,7 +7,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 1. 보안 응답 헤더(`web/WebFilterConfig`): 모든 응답(400 포함)에 Spring Security 기본 보안 헤더를 붙인다
 2. 요청 ID(`web/RequestIdFilter`): 요청마다 `X-Request-Id`를 새로 만들어 클라이언트가 보낸 값을 덮어쓰고 응답 헤더로도 돌려준다. Gateway 로그(`web/RequestFirewallFilter` · `web/GatewayErrorWebExceptionHandler`)에는 key-value `traceId`로 남긴다. 서비스(`RequestLoggingFilter`)는 같은 헤더 값을 MDC `traceId`로 써서, 값 하나로 Gateway 로그부터 서비스 로그까지 한 요청을 찾는다(#683)
 3. 경로 방화벽(`web/RequestFirewallFilter`): 정규화되지 않거나 위험한 경로 · 메서드를 400으로 막는다
-4. 토큰 검사(`auth/AccessTokenFilter`): 밖에서 온 `X-Member-*` · `X-Admin-*` · `X-Child-*`를 지우고, Bearer 토큰을 검증 · 무효화 확인해 주체별 헤더를 붙인다. 실패하면 401
+4. 토큰 검사(`auth/AccessTokenFilter`): 밖에서 온 `X-Member-*` · `X-Admin-*` · `X-Child-*`를 지우고, Bearer 토큰을 검증 · 무효화 확인(Redis, 아래 '무효화 목록')해 주체별 헤더를 붙인다. 실패하면 401
 5. 역할 검사(`auth/RoleFilter`): `/api/v1/admin/**`는 관리자 주체, `/api/v1/seller/**`는 SELLER 회원 주체, `/api/v1/child/**`는 자녀 주체. 없으면 401 · 403
 6. 검색 요청 수 제한(`ratelimit/SearchRateLimitFilter`, #816): 검색어가 있는 `GET /api/v1/products`만 주체(회원 · 관리자 · 자녀) ID, 비로그인은 IP(nginx가 덮어쓰는 `X-Real-IP`, 없으면 연결 주소)마다 센다. 한도는 `application.yml`의 `kidly.gateway.rate-limit.search`(분당 30번). 넘으면 429 + `Retry-After`(초). 검색 서비스가 검색어마다 임베딩 API(OpenAI)를 부르기 때문이다. Gateway 메모리라 다시 뜨면 비고, Gateway를 여러 대로 늘리면 공용 저장소(#690)로 옮긴다. `X-Forwarded-For` 첫 값은 클라이언트가 지어낼 수 있어 쓰지 않는다. 챗봇 질문 `POST /api/v1/chatbot/messages`도 같은 방식으로 `ChatRateLimitFilter`가 센다(`kidly.gateway.rate-limit.chat`, 분당 10번, OpenAI 비용 방어, #1191. 관리자 챗봇 경로는 세지 않는다)
 7. CORS(`application.yml`의 `globalcors`) · 라우팅. 서비스는 CORS를 하지 않는다
@@ -21,17 +21,23 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
 ## 무효화 목록
-- `revocation/AccessTokenRevocations`: `PrincipalId`(주체 종류, 주체 ID) → 무효화 시각, 메모리. 그 시각까지(초 단위, 같은 초 포함) 발급된 토큰은 401
+- `revocation/AccessTokenRevocations`: Redis 해시 `kidly:gateway:revocations`(필드 = 토큰 주체 `PrincipalId.toSubject()`, 값 = 무효화 시각 epoch 초, 키 TTL 없음, #1327). 그 시각까지(초 단위, 같은 초 포함) 발급된 토큰은 401. Gateway가 여러 대여도, 다시 떠도 같은 목록을 본다
+- 쓰기는 Lua 하나로 더 늦은 시각만 남기고 보존 기간(31분 = Access Token 유효 기간 30분 + 시계 오차 60초)이 지난 필드를 지운다. 같은 메시지를 여러 번 · 여러 대가 처리해도 결과가 같다
+- 확인은 `auth/GatewayJwtConfig`가 디코더를 감싸 요청마다 Redis를 한 번 읽는다. 무효화면 `BadJwtException`이라 `auth/AccessTokenFilter`가 401을 낸다
+- Redis 장애(연결 실패 · 명령 제한 시간 300ms 초과 등)면 확인 없이 통과시키고 ERROR 로그를 남긴다(토큰 · 주체 없이). 거절하면 Redis 장애가 로그인한 모든 요청의 장애가 된다. 놓친 토큰도 최대 30분 뒤 만료된다. 그래서 Redis 헬스는 전체 health에서 뺀다(`management.health.redis.enabled: false`)
+- Redis는 추천 AI 답 캐시와 같이 쓴다(64MB, `volatile-lru`). TTL 있는 추천 답만 지워지고 TTL 없는 무효화 목록 · 표식은 남는다
 - `kidly.auth.events`의 `auth.tokens-revoked`를 받아 채운다(발행은 회원 서비스의 인증 모듈, `apps/member-service/auth`). 구독 그룹 `kidly.gateway`, 다른 종류는 건너뛴다
-- 메모리라 다시 뜨면 빈다. 그래서 파티션을 받을 때마다 31분 전(Access Token 유효 기간 30분 + 시계 오차 60초)으로 되감아 다시 읽는다. 구독 그룹의 책갈피로 시작 위치를 정하지 않는다(31분 안에 메시지가 없는 파티션만 책갈피 위치에서 읽는다. 거기 있는 메시지는 보존 기간이 지나 결과가 같다)
-- 읽기 실패는 재시도 없이 DLT `kidly.auth.events.gateway.dlt` + ERROR 로그(본문 없이 `eventType` · `eventId` · 키)
-- 31분 안에서 읽지 못해 DLT로 간 메시지는 Gateway가 다시 뜰 때마다 다시 읽혀 DLT로 다시 간다(ERROR 로그도 다시)
+- 파티션마다 TTL 없는 표식 `kidly:gateway:revocations:loaded:{파티션}`: '이 파티션의 최근 31분 무효화가 Redis에 들어 있다'. 표식이 있으면 구독 그룹 책갈피대로 읽고, 없으면(처음 배포, Redis 재시작) 그 파티션만 31분 전으로 되감아 다시 읽고 표식을 쓴다(`revocation/AuthTokensRevokedListener`)
+  - 파티션을 받을 때와 컨테이너 idle 이벤트(1초 간격, 첫 메시지 전에는 5초)마다 확인한다. 돌던 중 Redis가 다시 떠 비면 다음 idle 확인이 되감는다. 그 사이(최대 약 1초 + 다시 읽는 시간) 무효화된 토큰이 통과할 수 있다
+  - 파티션을 받을 때 표식을 읽지 못하면 받은 파티션을 모두 되감는다(표식은 쓰지 못하므로 Redis가 돌아오면 idle 확인이 다시 되감는다). idle 확인에서 읽지 못하면 아무것도 하지 않는다
+  - 표식이 있어 뜰 때 되감지 않으므로 다시 읽기를 기다리지 않고 바로 요청을 받는다. 롤링 배포에서 옛 · 새 Pod가 파티션을 나눠 가져도 같은 Redis를 보므로 공백이 없다
+- 읽기 실패(JSON · `eventType` 헤더 · data 없음, 모르는 주체 종류 등)는 재시도 없이 DLT `kidly.auth.events.gateway.dlt` + ERROR 로그(본문 없이 `eventType` · `eventId` · 키). 표식이 없어 되감으면 31분 안에서 DLT로 간 메시지는 다시 읽혀 DLT로 다시 간다(ERROR 로그도 다시)
+- Redis 쓰기 실패(`DataAccessException`)는 DLT로 보내면 무효화를 잃으므로 5초 간격으로 끝없이 다시 시도한다(시도마다 WARN). 그동안 리스너는 뒤 메시지를 읽지 않는다
 - `jwt.access-token-validity`는 회원 서비스 인증 모듈의 `auth.yml`(`apps/member-service/auth/src/main/resources`)과 같아야 한다
-- 다시 다 읽기 전에는 요청을 받지 않는다(`revocation/RevocationReplay`, #1176): readiness가 REFUSING_TRAFFIC이라 k3s가 새 Pod로 보내지 않는다(`revocation/RevocationAwareApplicationAvailability`가 Boot의 ApplicationAvailability를 대신한다). liveness는 그대로다
-  - 다 읽음 = 무효화 리스너가 파티션을 받은 뒤 더 읽을 메시지가 없을 때(컨테이너 idle 이벤트, 1초 간격 · 첫 메시지 전에는 5초)
-  - 리스너가 다시 시작하면 다시 기다린다. 한 번 다 읽은 뒤의 재조정(rebalance)으로는 다시 막지 않는다(받은 무효화는 메모리에 그대로 있다)
-  - 시간 상한 60초: 넘으면 WARN을 남기고 요청을 받는다(브로커 장애로 Gateway 전체가 멈추지 않게). 앱이 뜰 때 리스너가 돌지 않으면(테스트의 auto-startup: false) 기다리지 않는다
-- 한계: 시간 상한을 넘겨 Ready가 된 경우, 그리고 롤링 배포에서 옛 Pod · 새 Pod가 겹칠 때는 무효화된 토큰이 통과할 수 있다. 같은 구독 그룹이라 새 Pod는 처음에 파티션 일부만 받아 그것만 다 읽고 Ready가 되고, 옛 Pod가 내려간 뒤 나머지 파티션을 받아 다시 읽는 몇 초 동안 그 파티션의 무효화를 모른다. 없애려면 인스턴스마다 모든 파티션을 직접 받아야 한다(구독 그룹 규칙과 함께 정할 일)
+- 한계
+  - seek과 표식 뒤 되감은 메시지를 처리 · 커밋하기 전에 Gateway가 죽거나 리밸런스되면(롤링 배포 · 인스턴스 추가 포함) 책갈피가 되감기 전에 남아 그 파티션의 최근 무효화를 놓친다. Redis 재시작과 겹칠 때만
+  - 무효화 메시지가 계속 와 idle 이벤트가 나지 않으면 Redis 재시작을 늦게 알아챈다
+  - Redis가 64MB를 TTL 없는 키로 채우면(volatile-lru가 지울 키가 없으면) 쓰기가 실패해 리스너가 다시 시도하며 멈춘다
 
 ## 지켜야 할 것
 - CORS 값(허용 origin · 메서드 · 노출 헤더)은 Gateway(`application.yml`)에서만 바꾼다
@@ -44,6 +50,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 
 ## 서버 배포 (`deploy/`)
 - dev · prod(#638). compose 서비스 `gateway`(profile `gateway`), 서버 `127.0.0.1:8083`(dev) · `127.0.0.1:8084`(prod)(`GATEWAY_PORT`), compose 네트워크로 각 서비스에 넘긴다
+- 무효화 목록은 `SPRING_DATA_REDIS_HOST: redis`(같은 namespace 의 Redis)에 둔다. Gateway 는 Redis 를 늘 쓴다. `.env.dev` 의 `K3S_PROFILES` 에서 `redis` 를 빼지 않는다(빼면 무효화를 확인하지 못하고 통과시키며 요청마다 ERROR, 리스너는 Redis 에 쓰지 못해 다시 시도하며 멈춘다)
 - 상품 목록은 `KIDLY_SEARCH_URI`로 넘긴다. dev는 `.env.dev`에 k3s 안 이름 `http://search:8080`을 둔다(#1142). 기본값도 `http://search-service:8080`이다
 - 추천은 `KIDLY_RECOMMEND_URI`로 넘긴다. 기본값은 `http://recommend-service:8080`이다. profile `recommend`가 꺼진 환경에서는 추천 API가 실패한다
 - 정산은 `KIDLY_SETTLEMENT_URI`로 넘긴다. 기본값은 `http://settlement-service:8080`이다. 정산 API를 쓰는 환경은 profile `settlement`를 켠다(#729)
@@ -58,6 +65,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 
 ## 로컬 실행
 - `docker compose up -d` 뒤 Gateway(`:apps:gateway:bootRun`, 8083)와 필요한 서비스를 띄운다. Swagger는 각 서비스에서 확인한다.
+- 무효화 목록은 `docker compose up -d`가 띄우는 Redis(localhost:6379)에 둔다
 - 추천 API(`/api/v1/recommendations/**`)는 추천 서비스(`:apps:recommend-service:bootRun`, 8086)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_RECOMMEND_URI`를 준다
 - 상품 목록(`GET /api/v1/products`)은 검색 서비스(`:apps:search-service:bootRun`, 8082, Elasticsearch 필요)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_SEARCH_URI`를 준다
 - 정산 API(`/api/v1/seller/settlement*` · `/api/v1/admin/settlement*`)는 정산 서비스(`:apps:settlement-service:bootRun`, 8088)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_SETTLEMENT_URI`를 준다
