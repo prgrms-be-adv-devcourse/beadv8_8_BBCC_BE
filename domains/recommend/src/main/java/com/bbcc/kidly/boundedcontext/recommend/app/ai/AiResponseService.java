@@ -36,6 +36,9 @@ public class AiResponseService {
 
     private static final Executor VIRTUAL_THREAD = Thread.ofVirtual()::start;
 
+    // 호출 횟수를 얻은 결과: 얻음 · 하루 상한에 걸림 · 세다가 오류
+    private enum QuotaResult { ACQUIRED, LIMIT, ERROR }
+
     private final AiResponseStore store;
     private final AiCallQuota quota;
     private final JsonMapper jsonMapper;
@@ -126,7 +129,11 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return stored;
         }
-        if (!tryAcquireQuietly(type, now)) {
+        QuotaResult quotaResult = tryAcquireQuietly(type, now);
+        if (quotaResult == QuotaResult.ERROR) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
+        }
+        if (quotaResult != QuotaResult.ACQUIRED) {
             return Optional.empty();
         }
         Optional<T> result = callWithTimeout(type, key, call);
@@ -160,7 +167,7 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return CompletableFuture.completedFuture(stored);
         }
-        if (!tryAcquireQuietly(type, now)) {
+        if (tryAcquireQuietly(type, now) != QuotaResult.ACQUIRED) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         CompletableFuture<T> task =
@@ -184,13 +191,17 @@ public class AiResponseService {
         return Optional.empty();
     }
 
-    private boolean tryAcquireQuietly(AiResponseType type, LocalDateTime now) {
+    // 호출 횟수를 세다 난 오류와 하루 상한에 걸린 것을 구분해 돌려준다
+    private QuotaResult tryAcquireQuietly(AiResponseType type, LocalDateTime now) {
         try {
-            return quota.tryAcquire(now.toLocalDate(), dailyCallLimit);
+            if (quota.tryAcquire(now.toLocalDate(), dailyCallLimit)) {
+                return QuotaResult.ACQUIRED;
+            }
+            return QuotaResult.LIMIT;
         } catch (RuntimeException e) {
             log.warn("AI 호출 횟수를 세지 못해 호출하지 않습니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
-            return false;
+            return QuotaResult.ERROR;
         }
     }
 
@@ -232,8 +243,13 @@ public class AiResponseService {
         CompletableFuture<T> task =
             CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
         try {
-            return Optional.ofNullable(task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS));
+            T answer = task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (answer == null) {
+                metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
+            }
+            return Optional.ofNullable(answer);
         } catch (InterruptedException e) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
             Thread.currentThread().interrupt();
             task.cancel(true);
             logCallFailure(type, e);
@@ -243,6 +259,7 @@ public class AiResponseService {
             task.thenAccept(lateAnswer -> saveLateAnswer(type, key, lateAnswer));
             logCallFailure(type, e);
         } catch (ExecutionException e) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
             logCallFailure(type, e.getCause());
         }
         return Optional.empty();

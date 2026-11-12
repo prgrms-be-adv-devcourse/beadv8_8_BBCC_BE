@@ -41,6 +41,8 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -114,6 +116,26 @@ class AiResponseServiceTest {
         assertThat(count("kidly.recommend.ai.store.lookups", "miss")).isEqualTo(1);
         assertThat(meterRegistry.get("kidly.recommend.ai.call").tag("feature", "home_preview").timer().count())
             .isEqualTo(1);
+    }
+
+    enum Failure { CALL_THROWS, CALL_RETURNS_NULL, QUOTA_THROWS }
+
+    @ParameterizedTest
+    @EnumSource(Failure.class)
+    @DisplayName("AI 호출이 실패하거나 null을 돌려주거나 호출 횟수를 세지 못하면 요청 결과 error를 센다")
+    void countError(Failure failure) {
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
+        Supplier<Answer> call = this::freshAnswerCall;
+        if (failure == Failure.QUOTA_THROWS) {
+            given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willThrow(new QueryTimeoutException("느림"));
+        } else {
+            given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(true);
+            call = failure == Failure.CALL_THROWS ? () -> { throw new IllegalStateException("모델 오류"); } : () -> null;
+        }
+
+        service.respond(TYPE, INPUT, Answer.class, call);
+
+        assertThat(count("kidly.recommend.ai.requests", "error")).isEqualTo(1);
     }
 
     // TYPE(홈 맛보기)의 그 결과 카운터 값이다
