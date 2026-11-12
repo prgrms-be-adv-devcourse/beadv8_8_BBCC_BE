@@ -57,6 +57,15 @@ class EnvironmentStateTests(unittest.TestCase):
         self.assertNotIn('--volumes', repr(run.call_args_list))
         self.assertNotIn('down', repr(run.call_args_list))
 
+    def test_stop_without_compose_profiles_never_calls_docker(self):
+        # 모든 서비스가 k3s 에 뜨는 환경은 docker 데몬이 없어도 멈출 수 있다(#1210)
+        (self.root / 'dev/.env').write_text('COMPOSE_PROFILES=\nK3S_PROFILES=search\nSEARCH_NODE_PORT=30082\n')
+        state.write(self.data)
+        with patch.object(state, 'run', return_value='') as run:
+            result = state.control('dev', 'stop')
+        self.assertEqual(result['phase'], 'stopped')
+        self.assertNotIn("'docker'", repr(run.call_args_list))
+
     def test_failed_stop_restores_local_monitoring_intent(self):
         state.write(self.data)
         with patch.object(state, 'run', side_effect=RuntimeError('stop failed')):

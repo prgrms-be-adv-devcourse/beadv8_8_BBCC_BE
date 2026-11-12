@@ -287,7 +287,8 @@ def control(env, action):
             old = load(env)
             write(data)  # Automatic deployment must see this before containers are stopped.
             try:
-                run(compose(env, 'stop', '--timeout', '30'))
+                if compose_used(env):
+                    run(compose(env, 'stop', '--timeout', '30'))
                 scale_k3s(env, 0)
             except Exception:
                 write(old or dict(data, enabled=True, phase='running'))
