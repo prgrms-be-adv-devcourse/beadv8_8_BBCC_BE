@@ -12,7 +12,9 @@ import com.bbcc.kidly.shared.community.event.FavoriteRemovedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
@@ -112,11 +114,11 @@ class RecommendCommunityKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("커뮤니티 토픽에서 이 PR이 받지 않는 종류(리뷰 등)는 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
+    @DisplayName("커뮤니티 토픽에서 추천이 받지 않는 종류는 건너뛰고 DLT로 보내지 않으며, 뒤 메시지를 처리한다")
     void skipUnhandledCommunityEvent() throws Exception {
         Long memberId = newId();
         String key = String.valueOf(memberId);
-        messages.sendRaw(COMMUNITY_TOPIC, key, "review.changed", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
+        messages.sendRaw(COMMUNITY_TOPIC, key, "community.unknown", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
 
         // 키가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
         messages.send(COMMUNITY_TOPIC, favoriteAdded(memberId));
@@ -136,6 +138,32 @@ class RecommendCommunityKafkaIntegrationTest {
         assertThat(messages.deadLetters(COMMUNITY_DLT, key)).singleElement()
             .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
                 .isLessThan(RecommendKafkaMessages.RETRY_BACKOFF_TOTAL_MS));
+    }
+
+    @Test
+    @DisplayName("PREF-21 찜 해제 원인이 추천이 모르는 값이면 읽지 못한 메시지로 보고 재시도 없이 커뮤니티 DLT로 보낸다")
+    void deadLetterFavoriteRemovedWithUnknownCause() throws Exception {
+        Long memberId = newId();
+        String key = String.valueOf(memberId);
+        UUID eventId = UUID.randomUUID();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("eventId", eventId);
+        body.put("eventType", "favorite.removed");
+        body.put("schemaVersion", 1);
+        body.put("occurredAt", FAVORITED_AT.plusMinutes(30));
+        body.put("producer", "community");
+        body.put("aggregateId", "401");
+        body.put("correlationId", key);
+        body.put("data", Map.of("favoriteId", 401L, "memberId", memberId, "productId", PRODUCT_ID, "cause", "ADMIN"));
+
+        var sent = messages.sendRaw(COMMUNITY_TOPIC, key, "favorite.removed", eventId,
+            jsonMapper.writeValueAsString(body));
+
+        AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(COMMUNITY_DLT, key).isEmpty());
+        assertThat(messages.deadLetters(COMMUNITY_DLT, key)).singleElement()
+            .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
+                .isLessThan(RecommendKafkaMessages.RETRY_BACKOFF_TOTAL_MS));
+        assertThat(recordsOf(memberId)).isEmpty();
     }
 
     private List<ActivityRecord> recordsOf(Long memberId) {
