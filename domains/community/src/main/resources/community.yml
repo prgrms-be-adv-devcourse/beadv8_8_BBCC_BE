@@ -64,6 +64,20 @@ kidly:
           # 훑기 한 주기에 지우는 최대 파일 수(성공한 삭제만 센다). 닿으면 같은 쪽을 다음 주기에 다시 읽는다.
           # 지우지 못한 파일은 이번 바퀴에서 건너뛰고 다음 바퀴에 다시 본다
           scan-delete-limit: 100
+    # 커뮤니티 이벤트 발행(#1274): 리뷰 · 찜이 바뀐 트랜잭션에서 아웃박스(community.event_outbox)에 넣고, 릴레이가 커밋된 행을
+    # kidly.community.events(파티션 3 · 복제 1)로 id 순서대로 보낸 뒤 지운다. 릴레이는 팀 공통 스위치 kidly.kafka.producer.enabled를 따른다
+    # 같은 eventId가 두 번 갈 수 있다(보낸 뒤 지우기 전에 서버가 죽으면). 받는 쪽은 eventId로 한 번만 처리한다
+    events:
+      relay:
+        # 릴레이 주기(이전 실행이 끝난 뒤부터)와 한 주기에 볼 최대 행 수
+        interval: PT1S
+        batch-size: 100
+        # 보내기 실패: initial-backoff부터 두 배씩(상한 max-backoff) 미루고, max-attempts번 실패하면 격리하고 다음 행으로 넘어간다
+        max-attempts: 10
+        initial-backoff: PT1S
+        max-backoff: PT60S
+        # 한 건을 보내고 브로커 응답을 기다리는 최대 시간
+        send-timeout: PT10S
     # 운영 조회 MCP 창구(읽기 전용, POST /api/v1/admin/community/mcp, 관리자만). AI가 커뮤니티 운영 상태(리뷰 요약 · DLT ·
     # 검사 현황 · 상품 복사본)를 조회한다. 조작 도구는 없다. 응답에 리뷰 본문 · 닉네임 · 회원 ID · 사진 주소 · DLT 원본을 넣지 않는다
     mcp:

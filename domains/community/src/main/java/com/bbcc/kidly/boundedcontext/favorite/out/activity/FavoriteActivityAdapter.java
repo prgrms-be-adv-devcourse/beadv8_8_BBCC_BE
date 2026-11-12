@@ -16,19 +16,20 @@ public class FavoriteActivityAdapter implements FavoriteActivityLog {
     private final ActivityRecorder recorder;
 
     @Override
-    public void favoriteAdded(Long favoriteId, Long productId) {
-        recorder.record(new ActivityRecorder.FavoriteAdded(favoriteId, productId));
+    public void favoriteAdded(Long favoriteId, Long memberId, Long productId) {
+        recorder.record(new ActivityRecorder.FavoriteAdded(favoriteId, memberId, productId));
     }
 
     @Override
-    public void favoriteRemoved(Long favoriteId, Long productId) {
-        recorder.record(new ActivityRecorder.FavoriteRemoved(favoriteId, productId));
+    public void favoriteRemoved(Long favoriteId, Long memberId, Long productId) {
+        recorder.record(new ActivityRecorder.FavoriteRemoved(favoriteId, memberId, productId));
     }
 
     @Override
-    public void favoritesRemovedByWithdrawal(List<RemovedFavorite> removed) {
+    public void favoritesRemovedByWithdrawal(Long memberId, List<RemovedFavorite> removed) {
         recorder.recordWithdrawn(removed.stream()
-            .map(favorite -> new ActivityRecorder.FavoriteRemoved(favorite.favoriteId(), favorite.productId()))
+            .map(favorite -> new ActivityRecorder.FavoriteRemoved(favorite.favoriteId(), memberId,
+                favorite.productId()))
             .toList());
     }
 }
