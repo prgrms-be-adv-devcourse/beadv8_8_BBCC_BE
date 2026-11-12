@@ -238,6 +238,7 @@ public class AiResponseService {
             task.cancel(true);
             logCallFailure(type, e);
         } catch (TimeoutException e) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.TIMEOUT);
             // 화면에는 규칙 결과가 나가지만, 늦게 온 답은 받는 대로 저장해 같은 입력의 다음 요청이 쓰게 한다
             task.thenAccept(lateAnswer -> saveLateAnswer(type, key, lateAnswer));
             logCallFailure(type, e);
