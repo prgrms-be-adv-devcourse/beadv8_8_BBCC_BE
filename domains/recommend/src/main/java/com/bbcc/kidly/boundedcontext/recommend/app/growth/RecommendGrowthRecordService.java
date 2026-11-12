@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthReco
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordedEvent;
+import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordDeletedEvent;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,10 @@ public class RecommendGrowthRecordService {
     private final RecommendGrowthRecordRepository growthRecordRepository;
 
     private final RecommendReplicaChildRepository replicaChildRepository;
+
+    public void deleteGrowthRecord(ChildGrowthRecordDeletedEvent event) {
+        growthRecordRepository.deleteByGrowthRecordId(event.data().growthRecordId());
+    }
 
     /**
      * 성장 기록 이벤트의 값을 성장 기록으로 저장한다.
