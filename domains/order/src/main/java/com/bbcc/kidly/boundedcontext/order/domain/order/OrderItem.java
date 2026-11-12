@@ -55,7 +55,9 @@ public class OrderItem extends OrderTimeEntity {
     public enum CancelReason {
         OUT_OF_STOCK,
         WRONG_PRODUCT_INFO,
-        OTHER
+        OTHER,
+        /** 판매자가 판매할 수 없는 상태(ACTIVE 아님)가 돼 시스템이 배송 전 몫을 취소했다(#1121). 판매자가 고르는 사유가 아니다 */
+        SELLER_UNAVAILABLE
     }
 
     /**

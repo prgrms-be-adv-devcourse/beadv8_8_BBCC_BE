@@ -219,13 +219,7 @@ discovery.relabel "kidly_pods" {
 
 	rule {
 		source_labels = ["__meta_kubernetes_pod_phase"]
-		regex         = "Running"
-		action        = "keep"
-	}
-
-	rule {
-		source_labels = ["__meta_kubernetes_pod_container_port_name"]
-		regex         = "http"
+		regex         = "Running|Succeeded|Failed"
 		action        = "keep"
 	}
 
@@ -261,6 +255,18 @@ discovery.relabel "kidly_pod_metrics" {
 	targets = discovery.relabel.kidly_pods.output
 
 	rule {
+		source_labels = ["__meta_kubernetes_pod_phase"]
+		regex         = "Running"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_port_name"]
+		regex         = "http"
+		action        = "keep"
+	}
+
+	rule {
 		source_labels = ["__meta_kubernetes_pod_name"]
 		target_label  = "instance"
 	}
@@ -271,7 +277,7 @@ discovery.relabel "kidly_pod_metrics" {
 	}
 }
 
-// 로그에는 compose 컨테이너와 같은 service_name 을 붙인다. instance(Pod) · job 은 loki.source.kubernetes 가 붙인다
+// 종료된 Job Pod 의 마지막 로그도 모은다. 로그에는 compose 컨테이너와 같은 service_name 을 붙인다. instance(Pod) · job 은 loki.source.kubernetes 가 붙인다
 // k3s.yaml 이 없으면 이 컴포넌트들이 만들어지지 않아 Alloy 가 뜨지 않는다. deploy.sh 가 미리 확인한다
 discovery.relabel "kidly_pod_logs" {
 	targets = discovery.relabel.kidly_pods.output

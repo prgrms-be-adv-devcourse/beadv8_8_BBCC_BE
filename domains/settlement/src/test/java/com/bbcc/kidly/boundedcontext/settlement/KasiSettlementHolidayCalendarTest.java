@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementHoliday;
 import com.bbcc.kidly.boundedcontext.settlement.out.holiday.KasiSettlementHolidayCalendar;
 import com.bbcc.kidly.boundedcontext.settlement.out.holiday.SettlementHolidayProperties;
 import java.net.SocketTimeoutException;
@@ -57,7 +58,8 @@ class KasiSettlementHolidayCalendarTest {
 
         var holidays = calendar.holidaysIn(YEAR);
 
-        assertThat(holidays).containsExactlyInAnyOrder(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 3, 2));
+        assertThat(holidays).containsExactly(new SettlementHoliday(LocalDate.of(2026, 1, 1), "1월1일"),
+            new SettlementHoliday(LocalDate.of(2026, 3, 2), "대체공휴일(삼일절)"));
         server.verify();
     }
 
@@ -68,7 +70,8 @@ class KasiSettlementHolidayCalendarTest {
             <item><dateKind>01</dateKind><dateName>대체공휴일(삼일절)</dateName><isHoliday>Y</isHoliday>\
             <locdate>20260302</locdate><seq>1</seq></item>""", 1), MediaType.APPLICATION_XML));
 
-        assertThat(calendar.holidaysIn(YEAR)).containsExactly(LocalDate.of(2026, 3, 2));
+        assertThat(calendar.holidaysIn(YEAR))
+            .containsExactly(new SettlementHoliday(LocalDate.of(2026, 3, 2), "대체공휴일(삼일절)"));
     }
 
     @Test
@@ -80,7 +83,19 @@ class KasiSettlementHolidayCalendarTest {
             <item><dateKind>01</dateKind><dateName>기념일</dateName><isHoliday>N</isHoliday>\
             <locdate>20260305</locdate><seq>1</seq></item>""", 2), MediaType.APPLICATION_XML));
 
-        assertThat(calendar.holidaysIn(YEAR)).containsExactly(LocalDate.of(2026, 3, 2));
+        assertThat(calendar.holidaysIn(YEAR))
+            .containsExactly(new SettlementHoliday(LocalDate.of(2026, 3, 2), "대체공휴일(삼일절)"));
+    }
+
+    @Test
+    @DisplayName("같은 날짜의 공휴일 이름을 응답 순서대로 합친다")
+    void combinesNamesOnSameDay() {
+        expectYear().andRespond(withSuccess(response("""
+            <item><dateName>어린이날</dateName><isHoliday>Y</isHoliday><locdate>20260505</locdate></item>
+            <item><dateName>부처님오신날</dateName><isHoliday>Y</isHoliday><locdate>20260505</locdate></item>""", 2),
+            MediaType.APPLICATION_XML));
+        assertThat(calendar.holidaysIn(YEAR)).containsExactly(
+            new SettlementHoliday(LocalDate.of(2026, 5, 5), "어린이날, 부처님오신날"));
     }
 
     @ParameterizedTest(name = "[{0}]")

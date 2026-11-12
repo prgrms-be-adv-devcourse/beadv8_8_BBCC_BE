@@ -20,6 +20,8 @@ import com.bbcc.kidly.boundedcontext.notification.domain.PushNotificationInfo;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -32,6 +34,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * 이메일 복사본이 없어 메일을 못 만들어도 남긴다. 계정 정지는 로그인이 막혀 알림함을 볼 수 없어 메일만 만든다.
  * 회원이 사이트를 떠난 뒤 일어나는 일(주문 확인 · 주문 취소 · 배송 · 새 주문)은 같은 알림함 알림을 웹 푸시로도 보낸다(createPush).
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
@@ -259,11 +262,17 @@ public class NotificationService {
         return UUID.nameUUIDFromBytes(("push:" + inboxDedupKey).getBytes(UTF_8));
     }
 
+    // 발송 대기열이 가득 차 거절되면 호출한 쪽(Kafka 리스너 등)을 깨뜨리지 않고 PENDING으로 둔다.
+    // 알림은 이미 커밋됐으므로 재시도 스케줄러가 PENDING_TIMEOUT 뒤에 집어 보낸다
     private void dispatchAfterCommit(Long notificationId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                notificationDispatcher.dispatchAsync(notificationId);
+                try {
+                    notificationDispatcher.dispatchAsync(notificationId);
+                } catch (TaskRejectedException e) {
+                    log.warn("발송 대기열이 가득 차 재시도 스케줄러에 맡깁니다. notificationId={}", notificationId);
+                }
             }
         });
     }

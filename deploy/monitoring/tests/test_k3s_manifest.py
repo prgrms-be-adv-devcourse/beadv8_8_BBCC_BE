@@ -50,6 +50,39 @@ class K3sManifestTests(unittest.TestCase):
         self.assertEqual(items['Deployment/member']['metadata']['namespace'], 'kidly-dev')
         self.assertNotIn('HorizontalPodAutoscaler/member', items)
 
+    def test_settlement_has_daily_cronjob_with_deployment_settings(self):
+        service = self.service(user='1001:1001', read_only=True, cap_drop=['ALL'],
+                               security_opt=['no-new-privileges:true'])
+        items = self.items('settlement', service)
+        deployment = items['Deployment/settlement']['spec']
+        cron = items['CronJob/settlement-daily-run']
+        self.assertEqual(cron['metadata'], {'name': 'settlement-daily-run', 'namespace': 'kidly-dev',
+                                            'labels': {'app': 'settlement'}})
+        spec = cron['spec']
+        for key, value in {'schedule': '0 10 * * *', 'timeZone': 'Asia/Seoul', 'concurrencyPolicy': 'Forbid',
+                           'startingDeadlineSeconds': 25200, 'successfulJobsHistoryLimit': 3,
+                           'failedJobsHistoryLimit': 3}.items():
+            self.assertEqual(spec[key], value)
+        self.assertNotIn('suspend', spec)
+        job = spec['jobTemplate']['spec']
+        self.assertEqual((job['backoffLimit'], job['activeDeadlineSeconds']), (2, 7200))
+        self.assertEqual(job['podReplacementPolicy'], 'Failed')
+        template = job['template']
+        self.assertEqual(template['metadata']['labels'], {'app': 'settlement-daily-run', 'kidly/job': 'kidly-settlement'})
+        self.assertNotEqual(template['metadata']['labels']['app'], deployment['selector']['matchLabels']['app'])
+        self.assertEqual(template['metadata']['annotations'], deployment['template']['metadata']['annotations'])
+        pod, original = template['spec'], deployment['template']['spec']
+        self.assertEqual(pod['restartPolicy'], 'Never')
+        for key in ('imagePullSecrets', 'securityContext', 'terminationGracePeriodSeconds', 'enableServiceLinks', 'volumes'):
+            self.assertEqual(pod[key], original[key])
+        container, original_container = pod['containers'][0], original['containers'][0]
+        for key in ('image', 'imagePullPolicy', 'envFrom', 'resources', 'volumeMounts', 'securityContext'):
+            self.assertEqual(container[key], original_container[key])
+        self.assertEqual(container['args'], ['--spring.profiles.include=settlement-run-once'])
+        for key in ('ports', 'startupProbe', 'readinessProbe', 'livenessProbe', 'lifecycle'):
+            self.assertNotIn(key, container)
+        self.assertFalse(any(key.startswith('CronJob/') for key in self.items()))
+
     def test_service_without_node_port_is_cluster_internal(self):
         result = k3s.manifest('dev', 'member', None, 'kidly-member', self.service(), self.project)
         service = [item for item in result['items'] if item['kind'] == 'Service'][0]['spec']
@@ -93,9 +126,11 @@ class K3sManifestTests(unittest.TestCase):
         self.assertNotIn('rotated', json.dumps(after))
 
     def test_recommend_autoscales_on_cpu(self):
-        items = self.items('recommend', self.service(volumes=[], mem_limit=str(448 * 1024 * 1024)))
+        items = self.items('recommend', self.service(volumes=[], mem_limit=str(576 * 1024 * 1024)))
         hpa = items['HorizontalPodAutoscaler/recommend']['spec']
-        self.assertEqual((hpa['minReplicas'], hpa['maxReplicas']), (1, 3))
+        self.assertEqual((hpa['minReplicas'], hpa['maxReplicas']), (1, 2))
+        # JVM 이 켜지며 잠깐 쓰는 CPU 로는 늘리지 않는다(#1237)
+        self.assertEqual(hpa['behavior']['scaleUp']['stabilizationWindowSeconds'], 300)
         container = items['Deployment/recommend']['spec']['template']['spec']['containers'][0]
         self.assertEqual(container['resources']['requests']['cpu'], '200m')
 

@@ -39,6 +39,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    // 테스트마다 Redis의 AI 응답 키를 지우는 DatabaseCleanerExtension이 StringRedisTemplate을 쓴다.
+    // 도메인 모듈은 implementation으로 받아 서비스 테스트 컴파일 경로에 없다
+    testImplementation("org.springframework.boot:spring-boot-starter-data-redis")
     // 수신 테스트용 Kafka 컨테이너와 메시지를 넣는 Producer · Admin (버전은 Boot BOM)
     // 리스너를 켜고 끄는 레지스트리는 위의 main 의존(spring-boot-starter-kafka)이 테스트에도 준다
     testImplementation("org.testcontainers:testcontainers-kafka")

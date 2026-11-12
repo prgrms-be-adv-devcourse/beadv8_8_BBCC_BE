@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
  *
  * @param thumbnailUrl 없으면 null
  * @param totalAvailableQuantity 옵션들의 판매 가능 수량 합계
+ * @param soldOutOptionCount 판매중 옵션 가운데 판매 가능 수량이 0인 옵션 수. 판매중지 · 보관 옵션은 세지 않는다
+ * @param lowStockOptionCount 판매중 옵션 가운데 판매 가능 수량이 1 이상 기준 수 이하인 옵션 수
  * @param minPrice 옵션 판매가 중 가장 낮은 값. 옵션이 없으면 null
  */
 public record SellerProductSummary(
@@ -17,6 +19,8 @@ public record SellerProductSummary(
     ProductStatus status,
     long optionCount,
     long totalAvailableQuantity,
+    long soldOutOptionCount,
+    long lowStockOptionCount,
     Long minPrice,
     LocalDateTime createdAt) {
 }

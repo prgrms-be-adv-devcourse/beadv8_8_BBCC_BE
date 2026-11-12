@@ -28,21 +28,21 @@
         "name": "env",
         "label": "환경",
         "type": "custom",
-        "query": "dev,prod",
+        "query": "운영 : dev,prod : prod",
         "current": {
-          "text": "prod",
-          "value": "prod"
+          "text": "운영",
+          "value": "dev"
         },
         "options": [
           {
-            "text": "dev",
+            "text": "운영",
             "value": "dev",
-            "selected": false
+            "selected": true
           },
           {
             "text": "prod",
             "value": "prod",
-            "selected": true
+            "selected": false
           }
         ]
       }

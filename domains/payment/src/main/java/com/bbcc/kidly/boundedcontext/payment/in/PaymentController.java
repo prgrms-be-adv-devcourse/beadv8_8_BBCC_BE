@@ -28,10 +28,11 @@ public class PaymentController {
     @GetMapping
     public PageResponse<PaymentSummaryResponse> getPayments(
         @LoginMember AuthMember member,
+        @RequestParam(required = false) Long orderId,
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return PageResponse.from(
-            paymentQueryService.getPayments(member.id(), page, size).map(PaymentSummaryResponse::from));
+            paymentQueryService.getPayments(member.id(), orderId, page, size).map(PaymentSummaryResponse::from));
     }
 
     @GetMapping("/{paymentId}")

@@ -47,6 +47,11 @@ final class EmbeddingCircuitBreaker {
         return Permit.PROBE;
     }
 
+    // 열려 있으면(시험 호출 중 포함) true. 지표(kidly.search.embedding.circuit.open)가 읽는다
+    synchronized boolean isOpen() {
+        return openedAt != null;
+    }
+
     synchronized void onSuccess(Permit permit) {
         consecutiveFailures = 0;
         if (permit == Permit.PROBE) {

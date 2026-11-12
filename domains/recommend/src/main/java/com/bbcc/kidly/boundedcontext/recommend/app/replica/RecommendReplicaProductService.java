@@ -3,10 +3,13 @@ package com.bbcc.kidly.boundedcontext.recommend.app.replica;
 import com.bbcc.kidly.boundedcontext.recommend.domain.embedding.ProductEmbeddingText;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class RecommendReplicaProductService {
+
+    // 상품 옵션 값 중 색상의 코드다
+    private static final String COLOR_CODE = "COLOR";
 
     private final RecommendReplicaProductRepository replicaProductRepository;
 
@@ -53,7 +59,8 @@ public class RecommendReplicaProductService {
             toInfoValues(data.infoValues()),
             event.occurredAt(),
             toCategoryPathEntryInfos(data.categoryPath()),
-            data.saleStartedAt());
+            data.saleStartedAt(),
+            toColors(data.options()));
     }
 
     // 이벤트의 카테고리 경로도 칸이 없는 예전 메시지는 빈 목록으로 오므로 null을 검사하지 않는다
@@ -61,12 +68,33 @@ public class RecommendReplicaProductService {
         List<ProductChangedEvent.CategoryPathEntry> categoryPath) {
         List<RecommendReplicaProduct.CategoryPathEntryInfo> infos = new ArrayList<>();
         for (ProductChangedEvent.CategoryPathEntry entry : categoryPath) {
-            infos.add(new RecommendReplicaProduct.CategoryPathEntryInfo(entry.id(), entry.name()));
+            infos.add(new RecommendReplicaProduct.CategoryPathEntryInfo(
+                entry.id(), entry.name(), entry.visibleGender()));
         }
         return infos;
     }
 
     // 이벤트의 상품 정보 값은 칸이 없는 예전 메시지에서 null로 오므로 빈 목록으로 본다
+    // 판매 중이고 품절이 아닌 옵션의 값 중 색상(COLOR)만 중복 없이 모은다. 화면에서 살 수 없는 색상을 AI가 이유에 쓰지 않게 한다.
+    // 옵션 값 칸이 없는 예전 메시지(values가 null)는 빈 목록이다
+    private List<String> toColors(List<ProductChangedEvent.Option> options) {
+        Set<String> colors = new LinkedHashSet<>();
+        if (options == null) {
+            return List.of();
+        }
+        for (ProductChangedEvent.Option option : options) {
+            if (option.values() == null || option.soldOut() || option.saleStatus() != OptionSaleStatus.ON_SALE) {
+                continue;
+            }
+            for (ProductChangedEvent.AttributeEntry value : option.values()) {
+                if (COLOR_CODE.equals(value.code()) && value.value() != null && !value.value().isBlank()) {
+                    colors.add(value.value());
+                }
+            }
+        }
+        return List.copyOf(colors);
+    }
+
     private List<ProductEmbeddingText.InfoValue> toInfoValues(List<ProductChangedEvent.AttributeEntry> infoValues) {
         List<ProductEmbeddingText.InfoValue> result = new ArrayList<>();
         if (infoValues == null) {

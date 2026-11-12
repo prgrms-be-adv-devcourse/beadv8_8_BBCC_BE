@@ -24,6 +24,8 @@ public record OrderActor(OrderStatusHistory.ActorType type, Long id, String sour
     public static final String PAYMENT_FAILED = "payment.failed";
     public static final String STOCK_DEDUCTION_FAILED = "stock.deduction-failed";
     public static final String MEMBER_WITHDRAWN = "member.withdrawn";
+    // 판매자가 판매할 수 없게 된 정리(#1121). 회원 탈퇴(#1001)처럼 SYSTEM 주체 · 출처는 받은 이벤트 이름
+    public static final String SELLER_CHANGED = "seller.changed";
 
     public static OrderActor buyer(Long memberId, String source) {
         return new OrderActor(OrderStatusHistory.ActorType.BUYER, memberId, source);

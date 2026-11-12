@@ -27,13 +27,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -74,21 +73,24 @@ class HomePreviewServiceTest {
     @BeforeEach
     void setUp() {
         aiResponseService = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK,
-            2_000, Map.of(AiResponseType.HOME_PREVIEW, Duration.ofSeconds(1)), Duration.ofHours(24));
+            2_000, Map.of(AiResponseType.HOME_PREVIEW, Duration.ofSeconds(1)), Duration.ofSeconds(10),
+            Duration.ofHours(24));
     }
 
     @Test
     @DisplayName("HOME-03 AI가 고른 상품을 AI 답 순서와 이유 그대로 돌려준다")
     void aiPicksWithReasons() {
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5", 2L, "이유 2", 6L, "이유 6", 1L, "이유 1"));
+        RecordingPicker picker = new RecordingPicker(
+            answer(5L, "이유 5이에요.", 2L, "이유 2이에요.", 6L, "이유 6이에요.", 1L, "이유 1이에요."));
 
         HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
 
         assertThat(result.source()).isEqualTo("AI");
         assertThat(result.items())
             .extracting(item -> item.product().productId(), HomePreviewResult.Item::reason)
-            .containsExactly(tuple(5L, "이유 5"), tuple(2L, "이유 2"), tuple(6L, "이유 6"), tuple(1L, "이유 1"));
+            .containsExactly(tuple(5L, "이유 5이에요."), tuple(2L, "이유 2이에요."), tuple(6L, "이유 6이에요."),
+                tuple(1L, "이유 1이에요."));
     }
 
     @Test
@@ -107,7 +109,7 @@ class HomePreviewServiceTest {
     @DisplayName("HOME-02 후보가 없으면 AI를 부르지 않고 하루 호출 횟수도 세지 않는다")
     void skipAiWithoutCandidates() {
         givenCandidates();
-        RecordingPicker picker = new RecordingPicker(answer(1L, "이유 1"));
+        RecordingPicker picker = new RecordingPicker(answer(1L, "이유 1이에요."));
 
         HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
 
@@ -134,22 +136,40 @@ class HomePreviewServiceTest {
     @Test
     @DisplayName("자녀 값과 후보 구성이 같으면 후보 순서만 바뀌어도 저장한 AI 답을 다시 쓰고 AI를 다시 부르지 않는다")
     void reuseStoredAnswerWhenOnlyOrderChanges() {
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
         service(picker).preview(MEMBER_ID, CHILD_ID);
+        // AI 답은 다른 스레드에서 저장하므로 저장될 때까지 기다린다
+        store.waitUntilSaved();
         givenCandidates(6L, 5L, 4L, 3L, 2L, 1L);
 
         HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
 
         assertThat(picker.requests).hasSize(1);
         assertThat(result.source()).isEqualTo("AI");
-        assertThat(result.items().getFirst().reason()).isEqualTo("이유 5");
+        assertThat(result.items().getFirst().reason()).isEqualTo("이유 5이에요.");
+    }
+
+    @Test
+    @DisplayName("HOME-07 근거를 넣기 전 프롬프트(버전 1)로 저장한 답은 자녀 값과 후보가 같아도 다시 쓰지 않고 AI를 다시 부른다")
+    void callAiAgainForAnswerOfOldPromptVersion() {
+        store.save(AiResponseType.HOME_PREVIEW, AiResponseKey.of(new AiResponseKey.Input(null, CHILD_ID,
+                CHILD.ageMonths(), CHILD.heightCm(), CHILD.weightKg(), CHILD.bodyType(), CHILD.preferredFit(),
+                List.of(1L, 2L, 3L, 4L, 5L, 6L), null, 1)),
+            "{\"picks\":[{\"productId\":5,\"reason\":\"추천 사이즈가 110인 상품이에요.\"}]}", Duration.ofHours(24));
+        RecordingPicker picker = new RecordingPicker(answer(5L, "포근한 겨울 상의로 추천."));
+        givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
+
+        HomePreviewResult result = service(picker).preview(MEMBER_ID, CHILD_ID);
+
+        assertThat(picker.requests).hasSize(1);
+        assertThat(result.items().getFirst().reason()).isEqualTo("포근한 겨울 상의로 추천.");
     }
 
     @Test
     @DisplayName("후보 구성이 바뀌면 저장한 답을 쓰지 않고 AI를 다시 부른다")
     void callAiAgainWhenCandidatesChange() {
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
         givenCandidates(1L, 2L, 3L, 4L, 5L, 6L);
         service(picker).preview(MEMBER_ID, CHILD_ID);
         givenCandidates(1L, 2L, 3L, 4L, 5L, 7L);
@@ -163,7 +183,7 @@ class HomePreviewServiceTest {
     @MethodSource("changedChildren")
     @DisplayName("자녀의 개월 수 · 키 · 몸무게 · 체형 · 선호 핏 중 하나가 바뀌면 저장한 답을 쓰지 않고 AI를 다시 부른다")
     void callAiAgainWhenChildChanges(HomePreviewAiRequest.Child changedChild) {
-        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5"));
+        RecordingPicker picker = new RecordingPicker(answer(5L, "이유 5이에요."));
         givenCandidates(CHILD, 1L, 2L, 3L, 4L, 5L, 6L);
         service(picker).preview(MEMBER_ID, CHILD_ID);
         givenCandidates(changedChild, 1L, 2L, 3L, 4L, 5L, 6L);
@@ -241,25 +261,30 @@ class HomePreviewServiceTest {
     }
 
     /**
-     * 같은 종류 · 키의 가장 최근 응답만 기억하는 메모리 저장소다.
+     * 같은 종류 · 키의 가장 최근 응답만 기억하는 메모리 저장소다. 보관 기간은 따지지 않는다.
      */
     private static final class MemoryAiResponseStore implements AiResponseStore {
 
-        private final Map<String, String> responses = new HashMap<>();
+        private final Map<String, String> responses = new ConcurrentHashMap<>();
 
         @Override
-        public Optional<String> findLatestSince(AiResponseType type, AiResponseKey key, LocalDateTime since) {
+        public Optional<String> find(AiResponseType type, AiResponseKey key) {
             return Optional.ofNullable(responses.get(type + ":" + key.value()));
         }
 
         @Override
-        public void save(AiResponseType type, AiResponseKey key, String responseJson, LocalDateTime createdAt) {
+        public void save(AiResponseType type, AiResponseKey key, String responseJson, Duration timeToLive) {
             responses.put(type + ":" + key.value(), responseJson);
         }
 
-        @Override
-        public int deleteCreatedBefore(LocalDateTime cutoff) {
-            return 0;
+        void waitUntilSaved() {
+            long deadline = System.nanoTime() + Duration.ofSeconds(1).toNanos();
+            while (responses.isEmpty()) {
+                if (System.nanoTime() > deadline) {
+                    throw new AssertionError("1초 안에 AI 답이 저장되지 않았습니다");
+                }
+                Thread.onSpinWait();
+            }
         }
     }
 

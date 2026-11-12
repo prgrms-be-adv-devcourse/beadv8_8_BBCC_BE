@@ -95,7 +95,7 @@ public class ProductSampleDataService {
                     Map.of("TOTAL_LENGTH", 42, "SHOULDER_WIDTH", 30, "CHEST_WIDTH", 34, "SLEEVE_LENGTH", 38)),
                 new SizeSpecSample("120", 115, 125,
                     Map.of("TOTAL_LENGTH", 45, "SHOULDER_WIDTH", 32, "CHEST_WIDTH", 36, "SLEEVE_LENGTH", 41))));
-        Sample bottom = new Sample("그레이 조거 팬츠", "하의",
+        Sample bottom = new Sample("그레이 조거 팬츠", "바지",
             List.of(new OptionSample("그레이", "120", 5)), 30_000L,
             List.of(new SizeSpecSample("120", 115, 125,
                 Map.of("TOTAL_LENGTH", 66, "WAIST_WIDTH", 25, "HIP_WIDTH", 34, "THIGH_WIDTH", 20, "RISE", 21))));
@@ -161,7 +161,7 @@ public class ProductSampleDataService {
     // 같은 이름의 중간 카테고리로 입력 항목을 조회하면 오류가 나므로 말단만 담는다
     private Map<String, Long> findLeafCategoryIds() {
         Map<String, Long> ids = new HashMap<>();
-        for (CategoryTreeResult top : categoryService.findTree()) {
+        for (CategoryTreeResult top : categoryService.findTree(null)) {
             if (!top.name().equals(CLOTHING_CATEGORY)) {
                 continue;
             }

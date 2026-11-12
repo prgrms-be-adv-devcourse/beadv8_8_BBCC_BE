@@ -1,7 +1,7 @@
 spring:
   application:
     name: kidly-settlement
-  # 정산 도메인 설정(수수료율 · 자동 정산 cron · 아웃박스 릴레이 주기 · Batch 등)
+  # 정산 도메인 설정(수수료율 · 정산 실행 확인 cron · 아웃박스 릴레이 주기 · Batch 등)
   config:
     import:
       - classpath:settlement.yml
@@ -51,7 +51,7 @@ spring:
   task:
     scheduling:
       shutdown:
-        # 정산 Batch는 스케줄러 스레드에서 동기로 돈다. SIGTERM 때 돌던 정산을 최대 30초 기다린 뒤 끈다(기본은 기다리지 않아 기록이 STARTED로 남는다)
+        # SIGTERM 때 돌던 스케줄러 작업(지급 재요청 · 아웃박스 정리 등)을 최대 30초 기다린 뒤 끈다(기본은 기다리지 않는다)
         await-termination: true
         await-termination-period: 30s
 

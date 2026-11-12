@@ -39,7 +39,7 @@ class SettlementMigrationIntegrationTest {
             assertThat(tables(jdbc)).containsExactlyInAnyOrder(
                 "settlement.settlement", "settlement.settlement_item", "settlement.settlement_skip",
                 "settlement.settlement_outbox", "settlement.settlement_dead_letter",
-                "settlement.settlement_admin_action",
+                "settlement.settlement_admin_action", "settlement.settlement_holiday",
                 "settlement.flyway_schema_history_settlement",
                 "settlement.batch_job_instance", "settlement.batch_job_execution",
                 "settlement.batch_job_execution_params", "settlement.batch_step_execution",
@@ -50,7 +50,8 @@ class SettlementMigrationIntegrationTest {
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
                 """, String.class)).containsExactly("202610160256", "202610160855", "202610161145", "202610172016",
                 "202610201008", "202610301630", BASELINE_VERSION, "202611031547",
-                "202611041014", "202611091526", "202611101205");
+                "202611041014", "202611091526", "202611101205", "202611111231",
+                "202611111645");
         }
     }
 
@@ -70,7 +71,8 @@ class SettlementMigrationIntegrationTest {
                 SELECT version FROM settlement.flyway_schema_history_settlement
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
                 """, String.class)).containsExactly(BASELINE_VERSION, "202611031547", "202611041014",
-                "202611091526", "202611101205");
+                "202611091526", "202611101205", "202611111231",
+                "202611111645");
         }
     }
 

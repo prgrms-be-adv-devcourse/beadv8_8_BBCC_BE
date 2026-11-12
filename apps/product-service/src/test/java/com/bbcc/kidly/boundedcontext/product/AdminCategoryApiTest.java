@@ -106,6 +106,27 @@ class AdminCategoryApiTest {
             .jsonPath("$[1].measurementItems[*].code").isEqualTo(List.of("TOTAL_LENGTH"));
     }
 
+    @Test
+    @DisplayName("VIS-01 보일 성별을 GIRL로 만들면 응답 · 목록이 GIRL이고, 보일 성별을 보내지 않은 카테고리는 ALL이다")
+    void createCategoryWithVisibleGender() {
+        String clothingId = createdCategoryId(category("의류", null, null, List.of()));
+        String productTypeId = createProductType("의류", "COLOR");
+        Map<String, Object> dress = category("원피스", clothingId, productTypeId, List.of());
+        dress.put("visibleGender", "GIRL");
+
+        post(TestAdmins.of(ADMIN_ID), dress)
+            .expectStatus().isCreated()
+            .expectBody()
+            .jsonPath("$.visibleGender").isEqualTo("GIRL");
+        client.get().uri(PATH)
+            .headers(TestAdmins.of(ADMIN_ID))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$[*].name").isEqualTo(List.of("의류", "원피스"))
+            .jsonPath("$[*].visibleGender").isEqualTo(List.of("ALL", "GIRL"));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidRequests")
     @DisplayName("카테고리 생성 요청이 잘못되면 400과 ProblemDetail을 준다")
@@ -120,7 +141,8 @@ class AdminCategoryApiTest {
             Named.of("이름이 255자 초과", category("가".repeat(256), null, null, List.of())),
             Named.of("실측 항목 목록이 없음", category("상의", null, "1", null)),
             Named.of("실측 항목 목록에 null", category("상의", null, "1", Arrays.asList((String) null))),
-            Named.of("중간 카테고리에 실측 항목", category("의류", null, null, List.of("1"))));
+            Named.of("중간 카테고리에 실측 항목", category("의류", null, null, List.of("1"))),
+            Named.of("보일 성별이 ALL · GIRL이 아님", withVisibleGender(category("의류", null, null, List.of()), "BOY")));
     }
 
     @Test
@@ -227,6 +249,11 @@ class AdminCategoryApiTest {
         category.put("parentId", parentId);
         category.put("productTypeId", productTypeId);
         category.put("measurementItemIds", measurementItemIds);
+        return category;
+    }
+
+    private static Map<String, Object> withVisibleGender(Map<String, Object> category, String visibleGender) {
+        category.put("visibleGender", visibleGender);
         return category;
     }
 

@@ -4,6 +4,10 @@
 spring:
   elasticsearch:
     uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    # 기본값(응답 30초)이면 Elasticsearch가 느려질 때 검색 요청이 오래 묶여 스레드가 쌓인다(#1026).
+    # 넘으면 검색은 503(SEARCH_UNAVAILABLE), 색인은 Kafka 재시도 뒤 DLT로 간다. 목록 검색은 평소 수십 ms다
+    connection-timeout: 1s
+    socket-timeout: 3s
 
 kidly:
   search:

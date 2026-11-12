@@ -9,6 +9,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_THUMBNAIL_URL;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_CHANGED_AT;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaSellerFixture.BUSINESS_NAME;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaProductService;
@@ -138,6 +139,37 @@ class HomePreviewApiTest {
             .expectBody()
             .jsonPath("$.status").isEqualTo(401)
             .jsonPath("$.instance").isEqualTo(PATH);
+    }
+
+    @Test
+    @DisplayName("HOME-02 스트림(text/event-stream)으로 부르면 규칙 결과를 rule 이벤트로 보내고, AI 결과가 없으면 그대로 닫는다")
+    void streamRuleEventWithoutAi() {
+        saveProduct(401L, PRODUCT_A_REGISTERED_AT);
+
+        String body = client.get().uri(PATH + "?childId={childId}", CHILD_1_ID)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .accept(MediaType.TEXT_EVENT_STREAM)
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+            .expectHeader().valueEquals("X-Accel-Buffering", "no")
+            .expectBody(String.class).returnResult().getResponseBody();
+
+        assertThat(body).contains("event:rule", "\"source\":\"RULE\"", "\"productId\":\"401\"")
+            .doesNotContain("event:ai");
+    }
+
+    @Test
+    @DisplayName("스트림으로 불러도 다른 회원의 자녀면 스트림을 열기 전에 404 ProblemDetail로 받는다")
+    void childNotFoundBeforeStream() {
+        client.get().uri(PATH + "?childId={childId}", 9999L)
+            .headers(TestMembers.buyer(MEMBER_1_ID))
+            .accept(MediaType.TEXT_EVENT_STREAM)
+            .exchange()
+            .expectStatus().isNotFound()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("자녀를 찾을 수 없습니다");
     }
 
     private RestTestClient.ResponseSpec preview() {

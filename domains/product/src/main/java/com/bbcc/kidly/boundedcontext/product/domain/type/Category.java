@@ -1,12 +1,17 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
 
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.childprofile.domain.Gender;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -63,6 +68,11 @@ public class Category extends BaseSoftDeleteEntity {
     @JoinColumn(name = "product_type_id")
     private ProductType productType;
 
+    // 이 카테고리를 보여 줄 자녀 성별이다. 정하지 않으면 ALL이다
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private CategoryVisibleGender visibleGender = CategoryVisibleGender.ALL;
+
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<CategoryMeasurementItem> measurementItems = new ArrayList<>();
@@ -97,6 +107,16 @@ public class Category extends BaseSoftDeleteEntity {
                 CategoryMeasurementItem.create(category, info.measurementItems().get(i), i + 1));
         }
         return category;
+    }
+
+    // 보일 성별을 바꾼다. null이면 ALL이다
+    public void changeVisibleGender(CategoryVisibleGender visibleGender) {
+        this.visibleGender = requireNonNullElse(visibleGender, CategoryVisibleGender.ALL);
+    }
+
+    // 자녀 성별로 이 카테고리를 보여 줄지 본다. 남아에게만 GIRL 카테고리를 숨기고, 성별을 모르면(null) 모두 보여 준다
+    public boolean isVisibleTo(Gender childGender) {
+        return !(childGender == Gender.MALE && visibleGender == CategoryVisibleGender.GIRL);
     }
 
     // 상품 유형과 필수 실측 항목을 받은 값으로 바꾼다. 상품이 있으면 기존 상품을 깨지 않는 변경만 받는다. 실측 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다

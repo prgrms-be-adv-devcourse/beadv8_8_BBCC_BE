@@ -8,6 +8,12 @@ spring:
     admin:
       auto-create: false
 
+  # 테스트 Redis 컨테이너는 CI에서 첫 연결 · 명령이 느릴 수 있어 서버 값(300ms)보다 넉넉히 기다린다
+  data:
+    redis:
+      timeout: 2s
+      connect-timeout: 2s
+
   # 개발자 PC의 OS 환경 변수에 OpenAI 키가 있어도 테스트는 늘 chat · 임베딩 모델 빈 없이 뜬다
   ai:
     openai:

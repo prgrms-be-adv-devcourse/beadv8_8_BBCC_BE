@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend.app.port.ai;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -11,8 +12,16 @@ import java.util.List;
  *
  * @param child 자녀의 몸 정보다
  * @param candidates AI가 고를 후보 상품이다. 선호 점수 순서이다
+ * @param today 계절을 알려 주려고 넘기는 오늘 날짜(한국 시간)다. 없으면 null이다
  */
-public record HomePreviewAiRequest(Child child, List<Candidate> candidates) {
+public record HomePreviewAiRequest(Child child, List<Candidate> candidates, LocalDate today) {
+
+    /**
+     * 오늘 날짜 없이 요청을 만든다.
+     */
+    public HomePreviewAiRequest(Child child, List<Candidate> candidates) {
+        this(child, candidates, null);
+    }
 
     /**
      * 자녀의 몸 정보다. 값이 없는 선택 항목은 null이다.
@@ -30,6 +39,9 @@ public record HomePreviewAiRequest(Child child, List<Candidate> candidates) {
      *
      * @param categoryPath 대분류부터 종류까지의 카테고리 이름이다
      * @param recommendedSize 사이즈 무관 상품이면 null이다
+     * @param evidence 자녀 활동으로 만든 근거 라벨이다. 맞는 근거가 없으면 빈 목록이다
+     * @param colors 판매 중인 옵션의 색상이다
+     * @param productInfo 상품 정보 값(소재 등)과 설명을 한 줄로 이은 글이다. 없으면 null이다
      */
     public record Candidate(
         Long productId,
@@ -37,6 +49,22 @@ public record HomePreviewAiRequest(Child child, List<Candidate> candidates) {
         String brand,
         List<String> categoryPath,
         Long minPrice,
-        String recommendedSize) {
+        String recommendedSize,
+        List<String> evidence,
+        List<String> colors,
+        String productInfo) {
+
+        public Candidate {
+            evidence = List.copyOf(evidence);
+            colors = List.copyOf(colors);
+        }
+
+        /**
+         * 근거 · 색상 · 상품 정보 없이 후보를 만든다.
+         */
+        public Candidate(Long productId, String name, String brand, List<String> categoryPath, Long minPrice,
+            String recommendedSize) {
+            this(productId, name, brand, categoryPath, minPrice, recommendedSize, List.of(), List.of(), null);
+        }
     }
 }

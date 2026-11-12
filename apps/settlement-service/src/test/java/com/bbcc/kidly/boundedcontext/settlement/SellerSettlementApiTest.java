@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 class SellerSettlementApiTest {
 
     private static final String TARGETS_PATH = "/api/v1/seller/settlement-targets";
+    private static final String TARGET_SUMMARY_PATH = "/api/v1/seller/settlement-targets/summary";
     private static final String SETTLEMENTS_PATH = "/api/v1/seller/settlements";
 
     @Autowired
@@ -57,6 +58,36 @@ class SellerSettlementApiTest {
             .expectBody()
             .jsonPath("$.content").isEmpty()
             .jsonPath("$.totalElements").isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("미정산 합계는 본인의 정산 대상 전체 판매금액이고 정산서에 들어간 항목은 뺀다")
+    void targetSummary() {
+        settlementItemRepository.save(
+            SettlementFixture.item(201L, SettlementFixture.SELLER_ID, 10_000L, LocalDateTime.of(2026, 10, 1, 10, 0)));
+        settlementItemRepository.save(
+            SettlementFixture.item(202L, SettlementFixture.SELLER_ID, 7_000L, LocalDateTime.of(2026, 10, 2, 10, 0)));
+        settlementItemRepository.save(
+            SettlementFixture.item(203L, 11L, 5_000L, LocalDateTime.of(2026, 10, 1, 11, 0)));
+        settle(1L, 204L, 3_000L);
+
+        client.get().uri(TARGET_SUMMARY_PATH)
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.totalSalesAmount").isEqualTo(17_000);
+    }
+
+    @Test
+    @DisplayName("정산 대상이 없으면 미정산 합계는 0이다")
+    void targetSummaryEmpty() {
+        client.get().uri(TARGET_SUMMARY_PATH)
+            .headers(TestMembers.seller(SettlementFixture.SELLER_ID))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.totalSalesAmount").isEqualTo(0);
     }
 
     @Test

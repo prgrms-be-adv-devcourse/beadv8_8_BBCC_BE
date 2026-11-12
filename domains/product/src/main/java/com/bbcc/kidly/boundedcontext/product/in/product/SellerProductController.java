@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product.in.product;
 
+import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductFilter;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductRegistrationService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductSaleService;
 import com.bbcc.kidly.boundedcontext.product.app.product.ProductUpdateService;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -44,12 +46,16 @@ public class SellerProductController {
     private final ProductUpdateService productUpdateService;
     private final SellerProductService sellerProductService;
 
-    // 정렬은 등록 최신순으로 고정이라 pageable의 sort는 무시된다
+    // 정렬은 등록 최신순으로 고정이라 pageable의 sort는 무시된다. status와 lowStock은 서로 독립인 조건이다
     @GetMapping
     public PageResponse<SellerProductSummaryResponse> list(
-        @LoginMember AuthMember member, @PageableDefault Pageable pageable) {
-        return PageResponse.from(
-            sellerProductService.findMyProducts(member.id(), pageable).map(SellerProductSummaryResponse::from));
+        @LoginMember AuthMember member,
+        @RequestParam(required = false) ProductStatus status,
+        @RequestParam(defaultValue = "false") boolean lowStock,
+        @PageableDefault Pageable pageable) {
+        return PageResponse.from(sellerProductService
+            .findMyProducts(member.id(), new SellerProductFilter(status, lowStock), pageable)
+            .map(SellerProductSummaryResponse::from));
     }
 
     // 판매자 본인의 상품 하나의 상세를 돌려준다

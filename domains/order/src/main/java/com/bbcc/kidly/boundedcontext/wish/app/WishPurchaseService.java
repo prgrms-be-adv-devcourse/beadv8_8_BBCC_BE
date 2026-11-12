@@ -65,7 +65,10 @@ public class WishPurchaseService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean onPurchased(PurchasedLine line) {
-        Optional<WishRequest> found = WishRequest.idOfReservation(line.reservationId())
+        Optional<Long> requestId = WishRequest.idOfReservation(line.reservationId());
+        // 조르기를 읽기 전에 장바구니 예약을 먼저 잠근다(#1207, 만료 · 거절 · 철회와 같은 예약 → 조르기 → 칸 순서)
+        requestId.ifPresent(id -> wishCart.lock(line.reservationId()));
+        Optional<WishRequest> found = requestId
             .flatMap(wishRequestRepository::findById)
             .filter(request -> request.containsCartItem(line.cartItemId()));
         if (found.isEmpty()) {

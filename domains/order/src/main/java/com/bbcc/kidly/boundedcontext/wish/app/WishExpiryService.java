@@ -22,10 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
  * 결제 정리로 예약 칸이 이미 빠졌거나 칸이 남는 일부 수량 결제라도 장바구니가 예약에 결제 정리 표시를 남겼으면(hasPurchase), 구매 사실이
  * 아직 오지 않은 것이므로(결제 반영 중) 만료하지 않는다(곧 결제 완료가 된다. 거절 · 철회 409와 같은 기준).
  * 만료 작업은 기한 + 유예(grace)가 지난 것만 만료한다: 기한 전에 만든 주문의 결제 완료가 늦게 와도 반영되게 한다(WishExpiry.isExpirable).
- * 결제 완료와 동시에 오면 먼저 저장한 쪽이 이긴다(@Version): 만료가 이기면 예약이 풀린 뒤라 그 결제는 조르기와 이어지지 않는다(구매 사실에
- * 예약 ID가 없어 산 것에 남지 않고 상태 · 이벤트 그대로. 예약 ID가 실린 구매 사실이 늦게 오면 WishPurchaseService가 산 것만 남긴다).
- * 확인한 뒤 결제 정리가 커밋되면 만료의 예약 해제가 장바구니 예약 버전(cart_reservation.version)으로 지고
- * 이 건만 롤백된다(주기 작업은 다음 건을 계속 처리하고, 다음 실행에서 결제 반영 중으로 건너뛴다). 꺼져 있으면(kidly.order.wish.expiry.enabled=false) 아무것도 만료하지 않는다.
+ * 결제 정리 · 결제 완료 반영과 겹치면 장바구니 예약 잠금(#1207, 예약 → 조르기 → 칸 순서)으로 줄을 세워 먼저 잠근 쪽이 이긴다: 만료는
+ * 조르기를 읽기 전에 예약을 잠그고, 잠근 뒤 구매 표시가 있으면(결제 정리가 먼저) 예외 없이 건너뛴다(조르기는 대기 그대로, 곧 결제 완료).
+ * 만료가 먼저면 예약이 풀린 뒤라 그 결제는 조르기와 이어지지 않는다(구매 사실에 예약 ID가 없어 산 것에 남지 않고 상태 · 이벤트 그대로.
+ * 예약 ID가 실린 구매 사실이 늦게 오면 WishPurchaseService가 산 것만 남긴다). 꺼져 있으면(kidly.order.wish.expiry.enabled=false)
+ * 아무것도 만료하지 않는다.
  */
 @Slf4j
 @Service
@@ -59,12 +60,14 @@ public class WishExpiryService {
      */
     @Transactional
     public boolean expire(Long requestId, LocalDateTime now) {
+        // 조르기를 읽기 전에 장바구니 예약을 먼저 잠근다(#1207): 결제 정리 · 거절 · 철회 · 결제 완료와 같은 순서(예약 → 조르기 → 칸)라
+        // 교착하지 않고, 먼저 잠근 쪽의 결과를 보고 판단한다(결제 정리가 먼저면 아래에서 구매 표시를 보고 만료하지 않는다)
+        boolean purchased = wishCart.lock(WishRequest.RESERVATION_PREFIX + requestId);
         WishRequest request = wishRequestRepository.findById(requestId).orElse(null);
         if (request == null || !wishExpiry.isExpirable(request, now)) {
             return false;
         }
-        if (wishCart.reservedCartItemIds(request.reservationId()).size() < request.getLines().size()
-            || wishCart.hasPurchase(request.reservationId())) {
+        if (purchased || wishCart.reservedCartItemIds(request.reservationId()).size() < request.getLines().size()) {
             // 결제 정리가 예약 칸을 정리했는데(빠짐 · 일부 차감) 아직 구매 사실이 오지 않았다(Kafka 지연): 곧 결제 완료가 되므로 만료하지 않는다
             log.debug("결제 반영 중이라 만료하지 않습니다: requestId={}", request.getId());
             return false;
