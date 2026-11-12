@@ -14,7 +14,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | `child.changed` 자녀 정보 변경됨 | 자녀 프로필 → 인증 · 주문 · 추천 | 복사본 저장 (삭제면 삭제 직전 값 + deleted) | childId · memberId · heightCm · weightKg · gender · birthDate · bodyType(없으면 null) · preferredFit(없으면 null) · deleted | ① |
 | `child.growth-recorded` 성장 기록됨 | 자녀 프로필 → 추천 | 성장 이력 저장 | growthRecordId · childId · heightCm · bodyType(없으면 null) · recordedAt | ① |
 | `child.growth-record-deleted` 성장 기록 삭제됨 | 자녀 프로필 → 추천 | 성장 이력 삭제 | growthRecordId · childId | ① |
-| `seller.changed` 판매자 정보 변경됨 | 판매자 → 회원 · 상품 · 주문 · 추천 · **검색** | 복사본 저장 (승인 · 정지 · 탈퇴 때 발행) · 상호명 색인(검색) | sellerId · businessName · status(ACTIVE · SUSPENDED · CLOSED) | ② · 최종 |
+| `seller.changed` 판매자 정보 변경됨 | 판매자 → 회원 · 상품 · 주문 · 추천 · **검색** | 복사본 저장 (승인 · 정지 · 탈퇴 · 상호명 수정 때 발행) · 상호명 색인(검색) | sellerId · businessName · status(ACTIVE · SUSPENDED · CLOSED) | ② · 최종 |
 | `product.changed` 상품 정보 변경됨 | 상품 → 추천 · 주문 · **검색 · 커뮤니티** · 상품(검색용 표, 되돌리기용) | 복사본 저장 (판매 상태 변경 · 수정 · 품절 변경 때 발행) · 색인(검색) · 임베딩 다시 생성(추천) | productId · sellerId · name · categoryId · status · thumbnailUrl · createdAt · sizeFree · infoValues · options(optionId · optionName · size · price · minHeightCm · maxHeightCm · soldOut · saleStatus · values) · **brand · description · sizeSpecs**(#610) · **categoryPath**(id · name · visibleGender, 대분류 → 종류, #955 · #1202) · **saleStartedAt**(#1096) | ② · 최종 |
 | `order.created` 주문 생성됨 | 주문 → 상품 | 재고 차감 (선점) | orderId · memberId · items(orderItemId · optionId · quantity) | ④ |
 | `stock.deducted` 재고 차감됨 | 상품 → 주문 | 결제 요청 (결제대기일 때만) | orderId | ④ |

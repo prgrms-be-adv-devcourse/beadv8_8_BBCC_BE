@@ -81,6 +81,7 @@
 | POST | `/api/v1/members/me/seller-application` | 판매자 신청(상호명 · 대표자명 · 사업자등록번호 10자리) | 🔒 |
 | GET | `/api/v1/members/me/seller-application` | 내 판매자 신청 상태(가장 최근 신청) | 🔒 |
 | GET | `/api/v1/seller/me` | 내 판매자 정보 | 🏪 |
+| PATCH | `/api/v1/seller/me` | 내 상호명 수정 | 🏪 |
 | GET | `/api/v1/admin/seller-applications` | 판매자 신청 목록 | 🛠 |
 | POST | `/api/v1/admin/seller-applications/{applicationId}/approve` | 판매자 승인 | 🛠 |
 | POST | `/api/v1/admin/seller-applications/{applicationId}/reject` | 판매자 거절(사유) | 🛠 |
