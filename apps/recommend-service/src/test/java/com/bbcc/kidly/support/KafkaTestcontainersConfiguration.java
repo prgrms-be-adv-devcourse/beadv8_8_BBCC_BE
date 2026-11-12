@@ -50,6 +50,11 @@ public class KafkaTestcontainersConfiguration {
     }
 
     @Bean
+    NewTopic receivedCommunityEventsTopic() {
+        return eventsTopic("kidly.community.events");
+    }
+
+    @Bean
     NewTopic receivedMemberEventsTopic() {
         return eventsTopic("kidly.member.events");
     }
