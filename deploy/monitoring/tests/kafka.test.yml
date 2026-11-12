@@ -152,13 +152,13 @@ tests:
     values: 1+0x40
   - series: kafka_brokers{job="kidly-kafka",env="dev",instance="exporter"}
     values: 1+0x40
-  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.search",topic="kidly.product.events",partition="0"}
     values: 3+0x40
-  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.search",topic="kidly.product.events",partition="0"}
     values: 10+0x32 11+1x7
-  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="1"}
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.search",topic="kidly.product.events",partition="1"}
     values: 3+0x40
-  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="stalled",topic="orders",partition="1"}
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.search",topic="kidly.product.events",partition="1"}
     values: 10+1x40
   - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="idle",topic="orders",partition="0"}
     values: 0+0x40
@@ -184,9 +184,17 @@ tests:
     values: 1+0x40
   - series: kafka_brokers{job="kidly-kafka",env="disabled",instance="exporter"}
     values: 1+0x40
-  - series: kafka_consumergroup_lag{job="kidly-kafka",env="disabled",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="disabled",instance="exporter",consumergroup="kidly.search",topic="kidly.product.events",partition="0"}
     values: 3+0x40
-  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="disabled",instance="exporter",consumergroup="stalled",topic="orders",partition="0"}
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="disabled",instance="exporter",consumergroup="kidly.search",topic="kidly.product.events",partition="0"}
+    values: 10+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.order",topic="kidly.product.events",partition="0"}
+    values: 3+1x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.order",topic="kidly.product.events",partition="0"}
+    values: 10+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.search",topic="kidly.seller.events",partition="0"}
+    values: 3+1x40
+  - series: kafka_consumergroup_current_offset{job="kidly-kafka",env="dev",instance="exporter",consumergroup="kidly.search",topic="kidly.seller.events",partition="0"}
     values: 10+0x40
   alert_rule_test:
   - eval_time: 10m
@@ -197,8 +205,11 @@ tests:
     exp_alerts:
     - exp_labels:
         env: dev
-        consumergroup: stalled
-        topic: orders
+        consumergroup: kidly.search
+        topic: kidly.product.events
   - eval_time: 17m
     alertname: kidly-kafka-consumer-stalled
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: kidly-kafka-lag-growing
     exp_alerts: []

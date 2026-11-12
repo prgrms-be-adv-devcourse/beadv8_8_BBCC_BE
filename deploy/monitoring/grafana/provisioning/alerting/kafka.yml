@@ -72,6 +72,7 @@ groups:
           (kafka_consumergroup_lag{job="kidly-kafka"}) and on(env,consumergroup,topic)
           (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
           >= 0))[10m:30s]) >= 20)
+          and on(env,consumergroup,topic) kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
         instant: true
     - refId: B
       datasourceUid: __expr__
@@ -91,7 +92,7 @@ groups:
       description: "최근 10분간 미처리가 남았고 증가 추세가 5분 지속됐습니다. 해당 그룹의 소비자 로그와 파티션별 lag 추이를 확인하세요."
       recovery_summary: "{{ if eq $labels.env \"dev\" }}운영{{ else }}{{ $labels.env }}{{ end }} · {{ $labels.consumergroup }} · {{ $labels.topic }} · 증가 조건이 해제됐습니다. 파티션별 lag가 줄어드는지 확인하세요."
       dashboard_url: "https://grafana.kidly.kro.kr/d/kidly-kafka?var-env={{ $labels.env }}"
-    isPaused: true
+    isPaused: false
   # Kafka exporter 수집 주기 30초. 10분 창에서 최대 2개 누락을 허용한다.
   - uid: kidly-kafka-consumer-stalled
     title: Kafka 소비 진행 정지
@@ -128,6 +129,7 @@ groups:
             )
             and on(env) max by(env) (kidly_kafka_exporter_expected == 1)
           )
+          and on(env,consumergroup,topic) kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
         instant: true
     - refId: B
       datasourceUid: __expr__
@@ -147,7 +149,7 @@ groups:
       description: "미처리 이벤트가 남은 파티션에서 10분 관측 창 동안 커밋 오프셋 변화가 없었고, 조건이 5분 지속됐습니다. 소비자 로그에서 처리 오류와 리밸런스를 확인하세요."
       recovery_summary: "{{ if eq $labels.env \"dev\" }}운영{{ else }}{{ $labels.env }}{{ end }} · {{ $labels.consumergroup }} · {{ $labels.topic }} · 정지 조건이 해제됐습니다. 오프셋이 전진하고 lag가 줄어드는지 확인하세요."
       dashboard_url: "https://grafana.kidly.kro.kr/d/kidly-kafka?var-env={{ $labels.env }}"
-    isPaused: true
+    isPaused: false
   - uid: kidly-member-dlt-arrived
     title: 회원 서비스 처리 실패 메시지 도착
     condition: B
