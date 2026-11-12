@@ -7,6 +7,9 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
+import com.bbcc.kidly.shared.community.event.FavoriteAddedEvent;
+import com.bbcc.kidly.shared.community.event.FavoriteRemovalCause;
+import com.bbcc.kidly.shared.community.event.FavoriteRemovedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
@@ -150,6 +153,22 @@ public final class ActivityRecordFixture {
         return new WishCancelledEvent(WISH_CANCEL_EVENT_ID, WISH_CANCELLED_AT, new WishCancelledEvent.Data(
             WISH_REQUEST_ID, CHILD_1_ID, MEMBER_1_ID,
             List.of(new WishCancelledEvent.Item(PRODUCT_A_ID, PRODUCT_A_120_OPTION_ID, 1)), cancelReason));
+    }
+
+    /**
+     * 회원 1이 상품 A를 찜 401로 찜했다.
+     */
+    public static FavoriteAddedEvent favoriteAddedEvent() {
+        return new FavoriteAddedEvent(FAVORITE_EVENT_ID, FAVORITED_AT,
+            new FavoriteAddedEvent.Data(FAVORITE_ID, MEMBER_1_ID, PRODUCT_A_ID));
+    }
+
+    /**
+     * 찜 401이 지워졌다.
+     */
+    public static FavoriteRemovedEvent favoriteRemovedEvent(FavoriteRemovalCause cause) {
+        return new FavoriteRemovedEvent(FAVORITE_REMOVE_EVENT_ID, FAVORITE_REMOVED_AT,
+            new FavoriteRemovedEvent.Data(FAVORITE_ID, MEMBER_1_ID, PRODUCT_A_ID, cause));
     }
 
     public static CartItemAddedEvent cartItemAddedEvent() {
