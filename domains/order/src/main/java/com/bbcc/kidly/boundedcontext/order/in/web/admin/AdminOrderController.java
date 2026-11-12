@@ -27,13 +27,15 @@ public class AdminOrderController {
     private final OrderQueryService orderQueries;
 
     /**
-     * 모든 회원의 주문을 최근 주문부터. size는 1~100.
+     * 모든 회원의 주문을 최근 주문부터. size는 1~100. status(#1280, 선택)는 응답 status와 같은 값 하나(PENDING_PAYMENT · PAID ·
+     * CANCELLED, 대문자 그대로)로 거르고 totalElements가 그 상태의 전체 건수가 된다. 모르는 값 · 빈 값은 400(INVALID_ORDER_STATUS).
      */
     @GetMapping
     public PageResponse<AdminOrderSummaryResponse> getAllOrders(
+        @RequestParam(required = false) String status,
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return PageResponse.from(orderQueries.getAllOrders(page, size).map(AdminOrderSummaryResponse::from));
+        return PageResponse.from(orderQueries.getAllOrders(status, page, size).map(AdminOrderSummaryResponse::from));
     }
 
     /**

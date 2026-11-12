@@ -18,6 +18,7 @@ import com.bbcc.kidly.shared.order.dto.MemberOrderSummary;
 import com.bbcc.kidly.shared.order.dto.SellerOrderItemSummary;
 import com.bbcc.kidly.shared.order.out.MemberOrderHistory;
 import com.bbcc.kidly.shared.order.out.SellerOrderItems;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -190,6 +191,86 @@ public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
             }
             return AdminOrderSummary.from(loaded);
         });
+    }
+
+    /**
+     * 주문 상태로 거른 내 주문 목록(#1280). status가 없으면(null) {@link #getOrders(Long, int, int)}와 같다.
+     * 응답 status와 같은 이름 · 값 하나만 대문자 그대로 받고, 모르는 값 · 소문자 · 빈 값은 INVALID_ORDER_STATUS(400).
+     * 거르기와 건수(totalElements)는 DB에서 같은 조건으로 하고, 요약 조립 규칙은 상태 없는 목록과 같다.
+     */
+    public Page<OrderSummary> getOrders(Long memberId, String status, int page, int size) {
+        if (status == null) {
+            return getOrders(memberId, page, size);
+        }
+        Order.Status filter = toOrderStatus(status);
+        PageRequest pageable = PageRequest.of(page, size);
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, orderRepository.countByMemberIdAndStatus(memberId, filter));
+        }
+        return toSummaries(orderRepository.findAllByMemberIdAndStatusOrderByIdDesc(memberId, filter, pageable));
+    }
+
+    /**
+     * 주문 상태로 거른 관리자 전체 주문 목록(#1280). status가 없으면(null) {@link #getAllOrders(int, int)}와 같고,
+     * 값 규칙 · 건수 · 조립은 {@link #getOrders(Long, String, int, int)}와 같다.
+     */
+    public Page<AdminOrderSummary> getAllOrders(String status, int page, int size) {
+        if (status == null) {
+            return getAllOrders(page, size);
+        }
+        Order.Status filter = toOrderStatus(status);
+        PageRequest pageable = PageRequest.of(page, size);
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, orderRepository.countByStatus(filter));
+        }
+        return toAdminSummaries(orderRepository.findAllByStatusOrderByIdDesc(filter, pageable));
+    }
+
+    // 상태 이름 그대로(대문자)만 받는다. 소문자 · 공백 · 빈 값을 너그럽게 맞추지 않는다(응답 status 값과 같게)
+    private static Order.Status toOrderStatus(String status) {
+        return Arrays.stream(Order.Status.values())
+            .filter(value -> value.name().equals(status))
+            .findFirst()
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.INVALID_ORDER_STATUS));
+    }
+
+    // 상태로 거른 목록의 요약 조립(상태 없는 getOrders와 같은 규칙: 주문상품 · 상호명은 한 번씩 읽고, 못 읽은 주문은 대표 상품 없이)
+    private Page<OrderSummary> toSummaries(Page<Order> orders) {
+        if (orders.isEmpty()) {
+            return orders.map(OrderSummary::withoutItems);
+        }
+        Map<Long, Order> withItems = withItems(orders);
+        Map<Long, String> sellerNames = sellerNamesOf(withItems.values());
+        return orders.map(order -> {
+            Order loaded = withItems.get(order.getId());
+            if (loaded == null) {
+                log.warn("주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
+                return OrderSummary.withoutItems(order);
+            }
+            return OrderSummary.from(loaded, sellerNames);
+        });
+    }
+
+    // 상태로 거른 관리자 목록의 요약 조립(상태 없는 getAllOrders와 같은 규칙)
+    private Page<AdminOrderSummary> toAdminSummaries(Page<Order> orders) {
+        if (orders.isEmpty()) {
+            return orders.map(AdminOrderSummary::withoutItems);
+        }
+        Map<Long, Order> withItems = withItems(orders);
+        return orders.map(order -> {
+            Order loaded = withItems.get(order.getId());
+            if (loaded == null) {
+                log.warn("관리자 주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
+                return AdminOrderSummary.withoutItems(order);
+            }
+            return AdminOrderSummary.from(loaded);
+        });
+    }
+
+    private Map<Long, Order> withItems(Page<Order> orders) {
+        return orderRepository.findAllWithItemsByIdIn(orders.getContent().stream().map(Order::getId).toList())
+            .stream()
+            .collect(Collectors.toMap(Order::getId, Function.identity()));
     }
 
     /**

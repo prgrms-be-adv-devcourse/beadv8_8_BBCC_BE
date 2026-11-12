@@ -60,14 +60,18 @@ public class OrderController {
     }
 
     /**
-     * 최근 주문부터. size는 1~100.
+     * 최근 주문부터. size는 1~100. status(#1280, 선택)는 응답 status와 같은 값 하나(PENDING_PAYMENT · PAID · CANCELLED,
+     * 대문자 그대로)로 거르고 totalElements가 그 상태의 전체 건수가 된다. 모르는 값 · 빈 값은 400(INVALID_ORDER_STATUS).
      */
     @GetMapping
     public PageResponse<OrderSummaryResponse> getOrders(
         @LoginMember AuthMember member,
+        // 모르는 값도 기본 400(안내 없음) 대신 받는 값을 안내하는 INVALID_ORDER_STATUS로 답하게 서비스가 검사한다
+        @RequestParam(required = false) String status,
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return PageResponse.from(orderQueries.getOrders(member.id(), page, size).map(OrderSummaryResponse::from));
+        return PageResponse.from(
+            orderQueries.getOrders(member.id(), status, page, size).map(OrderSummaryResponse::from));
     }
 
     /**
