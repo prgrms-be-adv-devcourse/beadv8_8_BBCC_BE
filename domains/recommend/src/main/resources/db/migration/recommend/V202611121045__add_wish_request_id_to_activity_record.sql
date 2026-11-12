@@ -3,5 +3,6 @@
 -- 조르기는 주문 도메인의 것이므로 FK 없이 값으로만 참조한다.
 ALTER TABLE recommend.activity_record ADD COLUMN wish_request_id BIGINT;
 
--- 철회 기록을 조르기 ID로 찾는 데 쓴다.
-CREATE INDEX idx_activity_record_wish_request_id ON recommend.activity_record (wish_request_id);
+-- 철회 기록을 조르기 ID로 찾는 데 쓴다. 찾는 곳은 철회 기록뿐이라 철회 줄만 담는 부분 색인으로 둔다.
+CREATE INDEX idx_activity_record_wish_cancelled_wish_request_id ON recommend.activity_record (wish_request_id)
+    WHERE type = 'WISH_CANCELLED';

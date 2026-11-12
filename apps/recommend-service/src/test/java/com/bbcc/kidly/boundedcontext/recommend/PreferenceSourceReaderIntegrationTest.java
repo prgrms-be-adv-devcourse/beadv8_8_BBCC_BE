@@ -9,9 +9,9 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ConfirmedPurcha
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.RecentActivity;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

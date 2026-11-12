@@ -12,7 +12,9 @@ import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
@@ -129,6 +131,35 @@ class RecommendWishKafkaIntegrationTest {
         AsyncWait.until(TIMEOUT, () -> recordsOf(childId).size() == 2);
         assertThat(recordsOf(childId)).extracting(ActivityRecord::getType).containsOnly(ActivityType.WISH_SENT);
         assertThat(messages.deadLetters(ORDER_DLT, key)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("PREF-19 철회 원인 칸이 아예 없는 예전 철회 메시지도 직접 철회로 읽어 철회 기록으로 저장한다")
+    void saveOldWishCancelledWithoutReason() throws Exception {
+        Long childId = newId();
+        UUID eventId = UUID.randomUUID();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("wishRequestId", 301L);
+        data.put("childId", childId);
+        data.put("memberId", MEMBER_ID);
+        data.put("items", List.of(Map.of("productId", 31L, "optionId", 32L, "quantity", 1)));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("eventId", eventId);
+        body.put("eventType", "wish.cancelled");
+        body.put("schemaVersion", 1);
+        body.put("occurredAt", WISHED_AT.plusMinutes(5));
+        body.put("producer", "order");
+        body.put("aggregateId", "301");
+        body.put("correlationId", String.valueOf(childId));
+        body.put("data", data);
+
+        messages.sendRaw(ORDER_TOPIC, String.valueOf(childId), "wish.cancelled", eventId,
+            jsonMapper.writeValueAsString(body));
+
+        AsyncWait.until(TIMEOUT, () -> !recordsOf(childId).isEmpty());
+        assertThat(recordsOf(childId)).singleElement()
+            .extracting(ActivityRecord::getType, ActivityRecord::getEventId)
+            .containsExactly(ActivityType.WISH_CANCELLED, eventId);
     }
 
     private List<ActivityRecord> recordsOf(Long childId) {
