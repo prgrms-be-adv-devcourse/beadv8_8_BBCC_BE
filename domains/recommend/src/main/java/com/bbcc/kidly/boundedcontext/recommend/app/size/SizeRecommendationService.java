@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.dto.SizeRecommendationResult;
+import com.bbcc.kidly.boundedcontext.recommend.app.size.dto.SizeRecommendationWithAi;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
@@ -19,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -51,9 +53,44 @@ public class SizeRecommendationService {
         return toResult(draft, recommendation);
     }
 
-    // AI 모델이 없거나 사이즈 구분이 없는 상품이면 부르지 않고, 답을 얻지 못하면 null이라 규칙 결과로 답한다
+    /**
+     * AI 답을 기다리지 않고 규칙 결과를 바로 담고, AI 결과는 답이 오면 끝나는 값으로 담는다.
+     */
+    public SizeRecommendationWithAi recommendWithAiLater(Long memberId, Long productId, Long childId) {
+        SizeRecommendationDraft draft = reader.read(memberId, productId, childId);
+        SizeRecommendationResult rule = toResult(
+            draft, draft.rule().decideWith(draft.productSizes(), null, draft.aiEvidence()));
+        if (!canAskAi(draft)) {
+            return new SizeRecommendationWithAi(rule, CompletableFuture.completedFuture(Optional.empty()));
+        }
+        AiSizeChooser chooser = aiSizeChooser.get();
+        CompletableFuture<Optional<AiSizeAnswer>> answer = aiResponseService.respondAsync(
+            AiResponseType.SIZE_RECOMMENDATION, draft.aiKeyInput(), AiSizeAnswer.class,
+            () -> chooser.choose(draft.aiQuestion()));
+        return new SizeRecommendationWithAi(rule, answer.thenApply(found -> toAiResult(draft, found.orElse(null))));
+    }
+
+    // AI 답이 검증에서 버려져 출처가 AI가 아니면 규칙 결과와 같으므로 AI 결과가 없는 것으로 본다
+    private Optional<SizeRecommendationResult> toAiResult(SizeRecommendationDraft draft, AiSizeAnswer answer) {
+        if (answer == null) {
+            return Optional.empty();
+        }
+        SizeRecommendation recommendation = draft.rule().decideWith(draft.productSizes(), answer, draft.aiEvidence());
+        logOutcome(draft, answer, recommendation);
+        if (recommendation.getSource() != SizeRecommendationSource.AI) {
+            return Optional.empty();
+        }
+        return Optional.of(toResult(draft, recommendation));
+    }
+
+    // AI 모델이 없거나 사이즈 구분이 없는 상품이면 AI를 부르지 않는다
+    private boolean canAskAi(SizeRecommendationDraft draft) {
+        return aiSizeChooser.isPresent() && !draft.productSizes().isSizeFree();
+    }
+
+    // 답을 얻지 못하면 null이라 규칙 결과로 답한다
     private AiSizeAnswer askAi(SizeRecommendationDraft draft) {
-        if (aiSizeChooser.isEmpty() || draft.productSizes().isSizeFree()) {
+        if (!canAskAi(draft)) {
             return null;
         }
         AiSizeChooser chooser = aiSizeChooser.get();
