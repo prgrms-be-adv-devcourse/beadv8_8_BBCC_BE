@@ -38,7 +38,12 @@ public class UnreadCountStream {
         // nginx가 응답을 모았다가 한꺼번에 보내지 않고, 이벤트를 받는 대로 흘려보내게 한다
         response.setHeader("X-Accel-Buffering", "no");
         var emitter = new SseEmitter(TIMEOUT_MILLIS);
-        emitters.computeIfAbsent(principal, key -> ConcurrentHashMap.newKeySet()).add(emitter);
+        // 꺼내기와 넣기를 compute 한 번에 해야, 같은 사용자의 마지막 연결이 끊기며 remove()가 지우는 Set에 넣지 않는다
+        emitters.compute(principal, (key, open) -> {
+            var set = open == null ? ConcurrentHashMap.<SseEmitter>newKeySet() : open;
+            set.add(emitter);
+            return set;
+        });
         emitter.onCompletion(() -> remove(principal, emitter));
         emitter.onTimeout(emitter::complete);
         emitter.onError(error -> remove(principal, emitter));
