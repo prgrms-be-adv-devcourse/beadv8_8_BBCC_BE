@@ -61,19 +61,30 @@ class SizeRecommendationPurchaseIntegrationTest {
     private PurchaseRecordRepository purchaseRecordRepository;
 
     @Test
-    @DisplayName("PUR-01 지난 구매 사이즈는 그 자녀가 12개월 안에 같은 칸에서 마지막으로 구매확정한 사이즈이고, 다른 칸 · 12개월 밖 · 다른 자녀의 구매는 보지 않는다")
+    @DisplayName("PUR-01 지난 구매 사이즈는 그 자녀가 같은 칸에서 마지막으로 구매확정한 사이즈이고, 더 최근인 다른 칸 · 다른 자녀의 구매는 보지 않는다")
     void readLastPurchasedSizeOfSamePart() {
         saveProductAndChild();
         replicaProductRepository.save(boughtProduct(BOUGHT_TOP_ID, 52L, "상의"));
         replicaProductRepository.save(boughtProduct(BOUGHT_PANTS_ID, 60L, "바지"));
         savePurchase(1L, CHILD_1_ID, BOUGHT_TOP_ID, "110", NOW.minusMonths(5));
         savePurchase(2L, CHILD_1_ID, BOUGHT_PANTS_ID, "130", NOW.minusMonths(1));
-        savePurchase(3L, CHILD_1_ID, BOUGHT_TOP_ID, "120", NOW.minusMonths(12).minusDays(1));
         savePurchase(4L, OTHER_CHILD_ID, BOUGHT_TOP_ID, "130", NOW.minusDays(1));
 
         SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
 
         assertThat(draft.lastPurchasedSize()).isEqualTo("110");
+    }
+
+    @Test
+    @DisplayName("PUR-01 같은 칸 구매가 12개월보다 오래된 것뿐이면 지난 구매 사이즈는 null이다")
+    void ignorePurchaseOlderThanWindow() {
+        saveProductAndChild();
+        replicaProductRepository.save(boughtProduct(BOUGHT_TOP_ID, 52L, "상의"));
+        savePurchase(1L, CHILD_1_ID, BOUGHT_TOP_ID, "110", NOW.minusMonths(12).minusDays(1));
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        assertThat(draft.lastPurchasedSize()).isNull();
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseHistory;
@@ -12,11 +13,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class PurchaseHistoryTest {
 
@@ -40,7 +45,7 @@ class PurchaseHistoryTest {
         PurchasedGarment bought = purchased(1L, "110", TODAY.minusMonths(5).atTime(10, 0), TOP_ID, "상의",
             "키들리", Map.of("TOTAL_LENGTH", cm("43.0"), "CHEST_WIDTH", cm("33.0")));
 
-        PurchaseHistory history = PurchaseHistory.of(
+        PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, "키들리", List.of(bought), CM_PER_MONTH, TODAY));
 
         assertThat(history.purchases()).hasSize(1);
@@ -64,7 +69,7 @@ class PurchaseHistoryTest {
         PurchasedGarment bought = purchased(1L, "110", TODAY.minusMonths(5).atTime(10, 0), OTHER_TOP_ID, "상의",
             "키들리", Map.of("TOTAL_LENGTH", cm("43.0"), "CHEST_WIDTH", cm("33.0"), "SLEEVE_LENGTH", cm("38.0")));
 
-        PurchaseHistory history = PurchaseHistory.of(
+        PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, "키들리", List.of(bought), CM_PER_MONTH, TODAY));
 
         assertThat(history.purchases().getFirst().items())
@@ -90,7 +95,7 @@ class PurchaseHistoryTest {
         PurchasedGarment bought = purchased(1L, "110", confirmedAt, TOP_ID, "상의", boughtBrand,
             Map.of("CHEST_WIDTH", cm("33.0")));
 
-        PurchaseHistory history = PurchaseHistory.of(
+        PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, productBrand, List.of(bought), cm(cmPerMonth), TODAY));
 
         PurchaseFit fit = history.purchases().getFirst();
@@ -113,7 +118,7 @@ class PurchaseHistoryTest {
             purchased(4L, "120", sameTime, TOP_ID, "상의", "키들리", Map.of()),
             purchased(5L, "130", TODAY.minusMonths(1).atTime(10, 0), PANTS_ID, "바지", "키들리", Map.of()));
 
-        PurchaseHistory history = PurchaseHistory.of(
+        PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, "키들리", garments, CM_PER_MONTH, TODAY));
 
         assertThat(history.purchases()).extracting(PurchaseFit::size).containsExactly("120", "115", "110");
@@ -128,7 +133,7 @@ class PurchaseHistoryTest {
             purchased(2L, "115", TODAY.minusMonths(2).atTime(10, 0), OTHER_TOP_ID, "상의", "다른 브랜드", Map.of()),
             purchased(3L, "130", TODAY.minusMonths(1).atTime(10, 0), PANTS_ID, "바지", "키들리", Map.of()));
 
-        PurchaseHistory history = PurchaseHistory.of(
+        PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, "키들리", garments, CM_PER_MONTH, TODAY));
 
         assertThat(history.lastPurchasedSize()).isEqualTo("115");
@@ -141,7 +146,7 @@ class PurchaseHistoryTest {
         PurchasedGarment pants = purchased(1L, "130", TODAY.minusMonths(1).atTime(10, 0), PANTS_ID, "바지", "키들리",
             Map.of());
 
-        PurchaseHistory history = PurchaseHistory.of(
+        PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, "키들리", List.of(pants), CM_PER_MONTH, TODAY));
 
         assertThat(history.lastPurchasedSize()).isNull();
@@ -155,7 +160,7 @@ class PurchaseHistoryTest {
         PurchasedGarment bought = purchased(1L, "110", TODAY.minusMonths(5).atTime(10, 0), TOP_ID, "상의", "키들리",
             Map.of());
 
-        PurchaseHistory history = PurchaseHistory.of(
+        PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, "키들리", List.of(bought), CM_PER_MONTH, TODAY));
 
         assertThat(history.purchases()).hasSize(1);
@@ -173,11 +178,72 @@ class PurchaseHistoryTest {
         PurchasedGarment bought = purchased(1L, "110", TODAY.minusMonths(5).atTime(10, 0), TOP_ID, categoryName,
             "키들리", Map.of("CHEST_WIDTH", cm("33.0")));
 
-        PurchaseHistory history = PurchaseHistory.of(
+        PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, "키들리", List.of(bought), CM_PER_MONTH, TODAY));
 
         assertThat(history.lastPurchasedSize()).isNull();
         assertThat(history.purchases()).isEmpty();
+    }
+
+    // 오늘은 2026-11-12다. 12개월 전 날짜(그날 포함)부터 오늘까지 구매확정한 구매를 쓴다
+    @ParameterizedTest
+    @ValueSource(strings = {"2025-11-12", "2026-11-12"})
+    @DisplayName("PUR-01 · PUR-02 12개월 전 날짜부터 오늘까지 구매확정한 구매는 쓴다")
+    void usePurchaseWithinWindow(String confirmedOn) {
+        PurchaseHistory history = historyOfOnePurchaseConfirmedOn(LocalDate.parse(confirmedOn));
+
+        assertThat(history.lastPurchasedSize()).isEqualTo("110");
+    }
+
+    // 그 하루 전 구매는 12개월이 지났고, 오늘보다 뒤인 구매는 서비스 사이 시계 차이로만 생겨 개월 수가 음수가 된다
+    @ParameterizedTest
+    @ValueSource(strings = {"2025-11-11", "2026-11-13"})
+    @DisplayName("PUR-01 · PUR-02 12개월 전 날짜보다 앞서거나 오늘보다 뒤에 구매확정한 구매는 쓰지 않는다")
+    void skipPurchaseOutsideWindow(String confirmedOn) {
+        PurchaseHistory history = historyOfOnePurchaseConfirmedOn(LocalDate.parse(confirmedOn));
+
+        assertThat(history.lastPurchasedSize()).isNull();
+        assertThat(history.purchases()).isEmpty();
+    }
+
+    // 추천에 산 상품의 복사본이 없으면 카테고리 경로를 몰라 빈 목록으로 넘어온다
+    @Test
+    @DisplayName("PUR-04 카테고리 경로를 몰라 칸을 정할 수 없는 구매는 뺀다")
+    void skipPurchaseWithUnknownPart() {
+        FitProduct product = product(TOP_ID, "상의", List.of(size("120", Map.of("CHEST_WIDTH", cm("37.0")))));
+        PurchasedGarment unknown = new PurchasedGarment(1L, "110", TODAY.minusMonths(5).atTime(10, 0), null,
+            List.of(), null, Map.of());
+
+        PurchaseHistory history = PurchaseHistory.compare(
+            new PurchaseHistory.CompareInfo(product, "키들리", List.of(unknown), CM_PER_MONTH, TODAY));
+
+        assertThat(history.lastPurchasedSize()).isNull();
+        assertThat(history.purchases()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("compareInfosWithNull")
+    @DisplayName("비교할 상품 · 구매 목록 · 성장 속도 · 기준 날짜가 없으면 계산하지 않는다")
+    void rejectMissingValue(String name, PurchaseHistory.CompareInfo info) {
+        assertThatThrownBy(() -> PurchaseHistory.compare(info)).isInstanceOf(NullPointerException.class)
+            .hasMessageContaining(name);
+    }
+
+    private static Stream<Arguments> compareInfosWithNull() {
+        FitProduct product = product(TOP_ID, "상의", List.of(size("120", Map.of("CHEST_WIDTH", cm("37.0")))));
+        return Stream.of(
+            Arguments.of("product", new PurchaseHistory.CompareInfo(null, "키들리", List.of(), CM_PER_MONTH, TODAY)),
+            Arguments.of("garments", new PurchaseHistory.CompareInfo(product, "키들리", null, CM_PER_MONTH, TODAY)),
+            Arguments.of("cmPerMonth", new PurchaseHistory.CompareInfo(product, "키들리", List.of(), null, TODAY)),
+            Arguments.of("today", new PurchaseHistory.CompareInfo(product, "키들리", List.of(), CM_PER_MONTH, null)));
+    }
+
+    private static PurchaseHistory historyOfOnePurchaseConfirmedOn(LocalDate confirmedOn) {
+        FitProduct product = product(TOP_ID, "상의", List.of(size("120", Map.of("CHEST_WIDTH", cm("37.0")))));
+        PurchasedGarment bought = purchased(1L, "110", confirmedOn.atTime(10, 0), TOP_ID, "상의", "키들리",
+            Map.of("CHEST_WIDTH", cm("33.0")));
+        return PurchaseHistory.compare(
+            new PurchaseHistory.CompareInfo(product, "키들리", List.of(bought), CM_PER_MONTH, TODAY));
     }
 
     private static PurchasedGarment purchased(Long purchaseRecordId, String size, LocalDateTime confirmedAt,

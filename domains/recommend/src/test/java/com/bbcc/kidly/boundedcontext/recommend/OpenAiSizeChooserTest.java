@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
@@ -29,7 +30,7 @@ import tools.jackson.databind.json.JsonMapper;
 class OpenAiSizeChooserTest {
 
     private static final String PROMPT_VERSION_5_SHA_256 =
-        "9429bcd86141befd26b1aff90280cefb1ca577f22e25ebabf590c78e14d59a21";
+        "93c219e4fd9c518f6ade49ecf34c6f68c633e4af2ad0617daabda1a83767695e";
 
     // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
     private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
@@ -91,6 +92,30 @@ class OpenAiSizeChooserTest {
             .doesNotContain("실측은 받지 않습니다", "다른 옷과 비교해 보라는 말을 쓰지 마세요");
         assertThat(prompts.getFirst().getUserMessage().getText())
             .contains("\"comparedPart\":\"TOP\"", "\"diffCm\":-1.0");
+    }
+
+    @Test
+    @DisplayName("PUR-05 지난 구매를 지시 글과 같은 칸 이름(purchases · monthsAgo · sameBrand · expectedGrowthCm · garmentCm · diffCm)으로 보낸다")
+    void sendPurchasesWithInstructedFieldNames() {
+        List<Prompt> prompts = new ArrayList<>();
+        ChatModel model = prompt -> {
+            prompts.add(prompt);
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[],"itemJudgements":[]}
+                """))));
+        };
+        SizeAiQuestion question = new SizeAiQuestion(QUESTION.child(), QUESTION.sizes(), QUESTION.ruleResult(), null,
+            GROWTH, List.of(), List.of(new PurchaseFit("100", 5, true, new BigDecimal("2.5"),
+                List.of(new ReferenceFit.Item("TOTAL_LENGTH", new BigDecimal("40"), List.of(
+                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("2"))))))));
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(question);
+
+        assertThat(prompts.getFirst().getSystemMessage().getText())
+            .contains("purchases", "monthsAgo", "sameBrand", "expectedGrowthCm", "PURCHASE");
+        assertThat(prompts.getFirst().getUserMessage().getText()).contains("\"purchases\":[",
+            "\"size\":\"100\"", "\"monthsAgo\":5", "\"sameBrand\":true", "\"expectedGrowthCm\":2.5",
+            "\"garmentCm\":40", "\"diffCm\":2");
     }
 
     @Test

@@ -51,7 +51,7 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
     }
 
     /**
-     * 실측 항목 하나의 기준 옷 값과, 그 값에 대한 사이즈별 차이다.
+     * 실측 항목 하나의 기준 옷이나 산 옷의 실측 값과, 그 값에 대한 사이즈별 차이다.
      */
     public record Item(String code, BigDecimal garmentCm, List<SizeDiff> sizes) {
 

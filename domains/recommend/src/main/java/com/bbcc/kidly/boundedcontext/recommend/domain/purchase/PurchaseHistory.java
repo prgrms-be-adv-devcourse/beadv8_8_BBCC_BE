@@ -44,16 +44,22 @@ public record PurchaseHistory(String lastPurchasedSize, List<PurchaseFit> purcha
                               BigDecimal cmPerMonth, LocalDate today) {
     }
 
-    public static PurchaseHistory of(CompareInfo info) {
+    public static PurchaseHistory compare(CompareInfo info) {
         requireNonNull(info, "info는 필수입니다");
+        requireNonNull(info.product(), "product는 필수입니다");
+        requireNonNull(info.garments(), "garments는 필수입니다");
+        requireNonNull(info.cmPerMonth(), "cmPerMonth는 필수입니다");
+        requireNonNull(info.today(), "today는 필수입니다");
         GarmentPart part = GarmentPart.ofCategoryPath(info.product().categoryPathNames());
         // 사이즈 무관 상품은 고를 사이즈가 없고, 모자 · 양말은 견줄 칸이 없어 지난 구매를 쓰지 않는다
         if (info.product().sizeFree() || part == null) {
             return new PurchaseHistory(null, List.of());
         }
+        LocalDate windowStart = info.today().minusMonths(WINDOW_MONTHS);
         List<PurchasedGarment> samePart = new ArrayList<>();
         for (PurchasedGarment garment : info.garments()) {
-            if (GarmentPart.ofCategoryPath(garment.categoryPathNames()) == part) {
+            if (GarmentPart.ofCategoryPath(garment.categoryPathNames()) == part
+                && isWithinWindow(garment, windowStart, info.today())) {
                 samePart.add(garment);
             }
         }
@@ -66,6 +72,12 @@ public record PurchaseHistory(String lastPurchasedSize, List<PurchaseFit> purcha
         }
         String lastSize = fits.isEmpty() ? null : fits.getFirst().size();
         return new PurchaseHistory(lastSize, fits);
+    }
+
+    // 12개월 전 날짜부터 오늘까지(둘 다 포함) 확정한 구매만 쓴다. 오늘보다 뒤의 확정은 서비스 사이 시계 차이로만 생긴다.
+    private static boolean isWithinWindow(PurchasedGarment garment, LocalDate windowStart, LocalDate today) {
+        LocalDate confirmedOn = garment.confirmedAt().toLocalDate();
+        return !confirmedOn.isBefore(windowStart) && !confirmedOn.isAfter(today);
     }
 
     private static PurchaseFit fitOf(CompareInfo info, PurchasedGarment garment) {

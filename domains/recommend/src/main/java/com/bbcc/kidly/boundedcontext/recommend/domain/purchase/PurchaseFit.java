@@ -9,6 +9,7 @@ import java.util.List;
 /**
  * 지난 구매 하나를 지금 상품과 견준 결과다.
  *
+ * @param size 산 사이즈 이름이다
  * @param monthsAgo 산 뒤 지난 개월 수다
  * @param sameBrand 지금 상품과 산 상품의 브랜드가 같은지다
  * @param expectedGrowthCm 산 뒤 자란 것으로 예상하는 키(cm)다

@@ -142,17 +142,19 @@ public class SizeRecommendationReader {
         }
         List<PurchasedGarment> garments = new ArrayList<>();
         for (PurchaseRecord record : records) {
-            RecommendReplicaProduct bought = boughtProducts.get(record.getProductId());
-            // 산 상품 복사본이 없으면 어느 칸의 옷인지 알 수 없어 뺀다.
-            if (bought != null) {
-                garments.add(purchasedGarmentOf(record, bought));
-            }
+            garments.add(purchasedGarmentOf(record, boughtProducts.get(record.getProductId())));
         }
-        return PurchaseHistory.of(new PurchaseHistory.CompareInfo(
+        // 성장 속도는 AI에 준 반올림 값을 쓴다. 그래야 예상 성장량이 질문에 있는 숫자와 맞는다.
+        return PurchaseHistory.compare(new PurchaseHistory.CompareInfo(
             fitProduct, product.getBrand(), garments, cmPerMonth, today));
     }
 
+    // 산 상품 복사본이 없으면 칸 · 브랜드 · 실측을 몰라 비워 넘기고, 칸을 모르는 구매는 domain이 뺀다.
     private PurchasedGarment purchasedGarmentOf(PurchaseRecord record, RecommendReplicaProduct bought) {
+        if (bought == null) {
+            return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), null, List.of(),
+                null, Map.of());
+        }
         return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), bought.getCategoryId(),
             categoryPathNamesOf(bought), bought.getBrand(), measurementsOf(bought, record.getSize()));
     }

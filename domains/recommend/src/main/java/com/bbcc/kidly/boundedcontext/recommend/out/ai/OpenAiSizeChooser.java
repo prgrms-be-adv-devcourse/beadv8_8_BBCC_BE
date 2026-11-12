@@ -44,6 +44,7 @@ public class OpenAiSizeChooser implements AiSizeChooser {
           이름보다 실측 차이로 비교하세요.
         - 믿는 순서는 기준 옷(referenceFit)이 가장 믿을 만하고, 다음이 최근 구매, 오래된 구매 순입니다. 같은 브랜드 구매는 더 믿으세요.
           산 뒤 예상 성장량(expectedGrowthCm)만큼 지금은 더 컸다는 점도 함께 보세요.
+        - purchases로는 itemJudgements를 쓰지 마세요(itemJudgements는 referenceFit의 항목만 씁니다).
         - 지난 구매를 근거로 쓰면 reasons의 type을 PURCHASE로 하고, 숫자는 질문에 있는 값만 쓰세요.
         - 성장 속도나 입을 수 있는 기간을 근거로 쓸 때는 reasons의 type을 GROWTH로 하고, detail에 growthSpeed의 tableSource 값을
           출처로 밝히세요(예: "한국아동패널 기준").
