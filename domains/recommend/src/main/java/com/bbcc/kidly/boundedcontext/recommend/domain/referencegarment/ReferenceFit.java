@@ -132,9 +132,19 @@ public record ReferenceFit(GarmentPart productPart, GarmentPart comparedPart, Li
     }
 
     private static List<Item> itemsOf(FitProduct product, ReferenceGarment garment) {
+        return itemsOf(product, garment.getCategoryId(), garment.getMeasurements());
+    }
+
+    /**
+     * 지금 상품의 사이즈별 실측과 옷 한 벌의 실측을 견줘 항목마다 차이를 돌려준다. 기준 옷뿐 아니라 지난 구매에서 산 옷과도 같은 방식으로 비교한다.
+     *
+     * @param garmentCategoryId 견줄 옷의 카테고리 ID다. 상품과 같을 때만 길이 항목을 비교한다
+     * @param garmentMeasurements 견줄 옷의 실측이다. 키는 실측 항목 코드, 값은 cm다
+     */
+    public static List<Item> itemsOf(FitProduct product, Long garmentCategoryId,
+        Map<String, BigDecimal> garmentMeasurements) {
         // 상품의 카테고리를 모르면(null) 같은 세부 종류인지 알 수 없으므로 다른 카테고리로 본다.
-        boolean sameCategory = Objects.equals(garment.getCategoryId(), product.categoryId());
-        Map<String, BigDecimal> garmentMeasurements = garment.getMeasurements();
+        boolean sameCategory = Objects.equals(garmentCategoryId, product.categoryId());
         List<Item> items = new ArrayList<>();
         for (String code : ITEM_ORDER) {
             BigDecimal garmentCm = garmentMeasurements.get(code);
