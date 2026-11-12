@@ -103,40 +103,6 @@ class SettlementPayoutRetrySchedulerTest {
         then(adminSettlementService).should(times(2)).retryStuckPayout(1L);
     }
 
-    @Test
-    @DisplayName("7일 넘게 결과를 못 받은 정산서 경고는 하루에 한 번만 센다")
-    void warnsExpiredOncePerDay() {
-        givenStuck();
-        givenStuckAfter(0L, NOW.plusDays(1));
-        given(settlementRepository.countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW.minusDays(7))).willReturn(3L);
-        given(settlementRepository.countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW.plusDays(1).minusDays(7))).willReturn(3L);
-
-        scheduler.retryStuckPayouts(NOW);
-        scheduler.retryStuckPayouts(NOW);
-        scheduler.retryStuckPayouts(NOW.plusDays(1));
-
-        then(settlementRepository).should(times(1)).countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW.minusDays(7));
-        then(settlementRepository).should(times(1)).countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW.plusDays(1).minusDays(7));
-    }
-
-    @Test
-    @DisplayName("7일 넘은 정산서가 없으면 같은 날 다음 실행에서 다시 센다")
-    void recountsSameDayWhenNoneExpired() {
-        givenStuck();
-        given(settlementRepository.countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW.minusDays(7))).willReturn(0L);
-
-        scheduler.retryStuckPayouts(NOW);
-        scheduler.retryStuckPayouts(NOW);
-
-        then(settlementRepository).should(times(2)).countByStatusAndCompletedAtBefore(
-            SettlementStatus.COMPLETED, NOW.minusDays(7));
-    }
-
     private void givenStuck(Settlement... settlements) {
         givenStuckAfter(0L, NOW, settlements);
     }

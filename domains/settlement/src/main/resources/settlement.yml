@@ -3,9 +3,10 @@ kidly:
   settlement:
     # 수수료율(0 이상 1 이하, 소수 넷째 자리까지). 정산서를 만들 때의 값을 정산서에 저장한다. 기본 10%
     fee-rate: ${SETTLEMENT_FEE_RATE:0.1}
-    # 자동 정산 cron (Asia/Seoul). 기본 평일 09:05~17:05 매시간. "-"면 자동 실행을 끈다
-    # 실행 때 영업일(공휴일 제외)인지 확인하고, 그날 처음 성공한 실행이 전날까지 확정된 대상을 정산한다. 나머지는 건너뛴다
-    run-cron: ${SETTLEMENT_RUN_CRON:0 5 9-17 * * MON-FRI}
+    # 자동 정산은 k3s CronJob(settlement-daily-run, 매일 10시)이 일회 실행(SettlementDailyRunner)으로 한다. API 서버는 정산을 실행하지 않는다
+    # 영업일 이 시각(Asia/Seoul)까지 정산 실행이 끝나지 않으면 settlement_run_overdue가 1이 되어 Grafana가 알린다
+    # 기본 12:30은 CronJob 10:00에 실행 제한 2시간과 여유를 더한 시각이다
+    run-deadline: "${SETTLEMENT_RUN_DEADLINE:12:30}"
     # 지급 결과를 30분 넘게 못 받은 정산서를 다시 요청하는 cron (Asia/Seoul). 기본 10분마다. "-"면 끈다
     payout-retry-cron: ${SETTLEMENT_PAYOUT_RETRY_CRON:0 */10 * * * *}
     # 한 트랜잭션에서 처리하는 판매자 수(1 이상). 실패하면 그 묶음을 판매자 1명씩 다시 처리한다
@@ -23,16 +24,17 @@ kidly:
       retention: ${SETTLEMENT_OUTBOX_RETENTION:P7D}
       # 정리 실행 시각(cron, 초 분 시 일 월 요일, KST). "-"면 정리하지 않는다
       cleanup-cron: ${SETTLEMENT_OUTBOX_CLEANUP_CRON:0 0 4 * * *}
-    # 영업일 판단에 쓰는 공휴일 특일정보 API(한국천문연구원, 공공데이터포털)
+    # 공휴일 API에서 받아 테이블에 저장하고 영업일 판단에 쓴다
     # 주소가 비었거나 시간 제한이 1초 미만이면 키 이름이 나오는 오류로 기동 실패 (SettlementHolidayProperties)
     holiday:
       base-url: ${SETTLEMENT_HOLIDAY_BASE_URL:https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService}
-      # 인증키. 비어 있어도 기동하지만 공휴일 조회가 실패해 영업일을 판단하지 못한다
+      # 인증키. 비어 있어도 기동하지만 공휴일을 갱신하지 못한다
       service-key: ${HOLIDAY_API_SERVICE_KEY:}
       connect-timeout: PT3S
       read-timeout: PT5S
-      # 메모리에 둔 그해 공휴일을 비우는 시각(cron, KST). 그 뒤 첫 조회가 다시 받아 임시공휴일 지정이 하루 안에 반영된다. "-"면 비우지 않는다
-      refresh-cron: ${SETTLEMENT_HOLIDAY_REFRESH_CRON:0 30 4 * * *}
+      # 올해와 내년 공휴일을 저장하는 시각(cron, KST). 기동 때도 받는다. 서버가 18~9시에 꺼져 있어 정오에 실행한다
+      # "-"면 기동 때만 받는다
+      refresh-cron: ${SETTLEMENT_HOLIDAY_REFRESH_CRON:0 0 12 * * *}
     # 정산이 받는 구매확정 · 지급 결과 이벤트. true면 Kafka로만 받고, false면 Kafka 리스너를 시작하지 않고 Spring 이벤트로 받는다
     # 장애 때 되돌리는 스위치다. 같은 이벤트를 양쪽에서 받지 않는다
     kafka:
@@ -42,7 +44,7 @@ kidly:
 spring:
   batch:
     job:
-      # 기동할 때 작업을 저절로 돌리지 않는다. 스케줄러 · 관리자 API만 실행한다
+      # 기동할 때 작업을 저절로 돌리지 않는다. CronJob 일회 실행 · 관리자 API만 실행한다
       enabled: false
     jdbc:
       # Batch 메타데이터 테이블은 settlement 스키마에 둔다
@@ -51,3 +53,25 @@ spring:
       initialize-schema: never
       # Batch 기본(SERIALIZABLE)은 이 프로젝트의 Hibernate 연결 설정이 거부한다 (application.yml 참고)
       isolation-level-for-create: default
+
+---
+# k3s CronJob의 일회 실행(SettlementDailyRunner). 웹 서버 · Kafka 수신 · 아웃박스 릴레이 · 스케줄러는 API Pod만 돌린다
+spring:
+  config:
+    activate:
+      on-profile: settlement-run-once
+  main:
+    web-application-type: none
+kidly:
+  kafka:
+    producer:
+      enabled: false
+  settlement:
+    kafka:
+      consumer:
+        enabled: false
+    payout-retry-cron: "-"
+    outbox:
+      cleanup-cron: "-"
+    holiday:
+      refresh-cron: "-"

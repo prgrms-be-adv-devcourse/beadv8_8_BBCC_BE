@@ -228,6 +228,7 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     @ParameterizedTest
     @ValueSource(strings = {
         "/api/v1/seller/settlement-targets",
+        "/api/v1/seller/settlement-targets/summary",
         "/api/v1/seller/settlements?page=0",
         "/api/v1/seller/settlements/5",
         "/api/v1/admin/settlements",

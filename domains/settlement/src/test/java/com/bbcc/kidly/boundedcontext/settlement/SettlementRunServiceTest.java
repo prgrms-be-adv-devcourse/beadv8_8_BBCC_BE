@@ -19,6 +19,7 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementAdminActionType
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementErrorCode;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementSkipRepository;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementTriggerType;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -72,7 +73,7 @@ class SettlementRunServiceTest {
 
     @Spy
     private SettlementProperties properties = new SettlementProperties(
-        new BigDecimal("0.1"), "0 5 9-17 * * MON-FRI", "0 */10 * * * *", 100, Duration.ofMinutes(30));
+        new BigDecimal("0.1"), "0 */10 * * * *", 100, Duration.ofMinutes(30));
 
     @InjectMocks
     private SettlementRunService settlementRunService;
@@ -310,9 +311,66 @@ class SettlementRunServiceTest {
         verify(jobOperator, never()).start(any(Job.class), any(JobParameters.class));
     }
 
+    @Test
+    @DisplayName("자동 재시도는 최근 갱신된 자동 실행을 닫고 정산을 시작한다")
+    void scheduledRecoversRecentScheduledRun() throws Exception {
+        var running = runningExecution(LocalDateTime.now().minusMinutes(29), SettlementTriggerType.SCHEDULED);
+        given(jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME)).willReturn(Set.of(running));
+        var completed = new JobExecution(2L, INSTANCE, new JobParametersBuilder()
+            .addLocalDateTime(SettlementJobConfig.CUTOFF_AT, LocalDateTime.of(2026, 11, 15, 0, 0)).toJobParameters());
+        completed.setStatus(BatchStatus.COMPLETED);
+        given(jobOperator.start(eq(settlementJob), any(JobParameters.class))).willReturn(completed);
+
+        assertThat(settlementRunService.runScheduled(LocalDate.of(2026, 11, 15)).runId()).isEqualTo(2L);
+        verify(jobOperator).recover(running);
+    }
+
+    @Test
+    @DisplayName("자동 실행은 최근 갱신된 수동 실행을 닫지 않는다")
+    void scheduledLeavesRecentManualRun() throws Exception {
+        var running = runningExecution(LocalDateTime.now(), SettlementTriggerType.MANUAL);
+        given(jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME)).willReturn(Set.of(running));
+
+        assertErrorCode(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
+        verify(jobOperator, never()).recover(any(JobExecution.class));
+        verify(jobOperator, never()).start(any(Job.class), any(JobParameters.class));
+    }
+
+    @Test
+    @DisplayName("수동 실행은 최근 갱신된 자동 실행을 닫지 않는다")
+    void manualLeavesRecentScheduledRun() throws Exception {
+        var running = runningExecution(LocalDateTime.now(), SettlementTriggerType.SCHEDULED);
+        given(jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME)).willReturn(Set.of(running));
+
+        assertThatThrownBy(() -> settlementRunService.runManually(LocalDate.now().minusDays(1), 7L))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS));
+        verify(jobOperator, never()).recover(any(JobExecution.class));
+        verify(jobOperator, never()).start(any(Job.class), any(JobParameters.class));
+    }
+
+    @Test
+    @DisplayName("자동 실행을 닫는 사이 버전이 충돌하면 실행 중으로 판단한다")
+    void scheduledRecoveryVersionConflict() throws Exception {
+        var running = runningExecution(LocalDateTime.now(), SettlementTriggerType.SCHEDULED);
+        given(jobRepository.findRunningJobExecutions(SettlementJobConfig.JOB_NAME)).willReturn(Set.of(running));
+        given(jobOperator.recover(running)).willThrow(new OptimisticLockingFailureException("버전 충돌"));
+
+        assertErrorCode(SettlementErrorCode.SETTLEMENT_RUN_IN_PROGRESS);
+        verify(jobOperator, never()).start(any(Job.class), any(JobParameters.class));
+    }
+
     // 1시간 전에 시작해 step이 stepLastUpdated에 마지막으로 갱신된 실행 중 기록
     private static JobExecution runningExecution(LocalDateTime stepLastUpdated) {
-        var execution = new JobExecution(1L, INSTANCE, new JobParameters());
+        return runningExecution(stepLastUpdated, null);
+    }
+
+    private static JobExecution runningExecution(LocalDateTime stepLastUpdated, SettlementTriggerType triggerType) {
+        var builder = new JobParametersBuilder();
+        if (triggerType != null) {
+            builder.addString(SettlementJobConfig.TRIGGER_TYPE, triggerType.name(), false);
+        }
+        var execution = new JobExecution(1L, INSTANCE, builder.toJobParameters());
         execution.setStatus(BatchStatus.STARTED);
         execution.setStartTime(LocalDateTime.now().minusHours(1));
         var step = new StepExecution(10L, "settleSellerStep", execution);

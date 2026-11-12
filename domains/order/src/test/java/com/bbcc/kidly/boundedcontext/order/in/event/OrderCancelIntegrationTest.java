@@ -20,6 +20,7 @@ import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
 import com.bbcc.kidly.boundedcontext.order.in.scheduler.OrderScheduler;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentCompletedEvent;
@@ -31,6 +32,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -39,7 +42,8 @@ import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 
 /**
- * 결제 실패 · 결제 마감 만료로 주문이 취소되고 order.cancelled가 한 번 발행되는지, 만료 뒤 온 결제 완료는 무시되는지.
+ * 결제 실패 · 결제 마감 만료로 주문이 취소되고 order.cancelled가 한 번 발행되는지, 만료 · 구매자 취소 · 회원 탈퇴 취소 뒤 온 결제 완료는
+ * 무시되고 환불 확인 대상으로 남는지.
  * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않는다.
  * 스케줄러는 테스트 프로필에서 저절로 돌지 않게 주기를 아주 길게 두고, 메서드를 직접 부른다.
  */
@@ -239,6 +243,53 @@ class OrderCancelIntegrationTest {
             .isEqualTo(1);
         assertThat(lines(output, "ERROR", "reason=missing-payment-id orderId=" + order.orderId())).isEqualTo(1);
         assertThat(lines(output, "ERROR", "reason=missing-paid-at orderId=" + order.orderId())).isEqualTo(1);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Canceller.class)
+    @DisplayName("구매자 취소 · 회원 탈퇴(member.withdrawn)로 취소된 결제대기 주문에 늦게 온 결제 완료는 같은 경로다(#1222): 반영하지 않고"
+        + "(상태 · 버전 · 이력 그대로 · 배송 없음 · 결제 복구 보관 없음) 환불 확인 대상 WARN을 한 줄 남긴다")
+    void ignoresPaymentCompletedAfterBuyerSideCancel(Canceller canceller, CapturedOutput output) {
+        OrderDetail order = place();
+        canceller.cancel(this, order.orderId());
+        assertCancelled(order.orderId(), Order.CancelReason.BUYER_CANCELLED);
+        long version = orderRows.versionOf(order.orderId());
+        List<String> historyBefore = orderRows.historyRows(order.orderId());
+
+        eventDelivery.deliver(new PaymentCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentCompletedEvent.Data(
+                501L, order.orderId(), BUYER_ID, order.totalAmount(), List.of(), LocalDateTime.now())));
+
+        assertCancelled(order.orderId(), Order.CancelReason.BUYER_CANCELLED);
+        assertThat(deliveryRepository.findAllByOrderIdOrderByIdAsc(order.orderId())).isEmpty();
+        assertThat(orderRows.versionOf(order.orderId())).as("늦게 온 결제 완료는 주문을 바꾸지 않음").isEqualTo(version);
+        assertThat(orderRows.historyRows(order.orderId()))
+            .isEqualTo(historyBefore).noneMatch(row -> row.contains(">PAID "));
+        assertThat(events.stream(OrderCancelledEvent.class).toList()).hasSize(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from orders.payment_recovery where order_id = ?",
+            Long.class, order.orderId())).as("취소된 주문의 결제 완료는 실패로 보관하지 않음").isZero();
+        assertThat(lines(output, "WARN", "reason=paid-after-cancel orderId=" + order.orderId()
+            + " paymentId=501 amount=" + order.totalAmount() + " cancelReason=BUYER_CANCELLED")).isEqualTo(1);
+        assertThat(lines(output, "ERROR", "reason=paid-after-cancel")).isEqualTo(0);
+    }
+
+    // 결제대기 주문을 구매자 쪽에서 취소하는 두 길: 구매자 직접 취소 · 회원 탈퇴 정리(같은 전이, 사유 BUYER_CANCELLED)
+    enum Canceller {
+        BUYER {
+            @Override
+            void cancel(OrderCancelIntegrationTest test, Long orderId) {
+                test.orderService.cancelByBuyer(BUYER_ID, orderId);
+            }
+        },
+        MEMBER_WITHDRAWAL {
+            @Override
+            void cancel(OrderCancelIntegrationTest test, Long orderId) {
+                test.eventDelivery.deliver(new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.now(),
+                    new MemberWithdrawnEvent.Data(BUYER_ID)));
+            }
+        };
+
+        abstract void cancel(OrderCancelIntegrationTest test, Long orderId);
     }
 
     private long lines(CapturedOutput output, String level, String text) {

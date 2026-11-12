@@ -16,9 +16,13 @@
 <text x="430" y="130" text-anchor="middle" fill="#334155" font-size="11">추천 DB · 벡터 저장소</text>
 <text x="430" y="150" text-anchor="middle" fill="#475569" font-size="10">복사본(상품 · 자녀 · 판매자)</text>
 <text x="430" y="166" text-anchor="middle" fill="#475569" font-size="10">활동 기록 · 선호 점수</text>
-<text x="430" y="182" text-anchor="middle" fill="#475569" font-size="10">AI 응답 저장(입력 해시) · 호출 횟수</text>
+<text x="430" y="182" text-anchor="middle" fill="#475569" font-size="10">하루 AI 호출 횟수</text>
 <text x="430" y="198" text-anchor="middle" fill="#475569" font-size="10">임베딩 · 성장도표 자료</text>
 <line x1="430" y1="64" x2="430" y2="108" stroke="#475569" stroke-width="1.4" marker-end="url(#ai-a)"/>
+<rect x="170" y="130" width="140" height="54" rx="6" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="4 3"/>
+<text x="240" y="152" text-anchor="middle" fill="#334155" font-size="11">Redis</text>
+<text x="240" y="170" text-anchor="middle" fill="#475569" font-size="10">AI 답(입력 해시) 24시간</text>
+<path d="M370 64 V 90 H 240 V 128" fill="none" stroke="#475569" stroke-width="1.4" marker-end="url(#ai-a)"/>
 <rect x="20" y="250" width="110" height="44" rx="6" fill="#fff" stroke="#94a3b8"/><text x="75" y="277" text-anchor="middle" fill="#1e293b">상품</text>
 <rect x="150" y="250" width="110" height="44" rx="6" fill="#fff" stroke="#94a3b8"/><text x="205" y="277" text-anchor="middle" fill="#1e293b">자녀 프로필</text>
 <rect x="280" y="250" width="110" height="44" rx="6" fill="#fff" stroke="#94a3b8"/><text x="335" y="277" text-anchor="middle" fill="#1e293b">주문</text>

@@ -132,7 +132,7 @@
 | 커뮤니티 | 상품 복사본 (이름 · 썸네일 · 표시 상태) · 리뷰 작성 자격 | `product.changed` · `order-item.purchase-confirmed` | 리뷰 · 찜 화면, 리뷰 작성 자격 |
 | 추천 | 활동 기록 · 선호 점수 · 구매 기록 · 기준 옷(2순위) | `cart.item-added` · `order.cancelled`(구매자 취소) · `order-item.purchase-confirmed` · `search.performed` · `cart.item-removed`(예정) | AI 추천 입력 · 더보기 순서 (3.6) |
 | 결제 | (복사본 없음) | `member.withdrawn` | 탈퇴 회원 지갑 동결 |
-| Gateway | 토큰 무효화 목록 (메모리) | `member.tokens-revoked` | 무효화된 토큰 거절 (도메인 아님) |
+| Gateway | 토큰 무효화 목록 (메모리) | `auth.tokens-revoked` | 무효화된 토큰 거절 (도메인 아님) |
 
 - 복사본은 **바뀐 뒤의 전체 값**을 받아 덮어씁니다 (`occurredAt`이 더 늦은 것만 반영). 삭제는 `deleted: true`로 옵니다.
 - 재고는 상품만 판단합니다: `order.created`를 받으면 **재고 차감 (선점)** → `stock.deducted` 또는 `stock.deduction-failed`, `order.cancelled`를 받으면 복구. 차감 기록은 orderItemId마다 남기고 **차감됨일 때만** 복구합니다 (두 번 복구 없음). 취소된 주문은 기록해 두고, 그 뒤에 온 `order.created`는 차감하지 않습니다. 주문은 **결제대기일 때만** `stock.deducted`를 받아 결제를 요청하고, 취소된 주문이면 무시합니다. 판매자 부분 취소(`order-item.cancelled`)도 차감된 주문상품만 같은 방식으로 복구합니다(#716).

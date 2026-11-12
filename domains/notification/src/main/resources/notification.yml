@@ -25,6 +25,19 @@ spring:
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
 
+  # 알림 발송(@Async)이 쓰는 Boot 기본 실행기(applicationTaskExecutor). 기본값은 스레드 8개에 대기열 · 최대 스레드가 무제한이라
+  # 결제가 몰리면 대기열이 메모리에 끝없이 쌓인다. 이 실행기는 이 앱에서 알림 발송만 쓴다.
+  # 알림 행이 먼저 DB에 PENDING으로 저장되므로 DB가 영속 대기열이고, 메모리 대기열이 차서 거절된 알림은 재시도 스케줄러가 보낸다
+  task:
+    execution:
+      pool:
+        # 동시에 여는 SMTP 연결 수. 대기열이 차도 스레드를 늘리지 않는다(Gmail SMTP 동시 연결 한도)
+        core-size: 8
+        max-size: 8
+        # 처리량 = 스레드 8 ÷ 발송 약 1초 = 초당 8건. 대기열 끝의 알림이 약 50초 안에 발송을 시작해
+        # 재시도 스케줄러가 멈춘 PENDING으로 다시 집는 1분(NotificationPolicy.PENDING_TIMEOUT)보다 먼저 나간다
+        queue-capacity: 400
+
 # 메일 헬스체크를 끈다. SMTP 장애로 /actuator/health가 DOWN이 되면 배포 healthcheck가 실패한다
 management:
   health:

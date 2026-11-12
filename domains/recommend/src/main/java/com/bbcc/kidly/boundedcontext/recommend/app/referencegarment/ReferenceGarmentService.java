@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.Reference
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentSpec;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategoryPathEntry;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
@@ -18,6 +19,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -74,7 +76,7 @@ public class ReferenceGarmentService {
 
     private static PurchasedGarmentResult toResult(PurchasedGarmentRow row, RecommendReplicaProduct product) {
         if (product == null) {
-            return new PurchasedGarmentResult(row.orderItemId(), row.productId(), null, null, row.size(), null,
+            return new PurchasedGarmentResult(row.orderItemId(), row.productId(), null, null, null, row.size(), null,
                 row.confirmedAt());
         }
         Map<String, BigDecimal> measurements = null;
@@ -84,7 +86,20 @@ public class ReferenceGarmentService {
             }
         }
         return new PurchasedGarmentResult(row.orderItemId(), row.productId(), product.getName(),
-            product.getCategoryId(), row.size(), measurements, row.confirmedAt());
+            product.getCategoryId(), partNameOf(product), row.size(), measurements, row.confirmedAt());
+    }
+
+    // 기준 옷 저장과 같은 판정으로, 상품 카테고리 경로의 이름에서 기준 옷 칸을 정한다
+    private static String partNameOf(RecommendReplicaProduct product) {
+        List<String> pathNames = new ArrayList<>();
+        for (RecommendReplicaCategoryPathEntry entry : product.getCategoryPath()) {
+            pathNames.add(entry.getCategoryName());
+        }
+        GarmentPart part = GarmentPart.ofCategoryPath(pathNames);
+        if (part == null) {
+            return null;
+        }
+        return part.name();
     }
 
     @Transactional

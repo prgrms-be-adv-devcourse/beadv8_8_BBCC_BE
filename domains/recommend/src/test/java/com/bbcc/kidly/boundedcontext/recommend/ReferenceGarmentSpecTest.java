@@ -30,16 +30,17 @@ class ReferenceGarmentSpecTest {
     static Stream<Arguments> matchingCategoryPaths() {
         return Stream.of(
             Arguments.of(GarmentPart.TOP, List.of("의류", "상의")),
-            Arguments.of(GarmentPart.TOP, List.of("의류", "아우터")),
-            Arguments.of(GarmentPart.TOP, List.of("의류", "원피스")),
             Arguments.of(GarmentPart.TOP, List.of("의류", "상의", "티셔츠")),
             Arguments.of(GarmentPart.BOTTOM, List.of("의류", "하의")),
-            Arguments.of(GarmentPart.BOTTOM, List.of("의류", "치마")));
+            Arguments.of(GarmentPart.BOTTOM, List.of("의류", "바지")),
+            Arguments.of(GarmentPart.OUTER, List.of("의류", "아우터")),
+            Arguments.of(GarmentPart.DRESS, List.of("의류", "원피스")),
+            Arguments.of(GarmentPart.SKIRT, List.of("의류", "치마")));
     }
 
     @ParameterizedTest(name = "{0} 기준 옷, 경로 {1}")
     @MethodSource("matchingCategoryPaths")
-    @DisplayName("FIT-01 구분에 맞는 카테고리 경로면 기준 옷 값이 만들어진다")
+    @DisplayName("FIT-01 칸과 같은 종류의 카테고리 경로면 기준 옷 값이 만들어진다")
     void createdWhenCategoryPathMatchesPart(GarmentPart part, List<String> categoryPathNames) {
         ReferenceGarmentSpec spec = ReferenceGarmentSpec.of(
             part, CATEGORY_ID, path(categoryPathNames), requiredMeasurements(part));
@@ -51,13 +52,20 @@ class ReferenceGarmentSpecTest {
     static Stream<Arguments> mismatchingCategoryPaths() {
         return Stream.of(
             Arguments.of(GarmentPart.TOP, List.of("의류", "하의")),
+            Arguments.of(GarmentPart.TOP, List.of("의류", "아우터")),
+            Arguments.of(GarmentPart.TOP, List.of("의류", "원피스")),
+            Arguments.of(GarmentPart.TOP, List.of("잡화", "모자")),
             Arguments.of(GarmentPart.BOTTOM, List.of("의류", "원피스")),
-            Arguments.of(GarmentPart.TOP, List.of("잡화", "모자")));
+            Arguments.of(GarmentPart.BOTTOM, List.of("의류", "치마")),
+            Arguments.of(GarmentPart.OUTER, List.of("의류", "상의")),
+            Arguments.of(GarmentPart.DRESS, List.of("의류", "상의")),
+            Arguments.of(GarmentPart.SKIRT, List.of("의류", "하의")),
+            Arguments.of(GarmentPart.SKIRT, List.of("의류", "바지")));
     }
 
     @ParameterizedTest(name = "{0} 기준 옷, 경로 {1}")
     @MethodSource("mismatchingCategoryPaths")
-    @DisplayName("FIT-01 구분과 맞지 않는 카테고리 경로면 구분과 맞지 않는 세부 종류라고 거절한다")
+    @DisplayName("FIT-01 칸과 다른 종류의 카테고리 경로면 구분과 맞지 않는 세부 종류라고 거절한다")
     void rejectedWhenCategoryPathDoesNotMatchPart(GarmentPart part, List<String> categoryPathNames) {
         assertRejected(
             () -> ReferenceGarmentSpec.of(part, CATEGORY_ID, path(categoryPathNames), requiredMeasurements(part)),
@@ -114,7 +122,20 @@ class ReferenceGarmentSpecTest {
             Arguments.of(GarmentPart.BOTTOM, List.of("의류", "하의"),
                 Map.of("TOTAL_LENGTH", cm("60.0"), "WAIST_WIDTH", cm("24.0"))),
             Arguments.of(GarmentPart.BOTTOM, List.of("의류", "하의"),
-                Map.of("TOTAL_LENGTH", cm("60.0"), "WAIST_WIDTH", cm("24.0"), "RISE", cm("20.0"))));
+                Map.of("TOTAL_LENGTH", cm("60.0"), "WAIST_WIDTH", cm("24.0"), "RISE", cm("20.0"))),
+            Arguments.of(GarmentPart.OUTER, List.of("의류", "아우터"),
+                Map.of("TOTAL_LENGTH", cm("50.0"), "CHEST_WIDTH", cm("38.0"))),
+            Arguments.of(GarmentPart.OUTER, List.of("의류", "아우터"),
+                Map.of("TOTAL_LENGTH", cm("50.0"), "CHEST_WIDTH", cm("38.0"),
+                    "SHOULDER_WIDTH", cm("33.0"), "SLEEVE_LENGTH", cm("42.0"))),
+            Arguments.of(GarmentPart.DRESS, List.of("의류", "원피스"),
+                Map.of("TOTAL_LENGTH", cm("65.0"), "CHEST_WIDTH", cm("32.0"))),
+            Arguments.of(GarmentPart.DRESS, List.of("의류", "원피스"),
+                Map.of("TOTAL_LENGTH", cm("65.0"), "CHEST_WIDTH", cm("32.0"), "SHOULDER_WIDTH", cm("28.0"))),
+            Arguments.of(GarmentPart.SKIRT, List.of("의류", "치마"),
+                Map.of("TOTAL_LENGTH", cm("35.0"), "WAIST_WIDTH", cm("23.0"))),
+            Arguments.of(GarmentPart.SKIRT, List.of("의류", "치마"),
+                Map.of("TOTAL_LENGTH", cm("35.0"), "WAIST_WIDTH", cm("23.0"), "HIP_WIDTH", cm("33.0"))));
     }
 
     @ParameterizedTest(name = "{0} 기준 옷, 실측 {2}")
@@ -160,7 +181,10 @@ class ReferenceGarmentSpecTest {
             Arguments.of(GarmentPart.BOTTOM, Map.of()),
             Arguments.of(GarmentPart.BOTTOM, Map.of("TOTAL_LENGTH", cm("60.0"))),
             Arguments.of(GarmentPart.BOTTOM, Map.of("WAIST_WIDTH", cm("24.0"))),
-            Arguments.of(GarmentPart.BOTTOM, Map.of("RISE", cm("20.0"))));
+            Arguments.of(GarmentPart.BOTTOM, Map.of("RISE", cm("20.0"))),
+            Arguments.of(GarmentPart.OUTER, Map.of("TOTAL_LENGTH", cm("50.0"))),
+            Arguments.of(GarmentPart.DRESS, Map.of("CHEST_WIDTH", cm("32.0"), "SHOULDER_WIDTH", cm("28.0"))),
+            Arguments.of(GarmentPart.SKIRT, Map.of("TOTAL_LENGTH", cm("35.0"), "HIP_WIDTH", cm("33.0"))));
     }
 
     @ParameterizedTest(name = "{0} 기준 옷, 실측 {1}")
@@ -181,6 +205,12 @@ class ReferenceGarmentSpecTest {
         "BOTTOM, SHOULDER_WIDTH",
         "BOTTOM, SLEEVE_LENGTH",
         "BOTTOM, FOO",
+        "BOTTOM, HIP_WIDTH",
+        "OUTER, WAIST_WIDTH",
+        "DRESS, SLEEVE_LENGTH",
+        "DRESS, WAIST_WIDTH",
+        "SKIRT, RISE",
+        "SKIRT, CHEST_WIDTH",
     })
     @DisplayName("그 구분에 없는 실측 항목 코드가 있으면 이 구분에 없는 실측 항목이라고 거절한다")
     void rejectedWhenMeasurementCodeIsNotForThePart(GarmentPart part, String unsupportedCode) {
@@ -291,7 +321,13 @@ class ReferenceGarmentSpecTest {
     }
 
     private static List<GarmentCategoryPathEntry> matchingPath(GarmentPart part) {
-        return path(part == GarmentPart.TOP ? List.of("의류", "상의") : List.of("의류", "하의"));
+        return path(switch (part) {
+            case TOP -> List.of("의류", "상의");
+            case BOTTOM -> List.of("의류", "하의");
+            case OUTER -> List.of("의류", "아우터");
+            case DRESS -> List.of("의류", "원피스");
+            case SKIRT -> List.of("의류", "치마");
+        });
     }
 
     private static List<GarmentCategoryPathEntry> path(List<String> names) {
@@ -313,10 +349,10 @@ class ReferenceGarmentSpecTest {
     }
 
     private static Map<String, BigDecimal> requiredMeasurements(GarmentPart part) {
-        if (part == GarmentPart.TOP) {
-            return Map.of("TOTAL_LENGTH", cm("45.0"), "CHEST_WIDTH", cm("34.0"));
-        }
-        return Map.of("TOTAL_LENGTH", cm("60.0"), "WAIST_WIDTH", cm("24.0"));
+        return switch (part) {
+            case TOP, OUTER, DRESS -> Map.of("TOTAL_LENGTH", cm("45.0"), "CHEST_WIDTH", cm("34.0"));
+            case BOTTOM, SKIRT -> Map.of("TOTAL_LENGTH", cm("60.0"), "WAIST_WIDTH", cm("24.0"));
+        };
     }
 
     private static BigDecimal cm(String value) {

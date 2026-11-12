@@ -239,13 +239,23 @@ def compose_used(env):
     return bool(profile_list(env_values(env, lambda key: key == 'COMPOSE_PROFILES').get('COMPOSE_PROFILES', '')))
 
 
+def suspend_cronjobs(env, suspend):
+    names = run(kubectl(env, 'get', 'cronjob', '-o', 'name'), capture=True)
+    payload = json.dumps({'spec': {'suspend': suspend}}, separators=(',', ':'))
+    for name in names.splitlines():
+        run(kubectl(env, 'patch', name, '--type', 'merge', '-p', payload))
+
+
 def scale_k3s(env, replicas):
     # HPA 가 있는 서비스도 0 이면 늘리지 않고, 1 로 되돌리면 HPA 가 다시 맡는다
     if not k3s_workloads(env):
         return
+    if not replicas:
+        suspend_cronjobs(env, True)
     run(kubectl(env, 'scale', 'deployment', '--all', '--replicas', str(replicas)))
     if replicas:
         run(kubectl(env, 'wait', '--for=condition=Available', 'deployment', '--all', '--timeout=600s'))
+        suspend_cronjobs(env, False)
 
 
 def compose(env, *args):

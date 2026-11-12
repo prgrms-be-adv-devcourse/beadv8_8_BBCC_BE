@@ -21,7 +21,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 자녀가 지금 잘 맞게 입는 옷 한 벌이다. 자녀마다 구분(상의 · 하의)별로 한 줄만 있고, 다시 저장하면 그 줄의 값을 바꾼다.
+ * 자녀가 지금 잘 맞게 입는 옷 한 벌이다. 자녀마다 구분(상의 · 바지 · 아우터 · 원피스 · 치마)별로 한 줄만 있고, 다시 저장하면 그 줄의 값을 바꾼다.
  * 자녀와 세부 종류 카테고리는 다른 도메인의 ID라 FK 없이 값으로만 참조한다.
  */
 @Entity

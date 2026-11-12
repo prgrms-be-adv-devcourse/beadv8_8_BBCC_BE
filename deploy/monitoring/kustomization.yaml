@@ -34,6 +34,7 @@ configMapGenerator:
       - grafana/provisioning/alerting/alerting.yml
       - grafana/provisioning/alerting/pipeline.yml
       - grafana/provisioning/alerting/kafka.yml
+      - grafana/provisioning/alerting/search.yml
       - grafana/provisioning/alerting/templates.yml
       - grafana/provisioning/alerting/resources.yml
   - name: grafana-dashboards

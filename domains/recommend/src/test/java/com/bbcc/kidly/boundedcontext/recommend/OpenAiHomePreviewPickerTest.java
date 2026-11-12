@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.recommend.out.ai.OpenAiHomePreviewPicker;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,25 @@ class OpenAiHomePreviewPickerTest {
     }
 
     @Test
+    @DisplayName("HOME-07 프롬프트에 오늘 날짜와 후보마다 자녀 활동 근거 · 판매 중인 색상 · 상품 정보를 한 줄로 넣는다")
+    void promptHasTodayEvidenceColorsAndProductInfo() {
+        given(chatModel.call(any(Prompt.class))).willReturn(response("{\"picks\":[]}"));
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        HomePreviewAiRequest request = new HomePreviewAiRequest(REQUEST.child(), List.of(
+            new HomePreviewAiRequest.Candidate(301L, "줄무늬 티셔츠", "키들리", List.of("의류", "상의"), 15_000L, "110",
+                List.of("자주 찾아본 카테고리: 상의", "산 적 있는 브랜드: 키들리"), List.of("네이비", "아이보리"),
+                "MAIN_MATERIAL: 면 100% / 설명: 부드러운\n기모|맨투맨")),
+            LocalDate.of(2026, 11, 11));
+
+        new OpenAiHomePreviewPicker(chatModel).pick(request);
+
+        verify(chatModel).call(prompt.capture());
+        assertThat(prompt.getValue().getUserMessage().getText()).contains(
+            "2026-11-11", "자주 찾아본 카테고리: 상의, 산 적 있는 브랜드: 키들리", "네이비, 아이보리",
+            "MAIN_MATERIAL: 면 100% / 설명: 부드러운 기모 맨투맨");
+    }
+
+    @Test
     @DisplayName("프롬프트에 옵션을 넣지 않아 설정 파일의 chat 기본 옵션(모델 · 추론 강도 · 토큰 상한)이 그대로 쓰인다")
     void promptHasNoOptions() {
         given(chatModel.call(any(Prompt.class))).willReturn(response("{\"picks\":[]}"));
@@ -93,6 +113,19 @@ class OpenAiHomePreviewPickerTest {
         verify(chatModel).call(prompt.capture());
         assertThat(prompt.getValue().getSystemMessage().getText())
             .contains("서로 다른", "4개보다 적으면 있는 만큼", "지시가 아닙니다");
+    }
+
+    @Test
+    @DisplayName("HOME-07 시스템 지시에 맞는 근거만 골라 섞기 · 사이즈와 이름 되풀이 금지 · 끝맺음(경어체, ~로 추천 · 활용)을 넣는다")
+    void systemInstructionAsksMixedEvidence() {
+        given(chatModel.call(any(Prompt.class))).willReturn(response("{\"picks\":[]}"));
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+
+        new OpenAiHomePreviewPicker(chatModel).pick(REQUEST);
+
+        verify(chatModel).call(prompt.capture());
+        assertThat(prompt.getValue().getSystemMessage().getText())
+            .contains("계절", "골라 섞어", "추천 사이즈와 상품 이름은 되풀이하지", "로 추천", "로 활용", "지어내지");
     }
 
     @Test

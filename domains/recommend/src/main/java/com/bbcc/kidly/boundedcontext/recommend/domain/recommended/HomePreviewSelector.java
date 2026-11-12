@@ -7,11 +7,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 홈 화면 맛보기에 보여 줄 상품을 고른다.
  */
 public class HomePreviewSelector {
+
+    // 「요」 · 「니다」로 끝나고 마침표나 느낌표가 붙을 수 있다. 물음표는 제안하는 말투에만 허용한다(함께 사면 이유와 같다).
+    // 그 밖에 「~로 추천」 · 「~로 활용」으로 끝나는 짧은 문장도 쓴다
+    private static final Pattern ALLOWED_ENDING =
+        Pattern.compile("(요|니다)[.!]?$|(까요|어때요|어떠세요|겠어요)\\?$|로 (추천|활용)\\.?$");
 
     // 홈 맛보기 후보는 선호 점수 순서의 앞에서 20개다
     private static final int CANDIDATE_LIMIT = 20;
@@ -78,9 +84,13 @@ public class HomePreviewSelector {
         return items;
     }
 
-    // 빈 문자열이나 공백뿐인 이유는 이유가 없는 것과 같으므로 null로 둔다
+    // 빈 이유와, 경어체도 「~로 추천」 · 「~로 활용」도 아닌 이유는 화면에 보이지 않게 null로 둔다(HOME-06).
+    // 길이는 검사하지 않는다. 화면이 AI 문장이라 실수가 있을 수 있다고 안내한다
     private String reasonOrNull(String reason) {
         if (reason == null || reason.isBlank()) {
+            return null;
+        }
+        if (!ALLOWED_ENDING.matcher(reason.strip()).find()) {
             return null;
         }
         return reason;

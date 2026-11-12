@@ -56,6 +56,12 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app에서 쓰던 구독 그룹을 이어받아 책갈피를 이어 쓴다
       auto-offset-reset: latest
+  # Redis. AI 답을 24시간 보관해 같은 입력이면 다시 쓴다. 서버 주소는 SPRING_DATA_REDIS_HOST로, 테스트는 Testcontainers가 덮어쓴다.
+  # Lettuce 기본 명령 제한 시간(60초)이면 Redis가 멈췄을 때 추천 요청이 그만큼 붙잡힌다. 짧게 두고, 넘기면 저장된 답이 없는 것으로 보고 AI를 부른다
+  data:
+    redis:
+      timeout: 300ms
+      connect-timeout: 300ms
   # OpenAI(Chat Completions · 임베딩). 추천은 chat과 임베딩만 쓰므로 나머지 모델의 자동 설정은 끈다.
   # 키가 비어 있어도 Spring AI는 인증 없이 부르는 모델 빈을 만들어 호출할 때 401이 난다. 그래서 키가 없는 로컬 · 테스트 · CI에서는 RecommendAiKeyApplicationListener가 chat과 임베딩 모델 빈도 만들지 않는다.
   ai:
@@ -73,8 +79,9 @@ spring:
         # 추론 토큰도 이 상한에 들어간다
         max-completion-tokens: 2048
         # 한 번 부를 때 기다리는 시간과 다시 부르는 횟수다. 일시적인 오류(429 · 5xx 등)는 한 번만 다시 부른다.
-        # 화면이 기다리는 시간은 AI 공통 서비스의 제한 시간이 따로 정한다
-        timeout: 4s
+        # 화면이 기다리는 시간은 AI 공통 서비스의 제한 시간이 따로 정한다. 화면이 먼저 규칙 결과로 답해도
+        # 늦게 온 답은 저장해 다음 요청이 쓰므로, 입력이 긴 사이즈 추천(5 ~ 6초)도 한 번에 받을 수 있게 길게 둔다
+        timeout: 10s
         max-retries: 1
       embedding:
         model: text-embedding-3-small

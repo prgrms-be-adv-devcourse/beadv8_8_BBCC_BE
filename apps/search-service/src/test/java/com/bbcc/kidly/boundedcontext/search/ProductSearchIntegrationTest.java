@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.search;
 import static com.bbcc.kidly.boundedcontext.search.SearchEvents.product;
 import static com.bbcc.kidly.boundedcontext.search.SearchEvents.seller;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.search.app.SearchIndexService;
@@ -10,9 +11,12 @@ import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearch;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
+import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import com.bbcc.kidly.support.SearchIndexes;
+import com.github.dockerjava.api.DockerClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.testcontainers.containers.GenericContainer;
 
 /**
  * 상품 · 판매자 이벤트로 색인한 문서를 실제 Elasticsearch(nori)에서 목록 조건으로 찾는다(#526).
@@ -43,6 +48,9 @@ class ProductSearchIntegrationTest {
 
     @Autowired
     private SearchIndexes indexes;
+
+    @Autowired
+    private GenericContainer<?> elasticsearchContainer;
 
     @BeforeEach
     void indexProducts() {
@@ -133,6 +141,25 @@ class ProductSearchIntegrationTest {
             .extracting(ProductSearchItem::name).contains("원피스").doesNotContain("예전 이름");
     }
 
+
+    @Test
+    @DisplayName("Elasticsearch가 응답하지 않으면 기본값(30초)이 아니라 응답 시간 제한(3초)에 끊고 503 예외로 알린다(#1026)")
+    void elasticsearchTimeout() {
+        DockerClient docker = elasticsearchContainer.getDockerClient();
+        String containerId = elasticsearchContainer.getContainerId();
+        docker.pauseContainerCmd(containerId).exec();
+        Duration elapsed;
+        try {
+            long startedAt = System.nanoTime();
+            assertThatThrownBy(() -> productSearch.search(
+                    new ProductSearchCondition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
+                .isInstanceOf(SearchUnavailableException.class);
+            elapsed = Duration.ofNanos(System.nanoTime() - startedAt);
+        } finally {
+            docker.unpauseContainerCmd(containerId).exec();
+        }
+        assertThat(elapsed).isBetween(Duration.ofSeconds(3), Duration.ofSeconds(6));
+    }
     private static ProductSearchCondition keyword(String keyword) {
         return condition(null, keyword, Map.of(), ProductSearchSort.NEWEST);
     }
