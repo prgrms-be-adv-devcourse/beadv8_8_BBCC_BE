@@ -34,4 +34,13 @@ public class PostgresAiCallQuota implements AiCallQuota {
             .update();
         return changed == 1;
     }
+
+    @Override
+    public int usedOn(LocalDate date) {
+        return jdbcClient.sql("SELECT call_count FROM recommend.ai_call_usage WHERE usage_date = :date")
+            .param("date", date)
+            .query(Integer.class)
+            .optional()
+            .orElse(0);
+    }
 }

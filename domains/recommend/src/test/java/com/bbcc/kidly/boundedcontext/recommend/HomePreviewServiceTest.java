@@ -307,5 +307,10 @@ class HomePreviewServiceTest {
             acquired++;
             return true;
         }
+
+        @Override
+        public int usedOn(LocalDate date) {
+            return acquired;
+        }
     }
 }

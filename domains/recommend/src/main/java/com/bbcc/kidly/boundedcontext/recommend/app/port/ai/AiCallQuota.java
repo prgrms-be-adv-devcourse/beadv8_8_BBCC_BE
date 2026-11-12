@@ -18,4 +18,9 @@ public interface AiCallQuota {
      * @return 호출해도 되면 true, 상한에 닿아 호출하면 안 되면 false
      */
     boolean tryAcquire(LocalDate date, int dailyLimit);
+
+    /**
+     * 그 날짜에 사용한 호출 횟수를 돌려준다. 그 날짜의 줄이 없으면 0이다.
+     */
+    int usedOn(LocalDate date);
 }
