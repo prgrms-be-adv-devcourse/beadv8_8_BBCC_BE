@@ -153,10 +153,10 @@ public class SizeRecommendationReader {
     private PurchasedGarment purchasedGarmentOf(PurchaseRecord record, RecommendReplicaProduct bought) {
         if (bought == null) {
             return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), null, List.of(),
-                null, Map.of());
+                null, Map.of(), null);
         }
         return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), bought.getCategoryId(),
-            categoryPathNamesOf(bought), bought.getBrand(), measurementsOf(bought, record.getSize()));
+            categoryPathNamesOf(bought), bought.getBrand(), measurementsOf(bought, record.getSize()), null);
     }
 
     // 산 사이즈의 실측이고, 그 사이즈 줄이 없으면 빈 Map이다

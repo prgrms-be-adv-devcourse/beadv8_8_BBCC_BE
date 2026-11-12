@@ -112,7 +112,7 @@ class OpenAiSizeChooserTest {
         SizeAiQuestion question = new SizeAiQuestion(QUESTION.child(), QUESTION.sizes(), QUESTION.ruleResult(), null,
             GROWTH, List.of(), List.of(new PurchaseFit("100", 5, true, new BigDecimal("2.5"),
                 List.of(new ReferenceFit.Item("TOTAL_LENGTH", new BigDecimal("40"), List.of(
-                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("2"))))))));
+                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("2"))))), null)));
 
         new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(question);
 

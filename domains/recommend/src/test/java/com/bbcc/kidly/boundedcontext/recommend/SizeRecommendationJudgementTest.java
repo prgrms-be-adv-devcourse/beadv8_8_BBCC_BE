@@ -55,7 +55,7 @@ class SizeRecommendationJudgementTest {
         new SizeAiQuestion.GrowthSpeed(cm("0.50"), null, 0, cm("0"), 0, cm("0.50"), "한국아동패널"), List.of(),
         List.of(new PurchaseFit("110", 5, true, cm("2.5"), List.of(new ReferenceFit.Item("CHEST_WIDTH", cm("33"),
             List.of(new ReferenceFit.SizeDiff("110", cm("34"), cm("1")),
-                new ReferenceFit.SizeDiff("120", cm("36"), cm("3")))))))).givenNumbers());
+                new ReferenceFit.SizeDiff("120", cm("36"), cm("3"))))), null))).givenNumbers());
 
     @Test
     @DisplayName("FIT-09 AI 답을 채택하면 추천 사이즈의 항목별 판단(항목 · 차이 · 판단 · 여유 범위)을 결과에 담는다")

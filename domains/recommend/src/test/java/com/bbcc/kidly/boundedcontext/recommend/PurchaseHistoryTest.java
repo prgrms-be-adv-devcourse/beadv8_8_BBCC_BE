@@ -2,12 +2,14 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseHistory;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchasedGarment;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -58,6 +60,23 @@ class PurchaseHistoryTest {
                 new ReferenceFit.Item("CHEST_WIDTH", cm("33.0"), List.of(
                     new ReferenceFit.SizeDiff("110", cm("34.0"), cm("1.0")),
                     new ReferenceFit.SizeDiff("120", cm("37.0"), cm("4.0")))));
+    }
+
+    @Test
+    @DisplayName("FIT-12 지난 구매마다 그 구매의 리뷰 핏을 붙이고, 공개된 리뷰 핏이 없는 구매는 null로 둔다")
+    void attachReviewFitToEachPurchase() {
+        FitProduct product = product(TOP_ID, "상의", List.of(size("120", Map.of("CHEST_WIDTH", cm("37.0")))));
+        PurchasedGarment reviewed = new PurchasedGarment(2L, "110", TODAY.minusMonths(2).atTime(10, 0), TOP_ID,
+            List.of("의류", "상의"), "키들리", Map.of("CHEST_WIDTH", cm("33.0")), ReviewFit.SMALL);
+        PurchasedGarment notReviewed = new PurchasedGarment(1L, "100", TODAY.minusMonths(6).atTime(10, 0), TOP_ID,
+            List.of("의류", "상의"), "키들리", Map.of("CHEST_WIDTH", cm("31.0")), null);
+
+        PurchaseHistory history = PurchaseHistory.compare(new PurchaseHistory.CompareInfo(product, "키들리",
+            List.of(notReviewed, reviewed), CM_PER_MONTH, TODAY));
+
+        assertThat(history.purchases())
+            .extracting(PurchaseFit::size, PurchaseFit::reviewFit)
+            .containsExactly(tuple("110", ReviewFit.SMALL), tuple("100", null));
     }
 
     @Test
@@ -212,7 +231,7 @@ class PurchaseHistoryTest {
     void skipPurchaseWithUnknownPart() {
         FitProduct product = product(TOP_ID, "상의", List.of(size("120", Map.of("CHEST_WIDTH", cm("37.0")))));
         PurchasedGarment unknown = new PurchasedGarment(1L, "110", TODAY.minusMonths(5).atTime(10, 0), null,
-            List.of(), null, Map.of());
+            List.of(), null, Map.of(), null);
 
         PurchaseHistory history = PurchaseHistory.compare(
             new PurchaseHistory.CompareInfo(product, "키들리", List.of(unknown), CM_PER_MONTH, TODAY));
@@ -249,7 +268,7 @@ class PurchaseHistoryTest {
     private static PurchasedGarment purchased(Long purchaseRecordId, String size, LocalDateTime confirmedAt,
         Long categoryId, String categoryName, String brand, Map<String, BigDecimal> measurements) {
         return new PurchasedGarment(purchaseRecordId, size, confirmedAt, categoryId, List.of("의류", categoryName),
-            brand, measurements);
+            brand, measurements, null);
     }
 
     private static FitProduct product(Long categoryId, String categoryName, List<FitProduct.SizeMeasurements> sizes) {

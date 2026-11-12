@@ -50,23 +50,23 @@ class SizeAiQuestionTest {
         PurchaseFit base = basePurchase();
         return Stream.of(
             Arguments.of("사이즈", new PurchaseFit("120", base.monthsAgo(), base.sameBrand(), base.expectedGrowthCm(),
-                base.items())),
+                base.items(), null)),
             Arguments.of("개월", new PurchaseFit(base.size(), 6, base.sameBrand(), base.expectedGrowthCm(),
-                base.items())),
+                base.items(), null)),
             Arguments.of("같은 브랜드", new PurchaseFit(base.size(), base.monthsAgo(), false, base.expectedGrowthCm(),
-                base.items())),
+                base.items(), null)),
             Arguments.of("예상 성장량", new PurchaseFit(base.size(), base.monthsAgo(), base.sameBrand(),
-                new BigDecimal("3.0"), base.items())),
+                new BigDecimal("3.0"), base.items(), null)),
             Arguments.of("실측 차이", new PurchaseFit(base.size(), base.monthsAgo(), base.sameBrand(),
                 base.expectedGrowthCm(), List.of(new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("32"),
-                    List.of(new ReferenceFit.SizeDiff("120", new BigDecimal("36"), new BigDecimal("4"))))))));
+                    List.of(new ReferenceFit.SizeDiff("120", new BigDecimal("36"), new BigDecimal("4"))))), null)));
     }
 
     // 다섯 달 전 같은 브랜드에서 산 110(가슴단면 33cm)을 상품 120(36cm)과 견준 구매다
     private static PurchaseFit basePurchase() {
         return new PurchaseFit("110", 5, true, new BigDecimal("2.5"), List.of(new ReferenceFit.Item("CHEST_WIDTH",
             new BigDecimal("33"), List.of(new ReferenceFit.SizeDiff("120", new BigDecimal("36"),
-                new BigDecimal("3"))))));
+                new BigDecimal("3"))))), null);
     }
 
     private static SizeAiQuestion questionWith(PurchaseFit purchase) {

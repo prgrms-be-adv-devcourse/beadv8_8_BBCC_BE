@@ -86,6 +86,6 @@ public record PurchaseHistory(String lastPurchasedSize, List<PurchaseFit> purcha
         BigDecimal growth = info.cmPerMonth().multiply(BigDecimal.valueOf(months)).setScale(1, RoundingMode.HALF_UP);
         List<ReferenceFit.Item> items = ReferenceFit.itemsOf(info.product(), garment.categoryId(),
             garment.measurements());
-        return new PurchaseFit(garment.size(), months, sameBrand, growth, items);
+        return new PurchaseFit(garment.size(), months, sameBrand, growth, items, garment.reviewFit());
     }
 }
