@@ -7,7 +7,7 @@
 | 주소 | `/api/v1/...` · 판매자 `/api/v1/seller/...` · 관리자 `/api/v1/admin/...` · 예외 없음 (로그인도 `/api/v1/auth/login/{provider}`) |
 | 인증 | Gateway가 `Authorization: Bearer {accessToken}`을 검증하고 `X-Member-Id` · `X-Member-Roles` · `X-Member-Nickname` 헤더를 붙여 넘김. 로그인이 필요한 API는 `@LoginMember AuthMember`를 받고 헤더가 없거나 잘못되면 401 · 로그인 없이 부르는 API: 로그인 · 재발급 · 로그아웃, 상품 목록 · 상세, 카테고리, FE 설정, 토스 웹훅, 리뷰 목록 · 요약, 찜 요약, 개발용 토큰(local · test · dev만) · `/seller/**`는 SELLER, `/admin/**`는 ADMIN만 (Gateway가 검사, 토큰 없으면 401 · 역할 없으면 403) |
 | 성공 | 감싸지 않고 그대로 · 조회 200 · 생성 201 · 삭제 204 |
-| 실패 | ProblemDetail 5필드 (`type` · `title` · `status` · `detail` · `instance`) · 오류 코드 이름은 응답에 나가지 않음 (`type`은 늘 `about:blank`), detail에 다음에 할 일을 적음 · 동시 요청이 DB 제약에 막히면 409 |
+| 실패 | ProblemDetail 5필드 (`type` · `title` · `status` · `detail` · `instance`) + 오류 코드 `code` (오류 enum 상수 이름. 화면은 문구 대신 이 값으로 분기, 이미 내보낸 이름은 바꾸지 않음) · `type`은 늘 `about:blank` · detail에 다음에 할 일을 적음 · 동시 요청이 DB 제약에 막히면 409 |
 | 값 | ID는 문자열 · 금액은 원 단위 정수 · 상태값 영어 대문자 |
 | 시각 | `2026-10-08T10:00:00` (`LocalDateTime`, 한국 시간) · 서버 · DB 시간대 Asia/Seoul |
 | 목록 | `{ content, page, size, totalElements, totalPages, hasNext }` · 커뮤니티 목록은 커서 방식(`cursor` · `size`, 마지막 쪽은 `nextCursor: null`) |
@@ -36,14 +36,15 @@
 ```
 
 ```
-// 실패 (ProblemDetail 5필드)
+// 실패 (ProblemDetail 5필드 + code)
 // Content-Type: application/problem+json
 {
   "type": "about:blank",
   "title": "가격이 바뀌었습니다",
   "status": 409,
   "detail": "장바구니 단가와 현재 단가가 다릅니다.",
-  "instance": "/api/v1/orders"
+  "instance": "/api/v1/orders",
+  "code": "PRICE_CHANGED"
 }
 ```
 
