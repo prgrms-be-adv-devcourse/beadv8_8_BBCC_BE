@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.preference.ConfirmedPurcha
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.RecentActivity;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -151,6 +152,29 @@ class PreferenceSourceReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("PREF-18 자녀 활동은 조르기도 조른 상품의 복사본 카테고리 · 브랜드와 함께 읽는다")
+    void readWishSentWithProductValues() {
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", null);
+        insertWish(ActivityType.WISH_SENT, 301L, SINCE, 100L);
+
+        assertThat(reader.findChildActivities(7L, SINCE, SINCE.plusHours(3))).containsExactly(
+            new RecentActivity(ActivityType.WISH_SENT, 100L, 10L, "Nike", SINCE, false));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-60, true", "0, true", "1, false"})
+    @DisplayName("PREF-19 조르기는 기간 끝 시각까지 같은 조르기를 철회했을 때만 철회 표시가 붙고, 다른 조르기는 그대로다")
+    void markWishWithdrawnOnlyUntilEndOfPeriod(long cancelledSecondsAfterEnd, boolean withdrawn) {
+        LocalDateTime to = SINCE.plusHours(3);
+        insertWish(ActivityType.WISH_SENT, 301L, SINCE.plusHours(1), 100L);
+        insertWish(ActivityType.WISH_CANCELLED, 301L, to.plusSeconds(cancelledSecondsAfterEnd), null);
+        insertWish(ActivityType.WISH_SENT, 302L, SINCE.plusHours(2), 101L);
+
+        assertThat(reader.findChildActivities(7L, SINCE, to)).extracting(RecentActivity::removedFromCart)
+            .containsExactly(withdrawn, false);
+    }
+
+    @Test
     @DisplayName("회원 활동은 자녀를 고르지 않은 활동만 읽는다")
     void readMemberActivitiesWithoutChild() {
         LocalDateTime to = SINCE.plusHours(3);
@@ -209,6 +233,15 @@ class PreferenceSourceReaderIntegrationTest {
         Long categoryId, String brand, Long cartItemId) {
         PreferenceTestData.insertActivity(jdbc, type, 1L, childProfileId, occurredAt, productId, categoryId, brand,
             cartItemId);
+    }
+
+    // 회원 1의 자녀 7이 남긴 조르기 · 조르기 철회 기록을 넣는다
+    private void insertWish(ActivityType type, Long wishRequestId, LocalDateTime occurredAt, Long productId) {
+        jdbc.update("""
+            INSERT INTO recommend.activity_record (event_id, type, member_id, child_profile_id, occurred_at,
+                product_id, wish_request_id, created_at, updated_at)
+            VALUES (?, ?, 1, 7, ?, ?, ?, now(), now())
+            """, UUID.randomUUID(), type.name(), occurredAt, productId, wishRequestId);
     }
 
     private void childActivity(Long childProfileId, LocalDateTime occurredAt) {
