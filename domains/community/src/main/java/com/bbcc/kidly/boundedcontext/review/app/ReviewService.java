@@ -183,6 +183,12 @@ public class ReviewService {
         if (contentChanged || imagesChanged) {
             review.markContentChanged();
         }
+        // 작성자 수정으로 실제로 바뀐 것(별점 · 핏 · 본문 · 사진)이 있는지. 수정 시각과 활동 기록이 같은 판단을 쓴다
+        boolean edited = contentChanged || imagesChanged || review.getRating() != ratingBefore
+            || review.getFit() != fitBefore;
+        if (edited) {
+            review.markEdited();
+        }
         Review saved = reviews.saveAndFlush(review);
         int ratingDelta = saved.getRating() - ratingBefore;
         FitDelta fitDelta = FitDelta.of(fitBefore, saved.getFit());
@@ -201,7 +207,7 @@ public class ReviewService {
             cleanupQueue.cancel(images.urls().stream().filter(url -> !imagesBefore.contains(url)).toList());
         }
         // 실제로 바뀐 것이 있을 때만 남긴다(같은 값으로 보낸 수정은 남지 않는다)
-        if (contentChanged || imagesChanged || ratingDelta != 0 || fitBefore != saved.getFit()) {
+        if (edited) {
             activityLog.reviewUpdated(saved.getId(), saved.getProductId(), saved.getOrderItemId(), saved.getRating(),
                 fitName(saved.getFit()), imageUrls.size(), contentChanged, imagesChanged, saved.isPublic());
         }

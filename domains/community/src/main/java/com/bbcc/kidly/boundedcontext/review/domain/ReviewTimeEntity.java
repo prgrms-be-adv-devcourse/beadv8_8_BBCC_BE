@@ -30,11 +30,21 @@ public abstract class ReviewTimeEntity {
 
     @PreUpdate
     void recordUpdated() {
-        this.updatedAt = ReviewTimes.now();
+        if (updatesTimeOnFlush()) {
+            this.updatedAt = ReviewTimes.now();
+        }
     }
 
     /**
-     * 이 엔티티의 칸은 그대로지만 딸린 값(예: 리뷰 사진)이 바뀌었을 때 수정 시각을 바꾼다.
+     * 바뀐 엔티티를 flush할 때 수정 시각을 자동으로 바꾸는지. 기본은 바꾼다. 수정 시각을 정해진 변경에서만 바꾸는 엔티티는
+     * false를 돌려주고 그 변경에서 {@link #touch()}를 부른다.
+     */
+    protected boolean updatesTimeOnFlush() {
+        return true;
+    }
+
+    /**
+     * 수정 시각을 지금으로 바꾼다(자동 갱신을 끈 엔티티의 정해진 변경 · 딸린 값만 바뀐 변경).
      */
     protected void touch() {
         this.updatedAt = ReviewTimes.now();
