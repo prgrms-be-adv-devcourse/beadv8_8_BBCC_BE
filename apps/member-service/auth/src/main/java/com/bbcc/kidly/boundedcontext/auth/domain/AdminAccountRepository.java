@@ -2,8 +2,12 @@ package com.bbcc.kidly.boundedcontext.auth.domain;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface AdminAccountRepository {
+
+    Page<AdminAccount> findAccounts(AdminStatus status, Pageable pageable);
 
     AdminAccount saveAccount(AdminAccount account);
 

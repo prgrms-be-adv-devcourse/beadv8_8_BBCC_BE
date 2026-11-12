@@ -58,6 +58,28 @@ class AdminAccountApiTest {
     }
 
     @Test
+    @DisplayName("관리자 목록은 상태별 필터와 페이지 정보를 제공한다")
+    void listsAdmins() {
+        var disabled = createAdmin("disabled-list@kidly.test");
+        disable(actorId, disabled.id()).expectStatus().isNoContent();
+        client.get().uri(PATH + "?size=1").exchange().expectStatus().isOk()
+            .expectBody().jsonPath("$.content[0].id").isEqualTo(disabled.id())
+            .jsonPath("$.content[0].email").isEqualTo(disabled.email())
+            .jsonPath("$.content[0].status").isEqualTo("DISABLED")
+            .jsonPath("$.content[0].createdAt").exists()
+            .jsonPath("$.page").isEqualTo(0).jsonPath("$.size").isEqualTo(1)
+            .jsonPath("$.totalElements").isEqualTo(2).jsonPath("$.totalPages").isEqualTo(2)
+            .jsonPath("$.hasNext").isEqualTo(true);
+        client.get().uri(PATH + "?status=ACTIVE").exchange().expectStatus().isOk()
+            .expectBody().jsonPath("$.totalElements").isEqualTo(1)
+            .jsonPath("$.content[0].id").isEqualTo(actorId);
+        client.get().uri(PATH + "?status=DISABLED").exchange().expectStatus().isOk()
+            .expectBody().jsonPath("$.totalElements").isEqualTo(1)
+            .jsonPath("$.content[0].id").isEqualTo(disabled.id());
+        client.get().uri(PATH + "?status=INVALID").exchange().expectStatus().isBadRequest();
+    }
+
+    @Test
     @DisplayName("앞뒤 공백 · 대소문자만 다른 이메일은 409다")
     void rejectsDuplicateEmail() {
         create(actorId, "new@kidly.test", PASSWORD).expectStatus().isCreated();
