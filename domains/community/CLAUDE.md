@@ -69,8 +69,9 @@
   - 활동 기록과 같은 지점 · 같은 트랜잭션에서 `ActivityRecordingService`가 활동 행과 함께 `CommunityEventOutboxWriter`를 불러 아웃박스(`community.event_outbox`)에 본문 완성본(공통 칸 7개 + data)을 넣는다. 그래서 보내지 않는 경우도 활동 기록과 같다(바뀐 것 없는 수정 · 이미 찜 · 없는 찜 해제 · 버린 검사 결과 · 판단 못 함 · 같은 값 관리자 요청 · 작성 자격 생성). 회원 ID는 찜 이벤트 본문에만 쓰고 활동 행에는 넣지 않는다
   - `visible`: 작성 · 검사 통과 · 다시 공개는 true, 삭제 · 검사 숨김 · 숨김 확정은 false, 수정은 그때 공개 여부
   - 릴레이(`activity.in.scheduler.CommunityEventRelayScheduler`, 팀 보내기 스위치 `kidly.kafka.producer.enabled`를 따른다)가 서버 한 대(세션 advisory lock `kidly.community.event-relay`)에서 주기마다 id 순으로 한 건씩 보내고(Boot 기본 KafkaTemplate, 헤더 eventType · eventId, `__TypeId__` 없음) 보낸 행은 바로 지운다. 앞 행이 아직 다시 보낼 때가 아니거나 실패하면 그 주기를 멈춰 뒤 행이 앞지르지 않는다. 실패는 1초부터 두 배(상한 60초)로 미루고, 10번이면 격리(행은 남김)하고 다음 행으로 넘어간다(그 키의 순서는 여기서 깨질 수 있어 지표 · 로그로 알린다). 설정은 `kidly.community.events.relay.*`
-  - 최소 한 번 전달: 보낸 뒤 지우기 전에 서버가 멈추면 같은 eventId가 한 번 더 갈 수 있다(받는 쪽은 eventId로 멱등)
+  - 받는 쪽 전제: 최소 한 번 전달이다. 보낸 뒤 지우기 전에 서버가 멈추면 같은 eventId가 한 번 더 갈 수 있고, 순서는 키 단위로 대체로 지키지만 커밋 순서와 아웃박스 id 순서가 다를 때 · 격리 뒤 수동으로 다시 보낼 때 바뀔 수 있다. 받는 쪽은 eventId로 중복을 거르고, 리뷰는 reviewId, 찜은 (memberId, productId)마다 occurredAt이 더 늦은 것만 반영한다(topics.md에도 같은 문구)
   - 행 지우기 · 실패 기록 · 격리는 읽은 행과 id · eventId가 모두 같을 때만 바꾼다(id를 다시 쓰는 DB에서도 다른 행을 건드리지 않게)
+  - DB 연결 수: 스케줄러(검사 · 사진 정리 · 릴레이)는 한 스레드(Spring 기본 스케줄 풀 1)에서 차례로 돌아, 한 번에 잠금 연결 1 + 작업 연결 1 = 2개를 쓴다(Hikari 기본 풀 10). 스케줄러 풀을 나누면 이 계산을 다시 한다
   - 스케줄 풀: 릴레이는 Boot 기본 스케줄 풀(스레드 1)을 검사 · 사진 정리 스케줄러와 함께 쓴다. 브로커가 없으면 한 건 보내기가 Kafka 생산자 `max.block.ms`(기본 60초)까지 막혀 다른 주기가 밀릴 수 있다(전용 풀 분리는 뒤로 미룬다)
   - 격리 행 처리: 지표 `outbox.messages{state=quarantined}`가 0보다 크면 `last_failure_type`으로 원인을 확인하고 고친 뒤, 다시 보내려면 `UPDATE community.event_outbox SET quarantined_at = NULL, attempts = 0, next_attempt_at = LOCALTIMESTAMP WHERE id = :id;`를 실행한다. 그 사이 같은 키의 뒤 이벤트가 먼저 나갔을 수 있어 받는 쪽에서 순서가 뒤바뀔 수 있다(받는 쪽은 occurredAt으로 늦은 것만 반영)
   - 지표(`activity.app.CommunityEventMetrics`): `kidly.community.outbox.messages{state=pending|quarantined}` · `outbox.oldest.age.seconds` · `outbox.send.failures` · `scheduler.last.success.seconds{task=event_relay}`(켜진 릴레이만, 처음 값은 기동 시각). 로그는 eventType · eventId · 키 · 실패 종류만

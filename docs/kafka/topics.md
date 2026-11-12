@@ -40,7 +40,7 @@
 | | `favorite.added`(#1274: 새로 찜했을 때만. data `favoriteId` · `memberId` · `productId`) | 회원 ID | | recommend(받을 예정) |
 | | `favorite.removed`(#1274: 실제로 지웠을 때만. data `favoriteId` · `memberId` · `productId` · `cause` USER · MEMBER_WITHDRAWN(회원 탈퇴로 지움)) | 회원 ID | | recommend(받을 예정) |
 
-- `kidly.community.events`는 커밋된 뒤 아웃박스에서 보내므로 같은 `eventId`가 두 번 갈 수 있습니다(보낸 뒤 아웃박스에서 지우기 전에 서버가 멈추면). 받는 쪽은 `eventId`로 한 번만 처리합니다. 닉네임 · 리뷰 본문 · 사진 주소는 담지 않습니다
+- `kidly.community.events`는 커밋된 뒤 아웃박스에서 보내는 최소 한 번 전달입니다. 같은 `eventId`가 두 번 갈 수 있고(보낸 뒤 아웃박스에서 지우기 전에 서버가 멈추면), 순서는 키 단위로 대체로 지키지만 커밋 순서와 아웃박스 id 순서가 다를 때 · 격리 뒤 수동으로 다시 보낼 때 바뀔 수 있습니다. 받는 쪽은 `eventId`로 중복을 거르고, 리뷰는 `reviewId`, 찜은 (`memberId`, `productId`)마다 `occurredAt`이 더 늦은 것만 반영합니다. 닉네임 · 리뷰 본문 · 사진 주소는 담지 않습니다
 - 순서는 **같은 토픽 + 같은 키** 안에서만 보장됩니다. 한 주문의 이벤트(생성 → 결제 요청 → 취소 → 구매확정)는 모두 `kidly.order.events`에 주문 ID 키로 들어가므로 순서가 지켜집니다.
 - member는 `seller.changed`를 회원 서비스에서 Kafka로 받습니다. 토큰 무효화는 auth가 `auth.tokens-revoked`를 보내고 Gateway가 받아 처리합니다.
 - 받는 도메인은 11-04 코드의 `@KafkaListener` 기준입니다. 조르기 이벤트(`wish.*`)는 받는 도메인이 없어도 표에 둡니다(받는 곳이 없으면 "(아직 없음)").
