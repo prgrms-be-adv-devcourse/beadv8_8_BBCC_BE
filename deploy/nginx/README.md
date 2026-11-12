@@ -39,10 +39,11 @@ cd ~/kidly-nginx/deploy/nginx && MONITORING_HOST=<모니터링 서버 사설 IP>
 ## 호스트 nginx 에서 옮기기 (처음 한 번)
 
 1. 위처럼 `deploy.sh` 를 실행합니다. 호스트 nginx 가 80 · 443 을 쥐고 있으면 Pod 는 놓을 때까지 기다리고, 스크립트는 다음 명령을 알려 주고 끝납니다.
+   `kubectl rollout status` 로 확인하지 않습니다. Pod 가 기다린 시간이 10분(`progressDeadlineSeconds`)을 넘으면 Pod 가 떠도 바로 실패를 내서, 11-12 첫 전환이 이것 때문에 되돌려졌습니다.
 2. 호스트 nginx 와 예전 갱신 타이머를 끕니다. Pod 가 1초 안에 이어받습니다.
    ```bash
    sudo systemctl disable --now nginx kidly-certbot-renew.timer
-   kubectl -n edge rollout status deploy/nginx
+   kubectl -n edge wait --for=condition=Ready pod -l app=nginx --timeout 60s
    curl -I https://dev-api.kidly.kro.kr/actuator/health
    ```
 3. 갱신을 한 번 시험합니다(실제 인증서는 바뀌지 않음).
