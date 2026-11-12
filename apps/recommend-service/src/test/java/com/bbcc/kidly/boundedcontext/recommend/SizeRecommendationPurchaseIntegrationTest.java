@@ -1,0 +1,99 @@
+package com.bbcc.kidly.boundedcontext.recommend;
+
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
+import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
+import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
+import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecordRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
+import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import com.bbcc.kidly.support.IntegrationTest;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
+/**
+ * 사이즈 추천이 자녀의 지난 구매를 읽어 쓰는지 실제 DB에서 확인한다.
+ * 상품 A는 상의(카테고리 52, 브랜드 「키들리」)이고 110 · 120에 총장 · 가슴단면 실측이 있다.
+ */
+@IntegrationTest
+class SizeRecommendationPurchaseIntegrationTest {
+
+    private static final LocalDateTime NOW = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+
+    private static final Long OTHER_CHILD_ID = 12L;
+
+    // 지난번에 산 상의다. 상품 A와 카테고리 · 브랜드가 같다
+    private static final Long BOUGHT_TOP_ID = 71L;
+
+    private static final Long BOUGHT_PANTS_ID = 72L;
+
+    @Autowired
+    private SizeRecommendationReader reader;
+
+    @Autowired
+    private RecommendReplicaProductRepository replicaProductRepository;
+
+    @Autowired
+    private RecommendReplicaChildService replicaChildService;
+
+    @Autowired
+    private PurchaseRecordRepository purchaseRecordRepository;
+
+    @Test
+    @DisplayName("PUR-01 지난 구매 사이즈는 그 자녀가 12개월 안에 같은 칸에서 마지막으로 구매확정한 사이즈이고, 다른 칸 · 12개월 밖 · 다른 자녀의 구매는 보지 않는다")
+    void readLastPurchasedSizeOfSamePart() {
+        saveProductAndChild();
+        replicaProductRepository.save(boughtProduct(BOUGHT_TOP_ID, 52L, "상의"));
+        replicaProductRepository.save(boughtProduct(BOUGHT_PANTS_ID, 60L, "바지"));
+        savePurchase(1L, CHILD_1_ID, BOUGHT_TOP_ID, "110", NOW.minusMonths(5));
+        savePurchase(2L, CHILD_1_ID, BOUGHT_PANTS_ID, "130", NOW.minusMonths(1));
+        savePurchase(3L, CHILD_1_ID, BOUGHT_TOP_ID, "120", NOW.minusMonths(12).minusDays(1));
+        savePurchase(4L, OTHER_CHILD_ID, BOUGHT_TOP_ID, "130", NOW.minusDays(1));
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        assertThat(draft.lastPurchasedSize()).isEqualTo("110");
+    }
+
+    private void saveProductAndChild() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+    }
+
+    private void savePurchase(Long orderItemId, Long childProfileId, Long productId, String size,
+        LocalDateTime confirmedAt) {
+        purchaseRecordRepository.save(PurchaseRecord.create(new PurchaseRecord.RecordInfo(orderItemId, 900L,
+            MEMBER_1_ID, childProfileId, productId, 800L + orderItemId, size, confirmedAt)));
+    }
+
+    // 110 · 120에 총장 · 가슴단면 실측이 있는 상품 복사본이다
+    private static RecommendReplicaProduct boughtProduct(Long productId, Long categoryId, String categoryName) {
+        List<RecommendReplicaProduct.OptionInfo> options = List.of(
+            new RecommendReplicaProduct.OptionInfo("110", 105, 115, 19000L, false, OptionSaleStatus.ON_SALE),
+            new RecommendReplicaProduct.OptionInfo("120", 115, 125, 19000L, false, OptionSaleStatus.ON_SALE));
+        List<RecommendReplicaProduct.SizeSpecInfo> specs = List.of(
+            new RecommendReplicaProduct.SizeSpecInfo("110", 105, 115,
+                Map.of("TOTAL_LENGTH", new BigDecimal("43"), "CHEST_WIDTH", new BigDecimal("33"))),
+            new RecommendReplicaProduct.SizeSpecInfo("120", 115, 125,
+                Map.of("TOTAL_LENGTH", new BigDecimal("46"), "CHEST_WIDTH", new BigDecimal("35"))));
+        return RecommendReplicaProduct.create(new RecommendReplicaProduct.ChangeInfo(productId,
+            RecommendFixture.PRODUCT_A_SELLER_ID, categoryId, "지난번 옷", ProductStatus.ON_SALE, null,
+            NOW.minusMonths(13), false, options, RecommendFixture.PRODUCT_A_BRAND, null, specs, List.of(),
+            NOW.minusMonths(13),
+            List.of(new RecommendReplicaProduct.CategoryPathEntryInfo(1L, "의류"),
+                new RecommendReplicaProduct.CategoryPathEntryInfo(categoryId, categoryName))));
+    }
+}

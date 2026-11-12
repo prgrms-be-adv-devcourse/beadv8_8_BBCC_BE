@@ -10,6 +10,10 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthReco
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.RecommendGrowthRecordRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriod;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriodCalculator;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseHistory;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecordRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchasedGarment;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
@@ -31,12 +35,17 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.BodyHeightRati
 import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
 import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreviewCalculator;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +63,7 @@ public class SizeRecommendationReader {
     private final RecommendReplicaChildRepository replicaChildRepository;
     private final ReferenceGarmentRepository referenceGarmentRepository;
     private final RecommendGrowthRecordRepository growthRecordRepository;
+    private final PurchaseRecordRepository purchaseRecordRepository;
     private final SizeRecommender sizeRecommender;
     private final GrowthVelocityCalculator growthVelocityCalculator;
     private final WearablePeriodCalculator wearablePeriodCalculator;
@@ -64,6 +74,7 @@ public class SizeRecommendationReader {
         RecommendReplicaChildRepository replicaChildRepository,
         ReferenceGarmentRepository referenceGarmentRepository,
         RecommendGrowthRecordRepository growthRecordRepository,
+        PurchaseRecordRepository purchaseRecordRepository,
         GrowthChart growthChart,
         GrowthVelocityTable growthVelocityTable,
         GirthRatioTable girthRatioTable,
@@ -72,6 +83,7 @@ public class SizeRecommendationReader {
         this.replicaChildRepository = replicaChildRepository;
         this.referenceGarmentRepository = referenceGarmentRepository;
         this.growthRecordRepository = growthRecordRepository;
+        this.purchaseRecordRepository = purchaseRecordRepository;
         this.sizeRecommender = new SizeRecommender(growthChart);
         this.growthVelocityCalculator = new GrowthVelocityCalculator(growthVelocityTable);
         this.wearablePeriodCalculator = new WearablePeriodCalculator(girthRatioTable);
@@ -104,13 +116,52 @@ public class SizeRecommendationReader {
         List<WearablePeriod> wearablePeriods = wearablePeriodCalculator.calculate(
             new WearablePeriodCalculator.WearInfo(
                 productSizes, categoryPathNames, childInput, today, velocity, referenceFit));
+        SizeAiQuestion.GrowthSpeed growthSpeed = SizeAiQuestion.GrowthSpeed.from(velocity);
+        PurchaseHistory purchaseHistory = purchaseHistoryOf(product, fitProduct, childId, growthSpeed, today);
         SizeAiQuestion question = new SizeAiQuestion(
             questionChildOf(child, childInput, ageMonths, today), sizeLines, ruleResultOf(rule), referenceFit,
-            SizeAiQuestion.GrowthSpeed.from(velocity), wearablePeriods);
+            growthSpeed, wearablePeriods);
         return new SizeRecommendationDraft(
             productId, childId, productSizes, rule,
             keyInputOf(productId, childId, child, ageMonths, question), question,
-            new SizeAiEvidence(referenceFit, question.givenNumbers()), wearPreview);
+            new SizeAiEvidence(referenceFit, question.givenNumbers()), wearPreview,
+            purchaseHistory.lastPurchasedSize());
+    }
+
+    // 보는 기간 안의 이 자녀 구매 기록을 읽고, 구매마다 산 상품 복사본에서 칸 · 브랜드 · 산 사이즈의 실측을 찾아 지금 상품과 견준다
+    private PurchaseHistory purchaseHistoryOf(RecommendReplicaProduct product, FitProduct fitProduct, Long childId,
+        SizeAiQuestion.GrowthSpeed growthSpeed, LocalDate today) {
+        LocalDateTime since = today.minusMonths(PurchaseHistory.WINDOW_MONTHS).atStartOfDay();
+        List<PurchaseRecord> records = purchaseRecordRepository.findConfirmedSince(childId, since);
+        Set<Long> productIds = new HashSet<>();
+        for (PurchaseRecord record : records) {
+            productIds.add(record.getProductId());
+        }
+        Map<Long, RecommendReplicaProduct> boughtProducts = new HashMap<>();
+        for (RecommendReplicaProduct bought : replicaProductRepository.findAllById(productIds)) {
+            boughtProducts.put(bought.getProductId(), bought);
+        }
+        List<PurchasedGarment> garments = new ArrayList<>();
+        for (PurchaseRecord record : records) {
+            RecommendReplicaProduct bought = boughtProducts.get(record.getProductId());
+            // 산 상품 복사본이 없으면 어느 칸의 옷인지 알 수 없어 뺀다.
+            if (bought != null) {
+                garments.add(purchasedGarmentOf(record, bought));
+            }
+        }
+        return PurchaseHistory.of(new PurchaseHistory.CompareInfo(
+            fitProduct, product.getBrand(), garments, growthSpeed.cmPerMonth(), today));
+    }
+
+    private PurchasedGarment purchasedGarmentOf(PurchaseRecord record, RecommendReplicaProduct bought) {
+        Map<String, BigDecimal> measurements = Map.of();
+        for (RecommendReplicaSizeSpec spec : bought.getSizeSpecs()) {
+            if (spec.getSize().equals(record.getSize())) {
+                measurements = spec.getMeasurements();
+            }
+        }
+        return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), bought.getCategoryId(),
+            categoryPathNamesOf(bought), bought.getBrand(), measurements);
     }
 
     // AI에 보내는 사이즈 줄과 같은 실측으로 만든 상품 입력이다
