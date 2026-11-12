@@ -5,6 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
@@ -57,6 +60,10 @@ class SizeRecommendationServiceAiLaterTest {
     private static final SizeAiEvidence EVIDENCE =
         new SizeAiEvidence(null, Set.of(new BigDecimal("114"), new BigDecimal("110")));
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    private final RecommendAiMetrics metrics = new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP);
+
     @Mock
     private SizeRecommendationReader reader;
 
@@ -101,10 +108,12 @@ class SizeRecommendationServiceAiLaterTest {
 
         assertThat(result.rule().recommendedSize()).isEqualTo("120");
         assertThat(result.ai().join()).isEmpty();
+        assertThat(meterRegistry.get("kidly.recommend.ai.rejected").tag("feature", "size_recommendation")
+            .counter().count()).isEqualTo(1);
     }
 
     private SizeRecommendationService service() {
-        return new SizeRecommendationService(reader, aiResponseService, Optional.of(aiSizeChooser));
+        return new SizeRecommendationService(reader, aiResponseService, Optional.of(aiSizeChooser), metrics);
     }
 
     private static SizeRecommendationDraft draft() {

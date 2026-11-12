@@ -54,6 +54,10 @@ public class RecommendAiMetrics {
         requests.get(feature).get(result).increment();
     }
 
+    public void recordRejected(AiResponseType feature) {
+        rejected.get(feature).increment();
+    }
+
     public void recordLookup(AiResponseType feature, LookupResult result) {
         storeLookups.get(feature).get(result).increment();
     }

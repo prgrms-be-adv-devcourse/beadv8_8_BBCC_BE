@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.size;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.dto.SizeRecommendationResult;
@@ -35,14 +36,17 @@ public class SizeRecommendationService {
     private final SizeRecommendationReader reader;
     private final AiResponseService aiResponseService;
     private final Optional<AiSizeChooser> aiSizeChooser;
+    private final RecommendAiMetrics metrics;
 
     public SizeRecommendationService(
         SizeRecommendationReader reader,
         AiResponseService aiResponseService,
-        Optional<AiSizeChooser> aiSizeChooser) {
+        Optional<AiSizeChooser> aiSizeChooser,
+        RecommendAiMetrics metrics) {
         this.reader = reader;
         this.aiResponseService = aiResponseService;
         this.aiSizeChooser = aiSizeChooser;
+        this.metrics = metrics;
     }
 
     public SizeRecommendationResult recommend(Long memberId, Long productId, Long childId) {
@@ -107,6 +111,7 @@ public class SizeRecommendationService {
         }
         int promptVersion = draft.aiKeyInput().promptVersion();
         if (recommendation.getSource() != SizeRecommendationSource.AI) {
+            metrics.recordRejected(AiResponseType.SIZE_RECOMMENDATION);
             log.info("AI 사이즈 답을 검증에서 버리고 규칙 결과로 답합니다. promptVersion={}, productId={}",
                 promptVersion, draft.productId());
             return;
