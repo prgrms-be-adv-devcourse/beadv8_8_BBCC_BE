@@ -12,6 +12,11 @@ import java.util.Optional;
 public interface TextEmbedder {
 
     /**
+     * 키가 있어 임베딩 API를 쓰는 환경이면 true다. API가 잠시 실패하는 중이어도 true다.
+     */
+    boolean enabled();
+
+    /**
      * 색인할 상품 문장을 벡터로 바꾼다.
      */
     Optional<List<Float>> embed(String text);

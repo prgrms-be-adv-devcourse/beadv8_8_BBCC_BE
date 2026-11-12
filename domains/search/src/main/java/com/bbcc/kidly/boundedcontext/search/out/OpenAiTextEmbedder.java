@@ -48,6 +48,11 @@ public class OpenAiTextEmbedder implements TextEmbedder {
     }
 
     @Override
+    public boolean enabled() {
+        return properties.enabled();
+    }
+
+    @Override
     public Optional<List<Float>> embed(String text) {
         if (!properties.enabled() || text == null || text.isBlank()) {
             return Optional.empty();
