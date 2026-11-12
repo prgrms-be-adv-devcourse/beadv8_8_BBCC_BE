@@ -3,13 +3,13 @@
 커뮤니티 모듈(리뷰 · 찜 · 활동 기록 컨텍스트) 안의 설계 규칙이다. 도메인 경계 · `shared` 계약 · Kafka 토픽/키/그룹 · 묻고 바꿀 것은 루트 `CLAUDE.md`를 따르고, 여기와 부딪히면 루트가 우선이다.
 
 ## 1. 컨텍스트 · 계층과 포트
-- 이 모듈은 컨텍스트 셋이다: `boundedcontext.review`(중심: 리뷰 · 작성 자격 · 상품 복사본 · 회원 탈퇴 수신) · `boundedcontext.favorite`(찜) · `boundedcontext.activity`(활동 기록, 다른 컨텍스트를 부르지 않는다). 저장은 모두 `community` 스키마다
+- 이 모듈은 컨텍스트 셋이다: `boundedcontext.review`(중심: 리뷰 · 작성 자격 · 상품 복사본 · 회원 탈퇴 수신) · `boundedcontext.favorite`(찜) · `boundedcontext.activity`(활동 기록 · 이벤트 발행, 다른 컨텍스트를 부르지 않는다). 저장은 모두 `community` 스키마다
 - 컨텍스트 사이는 in · out으로만 잇는다(`api` 패키지는 두지 않는다). 받는 쪽은 들어오는 포트를 자기 `app.port.in`에 두고 app이 구현한다. 부르는 쪽은 필요한 것을 자기 `app.port`에 자기 말로 두고, `out.{상대}` 어댑터가 상대 `app.port.in`을 불러 값을 옮겨 담는다. 다른 컨텍스트를 아는 것은 이 어댑터뿐이다(app · domain · in은 모른다). 예: 찜은 상품 정보를 review의 `app.port.in.ProductCatalog`(상품 ID 묶음 → 이름 · 썸네일 · 표시 상태, 한 쿼리)로 읽고, 찜 쪽 `app.port.FavoriteProducts`를 `favorite.out.review` 어댑터가 구현한다. 시각 · 커서 · size 도우미처럼 같은 규칙의 코드도 컨텍스트마다 따로 둔다(컨텍스트 사이 참조 금지)
 - `domain`: 업무 규칙 · 불변식(엔티티 · 값, JPA 엔티티 겸용). JPA 표준 어노테이션만 쓰고 Spring · `common` · 로그를 쓰지 않는다. 업무 판단은 domain 메서드가 하고 app은 순서만 조율한다. 불변식 위반은 도메인 예외다
 - `app`: 유스케이스 서비스. 오류 코드는 컨텍스트마다 `ErrorCode`를 구현한 enum(`ReviewErrorCode` · `FavoriteErrorCode`)과 `BusinessException`
 - `app.port`: 나가는 것(저장소 · 다른 컨텍스트)의 인터페이스, `app.port.in`: 다른 컨텍스트가 들어오는 인터페이스. 둘 다 최상위는 인터페이스만 두고, 주고받는 값은 그 인터페이스 안에 둔다(값은 record, 종류는 enum). 나가는 포트 구현은 `out`(저장소는 Spring Data `Jpa…Repository`가 포트를 상속), 들어오는 포트 구현은 app
 - `in`: `web`(컨트롤러 · `dto`, 관리자 API는 `web.admin`) · `event`(이벤트 수신 · 매퍼) · `scheduler`(주기 실행, app 서비스만 부른다) · `mcp`(운영 조회 MCP 창구, app 조회 서비스만 부른다) · `config`(Kafka 리스너 팩토리 · DLT). `domain`과 `out`을 쓰지 않는다
-- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`, 주기 실행 잠금 `SessionAdvisoryRunLock`, 활동 행 JDBC 저장 `ActivityStore`) · `storage`(DB 밖 파일 저장소 어댑터. 예: 리뷰 사진 업로드 주소를 서명하는 `S3ReviewImageStorage`) · `moderation`(리뷰 내용 검사기 어댑터: 금칙어 · OpenAI 호환 AI와 이어 붙이기) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 여섯만 둔다(`CommunityPackageLayoutArchitectureTest`)
+- `out`: `persistence`(Spring Data JPA 저장소만) · `config`(설정 값) · `store`(Spring Data 저장소 조각 · 기술 보관 행/저장소 어댑터. `persistence` 저장소가 상속한다. 예: 새 행만 넣는 `ReplicaProductInsert`, 주기 실행 잠금 `SessionAdvisoryRunLock`, 활동 행 JDBC 저장 `ActivityStore`) · `storage`(DB 밖 파일 저장소 어댑터. 예: 리뷰 사진 업로드 주소를 서명하는 `S3ReviewImageStorage`) · `moderation`(리뷰 내용 검사기 어댑터: 금칙어 · OpenAI 호환 AI와 이어 붙이기) · `messaging`(메시지 보내기 어댑터: Boot 기본 KafkaTemplate으로 이벤트 보내기) · `{상대 컨텍스트}`(어댑터). 바로 아래 하위 패키지는 이 일곱만 둔다(`CommunityPackageLayoutArchitectureTest`)
 - 설정은 계층마다 `config` 한 곳에 둔다(컨텍스트 바로 아래에 새 폴더를 만들지 않는다): 스프링 설정(`@Configuration`)은 `in.config` · `out.config`, 설정 값(`@ConfigurationProperties`)은 app · `in.config` · `out.config`
 - 한 앱 안에서 빈 · 엔티티 이름이 다른 도메인과 겹치면 기동이 실패한다: 다른 도메인에 같은 이름이 있을 수 있는 클래스(`…EventListener` · `SpringEventReceiver` · `EventGuard` 등)는 `Community` 접두어를 붙이고, 엔티티는 `@Entity(name = "Community…")`로 이름을 정한다
 - 검사: 계층 규칙은 `LayerArchitectureTest`(`LayerRules`), 컨텍스트 사이 규칙(내 out → 상대 `app.port.in`만)은 `CommunityContextArchitectureTest`, 패키지 배치는 `CommunityPackageLayoutArchitectureTest`. 컨텍스트 루트의 `package-info`는 `@NullMarked`로 클래스를 남겨 뼈대만 있을 때도 검사 대상이 비지 않게 한다
@@ -65,6 +65,15 @@
   - 실제로 바뀐 것만 남긴다: 이미 있는 자격 · 이미 찜 · 없는 찜 취소 · 같은 값 수정 · 버전이 바뀌어 버린 검사 결과 · 판단 못 함 · 같은 값 관리자 요청은 남기지 않는다. 회원 탈퇴로 지운 찜은 delete … returning으로 받은 행을 한 문장(INSERT … SELECT unnest)으로 남긴다(까닭 withdrawn)
   - 흐름 카운터(`activity.app.ActivityMetrics`, 라벨 고정)는 커밋 뒤에만 오른다(afterCommit): `kidly.community.reviews{action}` · `favorites{action, cause}` · `moderation.decisions{by, status}`. 작성 자격 생성 · 백필은 세지 않는다
   - 백필(마이그레이션 V202611101700): 지금 남은 작성 자격 · 리뷰 · 찜 · 통과/대기가 아닌 검사 결정을 원본 시각으로, `backfilled: true`와 `NOT EXISTS`(같은 종류 · 대상)로 다시 돌려도 중복이 없다. 이미 지워진 리뷰 · 찜 · 과거 수정 · 통과 결정은 원본이 없어 넣지 않는다
+- 이벤트 발행(#1274): 토픽 `kidly.community.events`(파티션 3 · 복제 1, `activity.out.config`의 `NewTopic` 빈)에 `review.changed`(키 리뷰 ID) · `favorite.added` · `favorite.removed`(키 회원 ID, 까닭 USER · MEMBER_WITHDRAWN)를 보낸다. 이벤트 record는 `shared.community.event`
+  - 활동 기록과 같은 지점 · 같은 트랜잭션에서 `ActivityRecordingService`가 활동 행과 함께 `CommunityEventOutboxWriter`를 불러 아웃박스(`community.event_outbox`)에 본문 완성본(공통 칸 7개 + data)을 넣는다. 그래서 보내지 않는 경우도 활동 기록과 같다(바뀐 것 없는 수정 · 이미 찜 · 없는 찜 해제 · 버린 검사 결과 · 판단 못 함 · 같은 값 관리자 요청 · 작성 자격 생성). 회원 ID는 찜 이벤트 본문에만 쓰고 활동 행에는 넣지 않는다
+  - `visible`: 작성 · 검사 통과 · 다시 공개는 true, 삭제 · 검사 숨김 · 숨김 확정은 false, 수정은 그때 공개 여부
+  - 릴레이(`activity.in.scheduler.CommunityEventRelayScheduler`, 팀 보내기 스위치 `kidly.kafka.producer.enabled`를 따른다)가 서버 한 대(세션 advisory lock `kidly.community.event-relay`)에서 주기마다 id 순으로 한 건씩 보내고(Boot 기본 KafkaTemplate, 헤더 eventType · eventId, `__TypeId__` 없음) 보낸 행은 바로 지운다. 앞 행이 아직 다시 보낼 때가 아니거나 실패하면 그 주기를 멈춰 뒤 행이 앞지르지 않는다. 실패는 1초부터 두 배(상한 60초)로 미루고, 10번이면 격리(행은 남김)하고 다음 행으로 넘어간다(그 키의 순서는 여기서 깨질 수 있어 지표 · 로그로 알린다). 설정은 `kidly.community.events.relay.*`
+  - 최소 한 번 전달: 보낸 뒤 지우기 전에 서버가 멈추면 같은 eventId가 한 번 더 갈 수 있다(받는 쪽은 eventId로 멱등)
+  - 행 지우기 · 실패 기록 · 격리는 읽은 행과 id · eventId가 모두 같을 때만 바꾼다(id를 다시 쓰는 DB에서도 다른 행을 건드리지 않게)
+  - 스케줄 풀: 릴레이는 Boot 기본 스케줄 풀(스레드 1)을 검사 · 사진 정리 스케줄러와 함께 쓴다. 브로커가 없으면 한 건 보내기가 Kafka 생산자 `max.block.ms`(기본 60초)까지 막혀 다른 주기가 밀릴 수 있다(전용 풀 분리는 뒤로 미룬다)
+  - 격리 행 처리: 지표 `outbox.messages{state=quarantined}`가 0보다 크면 `last_failure_type`으로 원인을 확인하고 고친 뒤, 다시 보내려면 `UPDATE community.event_outbox SET quarantined_at = NULL, attempts = 0, next_attempt_at = LOCALTIMESTAMP WHERE id = :id;`를 실행한다. 그 사이 같은 키의 뒤 이벤트가 먼저 나갔을 수 있어 받는 쪽에서 순서가 뒤바뀔 수 있다(받는 쪽은 occurredAt으로 늦은 것만 반영)
+  - 지표(`activity.app.CommunityEventMetrics`): `kidly.community.outbox.messages{state=pending|quarantined}` · `outbox.oldest.age.seconds` · `outbox.send.failures` · `scheduler.last.success.seconds{task=event_relay}`(켜진 릴레이만, 처음 값은 기동 시각). 로그는 eventType · eventId · 키 · 실패 종류만
 - 수신으로 처음 보는 행을 만들 때는 먼저 조회하고, 저장은 따로 연 트랜잭션(`ReviewSeparateTransaction`)에서 바로 반영한다. ID를 직접 넣는 엔티티(상품 복사본)는 Spring Data `save`가 merge가 되어 이미 커밋된 행을 덮어쓰므로, 새 행은 persist만 하는 저장소 조각(`out.store.ReplicaProductInsert`)으로 넣는다. 동시 수신으로 그 행의 유일 제약(SQLState 23505 + 제약 이름)에 막히고 다시 조회해 행이 있으면 "이미 있음"으로 수렴한다(복사본은 이어서 늦을 때만 덮어쓰기). 그 밖의 위반은 던진다(재시도 → DLT). 로그에 값을 남기지 않는다
 - 따로 연 트랜잭션은 바깥 트랜잭션이 있는 채로 열리므로 수신 한 건이 DB 커넥션을 최대 2개 쓴다. Kafka 리스너는 동시성 1이라 커넥션 2개로 끝나고, Spring 이벤트 경로는 발행 쪽 스레드 수만큼 동시에 2개씩 들 수 있다(커넥션 풀 크기를 정할 때 본다)
 - 저장했다가 다시 비교 · 정렬 · 커서에 쓰는 시각(`occurredAt` · `confirmedAt` · 생성 · 수정 시각)은 도메인에서 마이크로초로 잘라 저장 · 비교한다(`ReviewTimes`). 실행 환경에 따라 나노초가 나오는데 DB는 마이크로초로 저장해, 자르지 않으면 같은 이벤트가 "더 늦은" 값으로 보인다. 테스트의 기준 시각은 나노초가 있는 고정값으로 쓴다
@@ -88,7 +97,6 @@
 - 관리자는 `/api/v1/admin/community/dead-letters` 목록 · 상세 · `/{id}/reprocess`로 복구한다. 정상 Kafka 처리기와 같은 decode/검증/저장 경로(각 Kafka 리스너의 `handle`, 처리했으면 true)를 `CommunityDeadLetterReplayer`가 원래 토픽별로 직접 호출하고 원래 토픽에 보내지 않는다. 새 수신 토픽을 더하면 DLT 리스너 토픽 목록 · 재처리 분기 · 테스트 가드에 함께 넣는다. 미지원/깨진 메시지는 OPEN과 실패 종류를 유지하며 성공하면 REPROCESSED다. 이미 성공한 기록은 재실행하지 않는다. 동시 재처리도 자격은 주문상품당 1건이고, 늦게 끝난 실패가 성공 기록을 되돌리지 않는다.
 - 재처리 중 DLT 행 잠금이나 바깥 트랜잭션을 유지하지 않는다. 실제 반영은 원래 처리기의 트랜잭션으로, 처리 결과는 별도 짧은 조건부 UPDATE로 기록한다. 반영 후 결과 기록이 실패하면 OPEN이 남고 다시 시도해도 1회분으로 수렴한다. DLT DB 행은 자동 삭제하지 않는다.
 - Kafka DLT는 별도 보존 기간을 지정하지 않아 브로커 정책을 따른다(환경의 `retention.ms` 확인). 보관 소비자가 중단돼 Kafka 보존 기간을 넘긴 누락은 주문 소유 관리자 API `/api/v1/admin/orders/purchase-confirmed-events`로 구매확정 사실을 재발행해 복구한다. 기존 `order-item.purchase-confirmed` 계약 · 주문 키 · 실제 confirmedAt을 유지하고, 커뮤니티는 정상 수신 경로로 자격을 채운다. 주문 외 스키마 직접 조회나 수신 그룹 오프셋 변경은 하지 않는다.
-- 아웃박스 · 릴레이 스케줄러: 커뮤니티가 이벤트를 발행하지 않는 동안은 필요 없다
 - 필요해지면 이 문서를 먼저 고치고 넣는다
 
 ## 6. 테스트

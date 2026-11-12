@@ -36,7 +36,11 @@
 | `kidly.settlement.events` | `settlement.payout-requested` | 정산서 ID | settlement | payment |
 | `kidly.search.events` | `search.performed`(#1089 추가 칸 `childId` 고른 자녀, 없는 예전 메시지는 자녀 없음) | 회원 ID | search | recommend |
 | | `search.result-clicked`(검색 결과 클릭, #1004. #1089 추가 칸 `childId`) | 회원 ID | | 없음(추천이 필요할 때 받는다) |
+| `kidly.community.events` | `review.changed`(#1274: 작성 · 실제로 바뀐 수정 · 삭제 · 검사 결과 · 관리자 숨김 확정 · 다시 공개. data `reviewId` · `orderItemId` · `productId` · `rating` · `fit`(없으면 null) · `visible`(지금 공개인지, 삭제 · 숨김이면 false). 바뀐 것 없는 수정 · 같은 값 요청은 보내지 않는다) | 리뷰 ID | community | recommend(받을 예정) |
+| | `favorite.added`(#1274: 새로 찜했을 때만. data `favoriteId` · `memberId` · `productId`) | 회원 ID | | recommend(받을 예정) |
+| | `favorite.removed`(#1274: 실제로 지웠을 때만. data `favoriteId` · `memberId` · `productId` · `cause` USER · MEMBER_WITHDRAWN(회원 탈퇴로 지움)) | 회원 ID | | recommend(받을 예정) |
 
+- `kidly.community.events`는 커밋된 뒤 아웃박스에서 보내므로 같은 `eventId`가 두 번 갈 수 있습니다(보낸 뒤 아웃박스에서 지우기 전에 서버가 멈추면). 받는 쪽은 `eventId`로 한 번만 처리합니다. 닉네임 · 리뷰 본문 · 사진 주소는 담지 않습니다
 - 순서는 **같은 토픽 + 같은 키** 안에서만 보장됩니다. 한 주문의 이벤트(생성 → 결제 요청 → 취소 → 구매확정)는 모두 `kidly.order.events`에 주문 ID 키로 들어가므로 순서가 지켜집니다.
 - member는 `seller.changed`를 회원 서비스에서 Kafka로 받습니다. 토큰 무효화는 auth가 `auth.tokens-revoked`를 보내고 Gateway가 받아 처리합니다.
 - 받는 도메인은 11-04 코드의 `@KafkaListener` 기준입니다. 조르기 이벤트(`wish.*`)는 받는 도메인이 없어도 표에 둡니다(받는 곳이 없으면 "(아직 없음)").

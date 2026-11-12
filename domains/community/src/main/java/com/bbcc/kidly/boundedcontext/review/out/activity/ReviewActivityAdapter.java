@@ -25,19 +25,22 @@ public class ReviewActivityAdapter implements ReviewActivityLog {
     }
 
     @Override
-    public void reviewUpdated(Long reviewId, Long productId, int rating, String fit, int imageCount,
-        boolean contentChanged, boolean imagesChanged) {
-        recorder.record(new ActivityRecorder.ReviewUpdated(reviewId, productId, rating, fit, imageCount,
-            contentChanged, imagesChanged));
+    public void reviewUpdated(Long reviewId, Long productId, Long orderItemId, int rating, String fit, int imageCount,
+        boolean contentChanged, boolean imagesChanged, boolean visible) {
+        recorder.record(new ActivityRecorder.ReviewUpdated(reviewId, productId, orderItemId, rating, fit, imageCount,
+            contentChanged, imagesChanged, visible));
     }
 
     @Override
-    public void reviewDeleted(Long reviewId, Long productId, int rating, boolean wasPublic) {
-        recorder.record(new ActivityRecorder.ReviewDeleted(reviewId, productId, rating, wasPublic));
+    public void reviewDeleted(Long reviewId, Long productId, Long orderItemId, int rating, String fit,
+        boolean wasPublic) {
+        recorder.record(new ActivityRecorder.ReviewDeleted(reviewId, productId, orderItemId, rating, fit, wasPublic));
     }
 
     @Override
-    public void moderationDecided(Long reviewId, Long productId, boolean byAdmin, String status, String reason) {
-        recorder.record(new ActivityRecorder.ModerationDecided(reviewId, productId, byAdmin, status, reason));
+    public void moderationDecided(Long reviewId, Long productId, Long orderItemId, int rating, String fit,
+        boolean byAdmin, String status, String reason, boolean visible) {
+        recorder.record(new ActivityRecorder.ModerationDecided(reviewId, productId, orderItemId, rating, fit, byAdmin,
+            status, reason, visible));
     }
 }
