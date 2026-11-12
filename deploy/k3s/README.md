@@ -9,7 +9,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 | namespace | `kidly-<환경>`. Deployment · Service 이름은 compose profile 이름(`search`, `member` 등) |
 | 설정 | 서버의 `docker-compose.yml` · `.env` 의 그 서비스 설정을 그대로 쓴다. 환경 변수는 Secret `<이름>-env`, jwt 키는 Secret `<이름>-jwt`, 메모리는 `mem_limit` 을 request · limit 으로, 이미지는 `image.env` 의 그 서비스 이미지 |
 | Gateway → 서비스 | `KIDLY_<서비스>_URI=http://<이름>:8080`(같은 namespace 의 Service). NodePort 는 보안 그룹에서 밖으로 열지 않는다(서비스는 `X-Member-*` 헤더를 그대로 믿는다) |
-| nginx → Gateway | `127.0.0.1:30200`(`deploy/nginx`). nginx 는 앱 배포로 바뀌지 않는다 |
+| nginx → Gateway | `127.0.0.1:30200`(`deploy/nginx`). nginx 도 이 k3s 의 Pod(namespace `edge`, 호스트 네트워크, #1309)이고 앱 배포로 바뀌지 않는다 |
 | 배포 | 하나씩 차례로. 새 Pod 가 준비된 뒤 옛 Pod 를 내린다. 순서는 롤링 서비스 → 상품 · 알림(스케줄러가 두 번 돌면 안 돼서 옛 Pod 를 먼저 내림, `SINGLE_INSTANCE`) → Gateway(다른 서비스가 다 뜬 뒤, `EDGE`). 소스가 바뀌지 않았거나(#1169, `.github/scripts/image-key.sh`) 소스는 바뀌어도 실행 jar 가 쓰는 코드가 같은(#1192, `.github/scripts/runtime-key.sh`) 서비스는 이미지 digest 가 같아 다시 뜨지 않는다 |
 | 자동 확장 | 추천만 HPA(CPU 70%가 5분 이어질 때, 1 ~ 2개). 나머지는 1개 |
 | 하루 한 번 실행(CronJob) | 정산은 매일 한국 시간 10시에 같은 이미지로 일회 실행한다. 영업일과 중복 실행은 앱이 판단한다 |
@@ -67,5 +67,5 @@ curl -s localhost:30200/actuator/health     # nginx 가 붙는 Gateway
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)
 - **메모리**: request 합이 노드 할당량(약 7.6Gi)을 넘으면 새 Pod 가 Pending 이 된다. compose 컨테이너 몫은 스케줄러가 모르므로 `free -m` 으로 함께 본다
-  - request 합은 6,784Mi(dev 서비스 10개 5,888 · Gateway 512 · kafka-exporter 128 · Redis 128, 수집기 Alloy 128(namespace monitoring, #1210))다. 추천이 2개로 늘면 7,360Mi. 정산 Job Pod 가 10시에 640Mi를 잠깐 더 요청하면 8,000Mi로 할당량을 넘어, 추천 2개와 정산 Job 이 겹칠 때는 둘 중 하나가 자리가 날 때까지 Pending 이다(#1191 챗봇 448Mi). 여기에 k3s 자체가 더해진다
+  - request 합은 6,816Mi(dev 서비스 10개 5,888 · Gateway 512 · kafka-exporter 128 · Redis 128, 수집기 Alloy 128(namespace monitoring, #1210), nginx 32(namespace edge, #1309))다. 추천이 2개로 늘면 7,392Mi. 정산 Job Pod 가 10시에 640Mi를 잠깐 더 요청하면 8,032Mi로 할당량을 넘어, 추천 2개와 정산 Job 이 겹칠 때는 둘 중 하나가 자리가 날 때까지 Pending 이다(#1191 챗봇 448Mi). 인증서 갱신 Job(10:30, 64Mi)도 자리가 나면 돈다. nginx 는 우선순위 `kidly-edge` 라 자리가 없으면 다른 Pod 를 밀어내고 뜬다. 여기에 k3s 자체가 더해진다
   - 추천은 Pod 하나가 576Mi 라 3개를 둘 자리가 없어 HPA 최대를 2개로 둔다(#1237)

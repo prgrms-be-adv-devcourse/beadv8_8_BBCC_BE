@@ -2,7 +2,7 @@
 #   server: t3.medium k3s 에 Prometheus · Loki · Grafana(deploy/monitoring). kubectl apply -k
 #   agent: t3.large(앱 서버)에 수집기 Alloy(deploy/monitoring-agent). 그 서버 k3s 의 namespace monitoring(#1210). 받는 쪽이 먼저 떠 있도록 server 다음에 돈다
 # 설정의 원본은 레포, 비밀의 원본은 Environment dev 의 Secret(SLACK_OPS_WEBHOOK_URL, GRAFANA_ADMIN_PASSWORD)이다. 서버의 비밀 파일 · .env 는 매번 새로 만든다
-# nginx(deploy/nginx)는 여기서 다루지 않는다
+# nginx(deploy/nginx, t3.large k3s 의 namespace edge)는 여기서 다루지 않는다. deploy/nginx/deploy.sh 로 따로 바꾼다
 name: monitoring-deploy
 
 on:
