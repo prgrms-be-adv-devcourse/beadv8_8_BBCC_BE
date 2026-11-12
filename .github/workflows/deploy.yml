@@ -474,6 +474,8 @@ jobs:
           KIDLY_ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.KIDLY_ADMIN_BOOTSTRAP_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          DELIVERY_TRACKER_CLIENT_ID: ${{ vars.DELIVERY_TRACKER_CLIENT_ID }}
+          DELIVERY_TRACKER_CLIENT_SECRET: ${{ secrets.DELIVERY_TRACKER_CLIENT_SECRET }}
           SEARCH_ON: ${{ needs.elasticsearch.outputs.search }}
           MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
         run: |
@@ -498,6 +500,12 @@ jobs:
           [[ -z "$OPENAI_API_KEY" ]] || keys+=(OPENAI_API_KEY)
           # GROQ_API_KEY 가 없으면 커뮤니티 리뷰 검사가 AI 를 빼고 금칙어만 쓴다(#1002)
           [[ -z "$GROQ_API_KEY" ]] || keys+=(GROQ_API_KEY)
+          # 택배 조회 인증값(#1315)은 둘 다 있을 때만 함께 붙인다. 없으면 택배 조회가 꺼지고, 판매자 수동 배송 완료는 그대로 된다
+          if [[ -n "$DELIVERY_TRACKER_CLIENT_ID" && -n "$DELIVERY_TRACKER_CLIENT_SECRET" ]]; then
+            keys+=(DELIVERY_TRACKER_CLIENT_ID DELIVERY_TRACKER_CLIENT_SECRET)
+          elif [[ -n "$DELIVERY_TRACKER_CLIENT_ID" || -n "$DELIVERY_TRACKER_CLIENT_SECRET" ]]; then
+            echo "::warning::DELIVERY_TRACKER_CLIENT_ID · DELIVERY_TRACKER_CLIENT_SECRET 중 하나만 있어 택배 조회를 켜지 않습니다"
+          fi
           # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다
           secret_lines=$(.github/scripts/env-lines.sh "$APP_ENV" "${keys[@]}")
 
