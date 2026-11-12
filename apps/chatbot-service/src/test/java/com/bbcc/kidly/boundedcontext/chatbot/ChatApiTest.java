@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.chatbot;
 
 import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.search.dto.ProductHit;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.Collections;
 import java.util.List;
@@ -19,8 +20,8 @@ class ChatApiTest {
     private static final String PATH = "/api/v1/chatbot/messages";
     private static final String DOCUMENTS = "/api/v1/admin/chatbot/documents";
     private static final long MEMBER_ID = 7L;
-    private static final String UNKNOWN = "죄송해요, 그 질문에는 아직 답을 드리기 어려워요. 자세한 내용은 고객센터로 문의해 주세요.";
     private static final String QUESTION = "반품은 받은 날부터 며칠 안에 신청할 수 있나요?";
+    private static final String PRODUCT_QUESTION = "5살 여자아이 여름 원피스 3만원 이하로 찾아 주세요";
 
     @Autowired
     private RestTestClient client;
@@ -28,19 +29,61 @@ class ChatApiTest {
     @Autowired
     private FakeChatModel chatModel;
 
+    @Autowired
+    private FakeProductSearcher productSearcher;
+
     @AfterEach
-    void restoreAi() {
-        chatModel.failWith(null);
+    void restoreFakes() {
+        chatModel.reset();
+        productSearcher.reset();
     }
 
     @Test
-    @DisplayName("문서가 없으면 정해진 답과 빈 출처를 준다")
-    void unknownWithoutDocuments() {
+    @DisplayName("문서가 없어도 AI가 답하고, 출처 · 상품은 빈 목록이다")
+    void answersWithoutDocuments() {
         ask(Map.of("message", QUESTION))
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.answer").isEqualTo(UNKNOWN)
-            .jsonPath("$.sources.length()").isEqualTo(0);
+            .jsonPath("$.answer").isEqualTo(FakeChatModel.ANSWER)
+            .jsonPath("$.sources.length()").isEqualTo(0)
+            .jsonPath("$.products.length()").isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("모델이 상품을 찾으면 답과 함께 상품 카드를 준다")
+    void answersWithProducts() {
+        productSearcher.willReturn(List.of(
+            new ProductHit(10L, "여아 여름 원피스", "키들리 상점", 25_000L, "https://cdn.kidly.test/10.jpg", false),
+            new ProductHit(11L, "꽃무늬 원피스", null, 29_000L, null, true)));
+        chatModel.callToolNext("searchProducts", "{\"keyword\":\"여아 여름 원피스\",\"maxPrice\":30000}");
+
+        ask(Map.of("message", PRODUCT_QUESTION))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.answer").isEqualTo(FakeChatModel.ANSWER)
+            .jsonPath("$.products.length()").isEqualTo(2)
+            .jsonPath("$.products[0].productId").isEqualTo(10)
+            .jsonPath("$.products[0].name").isEqualTo("여아 여름 원피스")
+            .jsonPath("$.products[0].businessName").isEqualTo("키들리 상점")
+            .jsonPath("$.products[0].price").isEqualTo(25_000)
+            .jsonPath("$.products[0].thumbnailUrl").isEqualTo("https://cdn.kidly.test/10.jpg")
+            .jsonPath("$.products[0].soldOut").isEqualTo(false)
+            .jsonPath("$.products[1].businessName").isEmpty()
+            .jsonPath("$.products[1].thumbnailUrl").isEmpty()
+            .jsonPath("$.products[1].soldOut").isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("상품 검색이 실패해도 200으로 답하고 상품은 빈 목록이다")
+    void searchFailureStillAnswers() {
+        productSearcher.failWith(new IllegalStateException("상품 검색 호출 실패"));
+        chatModel.callToolNext("searchProducts", "{\"keyword\":\"원피스\"}");
+
+        ask(Map.of("message", PRODUCT_QUESTION))
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.answer").isEqualTo(FakeChatModel.ANSWER)
+            .jsonPath("$.products.length()").isEqualTo(0);
     }
 
     @Test
@@ -64,7 +107,6 @@ class ChatApiTest {
         ask(Map.of("message", QUESTION))
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.answer").isEqualTo(UNKNOWN)
             .jsonPath("$.sources.length()").isEqualTo(0);
     }
 

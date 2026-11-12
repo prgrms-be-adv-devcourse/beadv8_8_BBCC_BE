@@ -164,6 +164,11 @@ public class ElasticsearchProductSearch implements ProductSearch {
         if (condition.categoryId() != null) {
             filters.add(Query.of(query -> query.term(term -> term.field("categoryId").value(condition.categoryId()))));
         }
+        if (condition.minPrice() != null || condition.maxPrice() != null) {
+            filters.add(Query.of(query -> query.range(range -> range.number(price -> price.field("minPrice")
+                .gte(condition.minPrice() == null ? null : condition.minPrice().doubleValue())
+                .lte(condition.maxPrice() == null ? null : condition.maxPrice().doubleValue())))));
+        }
         if (withKeyword && condition.hasKeyword()) {
             filters.add(keywordFilter(condition.keyword().strip()));
         }

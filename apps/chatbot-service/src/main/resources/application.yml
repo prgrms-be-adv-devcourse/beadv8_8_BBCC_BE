@@ -39,7 +39,8 @@ spring:
       api-key: ${OPENAI_API_KEY:}
       chat:
         model: gpt-6.1-terra
-        reasoning-effort: low
+        # 이 모델은 추론을 켠 채 함수 도구(상품 검색)를 쓰면 400을 낸다. 도구를 쓰려면 none이어야 한다
+        reasoning-effort: none
         # 추론 토큰도 이 상한에 들어간다
         max-completion-tokens: 2048
         # 회원이 화면에서 기다리므로 한 번 부를 때 기다리는 시간을 짧게 두고, 일시적인 오류(429 · 5xx 등)는 한 번만 다시 부른다

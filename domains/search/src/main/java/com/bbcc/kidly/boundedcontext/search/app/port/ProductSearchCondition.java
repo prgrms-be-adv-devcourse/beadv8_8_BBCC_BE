@@ -14,10 +14,12 @@ import java.util.Map;
  *     null이면 빈 Map으로 받고, 값 목록이 빈 항목은 거르는 데 쓰지 않는다
  * @param sort 정렬. 반드시 있어야 한다
  * @param keywordVector 검색어의 의미 검색 벡터. 검색어가 있으면 정렬과 관계없이 쓴다. null이면 키워드로만 찾는다
+ * @param minPrice 표시 가격(minPrice) 하한(이상). null이면 거르지 않는다. 목록 API는 쓰지 않는다(#1191 챗봇 검색)
+ * @param maxPrice 표시 가격(minPrice) 상한(이하). null이면 거르지 않는다
  */
 public record ProductSearchCondition(
     Long categoryId, String keyword, Map<String, List<Long>> attributeValueIds, ProductSearchSort sort,
-    List<Float> keywordVector) {
+    List<Float> keywordVector, Long minPrice, Long maxPrice) {
 
     public ProductSearchCondition {
         requireNonNull(sort, "sort는 필수입니다");
@@ -27,6 +29,12 @@ public record ProductSearchCondition(
         if (keywordVector != null) {
             keywordVector = List.copyOf(keywordVector);
         }
+    }
+
+    public ProductSearchCondition(
+        Long categoryId, String keyword, Map<String, List<Long>> attributeValueIds, ProductSearchSort sort,
+        List<Float> keywordVector) {
+        this(categoryId, keyword, attributeValueIds, sort, keywordVector, null, null);
     }
 
     public ProductSearchCondition(

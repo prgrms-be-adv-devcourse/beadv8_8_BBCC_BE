@@ -23,7 +23,8 @@ public class ChatController {
     private final ChatService chatService;
 
     /**
-     * 200. 근거 문서가 없으면 정해진 답과 빈 sources. 오류: 400 INVALID_INPUT, 503 AI_UNAVAILABLE.
+     * 200. 쓴 문서가 없으면 빈 sources, 찾은 상품이 없으면 빈 products. 상품 검색이 실패해도 200이다(답에서 안내).
+     * 오류: 400 INVALID_INPUT, 503 AI_UNAVAILABLE.
      */
     @PostMapping("/messages")
     public ChatResponse send(@LoginMember AuthMember member, @Valid @RequestBody ChatRequest request) {
