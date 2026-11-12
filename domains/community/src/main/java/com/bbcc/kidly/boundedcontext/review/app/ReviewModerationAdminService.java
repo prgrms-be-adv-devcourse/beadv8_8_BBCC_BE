@@ -25,7 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 관리자 리뷰 검사: 상태별 목록(판단용 본문 · 사진 포함)과 숨김 확정 · 다시 공개.
+ * 관리자 리뷰 검사: 상태별 목록(판단용 본문 · 사진 포함)과 숨김 확정 · 다시 공개, 상한 리뷰 재검사.
  * 공개 ↔ 숨김이 바뀌면 같은 트랜잭션에서 그 리뷰 몫을 집계에서 빼거나 더한다. 같은 값을 다시 보내도 결과는 같다.
  */
 @Service
@@ -121,6 +121,17 @@ public class ReviewModerationAdminService {
                 review.isPublic());
         }
         return new VisibilityChanged(review.getId(), review.getModerationStatus().name());
+    }
+
+    /**
+     * 재시도 상한에 닿아 대기 목록에서 빠진 리뷰를 다시 검사 대기로 되돌린다(시도 횟수 0, 다음 검사 주기에 다시 검사).
+     * 검사 결정이 아니므로 활동 기록을 남기지 않고, 수정 시각도 바꾸지 않는다. 다시 불러도 안전하다(되돌릴 것이 없으면 0).
+     *
+     * @return 되돌린 리뷰 수
+     */
+    @Transactional
+    public int retryExhausted() {
+        return reviewModerations.resetExhaustedAttempts(properties.maxAttempts());
     }
 
     // 상태 이름과 겹치지 않는 운영 조회용 이름(재시도 상한에 닿은 대기)

@@ -96,7 +96,8 @@ kidly:
       # 판단 못 함(장애 · 시간 초과)을 다시 시도하는 최대 횟수. 닿으면 공개 그대로 대기 목록에서 빠지고 관리자 목록에서 본다
       # 한도 초과(429)는 횟수에 넣지 않고 그 주기의 남은 검사만 멈춘다
       max-attempts: 10
-      # 쓸 검사기와 부르는 순서. 앞에서 걸리면 뒤는 부르지 않는다. banned-words(금칙어, 늘 동작) · ai(OpenAI 호환 API, 키가 있을 때만)
+      # 쓸 검사기와 부르는 순서. 앞에서 걸리면 뒤는 부르지 않는다. banned-words(금칙어, 늘 동작) · ai(정책 기반 안전 분류 모델, 키가 있을 때만)
+      # 사진은 지금 어떤 검사기도 보지 않는다(금칙어 · ai 모두 글만)
       moderators:
         - banned-words
         - ai
@@ -107,13 +108,23 @@ kidly:
         - 병신
         - 개새끼
         - 좆
-      # OpenAI 호환 채팅 API 검사기. 같은 호환 API의 다른 제공자 · 모델이면 이 값만 바꾼다(코드 수정 없음)
+      # 정책 기반 안전 분류 모델 검사기(OpenAI 호환 Chat Completions). 정책 = system 메시지, 리뷰 본문 = user 메시지, 사진은 보내지 않는다
+      # 응답 content의 JSON(violation · category)만 읽는다. 같은 출력 형식을 지키는 모델이면 이 값만 바꾼다
       ai:
         base-url: https://api.groq.com/openai/v1
-        model: meta-llama/llama-guard-4-12b
+        model: openai/gpt-oss-safeguard-20b
         # 키는 환경변수로만 받는다(다른 변수 이름을 쓰려면 여기 이름만 바꾼다). 비면 AI를 빼고 금칙어만 쓴다. 로그 · 응답에 남기지 않는다
         api-key: ${GROQ_API_KEY:}
         timeout: PT10S
+        # 정책 파일(Instructions · Definitions · Criteria · Examples, 출력 JSON 형식 고정). 바꾸려면 다른 파일 위치를 넣는다
+        policy: classpath:moderation/review-policy.txt
+        temperature: 0
+        # 추론 토큰도 이 상한에 함께 잡힌다. 줄이면 JSON이 잘려(finish_reason length) 판단 못 함이 된다
+        max-tokens: 1024
+        # response_format json_object를 보낼지
+        json-response: true
+        # reasoning_effort(low · medium · high). 비면 보내지 않는다(모델이 받는지 확인한 뒤 켠다)
+        reasoning-effort:
 
 ---
 # 로컬 실행 · 테스트는 AWS에 접근할 수 없어 가짜 자격 증명으로 업로드 주소 모양만 만든다(S3가 서명을 거절해 실제로 올라가지는 않는다)
