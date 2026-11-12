@@ -15,9 +15,9 @@ import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
 import com.bbcc.kidly.shared.order.event.WishSentEvent;
 import com.bbcc.kidly.shared.search.event.SearchPerformedEvent;
 import com.bbcc.kidly.shared.search.event.SearchResultClickedEvent;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -125,30 +125,20 @@ public class ActivityRecordService {
 
     /**
      * 조르기 이벤트의 값을 조른 상품마다 조르기 활동 기록 한 줄로 저장한다.
-     * 기록마다 event_id가 달라야 하므로 원래 이벤트 ID와 조른 상품의 순번으로 만든다.
-     * 같은 이벤트를 다시 받으면 같은 ID가 나오므로 이미 있는 줄은 조용히 건너뛴다.
+     * 같은 이벤트를 다시 받으면 같은 기록 ID가 나오므로 이미 있는 줄은 조용히 건너뛴다.
      */
     public void recordWishSent(WishSentEvent event) {
         WishSentEvent.Data data = event.data();
-        for (int i = 0; i < data.items().size(); i++) {
-            WishSentEvent.Item item = data.items().get(i);
-            // 주문이 상품 정보를 받아 두지 않아 상품 ID가 없으면 카테고리 · 브랜드 · 벡터를 알 수 없어 기록하지 않는다
-            if (item.productId() == null) {
+        List<ActivityRecord.WishedItem> items = data.items().stream()
+            .map(item -> new ActivityRecord.WishedItem(item.productId(), item.optionId()))
+            .toList();
+        ActivityRecord.WishSentInfo info = new ActivityRecord.WishSentInfo(
+            event.eventId(), data.wishRequestId(), data.memberId(), data.childId(), items, event.occurredAt());
+        for (ActivityRecord record : ActivityRecord.wishSent(info)) {
+            if (activityRecordRepository.existsByEventId(record.getEventId())) {
                 continue;
             }
-            UUID itemEventId = itemEventId(event.eventId(), i);
-            if (activityRecordRepository.existsByEventId(itemEventId)) {
-                continue;
-            }
-            ActivityRecord.WishSentInfo info = new ActivityRecord.WishSentInfo(
-                itemEventId,
-                data.wishRequestId(),
-                data.memberId(),
-                data.childId(),
-                item.productId(),
-                item.optionId(),
-                event.occurredAt());
-            activityRecordRepository.save(ActivityRecord.wishSent(info));
+            activityRecordRepository.save(record);
         }
     }
 
@@ -157,21 +147,16 @@ public class ActivityRecordService {
      * 보낸 자녀가 직접 거둔 철회만 남기고, 같은 이벤트의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다.
      */
     public void recordWishCancelled(WishCancelledEvent event) {
-        if (!ActivityRecord.isWithdrawnByChild(event.data().cancelReason())) {
+        WishCancelledEvent.Data data = event.data();
+        if (!ActivityRecord.isWithdrawnByChild(data.cancelReason())) {
             return;
         }
         if (activityRecordRepository.existsByEventId(event.eventId())) {
             return;
         }
-        WishCancelledEvent.Data data = event.data();
         ActivityRecord.WishCancelledInfo info = new ActivityRecord.WishCancelledInfo(
             event.eventId(), data.wishRequestId(), data.memberId(), data.childId(), event.occurredAt());
         activityRecordRepository.save(ActivityRecord.wishCancelled(info));
-    }
-
-    // 같은 이벤트를 다시 받아도 같은 ID가 나오도록 이름 기반 UUID로 만든다
-    private UUID itemEventId(UUID eventId, int itemIndex) {
-        return UUID.nameUUIDFromBytes((eventId + ":" + itemIndex).getBytes(StandardCharsets.UTF_8));
     }
 
     public void recordProductViewed(Long memberId, Long productId, Long childId) {

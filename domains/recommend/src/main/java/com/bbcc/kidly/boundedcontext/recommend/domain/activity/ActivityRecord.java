@@ -11,7 +11,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,11 +33,14 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ActivityRecord extends BaseTimeEntity {
 
+    // 보낸 사람이 직접 거둔 조르기 철회의 원인 값이다
+    private static final String DIRECT_CANCEL_REASON = "DIRECT";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 같은 이벤트는 한 번만 기록한다
+    // 같은 이벤트는 한 번만 기록한다. 조르기 기록은 원래 이벤트 ID와 조른 상품의 순번으로 만든 ID다
     @Column(name = "event_id", nullable = false, unique = true)
     private UUID eventId;
 
@@ -188,31 +193,64 @@ public class ActivityRecord extends BaseTimeEntity {
         return record;
     }
 
-    public record WishSentInfo(UUID eventId, Long wishRequestId, Long memberId, Long childProfileId, Long productId,
-        Long productOptionId, LocalDateTime occurredAt) {
+    /**
+     * 조르기 하나의 값이다. 조른 상품은 이벤트에 담긴 순서 그대로이고, 상품 ID가 없는 상품도 빼지 않고 담는다.
+     */
+    public record WishSentInfo(UUID eventId, Long wishRequestId, Long memberId, Long childProfileId,
+        List<WishedItem> items, LocalDateTime occurredAt) {
+    }
+
+    /**
+     * 조른 상품 하나다. 상품 ID는 주문이 상품 정보를 받아 두지 않았으면 null이다.
+     */
+    public record WishedItem(Long productId, Long productOptionId) {
+    }
+
+    /**
+     * 조른 상품마다 조르기 활동 기록 한 줄을 만든다. 상품 ID가 없는 상품은 카테고리 · 브랜드 · 벡터를 알 수 없어 만들지 않는다.
+     * 기록마다 event_id가 달라야 하므로 원래 이벤트 ID와 조른 상품의 순번(건너뛴 상품도 센다)으로 이름 기반 UUID를 만든다.
+     * 같은 이벤트를 다시 받아도 같은 ID가 나와 이미 남긴 줄을 알아볼 수 있다.
+     */
+    public static List<ActivityRecord> wishSent(WishSentInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        UUID eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        List<WishedItem> items = requireNonNull(info.items(), "items는 필수입니다");
+        List<ActivityRecord> records = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            WishedItem item = requireNonNull(items.get(i), "item은 필수입니다");
+            if (item.productId() == null) {
+                continue;
+            }
+            records.add(wishSentItem(info, itemEventId(eventId, i), item));
+        }
+        return records;
     }
 
     // 조르기는 늘 자녀의 활동이라 자녀 ID도 필수다. 수량은 선호 계산에 쓰지 않아 남기지 않는다
-    public static ActivityRecord wishSent(WishSentInfo info) {
-        requireNonNull(info, "info는 필수입니다");
+    private static ActivityRecord wishSentItem(WishSentInfo info, UUID itemEventId, WishedItem item) {
         ActivityRecord record = new ActivityRecord();
         record.type = ActivityType.WISH_SENT;
-        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        record.eventId = itemEventId;
         record.wishRequestId = requireNonNull(info.wishRequestId(), "wishRequestId는 필수입니다");
         record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
-        record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
-        record.productOptionId = requireNonNull(info.productOptionId(), "productOptionId는 필수입니다");
+        record.productId = item.productId();
+        record.productOptionId = requireNonNull(item.productOptionId(), "productOptionId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;
+    }
+
+    private static UUID itemEventId(UUID eventId, int itemIndex) {
+        return UUID.nameUUIDFromBytes((eventId + ":" + itemIndex).getBytes(StandardCharsets.UTF_8));
     }
 
     /**
      * 조르기 철회가 보낸 자녀가 직접 거둔 것인지 알려 준다. 원인이 없는 예전 메시지는 직접 철회로 본다.
      * 자녀 · 계정 삭제나 시스템 철회는 아이의 관심이 바뀐 것이 아니어서 조르기 몫을 빼지 않는다.
+     * 주문이 새 원인을 더해도 모르는 원인은 직접 철회가 아닌 것으로 본다.
      */
     public static boolean isWithdrawnByChild(String cancelReason) {
-        return cancelReason == null || "DIRECT".equals(cancelReason);
+        return cancelReason == null || DIRECT_CANCEL_REASON.equals(cancelReason);
     }
 
     public record WishCancelledInfo(UUID eventId, Long wishRequestId, Long memberId, Long childProfileId,
