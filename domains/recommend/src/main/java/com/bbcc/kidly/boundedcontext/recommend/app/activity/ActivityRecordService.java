@@ -4,10 +4,13 @@ import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecordRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.activity.FavoriteRemoval;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.global.error.BusinessException;
+import com.bbcc.kidly.shared.community.event.FavoriteAddedEvent;
+import com.bbcc.kidly.shared.community.event.FavoriteRemovedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.CartItemAddedEvent;
 import com.bbcc.kidly.shared.order.event.CartItemRemovedEvent;
@@ -157,6 +160,43 @@ public class ActivityRecordService {
         ActivityRecord.WishCancelledInfo info = new ActivityRecord.WishCancelledInfo(
             event.eventId(), data.wishRequestId(), data.memberId(), data.childId(), event.occurredAt());
         activityRecordRepository.save(ActivityRecord.wishCancelled(info));
+    }
+
+    /**
+     * 찜 이벤트의 값을 회원의 찜 활동 기록으로 저장한다.
+     * 같은 이벤트의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다.
+     */
+    public void recordFavoriteAdded(FavoriteAddedEvent event) {
+        if (activityRecordRepository.existsByEventId(event.eventId())) {
+            return;
+        }
+        FavoriteAddedEvent.Data data = event.data();
+        ActivityRecord.FavoriteInfo info = new ActivityRecord.FavoriteInfo(
+            event.eventId(), data.favoriteId(), data.memberId(), data.productId(), event.occurredAt());
+        activityRecordRepository.save(ActivityRecord.favoriteAdded(info));
+    }
+
+    /**
+     * 찜 해제 이벤트의 값을 그 찜의 해제 활동 기록으로 저장한다.
+     * 회원 탈퇴로 지운 찜은 탈퇴 처리 뒤에 늦게 온 그 찜 기록까지 지운다. 여러 번 받아도 결과가 같다.
+     * 회원이 직접 거둔 해제만 남기고, 같은 이벤트의 기록이 이미 있으면 다시 받은 이벤트로 보고 조용히 건너뛴다.
+     */
+    public void recordFavoriteRemoved(FavoriteRemovedEvent event) {
+        FavoriteRemovedEvent.Data data = event.data();
+        String cause = data.cause() == null ? null : data.cause().name();
+        if (FavoriteRemoval.isByWithdrawal(cause)) {
+            activityRecordRepository.deleteByFavoriteId(requireNonNull(data.favoriteId(), "favoriteId는 필수입니다"));
+            return;
+        }
+        if (!FavoriteRemoval.isWithdrawnByMember(cause)) {
+            return;
+        }
+        if (activityRecordRepository.existsByEventId(event.eventId())) {
+            return;
+        }
+        ActivityRecord.FavoriteInfo info = new ActivityRecord.FavoriteInfo(
+            event.eventId(), data.favoriteId(), data.memberId(), data.productId(), event.occurredAt());
+        activityRecordRepository.save(ActivityRecord.favoriteRemoved(info));
     }
 
     public void recordProductViewed(Long memberId, Long productId, Long childId) {

@@ -10,8 +10,8 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * Kafka가 필요한 테스트(@KafkaIntegrationTest)만 쓰는 Kafka 컨테이너. 토픽 자동 생성은 끈다.
- * 추천은 받기만 해서 판매자 · 자녀 · 상품 · 주문 · 검색 · 회원 토픽을 선언하지 않는다(보내는 도메인이 선언한다).
- * 그런데 리스너 6개가 모두 파티션을 배정받아야 테스트가 시작하므로, 이 테스트 설정이 여섯 토픽을 만든다.
+ * 추천은 받기만 해서 판매자 · 자녀 · 상품 · 주문 · 검색 · 커뮤니티 · 회원 토픽을 선언하지 않는다(보내는 도메인이 선언한다).
+ * 그런데 리스너 7개가 모두 파티션을 배정받아야 테스트가 시작하므로, 이 테스트 설정이 일곱 토픽을 만든다.
  * 빈 이름은 추천 도메인이 선언하는 DLT 토픽 빈 이름과 겹치지 않게 지었다.
  */
 @TestConfiguration(proxyBeanMethods = false)
@@ -47,6 +47,11 @@ public class KafkaTestcontainersConfiguration {
     @Bean
     NewTopic receivedSearchEventsTopic() {
         return eventsTopic("kidly.search.events");
+    }
+
+    @Bean
+    NewTopic receivedCommunityEventsTopic() {
+        return eventsTopic("kidly.community.events");
     }
 
     @Bean

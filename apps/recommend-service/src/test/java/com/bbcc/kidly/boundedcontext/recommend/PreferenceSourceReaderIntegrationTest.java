@@ -174,6 +174,36 @@ class PreferenceSourceReaderIntegrationTest {
             .containsExactly(withdrawn, false);
     }
 
+    @ParameterizedTest
+    @CsvSource({"-60, true", "0, true", "1, false"})
+    @DisplayName("PREF-21 회원의 찜은 상품 복사본 값과 함께 읽고, 기간 끝 시각까지 같은 찜을 해제했을 때만 관심을 거둔 활동이다")
+    void readFavoritesMarkingRemovedOnlyUntilEndOfPeriod(long removedSecondsAfterEnd, boolean withdrawn) {
+        LocalDateTime to = SINCE.plusHours(3);
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", null);
+        PreferenceTestData.insertProduct(jdbc, 101L, 11L, "Other", null);
+        insertFavorite(ActivityType.FAVORITE_ADDED, 401L, SINCE.plusHours(1), 100L);
+        insertFavorite(ActivityType.FAVORITE_REMOVED, 401L, to.plusSeconds(removedSecondsAfterEnd), 100L);
+        insertFavorite(ActivityType.FAVORITE_ADDED, 402L, SINCE.plusHours(2), 101L);
+
+        assertThat(reader.findMemberActivities(1L, SINCE, to)).containsExactly(
+            new RecentActivity(ActivityType.FAVORITE_ADDED, 100L, 10L, "Nike", SINCE.plusHours(1), withdrawn),
+            new RecentActivity(ActivityType.FAVORITE_ADDED, 101L, 11L, "Other", SINCE.plusHours(2), false));
+    }
+
+    @Test
+    @DisplayName("PREF-21 같은 상품을 해제한 뒤 다시 찜하면 해제는 앞 찜에만 붙고 다시 한 찜은 그대로 센다")
+    void countFavoriteAgainAfterRemoval() {
+        LocalDateTime to = SINCE.plusHours(3);
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", null);
+        insertFavorite(ActivityType.FAVORITE_ADDED, 401L, SINCE, 100L);
+        insertFavorite(ActivityType.FAVORITE_REMOVED, 401L, SINCE.plusHours(1), 100L);
+        insertFavorite(ActivityType.FAVORITE_ADDED, 403L, SINCE.plusHours(2), 100L);
+
+        assertThat(reader.findMemberActivities(1L, SINCE, to)).containsExactly(
+            new RecentActivity(ActivityType.FAVORITE_ADDED, 100L, 10L, "Nike", SINCE, true),
+            new RecentActivity(ActivityType.FAVORITE_ADDED, 100L, 10L, "Nike", SINCE.plusHours(2), false));
+    }
+
     @Test
     @DisplayName("회원 활동은 자녀를 고르지 않은 활동만 읽는다")
     void readMemberActivitiesWithoutChild() {
@@ -242,6 +272,15 @@ class PreferenceSourceReaderIntegrationTest {
                 product_id, wish_request_id, created_at, updated_at)
             VALUES (?, ?, 1, 7, ?, ?, ?, now(), now())
             """, UUID.randomUUID(), type.name(), occurredAt, productId, wishRequestId);
+    }
+
+    // 회원 1이 자녀를 고르지 않고 남긴 찜 · 찜 해제 기록을 넣는다
+    private void insertFavorite(ActivityType type, Long favoriteId, LocalDateTime occurredAt, Long productId) {
+        jdbc.update("""
+            INSERT INTO recommend.activity_record (event_id, type, member_id, occurred_at, product_id, favorite_id,
+                created_at, updated_at)
+            VALUES (?, ?, 1, ?, ?, ?, now(), now())
+            """, UUID.randomUUID(), type.name(), occurredAt, productId, favoriteId);
     }
 
     private void childActivity(Long childProfileId, LocalDateTime occurredAt) {

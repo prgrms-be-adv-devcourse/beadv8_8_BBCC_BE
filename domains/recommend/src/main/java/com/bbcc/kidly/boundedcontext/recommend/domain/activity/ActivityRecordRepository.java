@@ -23,4 +23,6 @@ public interface ActivityRecordRepository {
     boolean existsByEventId(UUID eventId);
 
     void deleteByMemberId(Long memberId);
+
+    void deleteByFavoriteId(Long favoriteId);
 }

@@ -20,6 +20,12 @@ public interface JpaActivityRecordRepository extends JpaRepository<ActivityRecor
     @Query("delete from ActivityRecord r where r.memberId = :memberId")
     void deleteByMemberId(@Param("memberId") Long memberId);
 
+    // 찜과 그 찜의 해제 기록을 한 번의 DELETE로 지운다
+    @Override
+    @Modifying
+    @Query("delete from ActivityRecord r where r.favoriteId = :favoriteId")
+    void deleteByFavoriteId(@Param("favoriteId") Long favoriteId);
+
     // 엔티티를 거치지 않아 감사 시각이 채워지지 않으므로 생성 · 수정 시각은 활동 시각으로 넣는다.
     // 같은 날 중복 색인과의 충돌만 건너뛰고, event_id 같은 다른 제약 충돌은 예외로 드러낸다.
     @Modifying

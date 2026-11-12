@@ -15,6 +15,11 @@ public final class PreferenceWeights {
     public static final double CART_ADD_INTENSITY = 0.6;
 
     /**
+     * 찜은 상세 진입보다 뚜렷하지만, 살 생각까지 보여 주는 장바구니 담기보다는 약한 신호로 센다.
+     */
+    public static final double FAVORITE_ADDED_INTENSITY = 0.5;
+
+    /**
      * 자녀가 직접 조른 상품이라 장바구니 담기보다 강하게 센다.
      */
     public static final double WISH_SENT_INTENSITY = 0.8;

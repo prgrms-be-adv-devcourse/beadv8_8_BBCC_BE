@@ -29,13 +29,14 @@ public interface PreferenceSourceReader {
 
     /**
      * 자녀의 검색 · 상품 상세 진입 · 검색 결과 클릭 · 장바구니 담기 · 조르기를 발생 시각 순으로 읽는다.
-     * 장바구니 빼기 · 조르기 철회 기록은 돌려주지 않고, 기간 끝까지 뺀 담기와 직접 철회한 조르기에 withdrawn을 표시한다.
+     * 장바구니 빼기 · 조르기 철회 기록은 돌려주지 않고, 기간 끝까지 뺀 담기 · 직접 철회한 조르기에 withdrawn을 표시한다.
      * 카테고리와 브랜드는 활동 기록 값을 쓰고, 없으면 상품 복사본의 지금 값을 쓴다.
      */
     List<RecentActivity> findChildActivities(Long childProfileId, LocalDateTime from, LocalDateTime to);
 
     /**
-     * 자녀를 고르지 않은 회원의 활동을 자녀와 같은 방식으로 읽는다.
+     * 자녀를 고르지 않은 회원의 활동을 자녀와 같은 방식으로 읽는다. 찜은 회원 단위라 여기서만 읽히고,
+     * 찜 해제 기록은 돌려주지 않고 기간 끝까지 해제한 찜에 withdrawn을 표시한다.
      */
     List<RecentActivity> findMemberActivities(Long memberId, LocalDateTime from, LocalDateTime to);
 

@@ -110,8 +110,8 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
         return embeddings;
     }
 
-    // 상세 진입 · 담기 · 검색 결과 클릭 · 조르기 기록은 카테고리 · 브랜드 칸을 채우지 않을 수 있어 상품 복사본의 지금 값으로 채운다.
-    // 뺀 장바구니 줄의 담기와 철회한 조르기는 withdrawn으로 표시해 선호 계산이 무게 0으로 센다
+    // 상세 진입 · 담기 · 검색 결과 클릭 · 조르기 · 찜 기록은 카테고리 · 브랜드 칸을 채우지 않을 수 있어 상품 복사본의 지금 값으로 채운다.
+    // 뺀 장바구니 줄의 담기, 철회한 조르기, 해제한 찜은 withdrawn으로 표시해 선호 계산이 무게 0으로 센다
     private List<RecentActivity> findActivities(String ownerCondition, Long id, LocalDateTime from, LocalDateTime to) {
         return jdbcClient.sql("""
                 SELECT a.type, a.product_id, COALESCE(a.category_id, p.category_id) AS category_id,
@@ -123,11 +123,16 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
                         OR (a.type = 'WISH_SENT' AND EXISTS (
                            SELECT 1 FROM recommend.activity_record w
                            WHERE w.type = 'WISH_CANCELLED' AND w.wish_request_id = a.wish_request_id
-                             AND w.occurred_at <= :to))) AS withdrawn
+                             AND w.occurred_at <= :to))
+                        OR (a.type = 'FAVORITE_ADDED' AND EXISTS (
+                           SELECT 1 FROM recommend.activity_record f
+                           WHERE f.type = 'FAVORITE_REMOVED' AND f.favorite_id = a.favorite_id
+                             AND f.occurred_at <= :to))) AS withdrawn
                 FROM recommend.activity_record a
                 LEFT JOIN recommend.replica_product p ON p.product_id = a.product_id
                 WHERE %s
-                  AND a.type IN ('SEARCH', 'PRODUCT_VIEWED', 'CART_ITEM_ADDED', 'SEARCH_RESULT_CLICKED', 'WISH_SENT')
+                  AND a.type IN ('SEARCH', 'PRODUCT_VIEWED', 'CART_ITEM_ADDED', 'SEARCH_RESULT_CLICKED', 'WISH_SENT',
+                                 'FAVORITE_ADDED')
                   AND a.occurred_at >= :from AND a.occurred_at <= :to
                 ORDER BY a.occurred_at, a.id
                 """.formatted(ownerCondition))

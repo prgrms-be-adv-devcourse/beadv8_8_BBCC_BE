@@ -55,6 +55,18 @@ class PreferenceSignalsTest {
     }
 
     @Test
+    @DisplayName("PREF-21 찜 활동은 찜한 상품을 담은 찜 신호가 되고 해제했는지는 그대로 옮겨진다")
+    void favoriteBecomesFavoriteSignalWithWithdrawnFlag() {
+        List<RecentActivity> activities = List.of(
+            new RecentActivity(ActivityType.FAVORITE_ADDED, 7L, 16L, "브랜드G", AT, false),
+            new RecentActivity(ActivityType.FAVORITE_ADDED, 8L, 17L, "브랜드H", AT, true));
+
+        assertThat(PreferenceSignals.of(activities, List.of())).containsExactly(
+            new PreferenceSignal(PreferenceSignalType.FAVORITE_ADDED, AT, 16L, "브랜드G", 7L, false),
+            new PreferenceSignal(PreferenceSignalType.FAVORITE_ADDED, AT, 17L, "브랜드H", 8L, true));
+    }
+
+    @Test
     @DisplayName("PREF-16 구매확정은 카테고리 없이 브랜드 · 상품 · 확정 시각을 담은 구매확정 신호가 된다")
     void purchasesBecomePurchaseConfirmedSignals() {
         List<ConfirmedPurchase> purchases = List.of(new ConfirmedPurchase(3L, "브랜드C", AT.minusDays(90)));
