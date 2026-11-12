@@ -31,6 +31,7 @@
 | GET | `/api/v1/admin/auth-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/auth-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 | POST | `/api/v1/dev/tokens` | 개발용 토큰 발급(local · test · dev 프로필에서만) | 🌐 |
+| POST | `/api/v1/dev/members` | 더미 회원 가입(`key` · `nickname`, 같은 `key`면 기존 회원을 200으로, 이메일 없음). local · test · dev 프로필에서만 | 🌐 |
 
 ## 회원
 
@@ -57,6 +58,7 @@
 |---|---|---|---|
 | POST | `/api/v1/guardian-verification` | 본인인증 거래번호 `identityVerificationId`로 인증, 201과 Location | 🔒 |
 | GET | `/api/v1/guardian-verification` | 인증 여부 `verified`와 인증 시각 `verifiedAt` 조회(미인증이면 `false`, `null`) | 🔒 |
+| POST | `/api/v1/dev/guardian-verifications` | 포트원 없이 내 보호자 본인인증 기록 만들기(이미 있으면 그대로 200). local · test · dev 프로필에서만 | 🔒 |
 | POST | `/api/v1/children` | 자녀 등록(만 14세 미만, 필수 동의 `requiredConsent` · 선택 동의 `optionalConsent`, 본인인증 전 403) | 🔒 |
 | GET | `/api/v1/children` | 내 자녀 목록 | 🔒 |
 | GET | `/api/v1/children/{childId}` | 자녀 상세 | 🔒 |
