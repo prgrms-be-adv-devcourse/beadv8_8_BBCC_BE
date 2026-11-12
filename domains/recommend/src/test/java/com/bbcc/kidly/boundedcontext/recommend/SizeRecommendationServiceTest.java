@@ -128,7 +128,8 @@ class SizeRecommendationServiceTest {
     void answerWithRuleWithoutAiModel() {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftOf(RULE_120));
 
-        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty(), metrics)
+        SizeRecommendationResult result = new SizeRecommendationService(
+                reader, aiResponseService, Optional.empty(), metrics)
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertRuleResult(result);
@@ -239,7 +240,8 @@ class SizeRecommendationServiceTest {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
             PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, question, EVIDENCE, null, null));
 
-        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty(), metrics)
+        SizeRecommendationResult result = new SizeRecommendationService(
+                reader, aiResponseService, Optional.empty(), metrics)
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertThat(result.source()).isEqualTo("RULE");
@@ -259,7 +261,8 @@ class SizeRecommendationServiceTest {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
             PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, preview, null));
 
-        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty(), metrics)
+        SizeRecommendationResult result = new SizeRecommendationService(
+                reader, aiResponseService, Optional.empty(), metrics)
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertThat(result.wearPreview()).isEqualTo(new SizeRecommendationResult.WearPreview("TOP",
@@ -274,7 +277,8 @@ class SizeRecommendationServiceTest {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
             PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, null, null));
 
-        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty(), metrics)
+        SizeRecommendationResult result = new SizeRecommendationService(
+                reader, aiResponseService, Optional.empty(), metrics)
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertThat(result.wearPreview()).isNull();

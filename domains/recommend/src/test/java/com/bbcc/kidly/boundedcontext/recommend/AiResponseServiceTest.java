@@ -130,7 +130,7 @@ class AiResponseServiceTest {
             given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willThrow(new QueryTimeoutException("느림"));
         } else {
             given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(true);
-            call = failure == Failure.CALL_THROWS ? () -> { throw new IllegalStateException("모델 오류"); } : () -> null;
+            call = failure == Failure.CALL_THROWS ? AiResponseServiceTest::failingCall : () -> null;
         }
 
         service.respond(TYPE, INPUT, Answer.class, call);
@@ -160,6 +160,10 @@ class AiResponseServiceTest {
 
         assertThat(count("kidly.recommend.ai.store.lookups", "error")).isEqualTo(1);
         assertThat(count("kidly.recommend.ai.store.lookups", "miss")).isZero();
+    }
+
+    private static Answer failingCall() {
+        throw new IllegalStateException("모델 오류");
     }
 
     // TYPE(홈 맛보기)의 그 결과 카운터 값이다
