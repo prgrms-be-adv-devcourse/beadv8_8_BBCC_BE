@@ -23,6 +23,7 @@ public class RecommendAiMetrics {
     static final String STORE_LOOKUPS = "kidly.recommend.ai.store.lookups";
     static final String AI_CALL = "kidly.recommend.ai.call";
     static final String REJECTED = "kidly.recommend.ai.rejected";
+    static final String DAILY_CALLS = "kidly.recommend.ai.daily.calls";
 
     /**
      * AI 요청의 결과: 저장한 답을 씀 · AI가 답함 · 기다리다 시간 초과 · 오류 · 하루 상한에 걸림.
