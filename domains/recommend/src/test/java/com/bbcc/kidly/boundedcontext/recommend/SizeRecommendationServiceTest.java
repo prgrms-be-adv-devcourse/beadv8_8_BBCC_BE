@@ -58,14 +58,15 @@ class SizeRecommendationServiceTest {
     private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
         null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널");
 
-    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of());
+    private static final SizeAiQuestion QUESTION =
+        new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of(), List.of());
 
     private static final ReferenceFit REFERENCE_FIT = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
         new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
             new ReferenceFit.SizeDiff("120", new BigDecimal("36.0"), new BigDecimal("2.0"))))));
 
     private static final SizeAiQuestion QUESTION_WITH_FIT =
-        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, GROWTH, List.of());
+        new SizeAiQuestion(null, List.of(), null, REFERENCE_FIT, GROWTH, List.of(), List.of());
 
     // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
     private static final SizeAiEvidence EVIDENCE =
@@ -132,7 +133,8 @@ class SizeRecommendationServiceTest {
     void answerSizeFreeWithoutAi() {
         ProductSizes sizeFreeProduct = ProductSizes.of(true, List.of(SizeRange.of("FREE", 90, 130)));
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION, EVIDENCE, null));
+            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION, EVIDENCE, null,
+            null));
 
         SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
@@ -158,7 +160,7 @@ class SizeRecommendationServiceTest {
 
     private static SizeRecommendationDraft draftOf(SizeRecommendation rule) {
         return new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), rule, KEY_INPUT, QUESTION, EVIDENCE, null);
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), rule, KEY_INPUT, QUESTION, EVIDENCE, null, null);
     }
 
     @Test
@@ -213,9 +215,9 @@ class SizeRecommendationServiceTest {
         SizeAiQuestion question = new SizeAiQuestion(null, List.of(), null, null,
             new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0,
                 new BigDecimal("0.50"), "한국아동패널"),
-            List.of(new WearablePeriod("120", 20, null, 20)));
+            List.of(new WearablePeriod("120", 20, null, 20)), List.of());
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, question, EVIDENCE, null));
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, question, EVIDENCE, null, null));
 
         SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
@@ -235,7 +237,7 @@ class SizeRecommendationServiceTest {
             List.of(new WearPreview.SizeWear("120", 53.6, HemPosition.HIP, 30.0, SleevePosition.ABOVE_WRIST),
                 new WearPreview.SizeWear("130", null, null, null, null)));
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, preview));
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, preview, null));
 
         SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
@@ -250,7 +252,7 @@ class SizeRecommendationServiceTest {
     @DisplayName("PRV-05 착용 미리보기가 없는 상품(사이즈 무관 · 모자 · 양말)이면 결과의 착용 미리보기는 null이다")
     void resultHasNoWearPreviewWhenNotPreviewed() {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, null));
+            PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, null, null));
 
         SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
@@ -261,7 +263,7 @@ class SizeRecommendationServiceTest {
     // 상의 기준 옷 가슴단면 34cm와 상품 120의 가슴단면 36cm를 비교한 기준 핏을 넘긴 초안이다
     private static SizeRecommendationDraft draftWithReferenceFit() {
         return new SizeRecommendationDraft(PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT,
-            QUESTION_WITH_FIT, new SizeAiEvidence(REFERENCE_FIT, Set.of(new BigDecimal("2.0"))), null);
+            QUESTION_WITH_FIT, new SizeAiEvidence(REFERENCE_FIT, Set.of(new BigDecimal("2.0"))), null, null);
     }
 
     private static AiSizeAnswer answerWithChestDiff(String diffCm) {

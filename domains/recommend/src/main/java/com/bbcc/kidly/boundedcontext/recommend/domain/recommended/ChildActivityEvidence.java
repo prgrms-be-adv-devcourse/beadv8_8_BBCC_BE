@@ -13,7 +13,7 @@ import java.util.Set;
  */
 public final class ChildActivityEvidence {
 
-    // 이 횟수 이상 찾아본(상품 조회 · 검색 · 장바구니 담기를 합한) 카테고리 · 브랜드를 「자주 찾아본」으로 친다
+    // 이 횟수 이상 찾아본(상품 조회 · 검색 · 검색 결과 클릭 · 장바구니 담기를 합한) 카테고리 · 브랜드를 「자주 찾아본」으로 친다
     static final int FREQUENT_COUNT = 5;
 
     private final Map<Long, Integer> categoryActivityCounts;

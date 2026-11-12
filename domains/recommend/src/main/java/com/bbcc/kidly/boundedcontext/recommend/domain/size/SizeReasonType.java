@@ -9,5 +9,6 @@ public enum SizeReasonType {
     PREFERRED_FIT,
     MEASUREMENT,
     RULE_RESULT,
-    GROWTH
+    GROWTH,
+    PURCHASE
 }

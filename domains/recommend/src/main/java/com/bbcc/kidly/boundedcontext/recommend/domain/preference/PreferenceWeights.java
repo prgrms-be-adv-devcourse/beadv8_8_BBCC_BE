@@ -10,7 +10,14 @@ public final class PreferenceWeights {
 
     public static final double SEARCH_INTENSITY = 0.3;
 
+    public static final double SEARCH_RESULT_CLICK_INTENSITY = 0.3;
+
     public static final double CART_ADD_INTENSITY = 0.6;
+
+    /**
+     * 자녀가 직접 조른 상품이라 장바구니 담기보다 강하게 센다.
+     */
+    public static final double WISH_SENT_INTENSITY = 0.8;
 
     public static final double PURCHASE_CONFIRMED_INTENSITY = 0.8;
 

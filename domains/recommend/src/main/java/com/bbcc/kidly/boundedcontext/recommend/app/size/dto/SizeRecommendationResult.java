@@ -9,7 +9,7 @@ import java.util.List;
  * @param fit 추천 사이즈가 아이 몸에 맞는 정도의 이름이다
  * @param candidateSizes 규칙이 추천 사이즈를 고른 후보 사이즈이고, 규칙이 맞는 사이즈를 찾지 못하면 빈 목록이다.
  *     AI가 고른 추천 사이즈는 이 목록 밖의 상품 사이즈일 수 있다
- * @param lastPurchasedSize 같은 카테고리에서 이 자녀에게 산 사이즈다. 구매 내역을 아직 읽지 않아 늘 null이다
+ * @param lastPurchasedSize 같은 기준 옷 칸에서 이 자녀가 12개월 안에 마지막으로 구매확정한 사이즈다. 산 적이 없으면 null이다
  * @param source 추천을 정한 쪽의 이름이다. AI 또는 RULE이다
  * @param reasons 사이즈를 고른 근거이고, 근거가 없으면 빈 목록이다
  * @param referenceFit 자녀의 기준 옷과 이 상품을 비교한 기준 핏이고, 기준 옷이 없거나 비교할 수 없으면 null이다
