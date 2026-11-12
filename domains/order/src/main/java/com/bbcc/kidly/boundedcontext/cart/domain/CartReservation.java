@@ -56,7 +56,8 @@ public class CartReservation extends CartTimeEntity {
     private LocalDateTime purchasedAt;
 
     /**
-     * 결제 정리 표시와 예약 해제가 겹칠 때(#999): 표시가 버전을 올리므로, 확인한 뒤 표시가 커밋되면 해제의 삭제가 낙관적 락으로 진다(409).
+     * 낙관적 잠금 버전(#999). 결제 정리 표시 · 예약 해제 · 기한 변경은 이 행을 먼저 쓰기 잠금으로 잡고(#1207, 예약 → 예약한 쪽 → 칸 순서)
+     * 줄을 서므로 보통은 이 버전으로 지는 일이 없다. 잠금 순서를 따르지 않는 경로가 생기면 마지막 안전장치로 남는다.
      */
     @Version
     private Long version;
@@ -84,7 +85,8 @@ public class CartReservation extends CartTimeEntity {
         return purchasedAt != null;
     }
 
-    // 바뀌면 @Version이 오른다: 기한 다시 맞추기가 결제 정리 표시 · 예약 해제와 겹치면 늦게 커밋하는 쪽이 낙관적 락으로 진다
+    // 기한 다시 맞추기는 이 행을 예약 잠금으로 먼저 잡고 바꾼다(#1207): 결제 정리 표시 · 예약 해제와 겹치면 잠금을 기다려 줄을 서고, 잠금
+    // 실패(교착 등)면 동기화가 건별로 다시 맞춘다
     public void changeValidUntil(LocalDateTime validUntil) {
         this.validUntil = validUntil;
     }

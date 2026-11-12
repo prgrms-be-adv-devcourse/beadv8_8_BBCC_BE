@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.wish.domain.WishRequest.CancelReason;
 import com.bbcc.kidly.shared.order.event.WishCancelledEvent;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,9 +55,16 @@ public class WishDeletionService {
     }
 
     private int cancelRequestsOf(Long childProfileId, CancelReason reason) {
-        List<WishRequest> requests = wishRequestRepository
-            .findAllByRequestedByTypeAndRequestedByIdAndStatusOrderByIdAsc(PrincipalType.CHILD, childProfileId,
-                WishRequest.Status.REQUESTED);
+        // 조르기를 읽기 전에 대상 조르기들의 예약을 한 번에 같은 전체 순서로 잠근다(#1207, 예약 → 조르기 → 칸): ID만 먼저 읽고 잠근 뒤
+        // 조르기를 읽으므로, 그 사이 결제 완료가 반영됐으면 바뀐 상태를 보고 건너뛴다(낙관적 잠금 예외 없음)
+        List<Long> ids = wishRequestRepository.findIdsByRequester(PrincipalType.CHILD, childProfileId,
+            WishRequest.Status.REQUESTED);
+        wishCart.lockAll(ids.stream().map(id -> WishRequest.RESERVATION_PREFIX + id).toList());
+        List<WishRequest> requests = ids.stream()
+            .map(wishRequestRepository::findById)
+            .flatMap(Optional::stream)
+            .filter(request -> request.getStatus() == WishRequest.Status.REQUESTED)
+            .toList();
         LocalDateTime now = LocalDateTime.now();
         for (WishRequest request : requests) {
             request.cancel(reason, now);

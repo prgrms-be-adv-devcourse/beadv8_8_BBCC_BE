@@ -30,6 +30,11 @@ public interface WishRequestRepository {
         Long requestedById, WishRequest.Status status);
 
     /**
+     * 위와 같은 조건의 조르기 ID만(조르기를 올리지 않는다, #1207). 예약을 먼저 잠근 뒤 조르기를 읽으려고 쓴다. ID 순.
+     */
+    List<Long> findIdsByRequester(PrincipalType type, Long requestedById, WishRequest.Status status);
+
+    /**
      * 이 상태의 조르기에 이 칸 중 하나라도 들어 있는지(진행 중 칸 중복 금지, BEG-02).
      */
     boolean existsByStatusAndLinesCartItemIdIn(WishRequest.Status status, Collection<Long> cartItemIds);
