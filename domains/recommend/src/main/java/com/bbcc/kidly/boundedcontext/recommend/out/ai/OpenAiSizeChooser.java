@@ -3,10 +3,11 @@ package com.bbcc.kidly.boundedcontext.recommend.out.ai;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
-import lombok.RequiredArgsConstructor;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -17,7 +18,6 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Component
 @ConditionalOnProperty(name = "spring.ai.model.chat", havingValue = "openai", matchIfMissing = true)
-@RequiredArgsConstructor
 public class OpenAiSizeChooser implements AiSizeChooser {
 
     private static final String SYSTEM_INSTRUCTION = """
@@ -74,10 +74,22 @@ public class OpenAiSizeChooser implements AiSizeChooser {
 
     private final ChatModel chatModel;
     private final JsonMapper jsonMapper;
+    private final ObservationRegistry observationRegistry;
+
+    public OpenAiSizeChooser(ChatModel chatModel, JsonMapper jsonMapper) {
+        this(chatModel, jsonMapper, ObservationRegistry.NOOP);
+    }
+
+    @Autowired
+    public OpenAiSizeChooser(ChatModel chatModel, JsonMapper jsonMapper, ObservationRegistry observationRegistry) {
+        this.chatModel = chatModel;
+        this.jsonMapper = jsonMapper;
+        this.observationRegistry = observationRegistry;
+    }
 
     @Override
     public AiSizeAnswer choose(SizeAiQuestion question) {
-        return ChatClient.create(chatModel).prompt()
+        return ChatClient.create(chatModel, observationRegistry).prompt()
             .options(OpenAiChatOptions.builder().serviceTier(SERVICE_TIER))
             .system(SYSTEM_INSTRUCTION)
             .user(jsonMapper.writeValueAsString(question))

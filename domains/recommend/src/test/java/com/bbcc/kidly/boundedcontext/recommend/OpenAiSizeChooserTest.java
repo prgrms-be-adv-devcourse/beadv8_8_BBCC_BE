@@ -17,6 +17,9 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.ObservationView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -196,5 +199,28 @@ class OpenAiSizeChooserTest {
 
         assertThat(prompts.getFirst().getOptions()).isInstanceOfSatisfying(OpenAiChatOptions.class,
             options -> assertThat(options.getServiceTier()).isEqualTo("priority"));
+    }
+
+    @Test
+    @DisplayName("모델 호출은 앱의 관측 레지스트리로 만든 ChatClient 안에서 돌아, 추천 AI 호출 관측 아래에 놓인다")
+    void callModelUnderRecommendAiObservation() {
+        ObservationRegistry observations = ObservationRegistry.create();
+        observations.observationConfig().observationHandler(context -> true);
+        List<String> currentChain = new ArrayList<>();
+        ChatModel model = prompt -> {
+            ObservationView current = observations.getCurrentObservation();
+            while (current != null) {
+                currentChain.add(current.getContextView().getName());
+                current = current.getContextView().getParentObservation();
+            }
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[]}
+                """))));
+        };
+
+        Observation.createNotStarted("kidly.recommend.ai.call", observations).observe(
+            () -> new OpenAiSizeChooser(model, JsonMapper.builder().build(), observations).choose(QUESTION));
+
+        assertThat(currentChain).contains("kidly.recommend.ai.call");
     }
 }
