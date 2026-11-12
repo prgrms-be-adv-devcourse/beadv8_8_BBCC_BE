@@ -53,7 +53,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 커뮤니티는 `KIDLY_COMMUNITY_URI`로 넘긴다. 기본값은 `http://community-service:8080`이다. profile `community`가 꺼진 환경에서는 리뷰 · 찜 API가 실패한다
 - 알림함은 `KIDLY_NOTIFICATION_URI`로 넘긴다. 기본값은 `http://notification-service:8080`이다. profile `notification`이 꺼진 환경에서는 알림함 API가 실패한다
 - dev · prod 모두 서비스(search-service · recommend-service · settlement-service · member-service · payment-service · product-service · order-service · community-service · notification-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
-- nginx dev · 운영 블록의 `location /`와 `/actuator/health`는 Gateway로 간다. nginx 설정은 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
+- nginx(t3.large k3s 의 Pod, #1309) dev 블록의 `location /`와 `/actuator/health`는 Gateway로 간다. nginx 설정은 앱 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
 
 ## 로컬 실행
 - `docker compose up -d` 뒤 Gateway(`:apps:gateway:bootRun`, 8083)와 필요한 서비스를 띄운다. Swagger는 각 서비스에서 확인한다.

@@ -1,5 +1,6 @@
-# Kidly API 리버스 프록시. install.sh 가 __DOMAIN__ 을 실제 도메인으로, __MONITORING_HOST__ 를 모니터링 서버(t3.medium) 사설 IP 로 바꿔
-# /etc/nginx/conf.d/kidly.conf 로 설치한다.
+# Kidly API 리버스 프록시. deploy.sh 가 __DOMAIN__ 을 실제 도메인으로, __MONITORING_HOST__ 를 모니터링 서버(t3.medium) 사설 IP 로 바꿔
+# k3s ConfigMap 으로 만들고, nginx Pod(nginx.yaml)가 /etc/nginx/conf.d/kidly.conf 로 읽는다(#1309)
+# Pod 는 호스트 네트워크를 쓰므로 127.0.0.1 은 이 서버(t3.large)다
 
 # 아래 server 블록들이 함께 쓰는 설정 (인증서 하나에 api · dev-api · grafana 세 이름이 들어 있다)
 ssl_certificate     /etc/letsencrypt/live/kidly/fullchain.pem;
@@ -35,6 +36,7 @@ server {
 }
 
 # HTTP: 인증서 발급·갱신용 경로만 열고 나머지는 https 로 보낸다
+# 인증서에 api 이름이 들어 있어 갱신할 때 api 로도 확인 요청이 온다. prod(api 의 443)는 걷어냈지만(#1213) 여기 이름은 남긴다
 server {
     listen 80;
     server_name api.__DOMAIN__ dev-api.__DOMAIN__ grafana.__DOMAIN__;
@@ -45,26 +47,6 @@ server {
 
     location / {
         return 301 https://$host$request_uri;
-    }
-}
-
-# 운영 앱
-server {
-    listen 443 ssl;
-    http2 on;
-    server_name api.__DOMAIN__;
-
-    # actuator 는 서버 안(Alloy)에서만 쓴다. 외부에는 헬스체크만 연다
-    location /actuator {
-        return 404;
-    }
-
-    location = /actuator/health {
-        proxy_pass http://127.0.0.1:8084;
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:8084;
     }
 }
 

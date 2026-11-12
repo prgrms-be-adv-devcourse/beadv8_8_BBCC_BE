@@ -64,7 +64,7 @@ monitoring-deploy 가 처음 끝나면 t3.large 의 옛 Grafana 가 지워지므
 
 ```bash
 scp -r deploy/nginx ec2-user@<t3.large 탄력적 IP>:~/          # 내 PC 에서
-cd ~/nginx && sudo MONITORING_HOST=<t3.medium 사설 IP> ./install.sh kidly.kro.kr <이메일>   # t3.large 에서
+cd ~/nginx && sudo MONITORING_HOST=<t3.medium 사설 IP> ./install.sh kidly.kro.kr <이메일>   # t3.large 에서 (당시 방식. 지금 nginx 는 k3s Pod 라 deploy/nginx/README.md 의 deploy.sh 를 쓴다, #1309)
 ```
 
 옛 데이터는 옮기지 않습니다. 확인이 끝나면 t3.large 에서 지웁니다.
