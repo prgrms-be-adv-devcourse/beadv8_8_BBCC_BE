@@ -74,19 +74,3 @@ tests:
   - eval_time: 17m
     alertname: kidly-search-embedding-circuit-open
     exp_alerts: []
-- name: products without embedding alert after an hour and ignore unknown counts
-  interval: 1m
-  input_series:
-  - series: kidly_search_products_without_embedding{job="kidly-search",env="dev",instance="search:8082"}
-    values: 4+0x70
-  - series: kidly_search_products_without_embedding{job="kidly-search",env="prod",instance="search:8094"}
-    values: NaN+0x70
-  alert_rule_test:
-  - eval_time: 59m
-    alertname: kidly-search-products-without-embedding
-    exp_alerts: []
-  - eval_time: 61m
-    alertname: kidly-search-products-without-embedding
-    exp_alerts:
-    - exp_labels:
-        env: dev

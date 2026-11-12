@@ -113,38 +113,3 @@ groups:
       description: 검색은 키워드로만 됩니다. OpenAI 키 만료 · 한도 초과 · 장애를 확인하세요. 절차는 deploy/search/README.md
         "장애 대응 > OpenAI 키 만료 · 한도 초과"입니다. 복구 뒤에는 벡터 없는 상품을 다시 채웁니다.
     isPaused: false
-  # 벡터 없이 저장된 판매중 상품이 1시간 넘게 남아 있다(임베딩 API를 쓸 수 없던 동안 색인된 상품)
-  - uid: kidly-search-products-without-embedding
-    title: 의미 검색 벡터 없는 상품
-    condition: B
-    for: 1h
-    noDataState: OK
-    execErrState: Error
-    data:
-    - refId: A
-      datasourceUid: prometheus
-      relativeTimeRange:
-        from: 600
-        to: 0
-      model:
-        refId: A
-        expr: max by(env) (kidly_search_products_without_embedding{job="kidly-search"})
-        instant: true
-    - refId: B
-      datasourceUid: __expr__
-      model:
-        refId: B
-        type: threshold
-        expression: A
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-    labels:
-      severity: warning
-    annotations:
-      summary: "{{ if eq $labels.env \"dev\" }}운영{{ else }}{{ $labels.env }}{{ end }} 의미 검색 벡터 없는 판매중 상품이 1시간 넘게 남아 있습니다"
-      description: 이 상품들은 의미 검색에 나오지 않습니다(키워드 검색은 됩니다). 임베딩 API가 정상이면 상품을 다시 발행해 채웁니다.
-        절차는 deploy/search/README.md "장애 대응 > 벡터 없는 상품 다시 채우기"입니다.
-    isPaused: false

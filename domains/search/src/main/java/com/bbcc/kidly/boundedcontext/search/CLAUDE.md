@@ -136,7 +136,7 @@
   - `kidly.search.products.without.embedding`: 벡터 없이 저장된 판매중 상품 수(`out/SearchIndexMetrics`). Prometheus가 읽을 때마다(15초) Elasticsearch `count`를 한 번 한다. 의미 검색을 끈 환경은 모든 상품에 벡터가 없어 등록하지 않는다. 셀 수 없으면 NaN · DEBUG 로그
   - Elasticsearch 응답 시간 지표는 두지 않는다. 검색 API 지연(`http_server_requests`)이 거의 Elasticsearch 시간이고, 3초를 넘으면 503이라 5xx 알림이 잡는다
   - DLT 도착 · 미반영은 앱 지표 없이 kafka-exporter(토픽 오프셋 · 그룹 lag)로 본다
-- 알림 `deploy/monitoring/grafana/provisioning/alerting/search.yml`(promtool 테스트 `deploy/monitoring/tests/search.test.yml`): DLT 도착(10분 안에 늘면), DLT 미반영(그룹 `kidly.search` lag가 30분), 임베딩 차단(10분), 벡터 없는 상품(1시간). 라벨은 env · topic만
+- 알림 `deploy/monitoring/grafana/provisioning/alerting/search.yml`(promtool 테스트 `deploy/monitoring/tests/search.test.yml`): DLT 도착(10분 안에 늘면), DLT 미반영(그룹 `kidly.search` lag가 30분), 임베딩 차단(10분). 벡터 없는 상품은 알림 없이 지표로만 본다. 라벨은 env · topic만
 - 벡터 없는 상품은 색인에 설명이 없어 검색이 혼자 다시 만들 수 없다. 상품 다시 발행으로 채운다(문장이 같은 상품은 저장된 벡터를 써서 API를 부르지 않는다)
 
 ## 검색 이벤트 발행 (`search.performed`, #611)

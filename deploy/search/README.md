@@ -97,7 +97,6 @@ kubectl -n search describe pod -l app=elasticsearch | sed -n '/^Events:/,$p'   #
 | 검색 색인 실패 메시지 도착 | 상품 · 판매자 변경을 색인하지 못해 DLT(`kidly.{product,seller}.events.search.dlt`)로 감. 검색이 다시 읽어 저절로 반영 | 대개 Elasticsearch 장애. 반영되는지만 봅니다 |
 | 검색 색인 실패 메시지 미반영 (30분) | DLT 를 다 읽지 못함 | DLT 가 줄지 않음 |
 | 의미 검색 임베딩 API 차단 (10분) | OpenAI 가 연속 실패해 부르지 않음. 검색은 키워드로만 | OpenAI 키 만료 · 한도 초과 |
-| 의미 검색 벡터 없는 상품 (1시간) | 임베딩 API 를 못 쓴 동안 색인된 상품이 의미 검색에 안 나옴 | 벡터 없는 상품 다시 채우기 |
 
 지표: `kidly_search_embedding_circuit_open`(차단 열림 1), `kidly_search_products_without_embedding`(벡터 없는 판매중 상품 수, 의미 검색을 켠 환경만. 셀 수 없으면 NaN). DLT 는 kafka-exporter 의 오프셋 · 구독 그룹 `kidly.search` lag 로 봅니다.
 Elasticsearch 응답 시간은 따로 재지 않습니다. 검색 API 지연(`http_server_requests`, `/api/v1/products`)이 거의 Elasticsearch 시간이고, 3초를 넘으면 503 이 되어 5xx 알림으로 잡힙니다.
