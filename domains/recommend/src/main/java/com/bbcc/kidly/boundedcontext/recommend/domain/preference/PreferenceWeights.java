@@ -10,6 +10,8 @@ public final class PreferenceWeights {
 
     public static final double SEARCH_INTENSITY = 0.3;
 
+    public static final double SEARCH_RESULT_CLICK_INTENSITY = 0.3;
+
     public static final double CART_ADD_INTENSITY = 0.6;
 
     public static final double PURCHASE_CONFIRMED_INTENSITY = 0.8;

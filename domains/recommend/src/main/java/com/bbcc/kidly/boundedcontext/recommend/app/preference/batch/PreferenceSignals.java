@@ -35,6 +35,7 @@ public final class PreferenceSignals {
             case SEARCH -> PreferenceSignalType.SEARCH;
             case PRODUCT_VIEWED -> PreferenceSignalType.PRODUCT_VIEWED;
             case CART_ITEM_ADDED -> PreferenceSignalType.CART_ITEM_ADDED;
+            case SEARCH_RESULT_CLICKED -> PreferenceSignalType.SEARCH_RESULT_CLICKED;
             // 읽기 포트는 장바구니 빼기를 담기 기록의 표시로만 돌려준다. 그 밖의 종류가 오면 읽기가 잘못된 것이다
             default -> throw new IllegalArgumentException("선호 신호로 바꿀 수 없는 활동 종류입니다: " + type);
         };

@@ -7,5 +7,6 @@ public enum ActivityType {
     SEARCH,
     CART_ITEM_ADDED,
     CART_ITEM_REMOVED,
-    PRODUCT_VIEWED
+    PRODUCT_VIEWED,
+    SEARCH_RESULT_CLICKED
 }

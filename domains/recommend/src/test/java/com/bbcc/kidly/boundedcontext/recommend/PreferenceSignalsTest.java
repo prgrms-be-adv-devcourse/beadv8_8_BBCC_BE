@@ -33,6 +33,16 @@ class PreferenceSignalsTest {
     }
 
     @Test
+    @DisplayName("PREF-17 검색 결과 클릭 활동은 누른 상품의 카테고리 · 브랜드를 담은 검색 결과 클릭 신호가 된다")
+    void searchResultClickBecomesClickSignal() {
+        List<RecentActivity> activities = List.of(
+            new RecentActivity(ActivityType.SEARCH_RESULT_CLICKED, 4L, 13L, "브랜드D", AT, false));
+
+        assertThat(PreferenceSignals.of(activities, List.of())).containsExactly(
+            new PreferenceSignal(PreferenceSignalType.SEARCH_RESULT_CLICKED, AT, 13L, "브랜드D", 4L, false));
+    }
+
+    @Test
     @DisplayName("PREF-16 구매확정은 카테고리 없이 브랜드 · 상품 · 확정 시각을 담은 구매확정 신호가 된다")
     void purchasesBecomePurchaseConfirmedSignals() {
         List<ConfirmedPurchase> purchases = List.of(new ConfirmedPurchase(3L, "브랜드C", AT.minusDays(90)));
