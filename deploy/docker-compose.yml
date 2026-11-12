@@ -81,7 +81,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: -Xmx512m
+      JAVA_TOOL_OPTIONS: -Xmx384m
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
       # 기본값은 profile search 가 꺼진 환경에서 빈 값 경고를 내지 않으려는 것이다
@@ -100,7 +100,8 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
-    mem_limit: 1g
+    # 실측 최대 309MiB(11-12, 컨테이너 전체). 1g 로는 배포 때 새 Pod 를 먼저 띄울 자리(maxSurge)가 노드 할당량을 넘어 Pending 이 된다(#1191)
+    mem_limit: 768m
     oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
