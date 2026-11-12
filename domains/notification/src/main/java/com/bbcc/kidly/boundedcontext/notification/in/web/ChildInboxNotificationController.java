@@ -7,10 +7,12 @@ import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthChild;
 import com.bbcc.kidly.global.security.LoginChild;
 import com.bbcc.kidly.shared.auth.PrincipalId;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 자녀 알림함 API. 모두 자녀 로그인 필요(받는 사람 = 자녀 계정). 회원 알림함과 같은 응답 · 규칙이고,
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChildInboxNotificationController {
 
     private final InboxNotificationService inboxNotificationService;
+    private final UnreadCountStream unreadCountStream;
 
     /**
      * 내 알림 최신순. size는 1~100.
@@ -40,6 +44,15 @@ public class ChildInboxNotificationController {
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return PageResponse.from(
             inboxNotificationService.findMine(principal(child), page, size).map(InboxNotificationResponse::from));
+    }
+
+    /**
+     * 안 읽은 알림 수 SSE(이벤트 이름 unread-count, 데이터는 unread-count 응답과 같다). 연결하면 지금 수를, 바뀌면 새 수를 보낸다.
+     * 30초마다 주석(:ping)을 보내고 30분 뒤 닫는다. 화면은 끊기면 다시 연결한다.
+     */
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamUnreadCount(@LoginChild AuthChild child, HttpServletResponse response) {
+        return unreadCountStream.open(principal(child), response);
     }
 
     @GetMapping("/unread-count")

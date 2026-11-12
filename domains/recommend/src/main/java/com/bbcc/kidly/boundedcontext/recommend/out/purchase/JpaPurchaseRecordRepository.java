@@ -34,4 +34,13 @@ public interface JpaPurchaseRecordRepository
         """)
     List<Long> findProductIdsConfirmedSince(@Param("childProfileId") Long childProfileId,
         @Param("since") LocalDateTime since);
+
+    @Override
+    @Query("""
+        select r
+        from PurchaseRecord r
+        where r.childProfileId = :childProfileId and r.confirmedAt >= :since
+        """)
+    List<PurchaseRecord> findConfirmedSince(@Param("childProfileId") Long childProfileId,
+        @Param("since") LocalDateTime since);
 }

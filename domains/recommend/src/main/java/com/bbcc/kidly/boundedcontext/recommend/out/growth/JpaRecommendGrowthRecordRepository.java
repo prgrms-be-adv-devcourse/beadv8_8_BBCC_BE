@@ -13,6 +13,11 @@ public interface JpaRecommendGrowthRecordRepository
     extends JpaRepository<RecommendGrowthRecord, Long>, RecommendGrowthRecordRepository {
 
     @Override
+    @Modifying
+    @Query("delete from RecommendGrowthRecord r where r.growthRecordId = :growthRecordId")
+    void deleteByGrowthRecordId(@Param("growthRecordId") Long growthRecordId);
+
+    @Override
     @Query("select r from RecommendGrowthRecord r where r.childProfileId = :childProfileId and r.recordedAt >= :since")
     List<RecommendGrowthRecord> findRecordedSince(@Param("childProfileId") Long childProfileId,
         @Param("since") LocalDateTime since);
