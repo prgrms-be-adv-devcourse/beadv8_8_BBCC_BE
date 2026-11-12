@@ -16,6 +16,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
@@ -73,12 +77,34 @@ class AiResponseServiceTest {
 
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     private AiResponseService service;
 
     @BeforeEach
     void setUp() {
+        ObservationRegistry observations = ObservationRegistry.create();
+        observations.observationConfig().observationHandler(new DefaultMeterObservationHandler(meterRegistry));
         service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUTS,
-            Duration.ofSeconds(10), REUSE_PERIOD);
+            Duration.ofSeconds(10), REUSE_PERIOD, new RecommendAiMetrics(meterRegistry, observations));
+    }
+
+    @Test
+    @DisplayName("저장한 응답을 쓰면 기능 이름으로 요청 결과 stored와 저장 답 조회 hit를 하나씩 세고, AI 호출 시간은 재지 않는다")
+    void countStoredAndLookupHit() {
+        given(store.find(TYPE, KEY))
+            .willReturn(Optional.of("{\"productIds\":[1,2],\"reason\":\"저장된 답\"}"));
+
+        service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(count("kidly.recommend.ai.requests", "stored")).isEqualTo(1);
+        assertThat(count("kidly.recommend.ai.store.lookups", "hit")).isEqualTo(1);
+        assertThat(meterRegistry.find("kidly.recommend.ai.call").timers()).isEmpty();
+    }
+
+    // TYPE(홈 맛보기)의 그 결과 카운터 값이다
+    private double count(String name, String result) {
+        return meterRegistry.get(name).tag("feature", "home_preview").tag("result", result).counter().count();
     }
 
     @Test

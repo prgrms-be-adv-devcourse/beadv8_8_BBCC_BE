@@ -48,6 +48,14 @@ public class RecommendAiMetrics {
         }
     }
 
+    public void recordRequest(AiResponseType feature, RequestResult result) {
+        requests.get(feature).get(result).increment();
+    }
+
+    public void recordLookup(AiResponseType feature, LookupResult result) {
+        storeLookups.get(feature).get(result).increment();
+    }
+
     private Map<RequestResult, Counter> registerRequests(AiResponseType feature) {
         Map<RequestResult, Counter> counters = new EnumMap<>(RequestResult.class);
         for (RequestResult result : RequestResult.values()) {

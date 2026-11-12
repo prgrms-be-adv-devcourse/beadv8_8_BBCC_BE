@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.BDDMockito.given;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
@@ -74,7 +77,7 @@ class HomePreviewServiceTest {
     void setUp() {
         aiResponseService = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK,
             2_000, Map.of(AiResponseType.HOME_PREVIEW, Duration.ofSeconds(1)), Duration.ofSeconds(10),
-            Duration.ofHours(24));
+            Duration.ofHours(24), new RecommendAiMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP));
     }
 
     @Test

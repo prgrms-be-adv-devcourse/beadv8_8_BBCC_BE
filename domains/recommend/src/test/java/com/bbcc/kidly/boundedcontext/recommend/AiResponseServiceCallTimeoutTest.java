@@ -7,6 +7,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
@@ -56,7 +59,7 @@ class AiResponseServiceCallTimeoutTest {
             AiResponseType.BOUGHT_TOGETHER, Duration.ofMillis(1_500),
             AiResponseType.SIZE_RECOMMENDATION, Duration.ofMillis(1_500));
         service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT, callTimeouts,
-            Duration.ofSeconds(10), REUSE_PERIOD);
+            Duration.ofSeconds(10), REUSE_PERIOD, new RecommendAiMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP));
     }
 
     @Test

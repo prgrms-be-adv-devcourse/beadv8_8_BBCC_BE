@@ -44,6 +44,7 @@ public class AiResponseService {
     private final Map<AiResponseType, Duration> callTimeouts;
     private final Duration asyncWait;
     private final Duration reusePeriod;
+    private final RecommendAiMetrics metrics;
 
     @Autowired
     public AiResponseService(
@@ -57,13 +58,14 @@ public class AiResponseService {
         @Value("${kidly.recommend.ai.call-timeout.size-recommendation:PT3.5S}") Duration sizeRecommendationTimeout,
         // 기다리지 않는 호출(SSE)이 AI 답을 받아 화면에 보낼 수 있는 최대 시간이다. 넘겨서 온 답도 저장해 다음 요청이 쓴다
         @Value("${kidly.recommend.ai.async-wait:PT10S}") Duration asyncWait,
-        @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod
+        @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod,
+        RecommendAiMetrics metrics
     ) {
         this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit,
             Map.of(AiResponseType.HOME_PREVIEW, homePreviewTimeout,
                 AiResponseType.BOUGHT_TOGETHER, boughtTogetherTimeout,
                 AiResponseType.SIZE_RECOMMENDATION, sizeRecommendationTimeout),
-            asyncWait, reusePeriod);
+            asyncWait, reusePeriod, metrics);
     }
 
     public AiResponseService(
@@ -74,7 +76,8 @@ public class AiResponseService {
         int dailyCallLimit,
         Map<AiResponseType, Duration> callTimeouts,
         Duration asyncWait,
-        Duration reusePeriod
+        Duration reusePeriod,
+        RecommendAiMetrics metrics
     ) {
         this.store = store;
         this.quota = quota;
@@ -84,6 +87,7 @@ public class AiResponseService {
         this.callTimeouts = Map.copyOf(callTimeouts);
         this.asyncWait = asyncWait;
         this.reusePeriod = reusePeriod;
+        this.metrics = metrics;
     }
 
     /**
@@ -119,6 +123,7 @@ public class AiResponseService {
         AiResponseKey key = AiResponseKey.of(input);
         Optional<T> stored = findStored(type, key, responseType);
         if (stored.isPresent()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return stored;
         }
         if (!tryAcquireQuietly(type, now)) {
@@ -151,6 +156,7 @@ public class AiResponseService {
         AiResponseKey key = AiResponseKey.of(input);
         Optional<T> stored = findStored(type, key, responseType);
         if (stored.isPresent()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return CompletableFuture.completedFuture(stored);
         }
         if (!tryAcquireQuietly(type, now)) {
@@ -196,7 +202,11 @@ public class AiResponseService {
             if (json.isEmpty()) {
                 return Optional.empty();
             }
-            return Optional.ofNullable(jsonMapper.readValue(json.get(), responseType));
+            T value = jsonMapper.readValue(json.get(), responseType);
+            if (value != null) {
+                metrics.recordLookup(type, RecommendAiMetrics.LookupResult.HIT);
+            }
+            return Optional.ofNullable(value);
         } catch (RuntimeException e) {
             log.warn("저장된 AI 응답을 읽지 못해 없는 것으로 봅니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
