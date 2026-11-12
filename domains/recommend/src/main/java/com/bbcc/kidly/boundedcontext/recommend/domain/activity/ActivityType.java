@@ -9,5 +9,6 @@ public enum ActivityType {
     CART_ITEM_REMOVED,
     PRODUCT_VIEWED,
     SEARCH_RESULT_CLICKED,
-    WISH_SENT
+    WISH_SENT,
+    WISH_CANCELLED
 }

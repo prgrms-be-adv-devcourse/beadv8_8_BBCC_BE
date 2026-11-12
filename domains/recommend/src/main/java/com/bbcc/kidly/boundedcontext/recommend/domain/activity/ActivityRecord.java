@@ -79,6 +79,10 @@ public class ActivityRecord extends BaseTimeEntity {
     @Column(name = "cart_item_id")
     private Long cartItemId;
 
+    // 조르기 · 조르기 철회만 값이 있다
+    @Column(name = "wish_request_id")
+    private Long wishRequestId;
+
     @Column(name = "product_id")
     private Long productId;
 
@@ -180,6 +184,50 @@ public class ActivityRecord extends BaseTimeEntity {
         record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
         record.childProfileId = info.childProfileId();
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
+        record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
+        return record;
+    }
+
+    public record WishSentInfo(UUID eventId, Long wishRequestId, Long memberId, Long childProfileId, Long productId,
+        Long productOptionId, LocalDateTime occurredAt) {
+    }
+
+    // 조르기는 늘 자녀의 활동이라 자녀 ID도 필수다. 수량은 선호 계산에 쓰지 않아 남기지 않는다
+    public static ActivityRecord wishSent(WishSentInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        ActivityRecord record = new ActivityRecord();
+        record.type = ActivityType.WISH_SENT;
+        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        record.wishRequestId = requireNonNull(info.wishRequestId(), "wishRequestId는 필수입니다");
+        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        record.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
+        record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
+        record.productOptionId = requireNonNull(info.productOptionId(), "productOptionId는 필수입니다");
+        record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
+        return record;
+    }
+
+    /**
+     * 조르기 철회가 보낸 자녀가 직접 거둔 것인지 알려 준다. 원인이 없는 예전 메시지는 직접 철회로 본다.
+     * 자녀 · 계정 삭제나 시스템 철회는 아이의 관심이 바뀐 것이 아니어서 조르기 몫을 빼지 않는다.
+     */
+    public static boolean isWithdrawnByChild(String cancelReason) {
+        return cancelReason == null || "DIRECT".equals(cancelReason);
+    }
+
+    public record WishCancelledInfo(UUID eventId, Long wishRequestId, Long memberId, Long childProfileId,
+        LocalDateTime occurredAt) {
+    }
+
+    // 철회는 조르기 한 건 전체의 취소라 상품 ID를 남기지 않는다. 선호 집계가 조르기 ID로 같은 조르기의 몫을 뺀다
+    public static ActivityRecord wishCancelled(WishCancelledInfo info) {
+        requireNonNull(info, "info는 필수입니다");
+        ActivityRecord record = new ActivityRecord();
+        record.type = ActivityType.WISH_CANCELLED;
+        record.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
+        record.wishRequestId = requireNonNull(info.wishRequestId(), "wishRequestId는 필수입니다");
+        record.memberId = requireNonNull(info.memberId(), "memberId는 필수입니다");
+        record.childProfileId = requireNonNull(info.childProfileId(), "childProfileId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
         return record;
     }
