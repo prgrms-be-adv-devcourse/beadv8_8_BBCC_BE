@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.wearpreview.WearPreview;
  * @param aiQuestion AI에게 보내는 질문
  * @param aiEvidence AI 답을 검증할 때 쓰는, AI에게 준 값
  * @param wearPreview 자녀가 상품 사이즈를 입은 모습의 착용 미리보기이고, 만들지 않는 상품이면 null이다
+ * @param lastPurchasedSize 같은 칸에서 마지막으로 구매확정한 사이즈 이름이고, 구매가 없으면 null이다
  */
 public record SizeRecommendationDraft(
     Long productId,
@@ -24,5 +25,6 @@ public record SizeRecommendationDraft(
     AiResponseKey.Input aiKeyInput,
     SizeAiQuestion aiQuestion,
     SizeAiEvidence aiEvidence,
-    WearPreview wearPreview) {
+    WearPreview wearPreview,
+    String lastPurchasedSize) {
 }

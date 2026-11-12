@@ -2,18 +2,25 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
+import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.Fit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ItemJudgement;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReason;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeReasonType;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendationSource;
+import com.bbcc.kidly.shared.childprofile.domain.BodyType;
+import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
@@ -38,6 +45,17 @@ class SizeRecommendationJudgementTest {
 
     private static final SizeAiEvidence GIVEN = new SizeAiEvidence(REFERENCE_FIT,
         Set.of(cm("110"), cm("120"), cm("34.0"), cm("33.0"), cm("36.0"), cm("-1.0"), cm("2.0")));
+
+    // 다섯 달 전 산 110(가슴단면 33cm)과 상품 110 · 120(34 · 36cm)을 견준 구매 하나가 든 질문의 숫자다. 기준 옷은 없다
+    private static final SizeAiEvidence PURCHASE_GIVEN = new SizeAiEvidence(null, new SizeAiQuestion(
+        new SizeAiQuestion.Child(94, 115.0, 20.0, BodyType.NORMAL, PreferredFit.LOOSE, BodyType.NORMAL),
+        List.of(new SizeAiQuestion.SizeLine("110", 105, 115, Map.of("CHEST_WIDTH", cm("34"))),
+            new SizeAiQuestion.SizeLine("120", 115, 125, Map.of("CHEST_WIDTH", cm("36")))),
+        new SizeAiQuestion.RuleResult("120", "PROPER", List.of("110", "120"), List.of()), null,
+        new SizeAiQuestion.GrowthSpeed(cm("0.50"), null, 0, cm("0"), 0, cm("0.50"), "한국아동패널"), List.of(),
+        List.of(new PurchaseFit("110", 5, true, cm("2.5"), List.of(new ReferenceFit.Item("CHEST_WIDTH", cm("33"),
+            List.of(new ReferenceFit.SizeDiff("110", cm("34"), cm("1")),
+                new ReferenceFit.SizeDiff("120", cm("36"), cm("3")))))))).givenNumbers());
 
     @Test
     @DisplayName("FIT-09 AI 답을 채택하면 추천 사이즈의 항목별 판단(항목 · 차이 · 판단 · 여유 범위)을 결과에 담는다")
@@ -116,6 +134,29 @@ class SizeRecommendationJudgementTest {
         SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, evidence);
 
         assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
+    }
+
+    @Test
+    @DisplayName("PUR-05 지난 구매를 근거로 쓴 PURCHASE 근거의 숫자가 구매 비교 값이면 AI 답과 그 근거를 쓴다")
+    void adoptPurchaseReason() {
+        AiSizeAnswer answer = new AiSizeAnswer("120", "ROOMY",
+            List.of(new AiSizeAnswer.Reason("PURCHASE", "5개월 전에 산 110보다 가슴이 3cm 넉넉해요.", null)), List.of());
+
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, PURCHASE_GIVEN);
+
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.AI);
+        assertThat(result.getReasons()).extracting(SizeReason::type).containsExactly(SizeReasonType.PURCHASE);
+    }
+
+    @Test
+    @DisplayName("PUR-05 PURCHASE 근거에 산 옷 실측(33cm)과 다른 숫자를 쓰면 AI 답을 버리고 규칙 결과로 답한다")
+    void fallBackToRuleWhenPurchaseReasonHasUnknownNumber() {
+        AiSizeAnswer answer = new AiSizeAnswer("120", "ROOMY",
+            List.of(new AiSizeAnswer.Reason("PURCHASE", "지난번 산 옷 가슴 35cm보다 넉넉해요.", null)), List.of());
+
+        SizeRecommendation result = RULE_120.decideWith(RecommendFixture.productA(), answer, PURCHASE_GIVEN);
+
+        assertThat(result.getSource()).isEqualTo(SizeRecommendationSource.RULE);
     }
 
     private static Stream<Arguments> judgementsNotMatchingGiven() {
