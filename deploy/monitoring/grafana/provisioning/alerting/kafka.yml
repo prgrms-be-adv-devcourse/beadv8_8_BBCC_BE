@@ -72,7 +72,11 @@ groups:
           (kafka_consumergroup_lag{job="kidly-kafka"}) and on(env,consumergroup,topic)
           (min by(env,consumergroup,topic) (kafka_consumergroup_lag{job="kidly-kafka"})
           >= 0))[10m:30s]) >= 20)
-          and on(env,consumergroup,topic) kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
+          and on(env,consumergroup,topic) (
+            kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup=~"kidly[.](payment|notification)",topic="kidly.order.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.settlement",topic="kidly.payment.events"}
+          )
         instant: true
     - refId: B
       datasourceUid: __expr__
@@ -129,7 +133,11 @@ groups:
             )
             and on(env) max by(env) (kidly_kafka_exporter_expected == 1)
           )
-          and on(env,consumergroup,topic) kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
+          and on(env,consumergroup,topic) (
+            kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup=~"kidly[.](payment|notification)",topic="kidly.order.events"}
+            or kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.settlement",topic="kidly.payment.events"}
+          )
         instant: true
     - refId: B
       datasourceUid: __expr__
