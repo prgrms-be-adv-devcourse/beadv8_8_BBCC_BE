@@ -1,44 +1,52 @@
-<svg viewBox="0 0 860 400" width="860" height="400" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans KR, sans-serif" font-size="11.5">
+<svg viewBox="0 0 860 460" width="860" height="460" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans KR, sans-serif" font-size="11.5">
 <defs><marker id="g1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker>
 <marker id="g2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker></defs>
-<rect x="6" y="150" width="96" height="60" rx="8" fill="#f1f5f9" stroke="#94a3b8"/>
-<text x="54" y="176" text-anchor="middle" font-weight="700">화면</text><text x="54" y="194" text-anchor="middle" font-size="10.5" fill="#475569">React · Vite</text>
-<rect x="150" y="14" width="530" height="296" rx="10" fill="none" stroke="#94a3b8" stroke-dasharray="6 4"/>
-<text x="160" y="300" font-size="10.5" fill="#475569">EC2 t3.large · Docker Compose (dev · prod)</text>
-<line x1="102" y1="180" x2="172" y2="180" stroke="#475569" stroke-width="1.5" marker-end="url(#g1)"/>
-<rect x="176" y="120" width="120" height="120" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
-<text x="236" y="146" text-anchor="middle" font-weight="700">API Gateway</text>
-<text x="236" y="166" text-anchor="middle" font-size="10.5">토큰 검증 · 무효화</text><text x="236" y="182" text-anchor="middle" font-size="10.5">역할 · CORS</text><text x="236" y="198" text-anchor="middle" font-size="10.5">경로별 라우팅</text><text x="236" y="222" text-anchor="middle" font-size="10" fill="#475569">WebFlux</text>
-<rect x="340" y="44" width="200" height="136" rx="8" fill="#fff" stroke="#6366f1" stroke-width="1.5"/>
-<text x="440" y="64" text-anchor="middle" font-weight="700">kidly-app</text>
-<text x="440" y="84" text-anchor="middle" font-size="10.5">회원 · 판매자 · 상품 · 주문</text><text x="440" y="100" text-anchor="middle" font-size="10.5">정산 · 커뮤니티 · 알림 · 설정</text><text x="440" y="116" text-anchor="middle" font-size="10.5" fill="#6d28d9">결제 · 추천 (분리 중)</text><text x="440" y="132" text-anchor="middle" font-size="10.5" fill="#475569">자녀 프로필 (빼는 중)</text><text x="440" y="160" text-anchor="middle" font-size="10" fill="#475569">모듈러 모놀리스 · 도메인 사이 Kafka</text>
-<rect x="560" y="44" width="110" height="40" rx="8" fill="#ecfeff" stroke="#0e7490"/><text x="615" y="62" text-anchor="middle" font-weight="700" font-size="11">search-service</text><text x="615" y="77" text-anchor="middle" font-size="10" fill="#475569">상품 목록 검색</text>
-<rect x="560" y="92" width="110" height="40" rx="8" fill="#ecfeff" stroke="#0e7490"/><text x="615" y="110" text-anchor="middle" font-weight="700" font-size="11">childprofile-service</text><text x="615" y="125" text-anchor="middle" font-size="10" fill="#475569">자녀 프로필</text>
-<rect x="560" y="140" width="110" height="40" rx="8" fill="#fff" stroke="#7c3aed" stroke-dasharray="4 3"/><text x="615" y="158" text-anchor="middle" font-weight="700" font-size="11">payment-service</text><text x="615" y="173" text-anchor="middle" font-size="10" fill="#6d28d9">분리 중 (#525)</text>
-<rect x="560" y="188" width="110" height="40" rx="8" fill="#fff" stroke="#7c3aed" stroke-dasharray="4 3"/><text x="615" y="206" text-anchor="middle" font-weight="700" font-size="11">recommend-service</text><text x="615" y="221" text-anchor="middle" font-size="10" fill="#6d28d9">분리 중 (#704)</text>
-<line x1="296" y1="150" x2="336" y2="120" stroke="#475569" stroke-width="1.4" marker-end="url(#g1)"/>
-<path d="M236 118 C 250 -14, 540 -6, 556 56" fill="none" stroke="#475569" stroke-width="1.2" marker-end="url(#g1)"/>
-<text x="470" y="36" text-anchor="middle" font-size="10" fill="#475569">GET /api/v1/products</text>
-<path d="M296 200 C 430 250, 520 230, 556 210" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#g1)"/>
-<rect x="340" y="196" width="200" height="40" rx="8" fill="#f5f3ff" stroke="#a78bfa"/>
-<text x="440" y="213" text-anchor="middle" font-weight="700" font-size="11">Kafka</text><text x="440" y="228" text-anchor="middle" font-size="10" fill="#475569">kidly.{도메인}.events · DLT · 파티션 3</text>
-<line x1="440" y1="180" x2="440" y2="194" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#g2)"/>
-<line x1="556" y1="216" x2="542" y2="216" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4 3"/>
-<line x1="556" y1="64" x2="548" y2="64" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3 3"/>
-<rect x="340" y="250" width="200" height="40" rx="8" fill="#f8fafc" stroke="#94a3b8"/>
-<text x="440" y="267" text-anchor="middle" font-weight="700" font-size="11">PostgreSQL 18</text><text x="440" y="282" text-anchor="middle" font-size="10" fill="#475569">도메인마다 스키마 · Flyway</text>
-<rect x="176" y="250" width="120" height="40" rx="8" fill="#f8fafc" stroke="#94a3b8"/><text x="236" y="267" text-anchor="middle" font-weight="700" font-size="11">S3</text><text x="236" y="282" text-anchor="middle" font-size="10" fill="#475569">상품 이미지 (Presigned)</text>
-<rect x="700" y="14" width="152" height="150" rx="10" fill="none" stroke="#94a3b8" stroke-dasharray="6 4"/>
+<rect x="6" y="40" width="96" height="60" rx="8" fill="#f1f5f9" stroke="#94a3b8"/>
+<text x="54" y="66" text-anchor="middle" font-weight="700">화면</text><text x="54" y="84" text-anchor="middle" font-size="10.5" fill="#475569">React · Vite</text>
+<rect x="150" y="14" width="530" height="320" rx="10" fill="none" stroke="#94a3b8" stroke-dasharray="6 4"/>
+<text x="160" y="324" font-size="10.5" fill="#475569">EC2 t3.large · 단독 k3s (namespace kidly-dev · edge · monitoring)</text>
+<line x1="102" y1="70" x2="164" y2="70" stroke="#475569" stroke-width="1.5" marker-end="url(#g1)"/>
+<rect x="168" y="44" width="124" height="52" rx="8" fill="#f8fafc" stroke="#94a3b8"/>
+<text x="230" y="64" text-anchor="middle" font-weight="700" font-size="11">nginx · certbot</text><text x="230" y="82" text-anchor="middle" font-size="10" fill="#475569">HTTPS · 인증서 갱신</text>
+<line x1="230" y1="96" x2="230" y2="124" stroke="#475569" stroke-width="1.5" marker-end="url(#g1)"/>
+<rect x="168" y="128" width="124" height="110" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
+<text x="230" y="152" text-anchor="middle" font-weight="700">API Gateway</text>
+<text x="230" y="172" text-anchor="middle" font-size="10.5">토큰 검증 · 무효화</text><text x="230" y="188" text-anchor="middle" font-size="10.5">역할 · CORS</text><text x="230" y="204" text-anchor="middle" font-size="10.5">경로별 라우팅</text><text x="230" y="226" text-anchor="middle" font-size="10" fill="#475569">WebFlux · NodePort 30200</text>
+<line x1="292" y1="160" x2="316" y2="160" stroke="#475569" stroke-width="1.5" marker-end="url(#g1)"/>
+<rect x="320" y="28" width="350" height="224" rx="8" fill="none" stroke="#6366f1" stroke-width="1.2"/>
+<text x="495" y="44" text-anchor="middle" font-size="10.5" fill="#475569">도메인 서비스 10개 · 바뀐 것만 하나씩 롤링 배포</text>
+<g font-size="11">
+<rect x="330" y="52" width="160" height="32" rx="6" fill="#fff" stroke="#6366f1"/><text x="410" y="72" text-anchor="middle">회원 · 판매자 · 자녀</text>
+<rect x="500" y="52" width="160" height="32" rx="6" fill="#fff" stroke="#6366f1"/><text x="580" y="72" text-anchor="middle">상품 · 카테고리</text>
+<rect x="330" y="90" width="160" height="32" rx="6" fill="#fff" stroke="#6366f1"/><text x="410" y="110" text-anchor="middle">주문 · 장바구니 · 배송</text>
+<rect x="500" y="90" width="160" height="32" rx="6" fill="#fff" stroke="#6366f1"/><text x="580" y="110" text-anchor="middle">결제 · 지갑</text>
+<rect x="330" y="128" width="160" height="32" rx="6" fill="#fff" stroke="#6366f1"/><text x="410" y="148" text-anchor="middle">커뮤니티 (리뷰 · 찜)</text>
+<rect x="500" y="128" width="160" height="32" rx="6" fill="#fff" stroke="#6366f1"/><text x="580" y="148" text-anchor="middle">알림</text>
+<rect x="330" y="166" width="160" height="32" rx="6" fill="#ecfeff" stroke="#0e7490"/><text x="410" y="186" text-anchor="middle">검색 (search-service)</text>
+<rect x="500" y="166" width="160" height="32" rx="6" fill="#fff" stroke="#6366f1"/><text x="580" y="186" text-anchor="middle">챗봇</text>
+<rect x="330" y="204" width="160" height="40" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.4"/><text x="410" y="221" text-anchor="middle" font-weight="700">추천</text><text x="410" y="237" text-anchor="middle" font-size="10" fill="#6d28d9">HPA · CPU 70% · Pod 1 ~ 2</text>
+<rect x="500" y="204" width="160" height="40" rx="6" fill="#fff" stroke="#6366f1"/><text x="580" y="221" text-anchor="middle">정산</text><text x="580" y="237" text-anchor="middle" font-size="10" fill="#475569">실행은 CronJob (매일 10시)</text>
+</g>
+<rect x="330" y="264" width="160" height="40" rx="8" fill="#fef2f2" stroke="#f87171"/><text x="410" y="281" text-anchor="middle" font-weight="700" font-size="11">Redis</text><text x="410" y="296" text-anchor="middle" font-size="10" fill="#475569">캐시 (AI 응답 등)</text>
+<rect x="500" y="264" width="160" height="40" rx="8" fill="#f8fafc" stroke="#94a3b8"/><text x="580" y="281" text-anchor="middle" font-weight="700" font-size="11">Alloy</text><text x="580" y="296" text-anchor="middle" font-size="10" fill="#475569">Pod 지표 · 로그 수집</text>
+<rect x="168" y="264" width="124" height="40" rx="8" fill="#f8fafc" stroke="#94a3b8"/><text x="230" y="281" text-anchor="middle" font-weight="700" font-size="11">S3</text><text x="230" y="296" text-anchor="middle" font-size="10" fill="#475569">상품 이미지 (Presigned)</text>
+<rect x="700" y="14" width="152" height="250" rx="10" fill="none" stroke="#94a3b8" stroke-dasharray="6 4"/>
 <text x="710" y="32" font-size="10.5" fill="#475569">EC2 t3.medium · k3s</text>
-<rect x="712" y="42" width="128" height="50" rx="8" fill="#ecfeff" stroke="#0e7490"/><text x="776" y="62" text-anchor="middle" font-weight="700" font-size="11">Elasticsearch</text><text x="776" y="80" text-anchor="middle" font-size="10" fill="#475569">nori · 검색 색인</text>
-<rect x="712" y="102" width="128" height="50" rx="8" fill="#f8fafc" stroke="#94a3b8"/><text x="776" y="122" text-anchor="middle" font-weight="700" font-size="11">모니터링</text><text x="776" y="140" text-anchor="middle" font-size="10" fill="#475569">Prometheus · Loki · Grafana</text>
-<line x1="670" y1="64" x2="710" y2="64" stroke="#0e7490" stroke-width="1.3" marker-end="url(#g1)"/>
-<rect x="700" y="188" width="152" height="116" rx="8" fill="#fff7ed" stroke="#fdba74"/>
-<text x="776" y="208" text-anchor="middle" font-weight="700" font-size="11">외부 API</text>
-<text x="776" y="228" text-anchor="middle" font-size="10">토스페이먼츠 (결제)</text><text x="776" y="246" text-anchor="middle" font-size="10">Delivery Tracker (주문)</text><text x="776" y="264" text-anchor="middle" font-size="10">특일 정보 (정산 공휴일)</text><text x="776" y="282" text-anchor="middle" font-size="10">OpenAI (추천)</text><text x="776" y="298" text-anchor="middle" font-size="10">카카오 · Gmail SMTP</text>
-<g font-size="10" fill="#475569"><line x1="160" y1="330" x2="190" y2="330" stroke="#475569" stroke-width="1.4"/><text x="196" y="334">요청</text>
-<line x1="240" y1="330" x2="270" y2="330" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4 3"/><text x="276" y="334">Kafka 이벤트</text>
-<rect x="350" y="323" width="24" height="14" rx="3" fill="#fff" stroke="#7c3aed" stroke-dasharray="4 3"/><text x="380" y="334">분리 중 (아직 kidly-app 안에서 동작)</text>
-<text x="160" y="356">서비스끼리는 서로 부르지 않고 Kafka 이벤트로만 주고받습니다. 화면 경로는 Gateway가 서비스로 넘겨 바뀌지 않습니다.</text>
-<text x="160" y="374">검색 · 자녀 프로필 라우팅은 dev만 켜져 있습니다. 결제 · 추천은 분리를 마치면 같은 방식으로 넘깁니다.</text></g>
+<rect x="712" y="42" width="128" height="46" rx="8" fill="#f8fafc" stroke="#94a3b8"/><text x="776" y="61" text-anchor="middle" font-weight="700" font-size="11">PostgreSQL 18</text><text x="776" y="78" text-anchor="middle" font-size="10" fill="#475569">도메인마다 스키마</text>
+<rect x="712" y="96" width="128" height="46" rx="8" fill="#f5f3ff" stroke="#a78bfa"/><text x="776" y="115" text-anchor="middle" font-weight="700" font-size="11">Kafka (Redpanda)</text><text x="776" y="132" text-anchor="middle" font-size="10" fill="#475569">토픽 · DLT · 파티션 3</text>
+<rect x="712" y="150" width="128" height="46" rx="8" fill="#ecfeff" stroke="#0e7490"/><text x="776" y="169" text-anchor="middle" font-weight="700" font-size="11">Elasticsearch</text><text x="776" y="186" text-anchor="middle" font-size="10" fill="#475569">nori · 검색 색인</text>
+<rect x="712" y="204" width="128" height="50" rx="8" fill="#f8fafc" stroke="#94a3b8"/><text x="776" y="224" text-anchor="middle" font-weight="700" font-size="11">모니터링</text><text x="776" y="242" text-anchor="middle" font-size="10" fill="#475569">Prometheus · Loki · Grafana</text>
+<line x1="670" y1="65" x2="708" y2="65" stroke="#475569" stroke-width="1.3" marker-end="url(#g1)"/>
+<line x1="670" y1="119" x2="708" y2="119" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#g2)"/>
+<line x1="670" y1="182" x2="708" y2="172" stroke="#0e7490" stroke-width="1.3" marker-end="url(#g1)"/>
+<path d="M660 284 C 690 284, 690 236, 708 232" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#g1)"/>
+<rect x="700" y="276" width="152" height="112" rx="8" fill="#fff7ed" stroke="#fdba74"/>
+<text x="776" y="294" text-anchor="middle" font-weight="700" font-size="11">외부 API</text>
+<text x="776" y="312" text-anchor="middle" font-size="10">토스페이먼츠 (결제)</text><text x="776" y="328" text-anchor="middle" font-size="10">Delivery Tracker (주문)</text><text x="776" y="344" text-anchor="middle" font-size="10">특일 정보 (정산 공휴일)</text><text x="776" y="360" text-anchor="middle" font-size="10">OpenAI (추천 · 검색 · 챗봇)</text><text x="776" y="376" text-anchor="middle" font-size="10">카카오 · Gmail SMTP</text>
+<g font-size="10" fill="#475569"><line x1="160" y1="380" x2="190" y2="380" stroke="#475569" stroke-width="1.4"/><text x="196" y="384">요청 · 저장</text>
+<line x1="262" y1="380" x2="292" y2="380" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4 3"/><text x="298" y="384">Kafka 이벤트</text>
+<line x1="380" y1="380" x2="410" y2="380" stroke="#475569" stroke-width="1.2" stroke-dasharray="3 3"/><text x="416" y="384">지표 · 로그</text>
+<text x="160" y="408">도메인 사이는 Kafka 이벤트로 주고받고, 동기 호출은 shared 계약(챗봇 → 검색 상품 찾기)만 씁니다.</text>
+<text x="160" y="426">두 서버의 k3s는 서로 따로 돕니다. 앱 서버는 사설 IP의 NodePort로 PostgreSQL · Kafka · Elasticsearch에 붙습니다.</text>
+<text x="160" y="444">dev가 운영 서버입니다. prod 배포 경로는 쓰지 않아 지웠습니다(#1213).</text></g>
 </svg>

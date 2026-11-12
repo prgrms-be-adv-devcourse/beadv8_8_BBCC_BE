@@ -11,8 +11,8 @@
 | 이벤트 | Kafka. 보내는 도메인마다 토픽 하나(`kidly.{도메인}.events`, 파티션 3 · 복제 1), 키는 correlationId, 받는 도메인마다 구독 그룹 `kidly.{도메인}`과 DLT. 결제는 아웃박스 표(`payment.payment_outbox`)로 보냄. 도메인마다 Kafka 수신 스위치로 Spring 이벤트로 되돌릴 수 있음 |
 | 인증 | 카카오 로그인(화면이 인가 코드를 받아 서버로 보냄) · JWT(RS256) · API Gateway(apps/gateway, WebFlux)가 검증 · 무효화 확인 · 역할 검사 · CORS |
 | 외부 API | 토스페이먼츠 테스트 API(결제) · Delivery Tracker(택배 조회) · 공공데이터포털 한국천문연구원 특일 정보(정산 공휴일) · OpenAI(추천) · 카카오(로그인) · Gmail SMTP(알림) |
-| 인프라 | AWS EC2 2대(t3.large: Docker Compose로 Gateway · 앱 · 검색 서비스 · PostgreSQL · Kafka / t3.medium: k3s로 Elasticsearch · 모니터링) · S3(상품 이미지) · Nginx · GitHub Actions |
-| 검색 | Elasticsearch 9.4 + analysis-nori(한글 형태소), elasticsearch-java 클라이언트(Boot starter). 검색 서비스(search-service)는 DB 없이 뜨고 색인 이름 앞에 환경 이름(`dev-products`)을 붙여 dev · prod가 Elasticsearch 하나를 나눠 씀. Elasticsearch는 t3.medium k3s(heap 1g), 검색 서비스는 앱 서버 t3.large의 docker compose(heap 512m, 프로필 `search`) |
+| 인프라 | AWS EC2 2대. 서버마다 k3s를 따로 설치해 클러스터 2개(서로 기대지 않음). t3.large: Gateway · 도메인 서비스 10개 · Redis(캐시) · Nginx(인증서 갱신 포함) · 수집기 Alloy / t3.medium: PostgreSQL · Kafka(Redpanda) · Elasticsearch · 모니터링. S3(상품 이미지) · GitHub Actions |
+| 검색 | Elasticsearch 9.4 + analysis-nori(한글 형태소), elasticsearch-java 클라이언트(Boot starter). 검색 서비스(search-service)는 DB 없이 뜨고 색인 이름 앞에 환경 이름(`dev-products`)을 붙여 환경마다 Elasticsearch 하나를 나눠 쓸 수 있음. Elasticsearch는 t3.medium k3s(heap 512m), 검색 서비스는 앱 서버 t3.large k3s(heap 384m) |
 | AI 호출 | Spring AI 2.0.x(`spring-ai-starter-model-openai`), OpenAI Responses API. 구조화 출력은 `ChatClient.entity()`로 Java record에 받음. tool은 쓰지 않음 |
 | chat 모델 | OpenAI 중간 등급(terra 계열). 모델 이름은 설정값. `reasoning-effort`는 low |
 | 임베딩 | OpenAI `text-embedding-3-small`(1,536차원). 상품 복사본의 이름 · 카테고리 경로 · 브랜드 · 정보 값 · 설명을 합친 글이 바뀌면, 1분마다 도는 주기 작업이 그런 상품을 100개까지 묶어 호출(추천 서버가 여러 대여도 PostgreSQL advisory lock으로 한 대만 실행, OpenAI 키가 없으면 작업이 뜨지 않음). 처음 채우기도 같은 작업이 나눠서 함. 검색어는 홈 맛보기 계산 때 묶어 호출 |
@@ -20,7 +20,7 @@
 | RAG 자료 | 성장도표 설명문, 사이즈 측정 안내(글 조각 + 출처 id). Spring AI `QuestionAnswerAdvisor`로 프롬프트에 붙임. 숫자 표(성장도표 · LMS)는 RAG가 아니라 규칙 계산 입력 |
 | 추천 저장소 | 추천 DB(지금은 공용 PostgreSQL `recommend` 스키마, 분리 뒤 추천 전용). 복사본, 활동 기록, 자녀 · 회원의 카테고리 · 브랜드 친밀도와 취향 벡터, 하루 AI 호출 횟수(한국 시간 날짜별 한 줄), Spring Batch 실행 기록. AI 응답은 Redis에 종류 · 입력 해시 키로 24시간 보관하고 재사용(만료되면 Redis가 지움) |
 | 실패 대비 | Gateway timeout 3초 · circuit breaker, 추천 서비스 내부 timeout 2.5초, 하루 호출 상한. 실패 시 규칙 결과 또는 빈 목록 |
-| 배포 | EC2 2대(t3.large: 앱 · PostgreSQL · Kafka, t3.medium: 모니터링 · ES, k3s). 추천 서비스를 k3s로 옮기는 시점은 배포 계획에 따름 |
+| 배포 | GitHub Actions가 이미지를 GHCR에 올리고 t3.large k3s(namespace `kidly-dev`)에 올림. 소스가 바뀐 서비스만, 하나씩 새 Pod가 준비된 뒤 옛 Pod를 내림(상품 · 알림은 스케줄러 때문에 옛 Pod를 먼저 내림). 추천만 HPA(CPU 70%, Pod 1 ~ 2), 정산 실행은 매일 도는 CronJob. dev가 운영 서버이고 prod 배포 경로는 없앰(#1213). 자세한 것은 `deploy/k3s/README.md` |
 | 모니터링 | Prometheus · Loki · Alloy · Grafana, Slack 알림 (자세한 구성은 10장) |
 | 프론트 | React · Vite · Tailwind CSS · shadcn/ui · React Query · Zustand |
 
