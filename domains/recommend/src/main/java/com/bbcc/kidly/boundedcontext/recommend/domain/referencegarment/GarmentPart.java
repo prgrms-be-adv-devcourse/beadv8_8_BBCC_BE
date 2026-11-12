@@ -41,6 +41,18 @@ public enum GarmentPart {
         throw new BusinessException(ReferenceGarmentErrorCode.UNKNOWN_PART);
     }
 
+    /**
+     * 상품 카테고리 경로에 맞는 칸을 찾는다. 모자 · 양말처럼 어느 칸에도 맞지 않으면 null이다.
+     */
+    public static GarmentPart ofCategoryPath(List<String> categoryPathNames) {
+        for (GarmentPart part : values()) {
+            if (part.includesCategoryIn(categoryPathNames)) {
+                return part;
+            }
+        }
+        return null;
+    }
+
     boolean acceptsCode(String measurementCode) {
         return requiredCodes.contains(measurementCode) || optionalCodes.contains(measurementCode);
     }
@@ -54,5 +66,19 @@ public enum GarmentPart {
      */
     boolean includesCategoryIn(List<String> categoryPathNames) {
         return !Collections.disjoint(categoryNames, categoryPathNames);
+    }
+
+    /**
+     * 이 칸의 기준 옷이 없을 때 대신 비교할 칸이다. 아우터와 원피스는 위에 입는 상의, 치마는 바지와 비슷해서 너비를 견줄 수 있다.
+     * 상의와 바지는 대신할 칸이 없어 null이다.
+     */
+    GarmentPart substitute() {
+        if (this == OUTER || this == DRESS) {
+            return TOP;
+        }
+        if (this == SKIRT) {
+            return BOTTOM;
+        }
+        return null;
     }
 }

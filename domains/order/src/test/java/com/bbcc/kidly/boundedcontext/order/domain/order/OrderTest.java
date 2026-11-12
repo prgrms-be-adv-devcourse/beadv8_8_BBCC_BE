@@ -911,6 +911,32 @@ class OrderTest {
     }
 
     @Nested
+    @DisplayName("판매 불가 판매자의 결제 전 주문 취소(#1121)")
+    class CancelForSellerUnavailable {
+
+        @Test
+        @DisplayName("결제대기면 주문 전체를 취소하고 사유는 SELLER_UNAVAILABLE, 다시 부르면 ALREADY_DONE")
+        void cancelsPendingPayment() {
+            Order order = OrderFixture.placedOrder();
+
+            assertThat(order.cancelForSellerUnavailable()).isEqualTo(TransitionResult.APPLIED);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.SELLER_UNAVAILABLE);
+            assertThat(order.cancelForSellerUnavailable()).isEqualTo(TransitionResult.ALREADY_DONE);
+        }
+
+        @Test
+        @DisplayName("결제대기가 아니면(결제완료) 그대로 둔다")
+        void keepsPaid() {
+            Order order = OrderFixture.paidOrder();
+
+            assertThat(order.cancelForSellerUnavailable()).isEqualTo(TransitionResult.NOT_APPLICABLE);
+            assertThat(order.getStatus()).isEqualTo(Order.Status.PAID);
+            assertThat(order.getCancelReason()).isNull();
+        }
+    }
+
+    @Nested
     @DisplayName("배송 완료 기록 (delivery.completed)")
     class RecordDelivered {
 
@@ -1094,6 +1120,18 @@ class OrderTest {
 
             assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
             assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.SELLER_CANCELLED);
+        }
+
+        @Test
+        @DisplayName("판매 불가 판매자 정리(#1121, 사유 SELLER_UNAVAILABLE)로 마지막 몫이 취소되면 주문 사유도 SELLER_UNAVAILABLE")
+        void lastShareBySellerUnavailable() {
+            Order order = OrderFixture.paidOrder();
+            order.cancelSellerItems(SELLER_A_ID, OrderItem.CancelReason.OUT_OF_STOCK, CANCELLATION_ID, NOW);
+
+            order.cancelSellerItems(SELLER_B_ID, OrderItem.CancelReason.SELLER_UNAVAILABLE, CANCELLATION_ID + 1, NOW);
+
+            assertThat(order.getStatus()).isEqualTo(Order.Status.CANCELLED);
+            assertThat(order.getCancelReason()).isEqualTo(Order.CancelReason.SELLER_UNAVAILABLE);
         }
 
         @Test

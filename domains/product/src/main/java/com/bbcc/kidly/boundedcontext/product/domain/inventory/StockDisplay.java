@@ -13,8 +13,8 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
  */
 public record StockDisplay(boolean purchasable, StockStatus status, Integer quantity) {
 
-    // 판매 가능 수량이 이 값 이하일 때만 구매자에게 수량을 보여 준다
-    private static final int LOW_STOCK_THRESHOLD = 5;
+    // 판매 가능 수량이 이 값 이하일 때만 구매자에게 수량을 보여 준다. 판매자 목록의 재고 적음도 같은 값으로 가른다
+    public static final int LOW_STOCK_THRESHOLD = 5;
 
     /**
      * 판매 가능 수량이 기준 수 이하일 때만 수량을 보여 주고, 0이면 품절로 표시한다 (SALE-09).

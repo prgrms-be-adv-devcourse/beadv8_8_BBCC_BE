@@ -39,7 +39,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "{{ $labels.env }} {{ $labels.topic }}에 검색 색인 실패 메시지가 들어왔습니다"
+      summary: "{{ if eq $labels.env \"dev\" }}운영{{ else }}{{ $labels.env }}{{ end }} {{ $labels.topic }}에 검색 색인 실패 메시지가 들어왔습니다"
       description: 대개 Elasticsearch가 멈췄거나 느린 것입니다. 검색 서비스가 DLT를 다시 읽어 Elasticsearch가 돌아오면 저절로
         반영합니다. 로그의 "처리하지 못한 이벤트를 DLT로 보냅니다"에서 예외 종류를 보세요. 최근 10분 동안 새 메시지가 없으면 해제됩니다.
     isPaused: false
@@ -74,7 +74,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "{{ $labels.env }} {{ $labels.topic }}를 30분 넘게 다 반영하지 못했습니다"
+      summary: "{{ if eq $labels.env \"dev\" }}운영{{ else }}{{ $labels.env }}{{ end }} {{ $labels.topic }}를 30분 넘게 다 반영하지 못했습니다"
       description: Elasticsearch 상태를 먼저 보세요. Elasticsearch가 정상인데 계속 남으면 로그에서 DLT 재시도 실패 원인을 찾습니다.
         절차는 deploy/search/README.md "장애 대응 > DLT가 줄지 않음"입니다. 오프셋을 임의로 옮기지 마세요.
     isPaused: false
@@ -109,7 +109,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "{{ $labels.env }} 임베딩 API가 10분 넘게 실패해 의미 검색을 쓰지 못합니다"
+      summary: "{{ if eq $labels.env \"dev\" }}운영{{ else }}{{ $labels.env }}{{ end }} 임베딩 API가 10분 넘게 실패해 의미 검색을 쓰지 못합니다"
       description: 검색은 키워드로만 됩니다. OpenAI 키 만료 · 한도 초과 · 장애를 확인하세요. 절차는 deploy/search/README.md
         "장애 대응 > OpenAI 키 만료 · 한도 초과"입니다. 복구 뒤에는 벡터 없는 상품을 다시 채웁니다.
     isPaused: false
@@ -144,7 +144,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "{{ $labels.env }} 의미 검색 벡터 없는 판매중 상품이 1시간 넘게 남아 있습니다"
+      summary: "{{ if eq $labels.env \"dev\" }}운영{{ else }}{{ $labels.env }}{{ end }} 의미 검색 벡터 없는 판매중 상품이 1시간 넘게 남아 있습니다"
       description: 이 상품들은 의미 검색에 나오지 않습니다(키워드 검색은 됩니다). 임베딩 API가 정상이면 상품을 다시 발행해 채웁니다.
         절차는 deploy/search/README.md "장애 대응 > 벡터 없는 상품 다시 채우기"입니다.
     isPaused: false

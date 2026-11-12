@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.OTHER_MEMBER_ID;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.purchase.PurchaseRecordService;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
@@ -13,6 +14,7 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.math.BigDecimal;
@@ -25,6 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -129,6 +132,31 @@ class PurchasedGarmentApiTest {
                 garment("201", "98", null, null, "110", null, "2026-10-15T12:00:00")));
     }
 
+    @ParameterizedTest
+    @CsvSource({"81, 상의, TOP", "82, 바지, BOTTOM", "83, 아우터, OUTER", "84, 원피스, DRESS", "85, 치마, SKIRT"})
+    @DisplayName("산 옷 줄마다 상품 카테고리 경로로 정한 기준 옷 칸을 받는다")
+    void listPurchaseWithGarmentPart(Long categoryId, String categoryName, String expectedPart) {
+        applyProductIn(TOP_PRODUCT_ID, categoryId, List.of("의류", categoryName));
+        purchase(201L, CHILD_1_ID, TOP_PRODUCT_ID, "110", FIRST_CONFIRMED_AT);
+
+        list(MEMBER_1_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[0].part").isEqualTo(expectedPart);
+    }
+
+    @Test
+    @DisplayName("어느 기준 옷 칸에도 들지 않는 산 옷(모자)은 기준 옷 칸을 빼지 않고 null로 받는다")
+    void listPurchaseWithoutGarmentPart() {
+        applyProductIn(TOP_PRODUCT_ID, 91L, List.of("잡화", "모자"));
+        purchase(201L, CHILD_1_ID, TOP_PRODUCT_ID, "110", FIRST_CONFIRMED_AT);
+
+        list(MEMBER_1_ID, CHILD_1_ID)
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content[0]").value(Map.class, garment -> assertThat(garment).containsEntry("part", null));
+    }
+
     @Test
     @DisplayName("산 사이즈의 실측이 상품에 없으면 실측만 null이다")
     void listPurchaseWithoutSizeMeasurements() {
@@ -210,6 +238,8 @@ class PurchasedGarmentApiTest {
         garment.put("productId", productId);
         garment.put("productName", productName);
         garment.put("categoryId", categoryId);
+        // 카테고리 경로가 없는 상품이라 기준 옷 칸을 정할 수 없다
+        garment.put("part", null);
         garment.put("size", size);
         garment.put("measurements", measurements);
         garment.put("confirmedAt", confirmedAt);
@@ -257,6 +287,19 @@ class PurchasedGarmentApiTest {
             RecommendFixture.PRODUCT_CHANGED_AT, new ProductChangedEvent.Data(productId, data.sellerId(),
             name, categoryId, data.status(), data.thumbnailUrl(), data.createdAt(), data.sizeFree(),
             data.options(), data.infoValues(), data.brand(), data.description(), specs, data.categoryPath())));
+    }
+
+    // 대분류부터 말단까지의 카테고리 이름으로 경로를 만든다. 대분류 ID는 1이고 말단 ID는 categoryId다
+    private void applyProductIn(Long productId, Long categoryId, List<String> pathNames) {
+        ProductChangedEvent.Data data = RecommendFixture.productAChangedEvent().data();
+        List<ProductChangedEvent.CategoryPathEntry> path = List.of(
+            new ProductChangedEvent.CategoryPathEntry(1L, pathNames.get(0), CategoryVisibleGender.ALL),
+            new ProductChangedEvent.CategoryPathEntry(categoryId, pathNames.get(1), CategoryVisibleGender.ALL));
+        replicaProductService.applyProductChanged(new ProductChangedEvent(UUID.randomUUID(),
+            RecommendFixture.PRODUCT_CHANGED_AT, new ProductChangedEvent.Data(productId, data.sellerId(),
+            "산 옷", categoryId, data.status(), data.thumbnailUrl(), data.createdAt(), data.sizeFree(),
+            data.options(), data.infoValues(), data.brand(), data.description(),
+            List.of(sizeSpec("110", Map.of("TOTAL_LENGTH", "42.0"))), path)));
     }
 
     private void purchase(Long orderItemId, Long childId, Long productId, String size, LocalDateTime confirmedAt) {

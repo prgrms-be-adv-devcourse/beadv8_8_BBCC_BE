@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * child-account.changed를 받아 자녀 계정 복사본 반영을 맡긴다(#906). 계정이 삭제 상태가 되면(#1001) 그 프로필 장바구니를 비우고
- * 받은 이벤트를 앱 안 Spring 이벤트로 다시 알려 조르기가 진행 중 조르기를 철회하게 한다(아웃박스 · Kafka로 나가지 않는다). 이벤트 필드가 바뀌면 여기 변환만 고친다.
+ * child-account.changed를 받아 자녀 계정 복사본 반영을 맡긴다(#906). 계정이 삭제 상태가 되면(#1001) 받은 이벤트를 앱 안 Spring
+ * 이벤트로 다시 알려 조르기가 진행 중 조르기를 철회하게 하고(아웃박스 · Kafka로 나가지 않는다) 그다음 그 프로필 장바구니를 비운다(#1207 순서). 이벤트 필드가 바뀌면 여기 변환만 고친다.
  * 받는 곳: Kafka 리스너({@link AuthEventKafkaListener})뿐이다. 처리 메서드는 트랜잭션을 연다.
  */
 @Component
@@ -32,8 +32,10 @@ public class ChildAccountEventListener {
         ChildAccountChangedEvent.Data data = event.data();
         if (replicaService.applyChildAccountChanged(new ChildAccountChangedCommand(
             data.accountId(), data.childProfileId(), data.guardianId(), data.deleted(), event.occurredAt()))) {
-            // 삭제 상태면(#1001) 장바구니는 ReplicaService가 비웠고, 조르기 철회는 앱 안 Spring 이벤트로 알린다(아웃박스 아님)
+            // 삭제 상태면(#1001) 조르기 철회를 앱 안 Spring 이벤트로 먼저 알리고(아웃박스 아님, 조르기 예약을 잠그고 푼다) 그다음 장바구니를
+            // 비운다(#1207: 조르기 예약이 먼저 잠기고 풀려 장바구니 비우기가 잠글 예약이 거의 없다)
             eventPublisher.publish(event);
+            replicaService.clearDeletedAccountCart(data.accountId());
         }
     }
 

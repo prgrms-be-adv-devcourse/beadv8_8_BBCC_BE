@@ -10,6 +10,7 @@ import java.util.Map;
  * @param businessName 판매자 복사본이 없는 판매자의 상품이면 null
  * @param description 없으면 null
  * @param minPrice 옵션이 없으면 null
+ * @param thumbnailUrl 대표 이미지 주소. 없으면 null
  * @param optionAttributes 상품 유형에 연결한 옵션 항목 순서대로 담는다
  * @param productInfo 상품 유형에 연결한 정보 항목 순서대로 담는다
  * @param measurementItems 카테고리에 연결한 순서대로 담는다
@@ -24,6 +25,7 @@ public record ProductDetailResponse(
     String status,
     boolean sizeFree,
     Long minPrice,
+    String thumbnailUrl,
     List<String> imageUrls,
     List<OptionAttribute> optionAttributes,
     List<Option> options,
@@ -32,16 +34,19 @@ public record ProductDetailResponse(
     List<Measurement> measurementItems) {
 
     /**
+     * @param sizeRole 상품 유형에서 사이즈 역할로 연결한 항목이면 true
      * @param values 옵션에 실제로 쓴 값만 값 ID 순서로 담는다
      */
-    public record OptionAttribute(String attributeId, String code, String name, List<OptionValue> values) {
+    public record OptionAttribute(
+        String attributeId, String code, String name, boolean sizeRole, List<OptionValue> values) {
 
         static OptionAttribute from(ProductDetailResult.OptionAttribute result) {
             List<OptionValue> values = new ArrayList<>();
             for (ProductDetailResult.OptionValue value : result.values()) {
                 values.add(new OptionValue(String.valueOf(value.valueId()), value.value(), value.colorCode()));
             }
-            return new OptionAttribute(String.valueOf(result.attributeId()), result.code(), result.name(), values);
+            return new OptionAttribute(
+                String.valueOf(result.attributeId()), result.code(), result.name(), result.sizeRole(), values);
         }
     }
 
@@ -127,6 +132,7 @@ public record ProductDetailResponse(
             result.status(),
             result.sizeFree(),
             result.minPrice(),
+            result.thumbnailUrl(),
             result.imageUrls(),
             optionAttributes,
             options,

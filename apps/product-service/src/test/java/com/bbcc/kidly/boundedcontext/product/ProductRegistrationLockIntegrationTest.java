@@ -90,7 +90,7 @@ class ProductRegistrationLockIntegrationTest {
                 return new Overlap(
                     () -> test.productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)),
                     () -> test.categoryService.change(
-                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())));
+                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of(), null)));
             }, CategoryErrorCode.CHANGE_BREAKS_PRODUCTS),
             scenario("유형에 필수 정보 항목 추가", (test, saved) -> {
                 ProductTypeChangeRequest addRequiredInfo =
@@ -128,7 +128,7 @@ class ProductRegistrationLockIntegrationTest {
                 ProductType otherType = test.saver.saveOtherType(saved);
                 return new Overlap(
                     () -> test.categoryService.change(
-                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of())),
+                        saved.top().getId(), new CategoryChangeRequest(otherType.getId(), List.of(), null)),
                     () -> test.productRegistrationService.register(ProductFixture.SELLER_ID, registerRequest(saved)));
             }),
             Named.of("카테고리 이동", (test, saved) -> {
@@ -139,7 +139,7 @@ class ProductRegistrationLockIntegrationTest {
                     test.productRegistrationService.register(ProductFixture.SELLER_ID, register);
                 return new Overlap(
                     () -> test.categoryService.change(
-                        outer.getId(), new CategoryChangeRequest(otherType.getId(), List.of())),
+                        outer.getId(), new CategoryChangeRequest(otherType.getId(), List.of(), null)),
                     () -> test.productUpdateService.update(
                         ProductFixture.SELLER_ID, product.productId(), moveRequest(product, register, outer)));
             }));

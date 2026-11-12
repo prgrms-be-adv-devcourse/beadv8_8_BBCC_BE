@@ -1,0 +1,44 @@
+---
+# 알림 발송 지연 알림(#1223). 아직 보내지 못한 알림 중 가장 오래된 것의 경과 시간(NotificationMetrics)을 본다
+# 문턱 1200초: 정상 재시도(30초 · 2분 · 10분 뒤)를 기다리는 알림도 마지막 시도까지 12분 30초가 걸리고, 발송 중 시간 제한(5분)이 더해질 수 있다
+apiVersion: 1
+groups:
+- orgId: 1
+  name: kidly-notification
+  folder: Kidly
+  interval: 1m
+  rules:
+  - uid: kidly-notification-unsent-age
+    title: 알림 발송 지연
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: max by(env) (kidly_notification_oldest_unsent_age_seconds{job="kidly-notification"})
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 1200
+    labels:
+      severity: warning
+    annotations:
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 보내지 못한 알림이 {{ with $values.A }}{{ humanizeDuration .Value }}{{ end }} 동안 남아 있습니다'
+      description: 알림 서비스의 발송이 멈췄거나 메일 · 푸시 발송이 계속 실패하고 있습니다. 알림 서비스 로그에서 발송 실패 원인과
+        kidly_notification_sends_total(채널 · 결과별)을 확인하세요. 모두 보내면 해제됩니다.
+    isPaused: false

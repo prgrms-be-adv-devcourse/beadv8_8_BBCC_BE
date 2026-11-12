@@ -143,13 +143,14 @@ services:
       retries: 12
       # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
-    # 구성이 비슷한 자녀 프로필 서비스가 dev 에서 7일 최대 365MiB(힙 64MiB 안팎)를 썼다. 그보다 조금 넉넉하게 힙 128m · 상한 448m 으로 시작하고, 켠 뒤 재서 정한다
-    mem_limit: 448m
+    # dev 에서 켠 직후 약 375MiB 를 쓰고, 처음 쓰는 기능의 클래스를 불러올 때마다 늘어 445MiB 안팎에서 상한 448m 에 닿아 OOMKilled 됐다(#1237)
+    # 힙은 90MiB 안팎이고 나머지는 Metaspace · Code cache · 스레드 스택이다. 힙이 128m 까지 차는 경우를 더해도 90MiB 쯤 남게 576m 으로 둔다
+    mem_limit: 576m
     oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
 
-  # 정산 서비스(apps/settlement-service, #729). 정산 API · 자동 정산(Spring Batch) · 결제 · 주문 이벤트 수신(구독 그룹 kidly.settlement), 정산 이벤트 발행(아웃박스)
+  # 정산 서비스(apps/settlement-service, #729). 정산 API · 결제 · 주문 이벤트 수신(구독 그룹 kidly.settlement), 정산 이벤트 발행(아웃박스)
   # 비밀이 든 .env 를 통째로 넘기지 않고 필요한 값만 넘긴다. 토큰은 Gateway 가 검증하므로 키를 마운트하지 않는다
   settlement-service:
     image: ${SETTLEMENT_IMAGE}
@@ -164,7 +165,7 @@ services:
       DB_URL: ${DB_URL:?}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-      # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일 조회가 실패해 자동 정산을 건너뛴다
+      # 정산 영업일 판단용 공휴일 조회 키. 없으면 공휴일을 받아 저장하지 못한다
       HOLIDAY_API_SERVICE_KEY: ${HOLIDAY_API_SERVICE_KEY:-}
       LOG_PATH: /app/logs
     ports:

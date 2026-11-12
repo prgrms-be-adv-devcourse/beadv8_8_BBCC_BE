@@ -72,6 +72,22 @@ spring:
               uri: ${kidly.gateway.member-uri}
               predicates:
                 - Path=/api/v1/child/profile,/api/v1/child/onboarding,/api/v1/child/onboarding/notice
+            # AI 추천 스트림(Accept: text/event-stream)은 규칙 결과를 먼저 보내고 AI 결과를 최대 10초 뒤에 보낸다.
+            # 응답 제한은 응답 조각 사이 간격으로 재므로 AI 대기보다 길게 둔다. 같은 경로의 일반 요청 라우트보다 먼저 맞춘다
+            - id: recommend-companions-stream
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/api/v1/recommendations/companions
+                - Header=Accept, .*text/event-stream.*
+              metadata:
+                response-timeout: 15000
+            - id: recommend-preview-stream
+              uri: ${kidly.gateway.recommend-uri}
+              predicates:
+                - Path=/api/v1/recommendations/products/preview
+                - Header=Accept, .*text/event-stream.*
+              metadata:
+                response-timeout: 15000
             # AI 답을 기다리는 추천 API는 추천 서비스가 기능마다 기다리는 시간(함께 사면 4초, 사이즈 3.5초, 맛보기 3초)보다
             # 0.5초 길게 둔다. 추천 서비스가 AI를 기다리다 규칙 결과로 답할 시간을 주기 위해서다. 아래 recommend 라우트보다 먼저 맞춘다
             - id: recommend-companions
@@ -104,7 +120,7 @@ spring:
             - id: settlement
               uri: ${kidly.gateway.settlement-uri}
               predicates:
-                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**,/api/v1/admin/settlement-dead-letters/**
+                - Path=/api/v1/seller/settlement-targets,/api/v1/seller/settlement-targets/summary,/api/v1/seller/settlements/**,/api/v1/admin/settlements/**,/api/v1/admin/settlement-runs/**,/api/v1/admin/settlement-dead-letters/**
             # 개발용 예치금 충전(local · test · dev 전용, #1010)은 결제 서비스로 간다. 아래 회원 라우트의 /api/v1/dev/**보다 먼저 맞춘다.
             # prod 결제 서비스에는 이 API가 등록되지 않아 404다
             - id: payment-dev

@@ -52,6 +52,9 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     private static final String SELLER_SHIP = "POST /api/v1/seller/orders/{sellerOrderId}/ship";
     private static final String SELLER_DELIVER = "POST /api/v1/seller/orders/{sellerOrderId}/deliver";
     private static final String SELLER_CANCEL = "POST /api/v1/seller/orders/{sellerOrderId}/cancel";
+    // 판매 불가 판매자 정리(#1121): 이력 출처 · 취소 사유(주문 OrderActor.SELLER_CHANGED · OrderItem.CancelReason과 같은 값)
+    private static final String SELLER_CHANGED = "seller.changed";
+    private static final String SELLER_UNAVAILABLE = "SELLER_UNAVAILABLE";
     private static final String SELLER = "SELLER";
     // 택배 조회 스케줄러가 바꾼 상태 이력의 주체(#650, 주문 OrderActor의 scheduler:{작업} 이름 규칙과 같음)
     private static final String SYSTEM = "SYSTEM";
@@ -117,6 +120,29 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     @Override
     public long countShippingDelayed(LocalDateTime before) {
         return deliveryRepository.countShippingDelayed(before);
+    }
+
+    @Override
+    public boolean cancelForUnavailableSeller(Long orderId, Long sellerId) {
+        Delivery delivery = deliveryRepository.findAllByOrderIdOrderByIdAsc(orderId).stream()
+            .filter(candidate -> sellerId.equals(candidate.getSellerId()))
+            .findFirst()
+            .orElse(null);
+        if (delivery == null || delivery.getStatus() != Delivery.Status.READY) {
+            return false;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        Delivery.Status from = delivery.getStatus();
+        delivery.cancelBySeller();
+        DeliveryOrders.Actor actor = new DeliveryOrders.Actor(SYSTEM, null, SELLER_CHANGED);
+        // 배송을 READY로 읽은 뒤 주문 잠금을 기다리는 사이 구매자 취소가 먼저 커밋했으면 취소할 주문상품이 없다: 예외로 이 주문만
+        // 되돌리고(배송 취소 포함) 부르는 쪽이 다시 처리한다(다시 오면 배송이 이미 취소라 건너뛴다)
+        deliveryOrders.cancelSellerItems(orderId, sellerId, SELLER_UNAVAILABLE, null, actor, now)
+            .orElseThrow(() -> new IllegalStateException("판매자 몫 취소 대상 없음: orderId=" + orderId));
+        deliveryOrders.recordHistory(orderId, delivery.getId(), actor, from.name(), delivery.getStatus().name(),
+            SELLER_UNAVAILABLE, now);
+        log.info("판매 불가 판매자 배송 취소: orderId={} deliveryId={} sellerId={}", orderId, delivery.getId(), sellerId);
+        return true;
     }
 
     @Override

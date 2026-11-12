@@ -37,7 +37,7 @@ public class HomePreviewService {
 
     // AI 답의 칸 이름이나 뜻, 프롬프트를 바꾸면 올려서 이전 버전의 저장된 답을 다시 쓰지 않게 한다.
     // 프롬프트 문구는 OpenAiHomePreviewPicker에 있다
-    private static final int PROMPT_VERSION = 1;
+    private static final int PROMPT_VERSION = 2;
 
     private final HomePreviewCandidateReader candidateReader;
     private final RecommendReplicaSellerRepository replicaSellerRepository;

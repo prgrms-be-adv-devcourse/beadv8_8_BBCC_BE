@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
 import com.bbcc.kidly.global.security.TestAdmins;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import com.bbcc.kidly.support.FunctionalTest;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,49 @@ class AdminPaymentApiTest {
     @DisplayName("size가 100을 넘으면 400")
     void tooLargePageSize() {
         getAsAdmin(ADMIN_PAYMENTS_PATH + "?size=101")
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    @Test
+    @DisplayName("결제 요약은 기간의 날짜마다 결제 금액 · 건수를, 그리고 환불 이력이 있는 결제 수를 준다")
+    void getSummary() {
+        paymentRepository.save(Payment.complete(101L, WALLET_ID, MEMBER_ID,
+            List.of(PaymentItem.of(1001L, 10_000L)), LocalDateTime.of(2026, 11, 10, 9, 0)));
+        Payment refunded = Payment.complete(102L, WALLET_ID, MEMBER_ID,
+            List.of(PaymentItem.of(1002L, 20_000L)), LocalDateTime.of(2026, 11, 10, 21, 0));
+        refunded.refund(1002L, 20_000L);
+        paymentRepository.save(refunded);
+        paymentRepository.save(Payment.fail(103L, WALLET_ID, MEMBER_ID, 30_000L,
+            PaymentFailureCode.INSUFFICIENT_BALANCE));
+
+        getAsAdmin(ADMIN_PAYMENTS_PATH + "/summary?from=2026-11-09&to=2026-11-10")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.daily.length()").isEqualTo(2)
+            .jsonPath("$.daily[0].date").isEqualTo("2026-11-09")
+            .jsonPath("$.daily[0].paidAmount").isEqualTo(0)
+            .jsonPath("$.daily[0].paidCount").isEqualTo(0)
+            .jsonPath("$.daily[1].date").isEqualTo("2026-11-10")
+            .jsonPath("$.daily[1].paidAmount").isEqualTo(30_000)
+            .jsonPath("$.daily[1].paidCount").isEqualTo(2)
+            .jsonPath("$.refundedPaymentCount").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("기간을 비우면 오늘 하루를 준다")
+    void summaryDefaultsToToday() {
+        getAsAdmin(ADMIN_PAYMENTS_PATH + "/summary")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.daily.length()").isEqualTo(1)
+            .jsonPath("$.refundedPaymentCount").isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("31일을 넘는 기간은 400")
+    void tooLongSummaryPeriod() {
+        getAsAdmin(ADMIN_PAYMENTS_PATH + "/summary?from=2026-10-01&to=2026-11-01")
             .expectStatus().isBadRequest()
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
