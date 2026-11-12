@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
+import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecordRepository;
@@ -20,6 +21,7 @@ import com.bbcc.kidly.support.IntegrationTest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
@@ -101,6 +103,40 @@ class SizeRecommendationPurchaseIntegrationTest {
                 new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("33"), List.of(
                     new ReferenceFit.SizeDiff("110", new BigDecimal("34"), new BigDecimal("1")),
                     new ReferenceFit.SizeDiff("120", new BigDecimal("36"), new BigDecimal("3")))));
+    }
+
+    @Test
+    @DisplayName("PUR-05 같은 칸 구매가 생기면 지난 AI 답을 찾는 키가 달라져, 구매를 모르던 예전 답을 다시 쓰지 않는다")
+    void aiKeyChangesWithPurchase() {
+        saveProductAndChild();
+        replicaProductRepository.save(boughtProduct(BOUGHT_TOP_ID, 52L, "상의"));
+        AiResponseKey withoutPurchase =
+            AiResponseKey.of(reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiKeyInput());
+
+        savePurchase(1L, CHILD_1_ID, BOUGHT_TOP_ID, "110", NOW.minusMonths(5));
+        AiResponseKey withPurchase =
+            AiResponseKey.of(reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiKeyInput());
+
+        assertThat(withPurchase).isNotEqualTo(withoutPurchase);
+    }
+
+    // 만 7세 남아는 표 값 0.50cm/월이라 5개월 동안 2.5cm 클 것으로 본다
+    @Test
+    @DisplayName("PUR-05 답 검증 값에는 산 옷 실측 · 실측 차이 · 산 뒤 개월 수 · 예상 성장량도 모은다")
+    void collectPurchaseNumbers() {
+        replicaProductRepository.save(RecommendFixture.productATopReplica());
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEventBornOn(
+            NOW.toLocalDate().minusYears(7).minusMonths(6)));
+        replicaProductRepository.save(boughtProduct(BOUGHT_TOP_ID, 52L, "상의"));
+        savePurchase(1L, CHILD_1_ID, BOUGHT_TOP_ID, "110", NOW.minusMonths(5));
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        List<String> given = new ArrayList<>();
+        for (BigDecimal number : draft.aiEvidence().givenNumbers()) {
+            given.add(number.stripTrailingZeros().toPlainString());
+        }
+        assertThat(given).contains("43", "33", "5", "2.5");
     }
 
     private void saveProductAndChild() {

@@ -57,7 +57,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SizeRecommendationReader {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
-    private static final int PROMPT_VERSION = 4;
+    private static final int PROMPT_VERSION = 5;
 
     private final RecommendReplicaProductRepository replicaProductRepository;
     private final RecommendReplicaChildRepository replicaChildRepository;

@@ -37,10 +37,18 @@ public class OpenAiSizeChooser implements AiSizeChooser {
         - wearablePeriods는 사이즈마다 앞으로 입을 수 있는 개월 수입니다. lengthMonths는 권장 키 상한까지, widthMonths는
           기준 옷보다 넉넉한 너비를 몸이 채울 때까지, months는 둘 중 짧은 값이고 24가 상한입니다. 계산할 수 없으면 null입니다.
           너무 짧은 사이즈(예: 0 ~ 2개월)는 곧 작아진다는 점을 판단에 쓰세요.
+        - purchases는 같은 종류 옷 칸에서 최근 12개월 안에 산 옷입니다(최근 순, 최대 3개). size는 산 사이즈 이름,
+          monthsAgo는 산 뒤 지난 개월 수, sameBrand는 지금 상품과 브랜드가 같은지, expectedGrowthCm는 산 뒤 그동안 클 것으로 보는 키(cm)입니다.
+          items는 referenceFit과 같은 모양이고, garmentCm가 산 옷 실측, sizes[].diffCm가 「지금 상품 사이즈 실측 - 산 옷 실측」입니다.
+          구매는 반품하지 않았다는 것만 알고, 잘 맞았는지는 모릅니다. 사이즈 이름은 브랜드마다 실제 치수가 달라서
+          이름보다 실측 차이로 비교하세요.
+        - 믿는 순서는 기준 옷(referenceFit)이 가장 믿을 만하고, 다음이 최근 구매, 오래된 구매 순입니다. 같은 브랜드 구매는 더 믿으세요.
+          산 뒤 예상 성장량(expectedGrowthCm)만큼 지금은 더 컸다는 점도 함께 보세요.
+        - 지난 구매를 근거로 쓰면 reasons의 type을 PURCHASE로 하고, 숫자는 질문에 있는 값만 쓰세요.
         - 성장 속도나 입을 수 있는 기간을 근거로 쓸 때는 reasons의 type을 GROWTH로 하고, detail에 growthSpeed의 tableSource 값을
           출처로 밝히세요(예: "한국아동패널 기준").
         - fit은 ROOMY, PROPER, TIGHT 중 하나입니다.
-        - reasons는 1개에서 3개입니다. type은 HEIGHT, BODY_TYPE, PREFERRED_FIT, MEASUREMENT, RULE_RESULT, GROWTH 중
+        - reasons는 1개에서 3개입니다. type은 HEIGHT, BODY_TYPE, PREFERRED_FIT, MEASUREMENT, RULE_RESULT, GROWTH, PURCHASE 중
           하나이고, detail은 보호자에게 그대로 보여 줄 짧은 한국어 존댓말 문장입니다("~요"로 끝냅니다).
           sourceId는 null입니다.
         - referenceFit은 자녀가 지금 잘 맞게 입는 옷(기준 옷)과 이 상품을 비교한 값입니다.
