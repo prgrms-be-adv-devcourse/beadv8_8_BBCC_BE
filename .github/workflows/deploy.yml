@@ -4,7 +4,7 @@
 # 배포 전에 CI(ci.yml)를 이미지 빌드와 동시에 돌리고, 둘 다 성공해야 서버에 올린다.
 # 롤백: workflow_dispatch 로 이미 GHCR에 있는 커밋 SHA 를 넣으면 CI · 빌드 없이 그 이미지를 배포한다.
 # 롤백 때도 compose · .env 는 실행한 브랜치의 현재 것이 올라간다. 설정 키가 바뀐 커밋으로 되돌릴 땐 주의한다.
-# 이미지는 열하나다: 검색 서비스(<저장소>-search-service:<SHA>), Gateway(<저장소>-gateway:<SHA>), 추천 서비스(<저장소>-recommend-service:<SHA>), 정산 서비스(<저장소>-settlement-service:<SHA>), 회원 서비스(<저장소>-member-service:<SHA>), 결제 서비스(<저장소>-payment-service:<SHA>), 상품 서비스(<저장소>-product-service:<SHA>), 알림 서비스(<저장소>-notification-service:<SHA>), 주문 서비스(<저장소>-order-service:<SHA>), 커뮤니티 서비스(<저장소>-community-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
+# 이미지는 열둘이다: 검색 서비스(<저장소>-search-service:<SHA>), Gateway(<저장소>-gateway:<SHA>), 추천 서비스(<저장소>-recommend-service:<SHA>), 정산 서비스(<저장소>-settlement-service:<SHA>), 회원 서비스(<저장소>-member-service:<SHA>), 결제 서비스(<저장소>-payment-service:<SHA>), 상품 서비스(<저장소>-product-service:<SHA>), 알림 서비스(<저장소>-notification-service:<SHA>), 주문 서비스(<저장소>-order-service:<SHA>), 커뮤니티 서비스(<저장소>-community-service:<SHA>), 챗봇 서비스(<저장소>-chatbot-service:<SHA>), Elasticsearch(<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>).
 # 이 변경 이전 SHA 도 현재 compose 를 사용하므로 서비스 이미지만 배포한다.
 # Elasticsearch 는 앱 서버가 아니라 t3.medium k3s(deploy/search)에 뜬다. 검색이 켜진 환경이면 elasticsearch job 이 앱보다 먼저 올린다.
 # Kafka 브로커(Redpanda)도 t3.medium k3s(deploy/kafka)에 환경마다 하나씩 뜬다. kafka job 이 앱보다 먼저 올린다.
@@ -122,7 +122,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service, order-service, community-service]
+        app: [search-service, gateway, recommend-service, settlement-service, member-service, payment-service, product-service, notification-service, order-service, community-service, chatbot-service]
     steps:
       - uses: actions/checkout@v7
 
@@ -555,7 +555,7 @@ jobs:
           SHA: ${{ inputs.sha || github.sha }}
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
-          for app in search-service gateway recommend-service settlement-service member-service payment-service product-service notification-service order-service community-service; do
+          for app in search-service gateway recommend-service settlement-service member-service payment-service product-service notification-service order-service community-service chatbot-service; do
             digest=$(docker buildx imagetools inspect "$IMAGE-$app:$SHA" --format '{{json .Manifest}}' | jq -r .digest)
             [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::$IMAGE-$app:$SHA 의 digest 를 읽지 못했습니다"; exit 1; }
             echo "${app%-service}=$IMAGE-$app@$digest" >> "$GITHUB_OUTPUT"
@@ -586,6 +586,7 @@ jobs:
               MEMBER_IMAGE=${{ steps.images.outputs.member }} PAYMENT_IMAGE=${{ steps.images.outputs.payment }} \
               PRODUCT_IMAGE=${{ steps.images.outputs.product }} NOTIFICATION_IMAGE=${{ steps.images.outputs.notification }} \
               ORDER_IMAGE=${{ steps.images.outputs.order }} COMMUNITY_IMAGE=${{ steps.images.outputs.community }} \
+              CHATBOT_IMAGE=${{ steps.images.outputs.chatbot }} \
               /opt/app/$APP_ENV/deploy.sh
           " 2>&1 | tee "$RUNNER_TEMP/deploy.log"
 

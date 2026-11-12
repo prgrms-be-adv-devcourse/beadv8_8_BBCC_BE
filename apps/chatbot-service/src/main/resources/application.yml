@@ -1,0 +1,90 @@
+spring:
+  application:
+    name: kidly-chatbot
+  profiles:
+    default: local
+  # 자기 스키마만 다룬다. 처음부터 이 서비스만 챗봇 마이그레이션을 적용하므로 baseline이 없다
+  flyway:
+    locations: classpath:db/migration
+    # 이력 테이블은 chatbot 스키마에 둔다. 나중에 DB를 나눌 때 스키마와 같이 옮겨지고, 다른 스키마를 건드리지 않는다
+    default-schema: chatbot
+    schemas: chatbot
+    table: flyway_schema_history_chatbot
+    # 버전이 파일을 만든 시각이라 먼저 만든 PR이 나중에 머지될 수 있으므로 옛 버전도 적용한다
+    out-of-order: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        # 트랜잭션이 끝나면 DB 연결을 바로 돌려주고, 그래서 DB가 막지 못하는 읽기 전용 트랜잭션의 쓰기를 SQL을 보내기 전에 막는다
+        connection:
+          handling_mode: DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION
+        session_factory:
+          statement_inspector: com.bbcc.kidly.global.config.ReadOnlyWriteGuard
+
+springdoc:
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha
+
+# 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kidly
+    username: kidly
+    password: kidly
+
+# member-service(8081) · search-service(8082) · gateway(8083) · recommend-service(8086) · payment-service(8087) · settlement-service(8088) ·
+# product-service(8089) · notification-service(8090) · order-service(8091) · community-service(8092)와 같이 띄울 수 있게 포트를 나눈다
+server:
+  port: 8093
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "dev | prod"
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    # dev · prod 가 DB 인스턴스 하나(max_connections 120)를 나눠 쓴다. 기본 10 이면 서비스 수 × 두 환경만큼 연결이 는다
+    hikari:
+      maximum-pool-size: 5
+
+server:
+  forward-headers-strategy: native
+
+logging:
+  file:
+    path: ${LOG_PATH:./logs}
+  # 콘솔 JSON 한 줄이 Docker 줄 한도(16KB)를 넘지 않게 예외마다 프레임 수만 줄인다
+  structured:
+    json:
+      stacktrace:
+        max-throwable-depth: 30
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+# 운영에는 API 명세를 열지 않는다
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
