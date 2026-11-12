@@ -138,6 +138,9 @@ jobs:
       # 빌드 시작 직후 기반 이미지를 받다 일시적으로 실패하는 일이 있어(#1101) 3번까지 다시 시도한다
       # 그 앱에 들어가는 소스로 키를 만든다(.github/scripts/image-key.sh). 같은 키의 이미지(src-<키>)가 있으면 빌드하지 않고 커밋 태그만 붙인다
       # 태그만 붙이면 digest 가 그대로라, 배포가 digest 로 올리는 k3s 는 그 서비스를 다시 띄우지 않는다(#1169)
+      # 소스 키가 달라도 실행 내용이 같을 수 있다(예: 그 앱이 쓰지 않는 shared 이벤트만 바뀜). 빌드한 jar 로 실행 키를 만들어(.github/scripts/runtime-key.sh)
+      # 같은 키의 이미지(rt-<키>)가 있으면 새 이미지는 올리지 않고 그 이미지에 태그를 붙여 digest 를 그대로 둔다(#1192)
+      # 실행 키 = jar 실행 키 + 실행 기반 이미지 digest + Dockerfile. 실행 키를 못 만들면 새 이미지를 그대로 올린다(다시 띄우는 쪽이 안전하다)
       # 커밋 태그(<SHA>)는 늘 붙어 SHA 롤백은 그대로 된다
       - name: 이미지 빌드 · 푸시
         env:
@@ -159,8 +162,26 @@ jobs:
             echo "이미지 빌드 실패 ($attempt/3). $((attempt * 15))초 뒤 다시 시도한다"
             sleep $((attempt * 15))
           done
+          RT=""
+          if JAR=$(mktemp "$RUNNER_TEMP/app-XXXX.jar") \
+            && CID=$(docker create "$IMAGE:$GITHUB_SHA") && docker cp "$CID:/app/app.jar" "$JAR" && docker rm "$CID" > /dev/null \
+            && JAR_KEY=$(docker run --rm -v "$JAR:/in/app.jar:ro" -v "$PWD/.github/scripts:/s:ro" eclipse-temurin:25-jdk bash /s/runtime-key.sh /in/app.jar) \
+            && BASE=$(docker buildx imagetools inspect eclipse-temurin:25-jre --format '{{json .Manifest}}' | jq -er .digest); then
+            RT=$(printf 'runtime-image v1\n%s\n%s\n%s\n' "$JAR_KEY" "$BASE" "$(sha256sum < Dockerfile)" | sha256sum | cut -d' ' -f1)
+          else
+            echo "::warning title=$APP 실행 키 실패::실행 키를 만들지 못해 새 이미지를 올린다(서비스가 다시 뜬다)"
+          fi
+          if [[ -n "$RT" ]] && docker buildx imagetools inspect "$IMAGE:rt-$RT" > /dev/null 2>&1; then
+            echo "::notice title=$APP 재시작 생략::소스는 바뀌었지만 실행 내용이 같은 이미지(rt-${RT:0:12})가 있어 그 이미지에 태그만 붙인다"
+            docker buildx imagetools create -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:src-$KEY" "$IMAGE:rt-$RT"
+            exit 0
+          fi
           docker push "$IMAGE:$GITHUB_SHA"
           docker push "$IMAGE:src-$KEY"
+          if [[ -n "$RT" ]]; then
+            docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:rt-$RT"
+            docker push "$IMAGE:rt-$RT"
+          fi
 
       # 태그가 docker/elasticsearch 의 트리 해시라 폴더가 그대로면 이미 있는 이미지를 쓴다
       - name: Elasticsearch 이미지 빌드 · 푸시 (없을 때만)
@@ -460,8 +481,8 @@ jobs:
           out="$RUNNER_TEMP/deploy-files"
           mkdir -p "$out/jwt" "$out/k3s"
           cp -p deploy/docker-compose.yml deploy/deploy.sh deploy/environment-state.py "$out/"
-          # k3s 에 뜨는 서비스의 매니페스트를 compose 설정에서 만든다(#1142)
-          cp -p deploy/k3s/k3s.py "$out/k3s/"
+          # k3s 에 뜨는 서비스의 매니페스트를 compose 설정에서 만든다(#1142). 배포 끝에 오래된 k3s 이미지를 고르고, 그 권한 규칙을 서버에 넣을 때 쓴다(#1267)
+          cp -p deploy/k3s/k3s.py deploy/k3s/images.py deploy/k3s/deploy-crictl.sudoers "$out/k3s/"
 
           # 한 줄짜리 비밀. .env 뒤에 붙인다
           keys=(DB_PASSWORD KAKAO_CLIENT_SECRET PORTONE_API_SECRET IDENTITY_KEY_SECRET TOSS_SECRET_KEY PAYMENT_KEY_ENCRYPTION_KEY)

@@ -22,7 +22,7 @@
 
 | 모듈 | 담당 | 한 줄 책임 |
 |---|---|---|
-| 회원 | maruhxn | 로그인 · 가입 · 탈퇴 · 정지, 자녀 프로필, 판매자 승인, 가입 환영 메일 — member · childprofile · seller · notification 모듈. 자녀 프로필은 childprofile-service로 분리(dev), 인증은 auth 도메인으로 분리 중(#686) |
+| 회원 | maruhxn | 로그인 · 가입 · 탈퇴 · 정지, 자녀 프로필, 판매자 승인, 가입 환영 메일 — member · childprofile · seller · notification 모듈. 인증(auth) · 자녀 프로필(childprofile)은 회원 서비스(member-service) 안의 모듈(#686 · #809) |
 | 상품 | heojungseok | 상품 · 옵션 · 재고, 상품 상세, 카테고리 · 상품 유형 · 항목 · 실측 항목 기준 데이터, 이미지 업로드 주소 (목록 · 검색은 검색 모듈로) |
 | 추천 | heojungseok | 사이즈 추천 · AI 상품 추천 · 함께 사면 좋은 상품, 활동 기록 · 선호 점수, 기준 옷 비교(2순위). recommend-service로 분리 중(#704) |
 | 주문 | L2J92 | 장바구니 · 공용 장바구니(조르기), 주문, 배송(택배 조회), 구매확정, 판매자 부분 취소 — order · cart · delivery · wish 4개 컨텍스트(포트로만 연결, ArchUnit으로 고정) |
@@ -52,9 +52,10 @@
 
 | 보내는 쪽 | 토픽 | 이벤트 → 받는 쪽 (구독 그룹 `kidly.{받는도메인}`) |
 |---|---|---|
-| 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 자녀 프로필 · 결제 · 커뮤니티 (추천 예정) · `member.tokens-revoked` → Gateway |
+| 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.suspended` → 자녀 프로필 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 인증 · 자녀 프로필 · 커뮤니티 · 회원(배송지) · 알림 · 주문 · 결제 · 추천 · 판매자 |
+| 인증 | `kidly.auth.events` | `auth.tokens-revoked` → Gateway · `child-account.changed` → 자녀 프로필 · 알림 · 주문 |
 | 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 |
-| 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 주문 · 추천 |
+| 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 인증 · 주문 · 추천 · `child.growth-recorded` → 추천 |
 | 상품 | `kidly.product.events` | `product.changed` → 주문 · 추천 · 검색 · 커뮤니티 · `stock.deducted` · `stock.deduction-failed` → 주문 |
 | 주문 | `kidly.order.events` | `order.created` → 상품 · `order.payment-requested` → 결제 · `order.cancelled` → 상품 · 결제 · `order-item.purchase-confirmed` → 정산 · 추천 · 커뮤니티 · `order-item.cancelled` → 결제 · 상품 · `cart.item-added` → (추천 예정) |
 | 결제 | `kidly.payment.events` | `payment.completed` · `payment.failed` → 주문 · `payment.payout-completed` · `payment.payout-failed` → 정산 |

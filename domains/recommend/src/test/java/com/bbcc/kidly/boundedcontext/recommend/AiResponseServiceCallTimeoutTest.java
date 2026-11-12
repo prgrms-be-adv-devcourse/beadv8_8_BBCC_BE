@@ -56,13 +56,13 @@ class AiResponseServiceCallTimeoutTest {
             AiResponseType.BOUGHT_TOGETHER, Duration.ofMillis(1_500),
             AiResponseType.SIZE_RECOMMENDATION, Duration.ofMillis(1_500));
         service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT, callTimeouts,
-            REUSE_PERIOD);
+            Duration.ofSeconds(10), REUSE_PERIOD);
     }
 
     @Test
     @DisplayName("AI 답을 기다리는 시간은 종류마다 다르다. 같은 시간이 걸린 답도 제한 시간이 긴 종류에서만 받는다")
     void waitForAiAnswerByType() {
-        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(store.find(any(), any())).willReturn(Optional.empty());
         given(quota.tryAcquire(any(), anyInt())).willReturn(true);
 
         Optional<Answer> homePreview = service.respond(AiResponseType.HOME_PREVIEW, INPUT, Answer.class,
@@ -77,7 +77,7 @@ class AiResponseServiceCallTimeoutTest {
     @Test
     @DisplayName("AI 답이 제한 시간을 넘기면 기다리지 않고 AI 결과 없음을 돌려주고, 늦게 온 답은 받는 대로 저장해 다음 요청에서 쓴다")
     void saveLateAnswerAfterTimeout() {
-        given(store.findLatestSince(any(), any(), any())).willReturn(Optional.empty());
+        given(store.find(any(), any())).willReturn(Optional.empty());
         given(quota.tryAcquire(any(), anyInt())).willReturn(true);
         long startedAt = System.nanoTime();
 
@@ -87,7 +87,7 @@ class AiResponseServiceCallTimeoutTest {
         assertThat(answer).isEmpty();
         assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(Duration.ofMillis(500));
         verify(store, timeout(3_000)).save(AiResponseType.HOME_PREVIEW, AiResponseKey.of(INPUT),
-            "{\"reason\":\"늦은 답\"}", NOW);
+            "{\"reason\":\"늦은 답\"}", REUSE_PERIOD);
     }
 
     private static Answer answerAfter(Duration duration) {

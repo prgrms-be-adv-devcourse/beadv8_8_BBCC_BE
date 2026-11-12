@@ -26,6 +26,15 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
         + "and i.status = :itemStatus and o.status <> :excludedOrderStatus")
     long countSellerItems(Long sellerId, OrderItem.Status itemStatus, Order.Status excludedOrderStatus);
 
+    @Override
+    @Query("""
+        select distinct o.id from Order o join o.items i
+        where i.product.sellerId = :sellerId and i.status = :itemStatus and o.status in :statuses and o.id > :afterId
+        order by o.id asc
+        """)
+    List<Long> findOrderIdsWithSellerItems(Long sellerId, OrderItem.Status itemStatus,
+        Collection<Order.Status> statuses, Long afterId, Limit limit);
+
     /**
      * SELECT … FOR UPDATE. 잠금 대기 시간은 따로 두지 않는다(앞 트랜잭션이 끝나면 바로 풀림).
      */

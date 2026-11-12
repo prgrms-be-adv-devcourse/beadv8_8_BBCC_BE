@@ -30,10 +30,10 @@ v1.1: 단계 연결이 끝나 v1.0의 「혼자 시작하기」 칸과 7.1 「�
 | 화면 확인용 회원 | 회원 `4` · `5` · `6` | 4 정지회원 (이용 정지) · 5 신청대기회원 (판매자 신청 대기, 대기상점) · 6 신청거절회원 (신청 거절, 거절상점) · 이메일은 모두 `@kidly.test`라 메일을 보내지 않음 | 회원 · 판매자 | 관리자 화면 |
 | 자녀 | 자녀 `1` | 회원 1의 자녀 · 이름 테스트 · 생년월일 2019-01-01 (이벤트도 생년월일) · 성별 남 · 키 115.0cm · 몸무게 20.0kg · 체형 보통 · 선호 핏 여유 (성장 이력 1건) | 회원 | ③④ |
 | 배송지 | 배송지 `1` (회원 1 · 기본) | 홍길동 · 010-0000-0000 · 우편번호 00000 · 서울시 테스트로 1 | 회원 | ④ |
-| 상품 기준 데이터 | - | 카테고리: 의류 > 상의 · 하의 · 아우터 · 원피스, 잡화 > 모자 · 양말 · 상품 유형(입력 양식): 의류 · 모자 · 양말 · 항목(옵션 항목 색상 · 사이즈, 정보 항목 주요소재 · 혼용률) · 실측 항목. 카테고리 ID는 넣는 순서로 정해져 v1.0의 1 · 2와 다를 수 있음 | 상품 | ② |
+| 상품 기준 데이터 | - | 카테고리: 의류 > 상의 · 바지 · 아우터 · 원피스 · 치마, 잡화 > 모자 · 양말 · 상품 유형(입력 양식): 의류 · 모자 · 양말 · 항목(옵션 항목 색상 · 사이즈, 정보 항목 주요소재 · 혼용률) · 실측 항목. 카테고리 ID는 넣는 순서로 정해져 v1.0의 1 · 2와 다를 수 있음 | 상품 | ② |
 | 상품 A | 상품 `1` | 네이비 데일리 맨투맨 · 판매자 2 · 의류 > 상의 · 브랜드 BBCC · 소재 면(정보 항목) · 판매 중 · 옵션 `1` 네이비/110 · 옵션 `2` 네이비/120 (색상 × 사이즈) · 각 25,000원 · 재고 각 10 | 상품 | ②~④ |
 | 상품 A 사이즈 | - | 110: 권장 키 105~115cm · 120: 115~125cm · 실측(총장 · 어깨너비 · 가슴단면 · 소매길이)도 넣음 | 상품 | ③ |
-| 상품 B | 상품 `2` | 그레이 조거 팬츠 · 판매자 2 · 의류 > 하의 · 소재 면 · 판매 중 · 옵션 `3` 그레이/120 · 30,000원 · 재고 5 · 120: 권장 키 115~125cm | 상품 | ②~④ |
+| 상품 B | 상품 `2` | 그레이 조거 팬츠 · 판매자 2 · 의류 > 바지 · 소재 면 · 판매 중 · 옵션 `3` 그레이/120 · 30,000원 · 재고 5 · 120: 권장 키 115~125cm | 상품 | ②~④ |
 
 > 자녀 키 115cm는 상품 A의 110과 120 **두 사이즈에 모두 걸치도록** 골랐습니다 → 선호 핏으로 고르는 경우까지 시연할 수 있습니다.
 
@@ -62,7 +62,7 @@ v1.1: 단계 연결이 끝나 v1.0의 「혼자 시작하기」 칸과 7.1 「�
 | `PATCH /api/v1/members/me/addresses/{addressId}/default` | 기본 배송지 변경 |
 
 - **완료 기준** 카카오로 로그인하면 회원과 지갑이 생기고, 자녀를 등록해 목록에서 볼 수 있다. 배송지를 등록하고 기본 배송지를 바꿀 수 있고, Refresh Token으로 재발급 · 로그아웃할 수 있다.
-- **최종** 결제가 `member.withdrawn`을 받아 지갑을 동결한다(잔액은 운영자가 환급). 로그인 회원 확인은 Gateway가 하고, 판매자 자격을 잃으면 `member.tokens-revoked`로 토큰이 무효화된다.
+- **최종** 결제가 `member.withdrawn`을 받아 지갑을 동결한다(잔액은 운영자가 환급). 로그인 회원 확인은 Gateway가 하고, 판매자 자격을 잃으면 `auth.tokens-revoked`로 토큰이 무효화된다.
 
 ## ② 상품 등록
 
@@ -110,13 +110,13 @@ v1.1: 단계 연결이 끝나 v1.0의 「혼자 시작하기」 칸과 7.1 「�
 | `GET /api/v1/recommendations/products?childId=&categoryId=&page=&size=&asOf=` | 자녀 맞춤 상품 목록(기존 6칸 + `reason` + `source`). 홈 맛보기 4개는 AI, 더보기는 선호 점수 순 |
 | `GET /api/v1/recommendations/companions?productId=&childId=` | 함께 사면 좋은 상품 4개(새 API) |
 | `POST /api/v1/recommendations/product-views` | 상품 상세 진입 기록(화면이 호출, 본문: productId와 선택 칸 childId(고른 자녀). 같은 회원 · 자녀 · 상품 · 날짜는 한 번만 기록) |
-| `GET /api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(2순위). 상의, 하의 순서이고 없으면 `[]` |
-| `PUT /api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(2순위). `{part}`는 `TOP` · `BOTTOM`, 본문: `categoryId`(상품 말단 카테고리)와 `measurements`(실측 항목 코드별 cm). 같은 구분을 다시 저장하면 교체 |
+| `GET /api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(2순위). 상의, 바지, 아우터, 원피스, 치마 순서이고 없으면 `[]` |
+| `PUT /api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(2순위). `{part}`는 `TOP` · `BOTTOM` · `OUTER` · `DRESS` · `SKIRT`, 본문: `categoryId`(상품 말단 카테고리)와 `measurements`(실측 항목 코드별 cm). 같은 구분을 다시 저장하면 교체 |
 | `DELETE /api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 삭제(2순위). 이미 없어도 204 |
 
 - **완료 기준** 자녀를 고르면 상품 상세에 추천 사이즈 · 적합도 · 근거가 나오고 아래에 함께 사면 좋은 상품 4개가 나온다. 홈 자녀 맞춤 상품 4개는 장바구니 · 최근 활동이 반영된 AI 선택과 이유로 나오고, 더보기 목록은 활동 선호 순서로 나오며 넘기는 동안 순서가 바뀌지 않는다. 추천 서비스를 멈춰도 상품 상세 · 장바구니 담기 · 주문이 된다. 기준 옷이 있으면 기준 옷과의 cm 차이가 함께 나온다(2순위).
 - **응답** 사이즈 추천: 추천 사이즈 · 적합도 · 안내(code · message) · 후보 사이즈 목록 · 지난번 산 사이즈 · 근거 목록(`reasons`) · 출처(`source`). 상품 추천 한 줄: productId · name · thumbnailUrl · businessName · minPrice · recommendedSize · 이유(`reason`) · 출처(`source`). 맞춤 목록 1쪽 응답에 기준 시각(`asOf`).
-- **최종(2순위) 기준 옷** 추천이 자녀별 기준 옷을 직접 저장한다(자녀 프로필은 저장하지 않고 이벤트도 보내지 않는다). 상의는 총장 · 가슴단면(선택: 어깨너비 · 소매길이), 하의는 총장 · 허리단면(선택: 밑위)을 cm로 받고, 로그인한 보호자의 자녀만 다룬다(남의 자녀 403, 없는 · 삭제된 자녀 404). 완료 기준: 자녀마다 상의 · 하의 기준 옷을 등록하고 고칠 수 있다.
+- **최종(2순위) 기준 옷** 추천이 자녀별 기준 옷을 직접 저장한다(자녀 프로필은 저장하지 않고 이벤트도 보내지 않는다). 칸은 상의 · 바지 · 아우터 · 원피스 · 치마 5개이고, 상의 · 아우터는 총장 · 가슴단면(선택: 어깨너비 · 소매길이), 원피스는 총장 · 가슴단면(선택: 어깨너비), 바지는 총장 · 허리단면(선택: 밑위), 치마는 총장 · 허리단면(선택: 엉덩이단면)을 cm로 받고, 로그인한 보호자의 자녀만 다룬다(남의 자녀 403, 없는 · 삭제된 자녀 404). 완료 기준: 자녀마다 칸별 기준 옷을 등록하고 고칠 수 있다.
 
 ## ④ 주문과 결제
 
@@ -280,9 +280,9 @@ v2.0: 정산 담당 보강본으로 바꿨습니다. 월 정산 → **영업일 
 | 중복 실행 | 같은 `cutoffAt` 작업이 이미 끝났으면 409 (이미 정산한 기준일) · 실행 중이면 409 · 실행 시작 전에 Batch의 실행 중 작업을 조회해 409. 동시에 온 두 요청이 같이 통과해도 정산 대상 `@Version` · 정산서 유니크가 중복 정산을 막음 |
 | 다시 실행 | 작업 자체가 실패(`FAILED`)하면 같은 기준일로 다시 실행. 건너뛴 판매자가 있어도 작업은 완료라 같은 기준일 재실행은 409이고, 남은 대상은 다음 기준일에 정산. 읽기가 `PENDING`만 고르므로 이미 정산한 판매자는 다시 처리하지 않음 (읽기 위치를 저장하지 않음) |
 | 실행 기록 | 따로 저장하지 않음. 실행 결과 · 조회 API는 Batch 작업 실행(ID · 파라미터 · 상태 · 단계 쓰기/건너뛴 수)으로 만듦 |
-| 자동 실행 | `@Scheduled(cron = 설정값, zone = "Asia/Seoul")` (지금 평일 09:05~17:05 매시간) → 영업일인지 확인(주말 · 공휴일이면 건너뜀, 공휴일 조회 실패면 다음 시간 재시도) → 종료 기준일 = 실행일 0시 → 작업 실행 (그날 이미 정산했으면 409로 건너뜀) |
+| 자동 실행 | k3s CronJob 매일 10시 한 번 실행 → 영업일인지 확인(주말 · 공휴일이면 건너뜀) → 종료 기준일 = 실행일 0시 → 작업 실행 (그날 이미 정산했으면 건너뜀) → 영업일 12:30까지 완료되지 않으면 게이지로 Grafana 알림 |
 | 수동 실행 | `POST /api/v1/admin/settlements/run` → 같은 작업을 끝날 때까지 기다려 실행 (시연용) → 201 + 실행 결과 |
-| 설정값 | `settlement.fee-rate`(0.1) · `settlement.run-cron`(`0 5 9-17 * * MON-FRI`) · `settlement.payout-retry-cron`(`0 */10 * * * *`) · `settlement.chunk-size`(100) · `spring.batch.job.enabled=false`(기동 때 자동 실행 안 함) · `spring.batch.jdbc.table-prefix=settlement.BATCH_` · `spring.batch.jdbc.initialize-schema`: local `always`, 그 외 `never`(배포 전 DDL) |
+| 설정값 | `settlement.fee-rate`(0.1) · `settlement.run-deadline`(12:30) · `settlement.payout-retry-cron`(`0 */10 * * * *`) · `settlement.chunk-size`(100) · `spring.batch.job.enabled=false`(기동 때 자동 실행 안 함) · `spring.batch.jdbc.table-prefix=settlement.BATCH_` · `spring.batch.jdbc.initialize-schema`: local `always`, 그 외 `never`(배포 전 DDL) |
 | 의존성 | `build.gradle.kts`: `implementation("org.springframework.boot:spring-boot-starter-batch-jdbc")` · `testImplementation("org.springframework.boot:spring-boot-starter-batch-jdbc-test")`. 버전은 Spring Boot 4.1.1이 맞춤. DB에 실행 기록을 남겨야 재실행 방지 · 이어서 실행이 되므로 `-jdbc` 스타터를 씀 |
 
 ### ⑦ 상세 7. API

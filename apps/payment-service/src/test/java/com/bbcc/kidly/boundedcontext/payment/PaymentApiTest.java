@@ -57,6 +57,35 @@ class PaymentApiTest {
     }
 
     @Test
+    @DisplayName("orderId를 주면 최근 페이지 밖의 예전 주문이라도 그 주문의 내 결제만 준다")
+    void getPaymentsByOrderId() {
+        Payment old = paymentRepository.save(Payment.complete(101L, WALLET_ID, MEMBER_ID,
+            List.of(PaymentItem.of(1001L, 10_000L)), NOW));
+        paymentRepository.save(Payment.complete(102L, WALLET_ID, MEMBER_ID,
+            List.of(PaymentItem.of(1002L, 20_000L)), NOW));
+
+        get(MEMBER_ID, PAYMENTS_PATH + "?orderId=101&size=1")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content.length()").isEqualTo(1)
+            .jsonPath("$.content[0].paymentId").isEqualTo(old.getId())
+            .jsonPath("$.content[0].orderId").isEqualTo(101)
+            .jsonPath("$.totalElements").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("orderId가 남의 주문이면 빈 목록이다")
+    void getPaymentsByOthersOrderId() {
+        paymentRepository.save(Payment.complete(101L, WALLET_ID, 2L, List.of(PaymentItem.of(1001L, 10_000L)), NOW));
+
+        get(MEMBER_ID, PAYMENTS_PATH + "?orderId=101")
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.content.length()").isEqualTo(0)
+            .jsonPath("$.totalElements").isEqualTo(0);
+    }
+
+    @Test
     @DisplayName("결제가 없으면 빈 목록이다")
     void emptyPayments() {
         get(MEMBER_ID, PAYMENTS_PATH)

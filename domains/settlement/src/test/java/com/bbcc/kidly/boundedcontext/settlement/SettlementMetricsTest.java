@@ -2,11 +2,22 @@ package com.bbcc.kidly.boundedcontext.settlement;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementMetrics;
+import com.bbcc.kidly.boundedcontext.settlement.app.SettlementRunService;
+import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidays;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
+import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Year;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementMetricsTest {
@@ -21,13 +34,72 @@ class SettlementMetricsTest {
     @Mock
     private SettlementOutboxRepository outboxRepository;
 
+    @Mock
+    private SettlementRepository settlementRepository;
+    @Mock
+    private SettlementHolidays holidays;
+    @Mock
+    private SettlementRunService runService;
+
     private SimpleMeterRegistry registry;
     private SettlementMetrics metrics;
 
     @BeforeEach
     void setUp() {
         registry = new SimpleMeterRegistry();
-        metrics = new SettlementMetrics(registry, outboxRepository);
+        metrics = new SettlementMetrics(
+            registry, outboxRepository, settlementRepository, holidays, runService, "12:30");
+    }
+
+    @Test
+    @DisplayName("정산 지연은 영업일 · 마감 뒤 · 미완료일 때만 1이다")
+    void runOverdueChecksBusinessDayDeadlineAndCompletion() {
+        var now = LocalDateTime.of(2026, 11, 11, 13, 0);
+        var holiday = LocalDate.of(2026, 11, 12);
+        given(holidays.holidaysIn(Year.of(2026))).willReturn(Set.of(holiday));
+        assertThat(metrics.runOverdue(now.withHour(12))).isZero();
+        then(runService).should(never()).isCompleted(now.toLocalDate());
+        assertThat(metrics.runOverdue(now.withDayOfMonth(14))).isZero();
+        assertThat(metrics.runOverdue(now.withDayOfMonth(12))).isZero();
+        given(runService.isCompleted(now.toLocalDate())).willReturn(false, true);
+        assertThat(metrics.runOverdue(now)).isEqualTo(1);
+        assertThat(metrics.runOverdue(now)).isZero();
+    }
+
+    @Test
+    @DisplayName("공휴일 목록이 없으면 마감 전 · 주말에도 정산 지연은 1이다")
+    void missingHolidaysIsOverdueBeforeDeadline() {
+        given(holidays.holidaysIn(Year.of(2026))).willReturn(Set.of());
+        assertThat(metrics.runOverdue(LocalDateTime.of(2026, 11, 14, 1, 0))).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("미지급 경과 시간은 가장 이른 완료 시각부터 초이고, 없거나 미래면 0이다")
+    void oldestUnpaidAgeAndRegisteredGauges() {
+        var now = LocalDateTime.of(2026, 11, 11, 13, 0);
+        given(settlementRepository.findOldestCompletedAt(SettlementStatus.COMPLETED))
+            .willReturn(Optional.of(now.minusSeconds(42)), Optional.of(now.plusSeconds(1)), Optional.empty());
+        assertThat(metrics.oldestUnpaidAgeSeconds(now)).isEqualTo(42);
+        assertThat(metrics.oldestUnpaidAgeSeconds(now)).isZero();
+        assertThat(metrics.oldestUnpaidAgeSeconds(now)).isZero();
+        assertThat(registry.find("settlement_run_overdue").gauge()).isNotNull();
+        assertThat(registry.find("settlement_payout_oldest_unpaid_age_seconds").gauge()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("지급 실패 카운터는 기동 때 0으로 등록되고 커밋된 뒤에만 1 오른다")
+    void payoutFailureCounterStartsAtZero() {
+        var counter = registry.get("settlement_payout_failed_total").counter();
+        assertThat(counter.count()).isZero();
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            metrics.countPayoutFailed();
+            assertThat(counter.count()).isZero();
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+        assertThat(counter.count()).isEqualTo(1);
     }
 
     @Test

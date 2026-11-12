@@ -1,6 +1,7 @@
 package com.bbcc.kidly.shared.product.event;
 
 import com.bbcc.kidly.shared.event.DomainEvent;
+import com.bbcc.kidly.shared.product.domain.CategoryVisibleGender;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.math.BigDecimal;
@@ -177,8 +178,24 @@ public record ProductChangedEvent(UUID eventId, LocalDateTime occurredAt, Data d
      *
      * @param id 상품 도메인의 카테고리 ID
      * @param name 카테고리 이름. 카테고리 ID는 환경마다 달라 받는 쪽은 이름으로 대분류와 종류를 알아본다
+     * @param visibleGender 이 카테고리를 보여 줄 자녀 성별이다. GIRL이면 남아 자녀에게는 보여 주지 않는다.
+     *        이 칸이 생기기 전에 나간 메시지는 ALL로 읽힌다
      */
-    public record CategoryPathEntry(Long id, String name) {
+    public record CategoryPathEntry(Long id, String name, CategoryVisibleGender visibleGender) {
+
+        // 칸이 없는 예전 메시지는 null로 읽히므로, 받는 쪽이 null을 검사하지 않게 ALL로 바꾼다
+        public CategoryPathEntry {
+            if (visibleGender == null) {
+                visibleGender = CategoryVisibleGender.ALL;
+            }
+        }
+
+        /**
+         * 이벤트를 만드는 다른 도메인 코드와 테스트가 바뀌지 않게 하려고, 보일 성별 없이 만드는 생성자를 둔다(ALL).
+         */
+        public CategoryPathEntry(Long id, String name) {
+            this(id, name, CategoryVisibleGender.ALL);
+        }
     }
 
     /**

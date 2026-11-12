@@ -19,6 +19,8 @@ import org.springframework.kafka.listener.ContainerProperties.AckMode;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.ProducerListener;
+import org.springframework.util.backoff.BackOff;
+import org.springframework.util.backoff.ExponentialBackOff;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
@@ -28,6 +30,9 @@ import tools.jackson.core.JacksonException;
  * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다(Elasticsearch가 잠깐 응답하지 않는 경우).
  * 다시 해도 같은 실패는 재시도 없이 보낸다: 읽지 못한 본문(JacksonException), 검색 문서로 만들 수 없는 값
  * (옵션 없는 상품 · 필수 값 없음 · eventType 헤더 없음, IllegalArgumentException · NullPointerException).
+ * DLT는 검색이 다시 읽어 색인에 반영한다(SearchDeadLetterListener, #1026). DLT 메시지가 실패하면 DLT로 다시 보내지 않고
+ * 1초부터 두 배씩 최대 1분 간격으로 될 때까지 다시 시도한다(Elasticsearch가 돌아올 때까지 기다린다).
+ * 다시 해도 같은 실패(위 예외)면 로그만 남기고 건너뛴다.
  * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate에 영향이 없다.
  */
 @Slf4j
@@ -37,16 +42,21 @@ class SearchKafkaListenerConfig {
     static final String PRODUCT_EVENTS = "kidly.product.events";
     static final String SELLER_EVENTS = "kidly.seller.events";
     static final String GROUP = "kidly.search";
-    private static final String DLT_SUFFIX = ".search.dlt";
+    static final String DLT_SUFFIX = ".search.dlt";
+    static final String PRODUCT_DEAD_LETTERS = PRODUCT_EVENTS + DLT_SUFFIX;
+    static final String SELLER_DEAD_LETTERS = SELLER_EVENTS + DLT_SUFFIX;
+    // DLT 메시지 재시도 간격. 시도 횟수 · 시간 제한은 두지 않는다(ExponentialBackOff 기본값)
+    static final long DEAD_LETTER_INITIAL_INTERVAL_MS = 1_000L;
+    static final long DEAD_LETTER_MAX_INTERVAL_MS = 60_000L;
 
     @Bean
     NewTopic searchProductEventsDeadLetterTopic() {
-        return TopicBuilder.name(PRODUCT_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
+        return TopicBuilder.name(PRODUCT_DEAD_LETTERS).partitions(1).replicas(1).build();
     }
 
     @Bean
     NewTopic searchSellerEventsDeadLetterTopic() {
-        return TopicBuilder.name(SELLER_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
+        return TopicBuilder.name(SELLER_DEAD_LETTERS).partitions(1).replicas(1).build();
     }
 
     // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
@@ -61,17 +71,33 @@ class SearchKafkaListenerConfig {
         return factory;
     }
 
-    // 실패한 메시지는 받은 토픽의 DLT(예: kidly.product.events.search.dlt)로 보낸다
+    // 실패한 메시지는 받은 토픽의 DLT(예: kidly.product.events.search.dlt)로 보낸다.
+    // DLT에서 읽은 메시지는 DLT로 다시 보내지 않는다. 될 때까지 다시 시도하고, 다시 해도 같은 실패면 건너뛴다
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         var errorHandler = new DefaultErrorHandler((record, e) -> {
+            if (isDeadLetter(record)) {
+                logSkippedDeadLetter(record, e);
+                return;
+            }
             logDeadLetter(record, e);
             deadLetter.accept(record, e);
         }, new FixedBackOff(1000L, 3));
+        errorHandler.setBackOffFunction((record, e) -> isDeadLetter(record) ? deadLetterBackOff() : null);
         errorHandler.addNotRetryableExceptions(
             JacksonException.class, IllegalArgumentException.class, NullPointerException.class);
         return errorHandler;
+    }
+
+    static boolean isDeadLetter(ConsumerRecord<?, ?> record) {
+        return record.topic().endsWith(DLT_SUFFIX);
+    }
+
+    private static BackOff deadLetterBackOff() {
+        var backOff = new ExponentialBackOff(DEAD_LETTER_INITIAL_INTERVAL_MS, 2.0);
+        backOff.setMaxInterval(DEAD_LETTER_MAX_INTERVAL_MS);
+        return backOff;
     }
 
     // Boot 프로듀서 팩토리를 그대로 써서 공용 프로듀서를 빌려 쓰므로 따로 닫을 것이 없다
@@ -87,6 +113,13 @@ class SearchKafkaListenerConfig {
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
         log.error("처리하지 못한 이벤트를 DLT로 보냅니다. topic={} eventType={} eventId={} key={} exception={}",
+            record.topic(), header(record, "eventType"), header(record, "eventId"), record.key(), exception);
+    }
+
+    // 이 상품 · 판매자는 색인에 옛 값이 남는다. 상품 · 판매자 다시 발행으로 채운다(deploy/search/README.md)
+    private static void logSkippedDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
+        var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
+        log.error("DLT 이벤트를 색인에 반영하지 못해 건너뜁니다. topic={} eventType={} eventId={} key={} exception={}",
             record.topic(), header(record, "eventType"), header(record, "eventId"), record.key(), exception);
     }
 

@@ -40,6 +40,13 @@ public class OpenAiTextEmbedder implements TextEmbedder {
             .build();
     }
 
+    /**
+     * 연속 실패로 API를 부르지 않는 중이면 true다(EmbeddingCircuitBreaker).
+     */
+    public boolean isCircuitOpen() {
+        return circuitBreaker.isOpen();
+    }
+
     @Override
     public Optional<List<Float>> embed(String text) {
         if (!properties.enabled() || text == null || text.isBlank()) {

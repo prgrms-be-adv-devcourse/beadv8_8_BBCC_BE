@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order;
 
+import com.bbcc.kidly.boundedcontext.order.app.order.SellerUnavailableCleanupService;
 import com.bbcc.kidly.boundedcontext.order.in.event.ChildAccountEventListener;
 import com.bbcc.kidly.boundedcontext.order.in.event.ChildProfileEventListener;
 import com.bbcc.kidly.boundedcontext.order.in.event.MemberEventListener;
@@ -16,6 +17,8 @@ import com.bbcc.kidly.shared.payment.event.PaymentFailedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductedEvent;
 import com.bbcc.kidly.shared.product.event.StockDeductionFailedEvent;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.test.util.AopTestUtils;
@@ -37,17 +40,25 @@ public class OrderEventDelivery {
     private final ChildProfileEventListener childProfileEventListener;
     private final ChildAccountEventListener childAccountEventListener;
     private final MemberEventListener memberEventListener;
+    private final SellerUnavailableCleanupService sellerUnavailableCleanupService;
 
     /**
      * 운영과 같은 길로 보낸다: 한 트랜잭션에서 발행하고 커밋된 뒤 리스너가 받는다(여러 개면 준 순서대로).
      * 리스너 예외는 받는 쪽에서 로그로만 남으므로 결과는 저장된 상태로 확인한다.
      * 판매자 · 자녀 · 자녀 계정 · 회원 탈퇴(#1001) 이벤트는 다른 서비스가 발행해 Kafka로만 받으므로, Kafka 리스너가 부르는 처리 메서드를 그 트랜잭션 안에서 부른다.
+     * 판매자 이벤트는 Kafka 리스너처럼 트랜잭션이 커밋된 뒤 판매 불가 판매자 정리(#1121, 주문마다 트랜잭션)를 부른다.
      */
     public void deliver(DomainEvent... events) {
+        List<Long> sellerIds = new ArrayList<>();
         transactionTemplate.executeWithoutResult(status -> {
             for (DomainEvent event : events) {
                 switch (event) {
-                    case SellerChangedEvent seller -> sellerReplicaEventListener.onSellerChanged(seller);
+                    case SellerChangedEvent seller -> {
+                        sellerReplicaEventListener.onSellerChanged(seller);
+                        if (seller.data() != null) {
+                            sellerIds.add(seller.data().sellerId());
+                        }
+                    }
                     case ChildChangedEvent child -> childProfileEventListener.onChildChanged(child);
                     case ChildAccountChangedEvent account -> childAccountEventListener.onChildAccountChanged(account);
                     case MemberWithdrawnEvent withdrawn -> memberEventListener.onMemberWithdrawn(withdrawn);
@@ -55,6 +66,7 @@ public class OrderEventDelivery {
                 }
             }
         });
+        sellerIds.forEach(sellerUnavailableCleanupService::cleanUpIfUnavailable);
     }
 
     /**

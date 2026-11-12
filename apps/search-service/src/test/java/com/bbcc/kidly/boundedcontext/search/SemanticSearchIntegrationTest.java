@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearch;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchItem;
@@ -9,10 +10,14 @@ import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
 import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProductRepository;
+import com.bbcc.kidly.boundedcontext.search.out.SearchEmbeddingProperties;
+import com.bbcc.kidly.boundedcontext.search.out.SearchIndexMetrics;
+import com.bbcc.kidly.boundedcontext.search.out.SearchIndexProperties;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import com.bbcc.kidly.support.SearchIndexes;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +51,12 @@ class SemanticSearchIntegrationTest {
     @Autowired
     private SearchIndexes indexes;
 
+    @Autowired
+    private ElasticsearchClient client;
+
+    @Autowired
+    private SearchIndexProperties indexProperties;
+
     @BeforeEach
     void indexProducts() {
         // 검색어 벡터(0번 축)와 유사도 1.0
@@ -58,6 +69,8 @@ class SemanticSearchIntegrationTest {
         save(4L, "아동 래시가드 세트", ProductStatus.STOPPED, axis(0));
         // 벡터 없이 저장된 상품(임베딩 API를 쓸 수 없었음)
         save(5L, "원피스 수영복", ProductStatus.ON_SALE, null);
+        // 벡터 없이 저장됐지만 판매중지라 벡터 없는 상품 수에 세지 않는다
+        save(6L, "판매중지 원피스", ProductStatus.STOPPED, null);
         indexes.refresh();
     }
 
@@ -110,6 +123,23 @@ class SemanticSearchIntegrationTest {
     void keywordAndSimilarityInNewest() {
         assertThat(ids(search("원피스", axis(0), ProductSearchSort.NEWEST))).containsExactly(1L, 2L, 3L, 5L);
         assertThat(ids(search("원피스", null, ProductSearchSort.NEWEST))).containsExactly(2L, 5L);
+    }
+
+    @Test
+    @DisplayName("벡터 없이 저장된 판매중 상품 수를 지표로 센다. 의미 검색을 끈 환경은 지표를 두지 않는다")
+    void countsOnSaleProductsWithoutEmbedding() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        new SearchIndexMetrics(client, indexProperties, embeddingProperties("sk-test"), registry);
+        SimpleMeterRegistry disabledRegistry = new SimpleMeterRegistry();
+        new SearchIndexMetrics(client, indexProperties, embeddingProperties(""), disabledRegistry);
+
+        assertThat(registry.get("kidly.search.products.without.embedding").gauge().value()).isEqualTo(1.0);
+        assertThat(disabledRegistry.find("kidly.search.products.without.embedding").gauge()).isNull();
+    }
+
+    private static SearchEmbeddingProperties embeddingProperties(String apiKey) {
+        return new SearchEmbeddingProperties(apiKey, "https://api.openai.test/v1", "text-embedding-3-small",
+            DIMENSIONS, 0.3f);
     }
 
     private Page<ProductSearchItem> search(String keyword, List<Float> vector) {

@@ -3093,17 +3093,24 @@
       {
         "name": "env",
         "label": "환경",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": "label_values(kidly_environment_enabled, env)",
-        "refresh": 1,
+        "type": "custom",
+        "query": "운영 : dev,prod : prod",
         "current": {
-          "text": "prod",
-          "value": "prod"
-        }
+          "text": "운영",
+          "value": "dev"
+        },
+        "options": [
+          {
+            "text": "운영",
+            "value": "dev",
+            "selected": true
+          },
+          {
+            "text": "prod",
+            "value": "prod",
+            "selected": false
+          }
+        ]
       },
       {
         "name": "service",

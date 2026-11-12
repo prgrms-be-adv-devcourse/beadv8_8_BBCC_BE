@@ -1,0 +1,92 @@
+---
+rule_files:
+- rules.yml
+evaluation_interval: 1m
+tests:
+- name: search DLT arrival alerts per topic and clears after quiet window
+  interval: 1m
+  input_series:
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.product.events.search.dlt",partition="0"}
+    values: 0+0x5 3+0x20
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.seller.events.search.dlt",partition="0"}
+    values: 0+0x25
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: kidly-search-dlt-arrived
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: kidly-search-dlt-arrived
+    exp_alerts:
+    - exp_labels:
+        env: dev
+        topic: kidly.product.events.search.dlt
+  - eval_time: 18m
+    alertname: kidly-search-dlt-arrived
+    exp_alerts: []
+- name: other DLTs and source topics do not alert search
+  interval: 1m
+  input_series:
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.member.events.member.dlt",partition="0"}
+    values: 0+1x25
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.product.events",partition="0"}
+    values: 0+1x25
+  - series: kafka_topic_partition_current_offset{job="kidly-kafka",env="dev",topic="kidly.product.events.order.dlt",partition="0"}
+    values: 0+1x25
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: kidly-search-dlt-arrived
+    exp_alerts: []
+- name: search DLT lag alerts only after 30 minutes and only for the search group
+  interval: 1m
+  input_series:
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.product.events.search.dlt",partition="0"}
+    values: 2+0x40
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.search",topic="kidly.seller.events.search.dlt",partition="0"}
+    values: 1+0x10 0+0x30
+  - series: kafka_consumergroup_lag{job="kidly-kafka",env="dev",consumergroup="kidly.order",topic="kidly.product.events.search.dlt",partition="0"}
+    values: 5+0x40
+  alert_rule_test:
+  - eval_time: 29m
+    alertname: kidly-search-dlt-not-drained
+    exp_alerts: []
+  - eval_time: 31m
+    alertname: kidly-search-dlt-not-drained
+    exp_alerts:
+    - exp_labels:
+        env: dev
+        topic: kidly.product.events.search.dlt
+- name: embedding circuit alerts after 10 minutes open and clears when closed
+  interval: 1m
+  input_series:
+  - series: kidly_search_embedding_circuit_open{job="kidly-search",env="dev",instance="search:8082"}
+    values: 1+0x15 0+0x10
+  - series: kidly_search_embedding_circuit_open{job="kidly-search",env="prod",instance="search:8094"}
+    values: 0+0x25
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: kidly-search-embedding-circuit-open
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: kidly-search-embedding-circuit-open
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 17m
+    alertname: kidly-search-embedding-circuit-open
+    exp_alerts: []
+- name: products without embedding alert after an hour and ignore unknown counts
+  interval: 1m
+  input_series:
+  - series: kidly_search_products_without_embedding{job="kidly-search",env="dev",instance="search:8082"}
+    values: 4+0x70
+  - series: kidly_search_products_without_embedding{job="kidly-search",env="prod",instance="search:8094"}
+    values: NaN+0x70
+  alert_rule_test:
+  - eval_time: 59m
+    alertname: kidly-search-products-without-embedding
+    exp_alerts: []
+  - eval_time: 61m
+    alertname: kidly-search-products-without-embedding
+    exp_alerts:
+    - exp_labels:
+        env: dev

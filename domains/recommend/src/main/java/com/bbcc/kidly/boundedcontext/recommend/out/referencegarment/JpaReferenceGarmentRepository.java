@@ -15,7 +15,7 @@ public interface JpaReferenceGarmentRepository
 
     List<ReferenceGarment> findByChildProfileId(Long childProfileId);
 
-    // 구분 이름을 문자열로 정렬하면 BOTTOM이 TOP보다 앞서므로, enum 선언 순서(상의, 하의)로 정렬한다
+    // 구분 이름을 문자열로 정렬하면 BOTTOM이 TOP보다 앞서므로, enum 선언 순서로 정렬한다
     @Override
     default List<ReferenceGarment> findAllByChildProfileId(Long childProfileId) {
         List<ReferenceGarment> garments = new ArrayList<>(findByChildProfileId(childProfileId));

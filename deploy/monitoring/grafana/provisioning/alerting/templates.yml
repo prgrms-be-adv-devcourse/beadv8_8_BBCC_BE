@@ -20,7 +20,7 @@ templates:
       {{ if eq .CommonLabels.alertname "DatasourceError" }}{{ .CommonLabels.rulename }} · 조회 실패
       {{- else if eq .CommonLabels.alertname "DatasourceNoData" }}{{ .CommonLabels.rulename }} · 데이터 없음
       {{- else }}{{ .CommonLabels.alertname }}{{ end }}
-      {{- with .CommonLabels.env }} · {{ . }}{{ end }}
+      {{- with .CommonLabels.env }} · {{ if eq . "dev" }}운영{{ else }}{{ . }}{{ end }}{{ end }}
       {{- end }}
 
       {{ define "kidly.slack.text" -}}
@@ -31,10 +31,20 @@ templates:
       {{ end -}}
       {{ end -}}
       {{ with index .Alerts.Firing 0 }}<{{ .GeneratorURL }}|규칙 보기> · <{{ .SilenceURL }}|일시정지>
-      {{- with .Annotations.logs_url }} · <{{ . }}|로그 보기>{{ end }}{{ end }}
+      {{- with .Annotations.logs_url }} · <{{ . }}|로그 보기>{{ end }}
+      {{- with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
       {{- else -}}
+      {{ if .Alerts.Resolved -}}
+      {{ if (index .Alerts.Resolved 0).Annotations.recovery_summary -}}
+      {{ range .Alerts.Resolved -}}
+      {{ with .Annotations.recovery_summary }}{{ . }}
+      {{ end -}}
+      {{ end -}}
+      {{ else -}}
       정상으로 돌아왔습니다
-      {{ with index .Alerts 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ end }}
+      {{ end -}}
+      {{ with index .Alerts.Resolved 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
+      {{ end -}}
       {{- end }}
       {{- end }}
 

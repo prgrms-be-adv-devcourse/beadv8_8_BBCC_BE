@@ -46,6 +46,8 @@ class ReferenceGarmentApiTest {
 
     private static final Long SKIRT_CATEGORY_ID = 71L;
 
+    private static final Long PANTS_CATEGORY_ID = 72L;
+
     private static final String TOP_BODY =
         "{\"categoryId\": 7, \"measurements\": {\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": 34.5}}";
 
@@ -59,10 +61,11 @@ class ReferenceGarmentApiTest {
     private static final Long UNKNOWN_CHILD_ID = 99L;
 
     private static final ErrorText REQUIRED_MISSING = new ErrorText("필수 실측이 없습니다",
-        "상의는 총장과 가슴단면, 하의는 총장과 허리단면을 입력해 주세요.");
+        "상의 · 아우터 · 원피스는 총장과 가슴단면, 바지 · 치마는 총장과 허리단면을 입력해 주세요.");
 
     private static final ErrorText UNSUPPORTED_CODE = new ErrorText("이 구분에 없는 실측 항목입니다",
-        "상의는 총장 · 가슴단면 · 어깨너비 · 소매길이, 하의는 총장 · 허리단면 · 밑위만 입력할 수 있습니다.");
+        "상의 · 아우터는 총장 · 가슴단면 · 어깨너비 · 소매길이, 원피스는 총장 · 가슴단면 · 어깨너비, "
+            + "바지는 총장 · 허리단면 · 밑위, 치마는 총장 · 허리단면 · 엉덩이단면만 입력할 수 있습니다.");
 
     private static final ErrorText INVALID_VALUE = new ErrorText("잘못된 실측 값입니다",
         "실측 값은 0cm보다 크고 200cm 이하이며, 소수 첫째 자리까지 입력할 수 있습니다.");
@@ -84,6 +87,7 @@ class ReferenceGarmentApiTest {
         applyProduct(33L, OUTER_CATEGORY_ID, "아우터");
         applyProduct(34L, DRESS_CATEGORY_ID, "원피스");
         applyProduct(35L, SKIRT_CATEGORY_ID, "치마");
+        applyProduct(36L, PANTS_CATEGORY_ID, "바지");
     }
 
     @Test
@@ -108,34 +112,44 @@ class ReferenceGarmentApiTest {
     }
 
     @Test
-    @DisplayName("하의를 먼저 저장하고 상의를 나중에 저장해도 목록은 상의, 하의 순서로 나온다")
-    void listTopBeforeBottom() {
+    @DisplayName("다섯 칸을 섞인 순서로 저장해도 목록은 상의, 바지, 아우터, 원피스, 치마 순서로 나온다")
+    void listInPartOrder() {
+        put(MEMBER_1_ID, CHILD_1_ID, "SKIRT", body("71", "\"TOTAL_LENGTH\": 32, \"WAIST_WIDTH\": 24,"
+            + " \"HIP_WIDTH\": 33.5")).expectStatus().isOk();
         put(MEMBER_1_ID, CHILD_1_ID, "BOTTOM", BOTTOM_BODY).expectStatus().isOk();
+        put(MEMBER_1_ID, CHILD_1_ID, "DRESS", body("9", "\"TOTAL_LENGTH\": 60, \"CHEST_WIDTH\": 31"))
+            .expectStatus().isOk();
         put(MEMBER_1_ID, CHILD_1_ID, "TOP", TOP_BODY).expectStatus().isOk();
+        put(MEMBER_1_ID, CHILD_1_ID, "OUTER", body("8", "\"TOTAL_LENGTH\": 48, \"CHEST_WIDTH\": 38"))
+            .expectStatus().isOk();
 
         list(MEMBER_1_ID, CHILD_1_ID)
             .expectStatus().isOk()
             .expectBody(List.class).isEqualTo(List.of(
                 garment("TOP", "7", Map.of("TOTAL_LENGTH", 42.0, "CHEST_WIDTH", 34.5)),
-                garment("BOTTOM", "70", Map.of("TOTAL_LENGTH", 55.5, "WAIST_WIDTH", 26.0))));
+                garment("BOTTOM", "70", Map.of("TOTAL_LENGTH", 55.5, "WAIST_WIDTH", 26.0)),
+                garment("OUTER", "8", Map.of("TOTAL_LENGTH", 48.0, "CHEST_WIDTH", 38.0)),
+                garment("DRESS", "9", Map.of("TOTAL_LENGTH", 60.0, "CHEST_WIDTH", 31.0)),
+                garment("SKIRT", "71", Map.of("TOTAL_LENGTH", 32.0, "WAIST_WIDTH", 24.0, "HIP_WIDTH", 33.5))));
     }
 
     @Test
     @DisplayName("같은 구분을 다시 저장하면 새 값이 기존 기준 옷을 교체하고, 빼고 보낸 선택 실측은 사라진다")
     void replaceSamePart() {
-        put(MEMBER_1_ID, CHILD_1_ID, "TOP", "{\"categoryId\": 7, \"measurements\": {\"TOTAL_LENGTH\": 42,"
-            + " \"CHEST_WIDTH\": 34.5, \"SHOULDER_WIDTH\": 30, \"SLEEVE_LENGTH\": 40.5}}")
+        put(MEMBER_1_ID, CHILD_1_ID, "BOTTOM", "{\"categoryId\": 70, \"measurements\": {\"TOTAL_LENGTH\": 55.5,"
+            + " \"WAIST_WIDTH\": 26, \"RISE\": 20}}")
             .expectStatus().isOk();
 
-        put(MEMBER_1_ID, CHILD_1_ID, "TOP",
-            "{\"categoryId\": 8, \"measurements\": {\"TOTAL_LENGTH\": 45.5, \"CHEST_WIDTH\": 36}}")
+        put(MEMBER_1_ID, CHILD_1_ID, "BOTTOM",
+            "{\"categoryId\": 72, \"measurements\": {\"TOTAL_LENGTH\": 58, \"WAIST_WIDTH\": 27.5}}")
             .expectStatus().isOk()
-            .expectBody(Map.class).isEqualTo(garment("TOP", "8", Map.of("TOTAL_LENGTH", 45.5, "CHEST_WIDTH", 36.0)));
+            .expectBody(Map.class)
+            .isEqualTo(garment("BOTTOM", "72", Map.of("TOTAL_LENGTH", 58.0, "WAIST_WIDTH", 27.5)));
 
         list(MEMBER_1_ID, CHILD_1_ID)
             .expectStatus().isOk()
             .expectBody(List.class).isEqualTo(List.of(
-                garment("TOP", "8", Map.of("TOTAL_LENGTH", 45.5, "CHEST_WIDTH", 36.0))));
+                garment("BOTTOM", "72", Map.of("TOTAL_LENGTH", 58.0, "WAIST_WIDTH", 27.5))));
     }
 
     @Test
@@ -154,8 +168,8 @@ class ReferenceGarmentApiTest {
     }
 
     @ParameterizedTest(name = "{0} 기준 옷에 카테고리 {1}")
-    @CsvSource({"TOP, 7", "TOP, 8", "TOP, 9", "BOTTOM, 70", "BOTTOM, 71"})
-    @DisplayName("FIT-01 상의 기준 옷은 상의 · 아우터 · 원피스 카테고리로, 하의 기준 옷은 하의 · 치마 카테고리로 저장된다")
+    @CsvSource({"TOP, 7", "BOTTOM, 70", "BOTTOM, 72", "OUTER, 8", "DRESS, 9", "SKIRT, 71"})
+    @DisplayName("FIT-01 상의는 상의, 바지는 하의 · 바지, 아우터는 아우터, 원피스는 원피스, 치마는 치마 카테고리로 저장된다")
     void saveWithMatchingCategory(String part, String categoryId) {
         put(MEMBER_1_ID, CHILD_1_ID, part, body(categoryId, requiredMeasurements(part)))
             .expectStatus().isOk()
@@ -166,12 +180,13 @@ class ReferenceGarmentApiTest {
     }
 
     @ParameterizedTest(name = "{0} 기준 옷에 카테고리 {1}")
-    @CsvSource({"TOP, 70", "TOP, 71", "BOTTOM, 7", "BOTTOM, 8", "BOTTOM, 9"})
-    @DisplayName("FIT-01 구분과 맞지 않는 카테고리면 400이고 저장되지 않는다")
+    @CsvSource({"TOP, 8", "TOP, 9", "TOP, 70", "BOTTOM, 71", "BOTTOM, 7", "OUTER, 7", "DRESS, 7", "SKIRT, 70",
+        "SKIRT, 72"})
+    @DisplayName("FIT-01 칸과 다른 종류의 카테고리면 400이고 저장되지 않는다")
     void rejectCategoryOfOtherPart(String part, String categoryId) {
         expectProblem(put(MEMBER_1_ID, CHILD_1_ID, part, body(categoryId, requiredMeasurements(part))),
             400, "구분과 맞지 않는 세부 종류입니다",
-            "상의 기준 옷은 상의 · 아우터 · 원피스, 하의 기준 옷은 하의 · 치마 카테고리에서 골라 주세요.",
+            "상의는 상의, 바지는 하의 · 바지, 아우터는 아우터, 원피스는 원피스, 치마는 치마 카테고리에서 골라 주세요.",
             path(CHILD_1_ID) + "/" + part);
 
         list(MEMBER_1_ID, CHILD_1_ID).expectStatus().isOk().expectBody().json("[]");
@@ -192,9 +207,7 @@ class ReferenceGarmentApiTest {
     @MethodSource("invalidMeasurements")
     @DisplayName("필수 실측이 빠지거나, 그 구분에 없는 코드나 허용 범위 밖의 값이 있으면 400이고 저장되지 않는다")
     void rejectInvalidMeasurements(String part, String measurements, ErrorText error) {
-        String categoryId = "TOP".equals(part) ? "7" : "70";
-
-        expectProblem(put(MEMBER_1_ID, CHILD_1_ID, part, body(categoryId, measurements)),
+        expectProblem(put(MEMBER_1_ID, CHILD_1_ID, part, body(categoryIdOf(part), measurements)),
             400, error.title(), error.detail(), path(CHILD_1_ID) + "/" + part);
 
         list(MEMBER_1_ID, CHILD_1_ID).expectStatus().isOk().expectBody().json("[]");
@@ -205,10 +218,13 @@ class ReferenceGarmentApiTest {
             Arguments.of("TOP", "\"TOTAL_LENGTH\": 42", REQUIRED_MISSING),
             Arguments.of("TOP", "", REQUIRED_MISSING),
             Arguments.of("BOTTOM", "\"WAIST_WIDTH\": 26", REQUIRED_MISSING),
+            Arguments.of("SKIRT", "\"TOTAL_LENGTH\": 32, \"HIP_WIDTH\": 33", REQUIRED_MISSING),
             Arguments.of("TOP", "\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": 34.5, \"RISE\": 20", UNSUPPORTED_CODE),
             Arguments.of("BOTTOM", "\"TOTAL_LENGTH\": 55, \"WAIST_WIDTH\": 26, \"SHOULDER_WIDTH\": 30",
                 UNSUPPORTED_CODE),
             Arguments.of("BOTTOM", "\"TOTAL_LENGTH\": 55, \"CHEST_WIDTH\": 26", UNSUPPORTED_CODE),
+            Arguments.of("DRESS", "\"TOTAL_LENGTH\": 60, \"CHEST_WIDTH\": 31, \"SLEEVE_LENGTH\": 30",
+                UNSUPPORTED_CODE),
             Arguments.of("TOP", "\"TOTAL_LENGTH\": 0, \"CHEST_WIDTH\": 34.5", INVALID_VALUE),
             Arguments.of("TOP", "\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": -1", INVALID_VALUE),
             Arguments.of("BOTTOM", "\"TOTAL_LENGTH\": 200.1, \"WAIST_WIDTH\": 26", INVALID_VALUE),
@@ -249,11 +265,11 @@ class ReferenceGarmentApiTest {
     }
 
     @ParameterizedTest(name = "구분 {0}")
-    @ValueSource(strings = {"SHOES", "top", "TOPS"})
-    @DisplayName("주소의 구분이 TOP이나 BOTTOM이 아니면 저장도 삭제도 400이고 기준 옷은 바뀌지 않는다")
+    @ValueSource(strings = {"SHOES", "top", "TOPS", "dress", "PANTS"})
+    @DisplayName("주소의 칸이 TOP · BOTTOM · OUTER · DRESS · SKIRT가 아니면 저장도 삭제도 400이고 기준 옷은 바뀌지 않는다")
     void rejectUnknownPart(String part) {
         put(MEMBER_1_ID, CHILD_1_ID, "TOP", TOP_BODY).expectStatus().isOk();
-        String detail = "기준 옷 구분은 TOP 또는 BOTTOM입니다.";
+        String detail = "기준 옷 구분은 TOP · BOTTOM · OUTER · DRESS · SKIRT 중 하나입니다.";
 
         expectProblem(put(MEMBER_1_ID, CHILD_1_ID, part, TOP_BODY),
             400, "알 수 없는 기준 옷 구분입니다", detail, path(CHILD_1_ID) + "/" + part);
@@ -315,10 +331,20 @@ class ReferenceGarmentApiTest {
     }
 
     private static String requiredMeasurements(String part) {
-        if ("TOP".equals(part)) {
+        if (List.of("TOP", "OUTER", "DRESS").contains(part)) {
             return "\"TOTAL_LENGTH\": 42, \"CHEST_WIDTH\": 34.5";
         }
         return "\"TOTAL_LENGTH\": 55.5, \"WAIST_WIDTH\": 26";
+    }
+
+    private static String categoryIdOf(String part) {
+        return switch (part) {
+            case "TOP" -> "7";
+            case "OUTER" -> "8";
+            case "DRESS" -> "9";
+            case "SKIRT" -> "71";
+            default -> "70";
+        };
     }
 
     private static String body(String categoryId, String measurements) {
