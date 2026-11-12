@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,9 +36,6 @@ import tools.jackson.databind.json.JsonMapper;
 public class AiResponseService {
 
     private static final Executor VIRTUAL_THREAD = Thread.ofVirtual()::start;
-
-    // 호출 횟수를 얻은 결과: 얻음 · 하루 상한에 걸림 · 세다가 오류
-    private enum QuotaResult { ACQUIRED, LIMIT, ERROR }
 
     private final AiResponseStore store;
     private final AiCallQuota quota;
@@ -129,14 +127,7 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return stored;
         }
-        QuotaResult quotaResult = tryAcquireQuietly(type, now);
-        if (quotaResult == QuotaResult.ERROR) {
-            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
-        }
-        if (quotaResult == QuotaResult.LIMIT) {
-            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.DAILY_LIMIT);
-        }
-        if (quotaResult != QuotaResult.ACQUIRED) {
+        if (!tryAcquireQuietly(type, now)) {
             return Optional.empty();
         }
         Optional<T> result = callWithTimeout(type, key, call);
@@ -170,15 +161,36 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return CompletableFuture.completedFuture(stored);
         }
-        if (tryAcquireQuietly(type, now) != QuotaResult.ACQUIRED) {
+        if (!tryAcquireQuietly(type, now)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         CompletableFuture<T> task =
             CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
         // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
         task.thenAccept(answer -> saveLateAnswer(type, key, answer));
-        return task.handle((answer, error) -> toResult(type, answer, error))
-            .completeOnTimeout(Optional.empty(), asyncWait.toMillis(), TimeUnit.MILLISECONDS);
+        return settleWithin(type, task);
+    }
+
+    // 답이 먼저 끝나면 ANSWERED나 ERROR를, 최대 대기가 먼저 끝나면 TIMEOUT을 하나만 세고 그 결과로 끝낸다.
+    // 최대 대기를 넘긴 뒤에 온 답은 세지 않는다
+    private <T> CompletableFuture<Optional<T>> settleWithin(AiResponseType type, CompletableFuture<T> task) {
+        AtomicBoolean settled = new AtomicBoolean();
+        CompletableFuture<Optional<T>> result = new CompletableFuture<>();
+        task.whenComplete((answer, error) -> {
+            Optional<T> found = toResult(type, answer, error);
+            if (settled.compareAndSet(false, true)) {
+                metrics.recordRequest(type, found.isPresent()
+                    ? RecommendAiMetrics.RequestResult.ANSWERED : RecommendAiMetrics.RequestResult.ERROR);
+                result.complete(found);
+            }
+        });
+        CompletableFuture.delayedExecutor(asyncWait.toMillis(), TimeUnit.MILLISECONDS).execute(() -> {
+            if (settled.compareAndSet(false, true)) {
+                metrics.recordRequest(type, RecommendAiMetrics.RequestResult.TIMEOUT);
+                result.complete(Optional.empty());
+            }
+        });
+        return result;
     }
 
     // AI 호출이 실패하면 클래스 이름만 남기고 빈 값으로 끝낸다
@@ -194,17 +206,19 @@ public class AiResponseService {
         return Optional.empty();
     }
 
-    // 호출 횟수를 세다 난 오류와 하루 상한에 걸린 것을 구분해 돌려준다
-    private QuotaResult tryAcquireQuietly(AiResponseType type, LocalDateTime now) {
+    // 호출 횟수를 얻지 못하면 그 이유(오류 · 하루 상한)를 요청 결과로 세고 false를 돌려준다
+    private boolean tryAcquireQuietly(AiResponseType type, LocalDateTime now) {
         try {
             if (quota.tryAcquire(now.toLocalDate(), dailyCallLimit)) {
-                return QuotaResult.ACQUIRED;
+                return true;
             }
-            return QuotaResult.LIMIT;
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.DAILY_LIMIT);
+            return false;
         } catch (RuntimeException e) {
             log.warn("AI 호출 횟수를 세지 못해 호출하지 않습니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
-            return QuotaResult.ERROR;
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
+            return false;
         }
     }
 

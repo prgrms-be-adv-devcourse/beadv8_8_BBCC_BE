@@ -32,6 +32,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.json.JsonMapper;
@@ -50,7 +52,8 @@ class AiResponseServiceAsyncTest {
         AiResponseType.HOME_PREVIEW, Duration.ofMillis(300),
         AiResponseType.BOUGHT_TOGETHER, Duration.ofMillis(300),
         AiResponseType.SIZE_RECOMMENDATION, Duration.ofMillis(300));
-    private static final Duration ASYNC_WAIT = Duration.ofMillis(1_000);
+    // 클래스에서 처음 도는 테스트는 준비(클래스 로딩)에 1초 가까이 걸려 1초로 두면 기다리기 전에 끝나 버릴 수 있다
+    private static final Duration ASYNC_WAIT = Duration.ofMillis(2_000);
     private static final Duration REUSE_PERIOD = Duration.ofHours(24);
     private static final AiResponseType TYPE = AiResponseType.BOUGHT_TOGETHER;
     private static final AiResponseKey.Input INPUT = new AiResponseKey.Input(
@@ -62,12 +65,59 @@ class AiResponseServiceAsyncTest {
     @Mock
     private AiCallQuota quota;
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     private AiResponseService service;
 
     @BeforeEach
     void setUp() {
         service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT, CALL_TIMEOUTS,
-            ASYNC_WAIT, REUSE_PERIOD, new RecommendAiMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP));
+            ASYNC_WAIT, REUSE_PERIOD, new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP));
+    }
+
+    enum Outcome { ANSWERS, THROWS, RETURNS_NULL, TOO_LATE, LIMIT, QUOTA_THROWS }
+
+    @ParameterizedTest
+    @CsvSource({
+        "ANSWERS, answered",
+        "THROWS, error",
+        "RETURNS_NULL, error",
+        "QUOTA_THROWS, error",
+        "TOO_LATE, timeout",
+        "LIMIT, daily_limit"
+    })
+    @DisplayName("기다리지 않는 호출도 끝난 모습에 따라 요청 결과를 기능 이름으로 하나 센다")
+    void countResultOfAsyncCall(Outcome outcome, String result) {
+        given(store.find(any(), any())).willReturn(Optional.empty());
+        if (outcome == Outcome.QUOTA_THROWS) {
+            given(quota.tryAcquire(any(), anyInt())).willThrow(new IllegalStateException("횟수 표 오류"));
+        } else {
+            given(quota.tryAcquire(any(), anyInt())).willReturn(outcome != Outcome.LIMIT);
+        }
+
+        service.respondAsync(TYPE, INPUT, Answer.class, () -> switch (outcome) {
+            case THROWS -> throw new IllegalStateException("모델 오류");
+            case RETURNS_NULL -> null;
+            case TOO_LATE -> {
+                sleep(Duration.ofMillis(2_500));
+                yield new Answer("늦은 답");
+            }
+            default -> new Answer("새 답");
+        }).join();
+
+        assertThat(meterRegistry.get("kidly.recommend.ai.requests").tag("feature", "bought_together")
+            .tag("result", result).counter().count()).isEqualTo(1);
+        assertThat(meterRegistry.find("kidly.recommend.ai.requests").counters())
+            .filteredOn(counter -> counter.count() > 0).hasSize(1);
+    }
+
+    private static void sleep(Duration duration) {
+        try {
+            Thread.sleep(duration);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test
