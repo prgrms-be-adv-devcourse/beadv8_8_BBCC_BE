@@ -14,7 +14,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 | 자동 확장 | 추천만 HPA(CPU 70%가 5분 이어질 때, 1 ~ 2개). 나머지는 1개 |
 | 하루 한 번 실행(CronJob) | 정산은 매일 한국 시간 10시에 같은 이미지로 일회 실행한다. 영업일과 중복 실행은 앱이 판단한다 |
 | Redis | 캐시용(#690). 같은 namespace 에서 `redis:6379`, 비밀번호 없음(ClusterIP 라 밖에서 닿지 않는다). 영속성 없음(Pod 가 다시 뜨면 비어 있다), `maxmemory 64mb` · `allkeys-lru`, 메모리 128Mi. 지표는 긁지 않고 로그만 모은다 |
-| 지표 · 로그 | monitoring-agent Alloy 가 k3s API 로 Pod 를 찾는다. Pod 라벨 `kidly/job` 을 job · `service_name` 으로 쓴다(compose 때와 같은 `kidly-<이름>`, exporter 는 `kidly-kafka`). `instance` 는 Pod 이름 |
+| 지표 · 로그 | monitoring-agent Alloy(이 k3s 의 namespace monitoring, #1210)가 k3s API 로 Pod 를 찾는다. Pod 라벨 `kidly/job` 을 job · `service_name` 으로 쓴다(compose 때와 같은 `kidly-<이름>`, exporter 는 `kidly-kafka`). `instance` 는 Pod 이름 |
 | Spring 이 아닌 것 | kafka-exporter 처럼 `/actuator` 가 없으면 포트 연결로 확인하고, compose 의 `command` · 포트 · `user` · `read_only` · `cap_drop` 을 그대로 옮긴다 |
 
 ## 어떻게 도는가
@@ -67,5 +67,5 @@ curl -s localhost:30200/actuator/health     # nginx 가 붙는 Gateway
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)
 - **메모리**: request 합이 노드 할당량(약 7.6Gi)을 넘으면 새 Pod 가 Pending 이 된다. compose 컨테이너 몫은 스케줄러가 모르므로 `free -m` 으로 함께 본다
-  - dev 의 request 합은 6,208Mi(서비스 9개 5,440 · Gateway 512 · kafka-exporter 128 · Redis 128)다. 추천이 2개로 늘면 6,784Mi. 정산 Job Pod 가 10시에 640Mi를 잠깐 더 요청하고, 여기에 k3s 자체가 더해진다
+  - request 합은 6,336Mi(dev 서비스 9개 5,440 · Gateway 512 · kafka-exporter 128 · Redis 128, 수집기 Alloy 128(namespace monitoring, #1210))다. 추천이 2개로 늘면 6,912Mi. 정산 Job Pod 가 10시에 640Mi를 잠깐 더 요청하면 7,552Mi다. 여기에 k3s 자체가 더해진다
   - 추천은 Pod 하나가 576Mi 라 3개를 둘 자리가 없어 HPA 최대를 2개로 둔다(#1237)
