@@ -63,7 +63,8 @@ public class SearchProduct {
     // 키는 항목 code이고 값은 그 항목에서 고른 값 ID 목록(오름차순, 중복 없음)이다
     private Map<String, List<Long>> attributes;
 
-    // 의미 검색에 쓰는 문장이다. 상품명 · 브랜드 · 설명을 줄로 잇는다. 색인에는 저장하지 않고 벡터와 해시만 저장한다
+    // 의미 검색에 쓰는 문장이다. 상품명 · 브랜드 · 설명을 줄로 잇는다. 벡터가 있으면 벡터와 해시만 저장하고,
+    // 벡터 없이 저장할 때만 문장을 함께 저장해 나중에 검색이 혼자 벡터를 다시 만든다
     private String embeddingText;
 
     // 의미 검색 벡터다. 임베딩 API를 쓸 수 없었으면 null이고, 그 상품은 키워드로만 찾는다
@@ -124,6 +125,10 @@ public class SearchProduct {
      * 의미 검색 문장의 SHA-256(16진수)이다. 저장된 벡터를 만든 문장과 같은지 비교하는 데 쓴다.
      */
     public String getEmbeddingTextHash() {
+        return hashOf(embeddingText);
+    }
+
+    static String hashOf(String embeddingText) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(embeddingText.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);

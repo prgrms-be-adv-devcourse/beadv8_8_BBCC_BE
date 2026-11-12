@@ -100,7 +100,9 @@ public class ElasticsearchProductSearch implements ProductSearch {
             builder.index(properties.productIndex())
                 .from(from)
                 .size(size)
-                .trackTotalHits(track -> track.enabled(true));
+                .trackTotalHits(track -> track.enabled(true))
+                // 벡터 없는 상품에만 있는 의미 검색 문장(설명 포함, 2,000자까지)은 목록에 쓰지 않아 받지 않는다
+                .source(source -> source.filter(filter -> filter.excludes("embeddingText")));
             if (!byRelevance) {
                 return builder
                     .query(sortedQuery(condition))

@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.search.app;
 
 import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
+import com.bbcc.kidly.boundedcontext.search.domain.EmbeddingRefillTarget;
 import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProductRepository;
@@ -10,6 +11,7 @@ import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +19,8 @@ import org.springframework.stereotype.Service;
  * 상품 · 판매자 변경됨을 받아 검색 색인을 갱신한다.
  * 이벤트는 바뀐 뒤의 전체 값을 담으므로 덮어쓰기만 하고, 늦게 일어난 이벤트만 남기는 비교는 저장소가 한다.
  * 상품 문서에는 의미 검색 벡터를 함께 저장한다. 문장(상품명 · 브랜드 · 설명)이 그대로면 저장된 벡터를 다시 쓰고,
- * 임베딩 API를 쓸 수 없으면 벡터 없이 저장한다(그 상품은 키워드로만 찾고, 다음 변경 때 다시 만든다).
+ * 임베딩 API를 쓸 수 없으면 문장과 함께 벡터 없이 저장한다. 그 상품은 키워드로만 찾다가, 주기 작업
+ * (refillMissingEmbeddings)이나 다음 변경 이벤트가 벡터를 다시 만든다.
  * DB를 쓰지 않으므로 트랜잭션을 열지 않는다.
  */
 @Service
@@ -27,6 +30,9 @@ public class SearchIndexService {
     private final SearchProductRepository productRepository;
     private final SearchSellerRepository sellerRepository;
     private final TextEmbedder textEmbedder;
+
+    // 한 번에 다시 만드는 상품 수다. 임베딩 API를 상품마다 한 번씩 부르므로 한 주기를 짧게 묶어 둔다
+    static final int REFILL_BATCH_SIZE = 20;
 
     public void applyProductChanged(ProductChangedEvent event) {
         SearchProduct product = SearchProduct.create(toChangeInfo(event));
@@ -42,6 +48,26 @@ public class SearchIndexService {
             .or(() -> textEmbedder.embed(product.getEmbeddingText())
                 .map(vector -> new ProductEmbedding(textHash, vector)))
             .orElse(null);
+    }
+
+    /**
+     * 벡터 없이 저장된 판매중 상품의 벡터를 저장해 둔 문장으로 다시 만든다. 다시 만든 상품 수를 돌려준다.
+     * 의미 검색을 끈 환경(키 없음)은 하지 않는다. API를 쓸 수 없는 상품은 건너뛰고 다음 주기에 다시 한다.
+     * 연속 실패 차단이 열리면 나머지는 API를 부르지 않고 바로 건너뛴다.
+     */
+    public int refillMissingEmbeddings() {
+        if (!textEmbedder.enabled()) {
+            return 0;
+        }
+        int refilled = 0;
+        for (EmbeddingRefillTarget target : productRepository.findOnSaleWithoutEmbedding(REFILL_BATCH_SIZE)) {
+            Optional<List<Float>> vector = textEmbedder.embed(target.embeddingText());
+            if (vector.isPresent()) {
+                productRepository.attachEmbedding(target, new ProductEmbedding(target.textHash(), vector.get()));
+                refilled++;
+            }
+        }
+        return refilled;
     }
 
     public void applySellerChanged(SellerChangedEvent event) {
