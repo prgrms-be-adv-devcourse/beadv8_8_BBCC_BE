@@ -24,7 +24,9 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import tools.jackson.databind.json.JsonMapper;
 
 class OpenAiSizeChooserTest {
@@ -168,5 +170,31 @@ class OpenAiSizeChooserTest {
         String system = prompts.getFirst().getSystemMessage().getText();
         assertThat(system).contains("growthSpeed", "recentCmPerMonth", "wearablePeriods", "tableSource")
             .doesNotContain("growthSpeed가 null이면 무시하세요");
+    }
+
+    @Test
+    @DisplayName("사이즈 AI는 빠른 처리 등급(Fast mode, service_tier priority)으로 부른다")
+    void callWithFastServiceTier() {
+        List<Prompt> prompts = new ArrayList<>();
+        // 실제 OpenAI 모델처럼 기본 옵션이 OpenAI 옵션이어야 요청 옵션의 처리 등급이 합쳐진다
+        ChatModel model = new ChatModel() {
+            @Override
+            public ChatResponse call(Prompt prompt) {
+                prompts.add(prompt);
+                return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                    {"recommendedSize":"110","fit":"TIGHT","reasons":[]}
+                    """))));
+            }
+
+            @Override
+            public ChatOptions getOptions() {
+                return OpenAiChatOptions.builder().build();
+            }
+        };
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
+
+        assertThat(prompts.getFirst().getOptions()).isInstanceOfSatisfying(OpenAiChatOptions.class,
+            options -> assertThat(options.getServiceTier()).isEqualTo("priority"));
     }
 }

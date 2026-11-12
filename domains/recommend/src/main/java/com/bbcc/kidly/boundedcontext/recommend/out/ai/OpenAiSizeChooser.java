@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -67,12 +68,17 @@ public class OpenAiSizeChooser implements AiSizeChooser {
           견주어 설명하세요.
         """;
 
+    // 기준 옷 · 성장 · 지난 구매가 입력에 더해져 표준 처리로는 화면이 기다리는 3.5초를 자주 넘는다.
+    // 빠른 처리 등급(Fast mode)은 토큰 값이 2배지만 같은 모델 · 추론 강도로 답을 더 빨리 받는다
+    private static final String SERVICE_TIER = "priority";
+
     private final ChatModel chatModel;
     private final JsonMapper jsonMapper;
 
     @Override
     public AiSizeAnswer choose(SizeAiQuestion question) {
         return ChatClient.create(chatModel).prompt()
+            .options(OpenAiChatOptions.builder().serviceTier(SERVICE_TIER))
             .system(SYSTEM_INSTRUCTION)
             .user(jsonMapper.writeValueAsString(question))
             .call()
