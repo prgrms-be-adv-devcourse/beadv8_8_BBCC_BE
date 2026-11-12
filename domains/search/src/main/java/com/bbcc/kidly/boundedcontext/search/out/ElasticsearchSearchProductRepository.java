@@ -72,16 +72,22 @@ public class ElasticsearchSearchProductRepository implements SearchProductReposi
     }
 
     @Override
-    public List<EmbeddingRefillTarget> findOnSaleWithoutEmbedding(int limit) {
+    public List<EmbeddingRefillTarget> findOnSaleWithoutEmbedding(Long afterProductId, int limit) {
         String index = properties.productIndex();
+        List<Query> filters = new ArrayList<>(List.of(
+            Query.of(onSale -> onSale.term(term -> term.field("status").value(ON_SALE))),
+            Query.of(text -> text.exists(exists -> exists.field(EMBEDDING_TEXT)))));
+        if (afterProductId != null) {
+            filters.add(Query.of(after -> after.range(range -> range.number(number -> number
+                .field("productId").gt(afterProductId.doubleValue())))));
+        }
         SearchResponse<RefillSource> response;
         try {
             response = client.search(search -> search
                 .index(index)
                 .size(limit)
                 .query(query -> query.bool(bool -> bool
-                    .filter(Query.of(onSale -> onSale.term(term -> term.field("status").value(ON_SALE))))
-                    .filter(Query.of(text -> text.exists(exists -> exists.field(EMBEDDING_TEXT))))
+                    .filter(filters)
                     .mustNot(Query.of(vector -> vector.exists(exists -> exists.field(EMBEDDING))))))
                 .sort(sort -> sort.field(field -> field.field("productId").order(SortOrder.Asc)))
                 .source(source -> source.filter(filter -> filter.includes("productId", EMBEDDING_TEXT, "occurredAt"))),

@@ -34,6 +34,11 @@ public class SearchIndexService {
     // 한 번에 다시 만드는 상품 수다. 임베딩 API를 상품마다 한 번씩 부르므로 한 주기를 짧게 묶어 둔다
     static final int REFILL_BATCH_SIZE = 20;
 
+    // 직전 주기에 찾은 마지막 상품 ID다. 다음 주기는 그 뒤부터 찾고, 끝까지 가면(찾은 수가 한 주기보다 적으면) 처음으로 돌아간다.
+    // 계속 실패하는 상품(API가 그 문장을 거절 등)이 앞자리를 차지해 뒤 상품이 채워지지 않는 것을 막는다.
+    // 인스턴스마다 따로 두고, 다시 뜨면 처음부터 찾는다. 주기 작업은 겹쳐 돌지 않는다(fixedDelay)
+    private volatile Long refillCursor;
+
     public void applyProductChanged(ProductChangedEvent event) {
         SearchProduct product = SearchProduct.create(toChangeInfo(event));
         product.attachEmbedding(embeddingOf(product));
@@ -52,15 +57,18 @@ public class SearchIndexService {
 
     /**
      * 벡터 없이 저장된 판매중 상품의 벡터를 저장해 둔 문장으로 다시 만든다. 다시 만든 상품 수를 돌려준다.
-     * 의미 검색을 끈 환경(키 없음)은 하지 않는다. API를 쓸 수 없는 상품은 건너뛰고 다음 주기에 다시 한다.
+     * 의미 검색을 끈 환경(키 없음)은 하지 않는다. API를 쓸 수 없는 상품은 건너뛰고, 한 바퀴 돈 뒤 다시 한다.
      * 연속 실패 차단이 열리면 나머지는 API를 부르지 않고 바로 건너뛴다.
      */
     public int refillMissingEmbeddings() {
         if (!textEmbedder.enabled()) {
             return 0;
         }
+        List<EmbeddingRefillTarget> targets = productRepository.findOnSaleWithoutEmbedding(refillCursor,
+            REFILL_BATCH_SIZE);
+        refillCursor = targets.size() < REFILL_BATCH_SIZE ? null : targets.getLast().productId();
         int refilled = 0;
-        for (EmbeddingRefillTarget target : productRepository.findOnSaleWithoutEmbedding(REFILL_BATCH_SIZE)) {
+        for (EmbeddingRefillTarget target : targets) {
             Optional<List<Float>> vector = textEmbedder.embed(target.embeddingText());
             if (vector.isPresent()) {
                 productRepository.attachEmbedding(target, new ProductEmbedding(target.textHash(), vector.get()));

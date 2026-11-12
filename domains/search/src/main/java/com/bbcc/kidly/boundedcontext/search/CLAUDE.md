@@ -97,7 +97,9 @@
 - 색인(`app/SearchIndexService`): 상품명 · 브랜드 · 설명을 줄로 이은 문장(2,000자까지, `SearchProduct.embeddingText`)을 벡터로 바꿔 문서에 붙인다
   - 저장된 문서의 문장 해시가 같으면(재고 · 가격만 바뀐 이벤트) API를 부르지 않고 저장된 벡터를 쓴다. 이벤트마다 한 번 Elasticsearch 조회(`findEmbedding`)가 더 든다
   - API를 쓸 수 없으면 벡터 대신 문장을 `embeddingText`(keyword, 색인 안 함 · doc_values로 `exists`만)에 저장한다. 벡터가 있는 문서에는 문장을 저장하지 않고, 목록 검색은 이 필드를 받지 않는다(`_source` excludes)
-  - 다시 채우기(`in/SearchEmbeddingRefillScheduler` → `SearchIndexService.refillMissingEmbeddings`): 1분마다 벡터 없고 문장이 있는 판매중 상품을 상품 ID 순으로 20개 찾아(`findOnSaleWithoutEmbedding`) 벡터를 만든다. 의미 검색을 끈 환경은 찾지 않는다. API가 실패한 상품은 건너뛰고 다음 주기에 다시 한다
+  - 다시 채우기(`in/SearchEmbeddingRefillScheduler` → `SearchIndexService.refillMissingEmbeddings`): 1분마다 벡터 없고 문장이 있는 판매중 상품을 상품 ID 순으로 20개 찾아(`findOnSaleWithoutEmbedding`) 벡터를 만든다. 의미 검색을 끈 환경은 찾지 않는다
+    - 직전 주기에 찾은 마지막 상품 ID(커서)보다 큰 것부터 찾고, 20개보다 적게 찾으면(끝까지 감) 다음 주기는 처음부터 찾는다. API가 계속 거절하는 상품(문장 길이 · 콘텐츠 정책 등)이 20개 넘게 쌓여도 앞자리를 차지해 뒤 상품을 막지 않는다. 실패한 상품은 한 바퀴 돈 뒤 다시 한다
+    - 커서는 인스턴스 메모리에 둔다. 다시 뜨면 처음부터 찾고, Pod 두 개가 함께 돌면 각자 돈다(결과는 같다)
   - 벡터를 붙일 때(`attachEmbedding`) 문서를 다시 읽어 버전이 찾을 때의 `occurredAt`과 같고 문장도 같을 때만 같은 버전으로 다시 저장한다(`version_type=external_gte`). 버전(발생 시각)을 바꾸지 않아 늦은 이벤트 거절이 그대로이고, 그사이 새 이벤트가 저장됐으면 409로 거절돼 건너뛴다. Pod 두 개가 함께 돌아도 같은 값을 같은 버전으로 저장할 뿐이다
   - 이 기능 전에 문장 없이 벡터 없이 저장된 문서는 찾지 않는다. 다음 변경 이벤트나 상품 다시 발행으로 채운다
 - 검색(`app/ProductListService` → `out/ElasticsearchProductSearch`): 관련도순 + 검색어면 검색어를 벡터로 바꿔 조건(`keywordVector`)에 넘긴다

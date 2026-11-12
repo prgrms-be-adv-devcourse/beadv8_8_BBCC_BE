@@ -20,10 +20,11 @@ public interface SearchProductRepository {
     Optional<ProductEmbedding> findEmbedding(Long productId);
 
     /**
-     * 벡터 없이 저장된 판매중 상품 중 문장이 함께 저장된 것을 상품 ID 순으로 limit개까지 찾는다.
+     * 벡터 없이 저장된 판매중 상품 중 문장이 함께 저장된 것을, 상품 ID가 afterProductId보다 큰 것부터
+     * 상품 ID 순으로 limit개까지 찾는다. afterProductId가 null이면 처음부터 찾는다.
      * 문장 없이 저장된 예전 문서는 찾지 않는다(상품 다시 발행으로 채운다).
      */
-    List<EmbeddingRefillTarget> findOnSaleWithoutEmbedding(int limit);
+    List<EmbeddingRefillTarget> findOnSaleWithoutEmbedding(Long afterProductId, int limit);
 
     /**
      * 찾은 뒤 문서가 바뀌지 않았을 때만(같은 이벤트로 만든 문서이고 아직 벡터가 없음) 벡터를 붙인다.
