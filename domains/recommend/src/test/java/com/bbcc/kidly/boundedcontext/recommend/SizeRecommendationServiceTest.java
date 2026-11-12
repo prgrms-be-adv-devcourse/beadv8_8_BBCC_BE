@@ -58,7 +58,8 @@ class SizeRecommendationServiceTest {
     private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
         null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널");
 
-    private static final SizeAiQuestion QUESTION = new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of(), List.of());
+    private static final SizeAiQuestion QUESTION =
+        new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of(), List.of());
 
     private static final ReferenceFit REFERENCE_FIT = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
         new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("34.0"), List.of(
@@ -132,7 +133,8 @@ class SizeRecommendationServiceTest {
     void answerSizeFreeWithoutAi() {
         ProductSizes sizeFreeProduct = ProductSizes.of(true, List.of(SizeRange.of("FREE", 90, 130)));
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
-            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION, EVIDENCE, null, null));
+            PRODUCT_ID, CHILD_ID, sizeFreeProduct, SizeRecommendation.sizeFree(), KEY_INPUT, QUESTION, EVIDENCE, null,
+            null));
 
         SizeRecommendationResult result = service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 

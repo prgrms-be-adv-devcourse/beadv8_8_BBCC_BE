@@ -95,7 +95,7 @@ class OpenAiSizeChooserTest {
     }
 
     @Test
-    @DisplayName("PUR-05 지난 구매를 지시 글과 같은 칸 이름(purchases · monthsAgo · sameBrand · expectedGrowthCm · garmentCm · diffCm)으로 보낸다")
+    @DisplayName("PUR-05 지난 구매를 지시 글과 같은 칸 이름(purchases · monthsAgo · sameBrand · expectedGrowthCm 등)으로 보낸다")
     void sendPurchasesWithInstructedFieldNames() {
         List<Prompt> prompts = new ArrayList<>();
         ChatModel model = prompt -> {
