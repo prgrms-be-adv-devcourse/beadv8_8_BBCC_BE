@@ -216,10 +216,27 @@ class ElasticsearchProductSearchTest {
             assertThat(words).hasSize(2);
             assertThat(words.get(0).bool().should()).satisfiesExactly(
                 name -> assertMatchAll(name, "name", "원피스"),
-                brand -> assertMatchAll(brand, "brand", "원피스"));
+                brand -> assertMatchAll(brand, "brand", "원피스"),
+                brandPrefix -> assertBrandPrefix(brandPrefix, "원피스"));
             assertThat(words.get(1).bool().should()).satisfiesExactly(
                 name -> assertMatchAll(name, "name", "여아용"),
-                brand -> assertMatchAll(brand, "brand", "여아용"));
+                brand -> assertMatchAll(brand, "brand", "여아용"),
+                brandPrefix -> assertBrandPrefix(brandPrefix, "여아용"));
+        });
+    }
+
+    @Test
+    @DisplayName("1글자 단어는 브랜드 앞부분으로 찾지 않는다(#1343)")
+    void noBrandPrefixForOneCharacter() throws IOException {
+        givenProducts(0);
+
+        productSearch.search(condition(null, "꼬 바지", Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
+
+        assertThat(filters(capturedSearch())).filteredOn(Query::isBool).singleElement().satisfies(filter -> {
+            List<Query> words = filter.bool().should().get(1).bool().filter();
+            assertThat(words.get(0).bool().should()).satisfiesExactly(
+                name -> assertMatchAll(name, "name", "꼬"),
+                brand -> assertMatchAll(brand, "brand", "꼬"));
         });
     }
 
@@ -234,10 +251,11 @@ class ElasticsearchProductSearchTest {
             List<Query> either = filter.bool().should();
             assertMatchAll(either.get(0), "name", "여아 바지");
             List<Query> words = either.get(1).bool().filter();
-            assertThat(words.get(0).bool().should()).hasSize(2);
+            assertThat(words.get(0).bool().should()).hasSize(3);
             assertThat(words.get(1).bool().should()).satisfiesExactly(
                 name -> assertMatchAll(name, "name", "바지"),
                 brand -> assertMatchAll(brand, "brand", "바지"),
+                brandPrefix -> assertBrandPrefix(brandPrefix, "바지"),
                 synonym -> assertMatchAll(synonym, "name", "팬츠"));
         });
     }
@@ -255,10 +273,10 @@ class ElasticsearchProductSearchTest {
             .map(request -> request.query().bool().filter().stream().filter(Query::isBool).findFirst().orElseThrow())
             .map(filter -> filter.bool().should().get(1).bool().filter().getFirst().bool().should())
             .toList();
-        assertThat(wordQueries.get(0)).hasSize(4);
-        assertMatchAll(wordQueries.get(0).get(2), "name", "점퍼");
-        assertMatchAll(wordQueries.get(0).get(3), "name", "자켓");
-        assertThat(wordQueries.get(1)).hasSize(2);
+        assertThat(wordQueries.get(0)).hasSize(5);
+        assertMatchAll(wordQueries.get(0).get(3), "name", "점퍼");
+        assertMatchAll(wordQueries.get(0).get(4), "name", "자켓");
+        assertThat(wordQueries.get(1)).hasSize(3);
     }
 
     @Test
@@ -502,6 +520,12 @@ class ElasticsearchProductSearchTest {
         assertThat(query.match().field()).isEqualTo(field);
         assertThat(query.match().query().stringValue()).isEqualTo(text);
         assertThat(query.match().operator()).isEqualTo(Operator.And);
+    }
+
+    private static void assertBrandPrefix(Query query, String text) {
+        assertThat(query.prefix().field()).isEqualTo("brand");
+        assertThat(query.prefix().value()).isEqualTo(text);
+        assertThat(query.prefix().caseInsensitive()).isTrue();
     }
 
     private static List<String> sortKeys(List<SortOptions> sorts) {

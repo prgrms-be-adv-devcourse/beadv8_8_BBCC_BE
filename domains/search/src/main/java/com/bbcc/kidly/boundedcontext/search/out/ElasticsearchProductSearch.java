@@ -64,6 +64,8 @@ public class ElasticsearchProductSearch implements ProductSearch {
     static final float KEYWORD_SCORE = 2.0f;
     // 검색어 형태소가 모두 상품명에 있을 때 더하는 점수. kNN 점수(최대 1)보다 커야 상품명이 맞은 상품이 늘 먼저 온다
     static final float NAME_SCORE = 2.0f;
+    // 브랜드를 앞부분으로 찾을 때의 최소 글자 수(#1343). 1글자는 너무 많은 브랜드에 걸린다
+    static final int BRAND_PREFIX_MIN_LENGTH = 2;
 
     private final ElasticsearchClient client;
     private final SearchIndexProperties properties;
@@ -194,7 +196,8 @@ public class ElasticsearchProductSearch implements ProductSearch {
     //    (원피스 여아용 → 여아 원피스), 형태소 하나만 맞는 상품까지 넓히지 않는다
     // 2) 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(단어 그대로) 중 한 곳에 있어야 맞는다(키들리 원피스).
     //    브랜드는 고유명사라 nori가 앞뒤 글자에 따라 다르게 나누므로(키들리 → 키 · 들리, 키들리 원피스 → 키 · 리 · 원피스)
-    //    형태소로 나누지 않고 단어로 맞춘다. 그래서 브랜드는 단어를 다 써야 찾는다(꼬마 → 꼬마숲은 못 찾음)
+    //    형태소로 나누지 않고 단어로 맞춘다. 2글자 이상이면 그 단어로 시작하는 브랜드도 맞는다(#1343, 꼬마 → 꼬마숲).
+    //    1글자는 단어를 다 써야 맞는다
     // 3) 동의어(#1025): 단어별로 찾을 때 사전에서 넓힌 말(바지 → 팬츠)이 상품명에 있어도 맞는다. 검색어 전체(1)는 넓히지 않는다
     // 관련도순이 아니면 filter라 점수를 계산하지 않으므로 필드 가중치는 두지 않는다(관련도순의 상품명 점수는 따로 건다)
     private Query keywordFilter(String keyword) {
@@ -203,6 +206,9 @@ public class ElasticsearchProductSearch implements ProductSearch {
             List<Query> either = new ArrayList<>();
             either.add(matchAll("name", word));
             either.add(matchAll("brand", word));
+            if (word.codePointCount(0, word.length()) >= BRAND_PREFIX_MIN_LENGTH) {
+                either.add(brandPrefix(word));
+            }
             for (String synonym : synonyms.expand(word)) {
                 either.add(matchAll("name", synonym));
             }
@@ -211,6 +217,11 @@ public class ElasticsearchProductSearch implements ProductSearch {
         return Query.of(query -> query.bool(bool -> bool
             .should(matchAll("name", keyword), Query.of(byWord -> byWord.bool(all -> all.filter(words))))
             .minimumShouldMatch("1")));
+    }
+
+    // 브랜드는 standard 분석기라 소문자 단어로 색인돼 있다. 대소문자를 무시하고 단어 앞부분을 맞춘다
+    private static Query brandPrefix(String word) {
+        return Query.of(query -> query.prefix(prefix -> prefix.field("brand").value(word).caseInsensitive(true)));
     }
 
     private static Query matchAll(String field, String text) {
