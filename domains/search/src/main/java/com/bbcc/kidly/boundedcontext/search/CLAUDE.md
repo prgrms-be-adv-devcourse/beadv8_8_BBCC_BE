@@ -4,16 +4,16 @@
 
 ## 진행 상태
 - 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`), 검색 이벤트 발행(`search.performed`, #611), 의미 검색(관련도순, #797), 검색 결과 클릭 기록(`search.result-clicked`, #1004)
-- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`와 `POST /api/v1/search/clicks`만 search-service로 넘긴다, `apps/gateway`), dev 처음 채우기, prod 설정(`deploy/.env.prod`, main 첫 배포 때 나간다), 장애 대응(#1026: Elasticsearch 시간 제한 · DLT 다시 반영 · 지표 · 알림 · 절차)
-- 남음: prod 처음 채우기(main 배포 뒤 판매자 → 상품 다시 발행 API를 한 번씩, `deploy/search/README.md`)
+- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`와 `POST /api/v1/search/clicks`만 search-service로 넘긴다, `apps/gateway`), dev 처음 채우기, 장애 대응(#1026: Elasticsearch 시간 제한 · DLT 다시 반영 · 지표 · 알림 · 절차), 벡터 다시 채우기(#1339), 브랜드 앞부분 찾기(#1343)
+- prod: 쓰지 않는 prod 배포 경로를 걷어냈다(#1213). dev를 운영 서버로 쓴다. prod를 다시 열면 그 환경에서 판매자 → 상품 다시 발행 API를 한 번씩 불러 채운다(`deploy/search/README.md`)
 - `apps/search-service`로 띄운다. 상품 목록 API 경로는 `GET /api/v1/products`, 클릭 기록은 `POST /api/v1/search/clicks`, 서비스 사이 상품 검색은 `GET /internal/products/search`(#1191)다
 
 ## 서버 배포 (`deploy/`)
-- 별도 서버 없이 기존 EC2의 같은 compose 프로젝트(`-p dev`)에 컨테이너 `elasticsearch` · `search-service`를 더한다. Kafka는 같은 네트워크의 `kafka:9092`를 쓴다
-- compose profile `search`라 `.env`에 `COMPOSE_PROFILES=search`가 있는 환경에서만 뜬다. dev(`deploy/.env.dev`) · prod(`deploy/.env.prod`)다. 환경마다 `SEARCH_PORT`(dev 8082 · prod 8094) · `SEARCH_INDEX_PREFIX` · `KIDLY_SEARCH_URI`를 둔다
-- 이미지: 검색 서비스 `<저장소>-search-service:<커밋 SHA>`, Elasticsearch `<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>`(폴더가 바뀔 때만 빌드). `deploy.yml`이 올린다
-- Elasticsearch는 heap 1g, 포트를 열지 않고 보안(xpack)을 끈다. 검색 서비스는 heap 512m, 서버 `127.0.0.1:<SEARCH_PORT>`에만 연다
-- 검색 서비스의 `/actuator/health`가 Elasticsearch 연결을 보므로 Elasticsearch가 healthy가 된 뒤에 띄운다
+- search-service는 t3.large k3s(namespace `kidly-dev`)에 Deployment · Service `search`로 뜬다(`deploy/k3s/README.md`). Gateway는 `KIDLY_SEARCH_URI=http://search:8080`으로 붙는다. 설정은 `deploy/docker-compose.yml`의 `search-service`(profile `search`, `-Xmx384m`)를 `k3s.py`가 그대로 옮긴다
+- Elasticsearch는 t3.medium k3s(namespace `search`, NodePort 30920, heap 512m, PVC 10Gi)에 있다. 앱 배포 전에 deploy 워크플로가 먼저 올린다(`deploy/search/README.md`). search-service는 VPC 안 사설 IP(`ELASTICSEARCH_URIS`, Environment 변수 `MONITORING_PRIVATE_IP`로 붙인다)로 붙는다
+- `deploy/.env.dev`의 `K3S_PROFILES`에 `search`가 있으면 검색과 Elasticsearch를 함께 배포한다. 색인 이름 앞은 `SEARCH_INDEX_PREFIX`(dev는 `dev`)
+- 이미지: 검색 서비스 `<저장소>-search-service`(digest로 배포), Elasticsearch `<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>`(폴더가 바뀔 때만 빌드). `deploy.yml`이 올린다
+- 검색 서비스의 `/actuator/health`가 Elasticsearch 연결을 본다. Elasticsearch가 뜨지 않으면 검색 Pod가 준비되지 않아 배포가 멈춘다
 - 모니터링: Prometheus job `kidly-search`(앱 job `kidly`의 대시보드 · 알림과 나눈다), Loki `service_name=kidly-search`. 검색 전용 알림은 아래 "장애 대응"
 
 ## 검색 문서 (`domain/SearchProduct`)
@@ -60,7 +60,7 @@
   - 카테고리: `categoryId` 일치
   - 검색어: 상품명이나 브랜드에서 찾는다(#610). 아래 둘 중 하나만 맞으면 된다. 앞뒤 공백은 빼고, 공백뿐이면 거르지 않는다
     - 상품명: 검색어 전체를 `match`(nori, `operator: and`)로 찾는다. 모든 형태소가 상품명에 있어야 맞는다. 띄어쓰기 · 조사 · 어순이 달라도 찾고(`원피스 여아용` → `여아 원피스`), 형태소 하나만 맞는 상품까지 넓히지 않는다
-    - 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(`standard`) 중 한 곳에 있어야 맞는다(`키들리 원피스` → 브랜드 키들리 · 상품명 원피스). 브랜드는 단어를 다 써야 찾는다(`꼬마`로 `꼬마숲`은 못 찾음)
+    - 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(`standard`) 중 한 곳에 있어야 맞는다(`키들리 원피스` → 브랜드 키들리 · 상품명 원피스). 브랜드는 단어가 2글자 이상이면 그 단어로 시작하는 브랜드도 맞는다(#1343, `prefix` · 대소문자 무시, `꼬마` → `꼬마숲`). 1글자는 너무 많은 브랜드에 걸려 단어를 다 써야 맞는다. 브랜드 중간 글자(`마숲`)로는 찾지 않는다. 색인은 그대로 두고 검색할 때만 건다
     - 동의어(#1025, `out/SearchSynonyms`): 단어별로 찾을 때 사전에서 넓힌 말이 상품명에 있어도 맞는다(`바지` → `팬츠`). 검색어 전체(상품명 match)는 넓히지 않는다. 브랜드도 넓히지 않는다
     - filter라 점수를 계산하지 않는다. 관련도순만 상품명 점수를 따로 건다(아래 "검색 정확도")
   - 항목 값: 항목마다 `terms`(`attributeValues`, `code:값ID`) 하나. 같은 항목 안의 값은 하나만 맞으면 되고, 항목끼리는 모두 맞아야 한다. 값이 빈 항목은 쓰지 않는다
@@ -121,7 +121,8 @@
   |---|---|---|---|---|
   | 고치기 전(사전 없음 · 상품명 점수 없음) | 15/35 | 0.593 | 0.750 | 9 |
   | 동의어만 | 28/35 | 1.000 | 0.971 | 1 |
-  | 동의어 + 상품명 점수(지금) | 35/35 | 1.000 | 0.985 | 1 |
+  | 동의어 + 상품명 점수 | 35/35 | 1.000 | 0.985 | 1 |
+  | + 브랜드 앞부분(지금, #1343, 검색어 37개 · 2026-11-13) | 37/37 | 1.000 | 0.986 | 1 |
   - 0건 1개는 0건이어야 하는 `남아 원피스`다. 상품명 점수는 동의어로만 맞은 상품이 첫 결과로 오던 7개(`원피스` → 드레스 등)를 고쳤다
 - 넣지 않은 것
   - 오타 허용(`fuzziness`): nori가 오타를 다른 형태소로 나눠(`원피수` → 원피 · 수, `맨투멘` → 투 · 멘) `AUTO`로는 평가 세트에서 오타를 하나도 찾지 못했고(얻은 건 사전이 이미 잡는 `가디건` → 카디건뿐), `1`은 2글자 형태소마다 엉뚱한 상품을 붙였다(`코트` → 니트 · 세트 상품). 오타는 의미 검색이 일부 잡는다

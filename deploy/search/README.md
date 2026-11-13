@@ -1,7 +1,7 @@
 # 검색 Elasticsearch (t3.medium k3s)
 
 검색 서비스(`apps/search-service`)가 쓰는 Elasticsearch 입니다. 앱 서버(t3.large)의 메모리를 덜려고 모니터링과 같은 t3.medium k3s 에 둡니다.
-검색 서비스는 t3.large compose 에 그대로 있고 VPC 안에서 medium 사설 IP 의 NodePort 로 붙습니다.
+검색 서비스는 t3.large k3s(namespace `kidly-dev`, `deploy/k3s/README.md`)에 있고 VPC 안에서 medium 사설 IP 의 NodePort 로 붙습니다.
 
 | 무엇이 | 값 |
 | --- | --- |
@@ -13,7 +13,7 @@
 | 메모리 | heap 512MB, request 1Gi · limit 1280Mi (heap 1GB 때 heap 사용 약 250MiB, heap 512MB 로컬 실측 anon 872MiB) |
 | 검색 서비스 접속 | `ELASTICSEARCH_URIS=http://<medium 사설 IP>:30920`. IP 는 레포(공개)에 쓰지 않고 deploy 워크플로가 Environment 변수 `MONITORING_PRIVATE_IP` 로 서버 `.env` 에 붙인다 |
 
-dev · prod 는 이 ES 하나를 색인 이름 앞의 환경 이름(`SEARCH_INDEX_PREFIX`, `dev-*` · `prod-*`)으로 나눠 씁니다. 배포(dev 는 기능 브랜치 배포 포함)가 `docker/elasticsearch` 가 바뀌어 이 ES 의 이미지를 바꾸면 ES 가 다시 뜨는 동안 두 환경의 검색이 함께 멈춥니다.
+색인 이름 앞에 환경 이름(`SEARCH_INDEX_PREFIX`, 지금은 `dev-*`)을 붙여, 환경이 늘어도 이 ES 하나를 나눠 쓸 수 있게 둡니다. prod 배포 경로는 걷어냈습니다(#1213). 배포(기능 브랜치 배포 포함)가 `docker/elasticsearch` 가 바뀌어 이 ES 의 이미지를 바꾸면 ES 가 다시 뜨는 동안 검색이 멈춥니다.
 
 ## 준비 (처음 한 번)
 
@@ -32,11 +32,11 @@ medium 의 k3s(노드 라벨 `kidly/role=infra`, 없으면 Pod 가 Pending 으�
 
 ## 배포
 
-`.github/workflows/deploy.yml` 이 앱 배포 때마다 같이 합니다. 배포 환경의 `deploy/.env.<환경>` 의 `COMPOSE_PROFILES` 에 `search` 가 있을 때만 돕니다.
+`.github/workflows/deploy.yml` 이 앱 배포 때마다 같이 합니다. 배포 환경의 `deploy/.env.<환경>` 의 `K3S_PROFILES`(또는 `COMPOSE_PROFILES`)에 `search` 가 있을 때만 돕니다.
 
 1. `elasticsearch` job: `elasticsearch.yaml` · `deploy.sh` 를 medium 의 `/opt/app/search` 에 올리고 `deploy.sh` 를 부릅니다.
    `deploy.sh` 는 stdin 으로 받은 토큰으로 pull secret 을 만들고, `__ES_IMAGE__` 를 이미지로 바꿔 `kubectl apply --server-side` 한 뒤 Pod 가 준비될 때까지(최대 300초) 기다립니다
-2. `deploy` job: 위가 끝난 뒤 t3.large 에 앱 · 검색 서비스를 올립니다. 서버 `.env` 에 `ELASTICSEARCH_URIS` 가 붙습니다
+2. `deploy` job: 위가 끝난 뒤 t3.large k3s 에 앱 · 검색 서비스를 올립니다. 서버 `.env` 에 `ELASTICSEARCH_URIS` 가 붙고 검색 Pod 의 Secret `search-env` 로 들어갑니다
 
 이미지 태그와 `elasticsearch.yaml` 의 Pod 설정(환경 변수 · 리소스 · probe)이 그대로면 Pod 는 다시 뜨지 않습니다. 둘 중 하나가 바뀌면 다음 배포 때 다시 뜹니다(Recreate 라 2분쯤 검색이 끊깁니다).
 GHCR 에 그 태그 이미지가 없으면 `elasticsearch` job 이 서버를 건드리기 전에 멈춥니다(돌던 ES 는 그대로).
@@ -61,12 +61,12 @@ ES 를 새로 만들면(처음 옮길 때, PVC 를 지웠을 때) 색인이 비�
 
 ```bash
 # 관리자 토큰으로. 판매중 · 판매중지 상품마다 상품 정보 변경됨을 한 번씩 다시 보내고 보낸 수를 돌려준다
-# 판매자를 먼저(상호명), 그다음 상품. prod 는 https://api.kidly.kro.kr
+# 판매자를 먼저(상호명), 그다음 상품
 curl -X POST -H "Authorization: Bearer <관리자 토큰>" https://dev-api.kidly.kro.kr/api/v1/admin/sellers/changed-events
 curl -X POST -H "Authorization: Bearer <관리자 토큰>" https://dev-api.kidly.kro.kr/api/v1/admin/products/changed-events
 ```
 
-prod 는 검색 서비스가 처음 뜬 main 배포 뒤에 한 번 채웁니다.
+새 환경을 열면(색인 접두어가 새것이면) 그 환경의 검색 서비스가 처음 뜬 뒤 한 번 채웁니다.
 
 ## t3.large 에서 옮긴 뒤 정리
 
@@ -116,7 +116,7 @@ Elasticsearch 응답 시간은 따로 재지 않습니다. 검색 API 지연(`ht
 Elasticsearch 를 새로 만들었거나(PVC 삭제) 색인이 지워진 경우입니다. 검색 서비스는 **기동할 때만** 색인을 만듭니다.
 
 1. `_cat/indices?v` 에서 `<환경>-products` · `<환경>-sellers` 가 있는지 봅니다
-2. 없으면 그 환경의 검색 서비스를 다시 시작해 색인을 만듭니다(t3.large 에서 `docker compose -p <환경> restart search-service`)
+2. 없으면 그 환경의 검색 서비스를 다시 시작해 색인을 만듭니다(t3.large 에서 deploy 유저로 `kubectl -n kidly-<환경> rollout restart deploy/search`)
 3. 검색 서비스를 다시 시작하기 전에 이벤트가 와서 색인이 자동으로 만들어졌을 수 있습니다. `curl -s 'localhost:30920/<환경>-products/_mapping'` 에 `"dynamic":"strict"` 와 `name` 의 `"analyzer":"nori"` 가 없으면 잘못 만들어진 것이므로, 그 색인을 지우고 2 를 다시 합니다
 4. 위 "색인 다시 채우기"로 판매자 → 상품을 다시 발행합니다
 
@@ -149,7 +149,7 @@ Elasticsearch 를 새로 만들었거나(PVC 삭제) 색인이 지워진 경우�
 
 ### dev 에서 훈련하기
 
-이 Elasticsearch 는 dev · prod 가 함께 씁니다. 멈추면 prod 검색도 멈추므로 prod 를 운영하는 동안에는 팀과 정한 시간에만 합니다.
+dev 를 운영 서버로 쓰므로 멈추는 동안 실제 검색이 503 입니다. 팀과 정한 시간에만 합니다.
 
 ```bash
 # medium 에서 deploy 유저로
