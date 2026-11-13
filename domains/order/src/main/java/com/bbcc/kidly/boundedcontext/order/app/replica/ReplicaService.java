@@ -194,6 +194,7 @@ public class ReplicaService {
             command.productStatus(),
             option.saleStatus(),
             option.soldOut(),
-            command.occurredAt());
+            command.occurredAt(),
+            command.thumbnailUrl());
     }
 }

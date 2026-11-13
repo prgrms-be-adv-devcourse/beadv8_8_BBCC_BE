@@ -55,6 +55,7 @@ public record WishRequestView(
      * @param unitPrice 지금 가격
      * @param saleStatus 지금 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED 등)
      * @param purchased 이 칸이 결제돼 장바구니에서 빠졌는지
+     * @param thumbnailUrl 상품 썸네일 URL(#1328, 지금 상품 복사본 값). 없으면 null
      */
     public record Line(
         Long cartItemId,
@@ -69,7 +70,8 @@ public record WishRequestView(
         Long unitPrice,
         boolean purchasable,
         String saleStatus,
-        boolean purchased) {
+        boolean purchased,
+        String thumbnailUrl) {
     }
 
     /**

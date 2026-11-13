@@ -170,23 +170,23 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/v1/cart` | 내 장바구니 조회(회원 · 로그인한 자녀 각자, 줄마다 `reserved`) | 🔒 |
+| GET | `/api/v1/cart` | 내 장바구니 조회(회원 · 로그인한 자녀 각자, 줄마다 `reserved` · 상품 썸네일 `thumbnailUrl`(#1328, 지금 상품 값, 없으면 null)) | 🔒 |
 | POST | `/api/v1/cart/items` | 장바구니 담기(같은 줄이면 수량 합산, 1 ~ 99). 자녀는 입을 아이가 자기로 고정 | 🔒 |
 | PATCH | `/api/v1/cart/items/{cartItemId}` | 장바구니 수량 변경(예약된 칸 409) | 🔒 |
 | DELETE | `/api/v1/cart/items/{cartItemId}` | 장바구니에서 빼기(예약된 칸 409) | 🔒 |
-| POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸이라도 그 예약의 결제 가능 기한이 지났으면 409 `RESERVATION_EXPIRED`(`결제 기한이 지난 예약입니다`, #1008). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음. 기한도 지났으면 `RESERVATION_EXPIRED`가 먼저). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) | 🔒 |
-| GET | `/api/v1/orders` | 내 주문 목록. `status`(선택, #1280): 응답 `status`와 같은 값 하나 — `PENDING_PAYMENT` · `PAID` · `CANCELLED`(대문자 그대로)로 서버가 거르고 `totalElements`가 그 상태의 전체 건수(상태별 건수는 `?status=X&size=1`). 없으면 지금과 같다. 모르는 값 · 소문자 · 빈 값 · 여러 값은 400 `INVALID_ORDER_STATUS`(`지원하지 않는 주문 상태입니다`) | 🔒 |
-| GET | `/api/v1/orders/{orderId}` | 주문 상세 | 🔒 |
+| POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸이라도 그 예약의 결제 가능 기한이 지났으면 409 `RESERVATION_EXPIRED`(`결제 기한이 지난 예약입니다`, #1008). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음. 기한도 지났으면 `RESERVATION_EXPIRED`가 먼저). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) 응답 201은 주문 상세와 같은 모양(주문상품 `thumbnailUrl`, #1328). | 🔒 |
+| GET | `/api/v1/orders` | 내 주문 목록. `status`(선택, #1280): 응답 `status`와 같은 값 하나 — `PENDING_PAYMENT` · `PAID` · `CANCELLED`(대문자 그대로)로 서버가 거르고 `totalElements`가 그 상태의 전체 건수(상태별 건수는 `?status=X&size=1`). 없으면 지금과 같다. 모르는 값 · 소문자 · 빈 값 · 여러 값은 400 `INVALID_ORDER_STATUS`(`지원하지 않는 주문 상태입니다`). 줄마다 대표 주문상품(대표 상품명과 같은 주문상품)의 `representativeProductId` · `representativeThumbnailUrl`(#1328, 주문 당시 썸네일, 없으면 null) | 🔒 |
+| GET | `/api/v1/orders/{orderId}` | 주문 상세(주문상품마다 `thumbnailUrl`, #1328: 주문 당시 썸네일, 이후 상품 사진이 바뀌어도 그대로, 없으면 null) | 🔒 |
 | GET | `/internal/sellers/{sellerId}/order-items/summary` | 서비스 사이 전용(#1120, 판매자 탈퇴 #1091의 남은 주문 확인). 200 `{"sellerId": 12, "openItemCount": 3}`: 그 판매자 상품의 주문상품 중 주문이 취소되지 않았고 주문상품이 `ORDERED`인 수(결제대기 · 결제완료 · 배송 준비 · 배송 중 · 배송 완료 후 구매확정 전. 구매확정 · 취소된 주문상품과 전체 취소된 주문의 주문상품은 빠짐, 주문이 없으면 0). `sellerId`는 숫자다(주문의 다른 응답은 ID가 문자열). 같은 모양의 계약 `shared.order.out.SellerOrderItems`(`summarize`)를 주문이 구현한다. 판매자 ID가 숫자가 아니거나 1 미만이면 400 `잘못된 판매자 ID입니다`. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
 | GET | `/internal/members/{memberId}/orders` | 서비스 사이 전용(#1191, 챗봇 내 주문 조회). 쿼리 `limit`(1~10, 기본 5). 그 회원의 주문을 최근 주문부터 준다. 200 `[{"orderId": 31, "orderedAt": "2026-11-11T09:05:00", "status": "PAID", "items": [{"productName": "여아 원피스", "optionName": "110", "quantity": 1, "status": "ORDERED", "delivery": {"status": "SHIPPING", "carrier": "CJ", "shippedAt": "2026-11-11T15:20:00", "deliveredAt": null}}]}]`(주문이 없으면 `[]`, ID는 숫자, 주문상품은 주문상품 ID 순, `delivery`는 그 상품 판매자의 배송이고 결제 전이면 `null`). 상태 · 택배사는 enum 이름이다. 배송지 · 연락처 · 수령인 · 송장번호 · 금액 · 자녀 정보는 주지 않는다. 같은 모양의 계약 `shared.order.out.MemberOrderHistory`(`recent`)를 주문이 구현한다. 회원 ID가 숫자가 아니거나 1 미만, `limit`이 범위 밖이면 400. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
-| POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체) | 🔒 |
+| POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체). 응답은 주문 상세와 같은 모양(주문상품 `thumbnailUrl`, #1328) | 🔒 |
 | GET | `/api/v1/orders/{orderId}/timeline` | 주문 처리 타임라인(단계 · 상태 · 시각) | 🔒 |
 | GET | `/api/v1/orders/{orderId}/deliveries/{sellerOrderId}/tracking` | 택배 진행 이력(#1320, 그 주문 구매자만, 저장하지 않고 볼 때 택배 조회. `sellerOrderId`는 판매자 API와 같은 이름의 배송 ID, 주문 상세 `deliveries`의 ID). 200 `deliveryId` · `carrier` · `trackingNumber` · `events[{time, location, status}]`(최신 먼저 · 최근 30개, `time`은 한국 시각 · 없으면 null, `location`은 장소 이름 · 없으면 null, `status`는 택배 조회 상태 코드 `IN_TRANSIT` · `OUT_FOR_DELIVERY` · `DELIVERED` 등. 설명 · 연락처는 주지 않음). 발송 전(운송장 없음)이면 `carrier` · `trackingNumber` null · `events` [], 조회할 수 없는 택배사(테스트 DUMMY)와 택배사에 아직 등록 전이면 `events` []. 같은 배송은 10분 동안 같은 결과(택배사에 아직 등록 전인 빈 결과는 1분). 404 `TRACKING_DELIVERY_NOT_FOUND`(남의 주문 · 다른 주문의 배송 · 없는 배송) · 409 `TRACKING_INVALID_NUMBER`(택배사가 운송장 형식 오류로 답함) · 503 `TRACKING_UNAVAILABLE`(`지금 택배 조회를 할 수 없어요. 잠시 후 다시 시도해 주세요.` — 조회 꺼짐 · 외부 실패 · 서킷 열림) | 🔒 |
-| POST | `/api/v1/orders/{orderId}/items/{orderItemId}/confirm` | 구매확정 | 🔒 |
-| GET | `/api/v1/orders/items/mine` | 나를 위해 산 상품 내역(자녀 로그인만, 최신순 · 목록 형식, 출처 칸 없음, #1000) | 🔒 |
+| POST | `/api/v1/orders/{orderId}/items/{orderItemId}/confirm` | 구매확정. 응답은 주문 상세의 주문상품 한 줄과 같은 모양(`thumbnailUrl`, #1328) | 🔒 |
+| GET | `/api/v1/orders/items/mine` | 나를 위해 산 상품 내역(자녀 로그인만, 최신순 · 목록 형식, 출처 칸 없음, #1000). 줄마다 `thumbnailUrl`(#1328, 주문 당시, 없으면 null) | 🔒 |
 | POST | `/api/v1/wish/requests` | 조르기 보내기(자녀만, 내 장바구니 칸 `cartItemIds` + 메시지. 칸을 예약한다) | 🔒 |
-| GET | `/api/v1/wish/requests` | 조르기 목록(내가 보낸 것 + 내가 승인자인 것, `childId`로 거르기 선택) | 🔒 |
-| GET | `/api/v1/wish/requests/{requestId}` | 조르기 상세(칸 · 산 것 `purchases` · 결제된 주문상품 ID `paidOrderItemIds`) | 🔒 |
+| GET | `/api/v1/wish/requests` | 조르기 목록(내가 보낸 것 + 내가 승인자인 것, `childId`로 거르기 선택). 칸마다 `items[].thumbnailUrl`(#1328, 장바구니와 같은 지금 상품 값, 없으면 null) | 🔒 |
+| GET | `/api/v1/wish/requests/{requestId}` | 조르기 상세(칸 · 산 것 `purchases` · 결제된 주문상품 ID `paidOrderItemIds`). 칸마다 `items[].thumbnailUrl`(#1328, 목록과 같은 지금 상품 값, 없으면 null) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/rejection` | 조르기 거절(승인자만, 사유. 예약이 풀린다) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/cancellation` | 조르기 철회(보낸 사람만, 처리 전에만. 상태 `CANCELLED` · `cancelReason` DIRECT, 예약이 풀리고 칸은 장바구니에 남음, #968) | 🔒 |
 | GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 결제 완료 · 거절 · 철회 · 만료(시스템), 산 주문 ID `orderIds`, 직접 철회면 `cancelledBy`) | 🔒 |

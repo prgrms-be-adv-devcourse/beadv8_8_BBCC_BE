@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
  * 화면이 조르기 응답의 결제된 주문상품 ID와 맞춰 붙인다.
  *
  * @param status PAID(결제 완료) · SHIPPING(배송 중) · DELIVERED(배송 완료) · CONFIRMED(구매확정) · CANCELLED(취소, 결제 뒤 취소 포함)
+ * @param thumbnailUrl 주문 당시 상품 썸네일(#1328, 스냅샷). 없으면 null
  */
 public record ChildPurchase(
     Long orderItemId,
@@ -15,7 +16,8 @@ public record ChildPurchase(
     String productName,
     String optionName,
     int quantity,
-    String status) {
+    String status,
+    String thumbnailUrl) {
 
     public static final String PAID = "PAID";
     public static final String SHIPPING = "SHIPPING";
