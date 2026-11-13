@@ -71,7 +71,18 @@ public record SizeAiQuestion(
         addReferenceFitNumbers(numbers);
         addGrowthNumbers(numbers);
         addPurchaseNumbers(numbers);
+        addProductFitTendencyNumbers(numbers);
         return numbers;
+    }
+
+    // 상품 핏 성향의 핏별 리뷰 수를 담는다
+    private void addProductFitTendencyNumbers(Set<BigDecimal> numbers) {
+        if (productFitTendency == null) {
+            return;
+        }
+        addIfNumber(numbers, productFitTendency.smallCount());
+        addIfNumber(numbers, productFitTendency.trueToSizeCount());
+        addIfNumber(numbers, productFitTendency.largeCount());
     }
 
     // 지난 구매의 산 옷 실측 · 실측 차이 · 개월 수 · 예상 성장량과, 지시 글에 나오는 최근 개수 · 기간을 담는다
