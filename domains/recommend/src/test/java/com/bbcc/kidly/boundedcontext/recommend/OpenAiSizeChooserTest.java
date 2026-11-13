@@ -37,7 +37,7 @@ import tools.jackson.databind.json.JsonMapper;
 class OpenAiSizeChooserTest {
 
     private static final String PROMPT_VERSION_6_SHA_256 =
-        "b59faa07d6dec9e8891a53b74b22018d930519bfeafbcdecd0c631f6dce4e407";
+        "8df7e24e1174603975fd328bea3acc33f6975ff69f8d4266a96e6774b5918a70";
 
     // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
     private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
@@ -144,6 +144,8 @@ class OpenAiSizeChooserTest {
         assertThat(prompts.getFirst().getSystemMessage().getText())
             .contains("reviewFit", "SMALL", "TRUE_TO_SIZE", "LARGE", "productFitTendency", "smallCount",
                 "trueToSizeCount", "largeCount")
+            // 핏 없이 쓴 리뷰나 숨긴 리뷰도 null이고, 리뷰 수 근거는 실측 근거와 설명 방식이 달라 따로 적는다
+            .contains("핏을 남긴 공개 리뷰가 없어", "비율(%)은 쓰지 마세요", "리뷰 수로 설명하세요")
             .doesNotContain("잘 맞았는지는 모릅니다. 사이즈 이름은");
         assertThat(prompts.getFirst().getUserMessage().getText()).contains("\"reviewFit\":\"SMALL\"",
             "\"productFitTendency\":{", "\"smallCount\":6", "\"trueToSizeCount\":3", "\"largeCount\":1");
