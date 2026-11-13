@@ -37,9 +37,9 @@
 | `kidly.settlement.events` | `settlement.payout-requested` | 정산서 ID | settlement | payment |
 | `kidly.search.events` | `search.performed`(#1089 추가 칸 `childId` 고른 자녀, 없는 예전 메시지는 자녀 없음) | 회원 ID | search | recommend |
 | | `search.result-clicked`(검색 결과 클릭, #1004. #1089 추가 칸 `childId`) | 회원 ID | | recommend(#1284: 누른 상품을 자녀 선호 점수의 활동으로 기록) |
-| `kidly.community.events` | `review.changed`(#1274: 작성 · 실제로 바뀐 수정 · 삭제 · 검사 결과 · 관리자 숨김 확정 · 다시 공개. data `reviewId` · `orderItemId` · `productId` · `rating` · `fit`(없으면 null) · `visible`(지금 공개인지, 삭제 · 숨김이면 false). 바뀐 것 없는 수정 · 같은 값 요청은 보내지 않는다) | 리뷰 ID | community | recommend(받을 예정) |
+| `kidly.community.events` | `review.changed`(#1274: 작성 · 실제로 바뀐 수정 · 삭제 · 검사 결과 · 관리자 숨김 확정 · 다시 공개. data `reviewId` · `orderItemId` · `productId` · `rating` · `fit`(없으면 null) · `visible`(지금 공개인지, 삭제 · 숨김이면 false). 바뀐 것 없는 수정 · 같은 값 요청은 보내지 않는다) | 리뷰 ID | community | recommend(#1316: 리뷰 핏을 복사해 두고 사이즈 추천 AI 입력의 지난 구매 · 상품 핏 성향에 씀. 숨김 · 삭제된 리뷰의 핏은 쓰지 않음) |
 | | `favorite.added`(#1274: 새로 찜했을 때만. data `favoriteId` · `memberId` · `productId`) | 회원 ID | | recommend(#1316: 회원의 선호 점수 활동) |
-| | `favorite.removed`(#1274: 실제로 지웠을 때만. data `favoriteId` · `memberId` · `productId` · `cause` USER · MEMBER_WITHDRAWN(회원 탈퇴로 지움)) | 회원 ID | | recommend(#1316: 회원이 직접 해제(USER)하면 그 찜을 선호 점수에서 뺌, 탈퇴로 지운 것은 무시) |
+| | `favorite.removed`(#1274: 실제로 지웠을 때만. data `favoriteId` · `memberId` · `productId` · `cause` USER · MEMBER_WITHDRAWN(회원 탈퇴로 지움)) | 회원 ID | | recommend(#1316: 회원이 직접 해제(USER)하면 그 찜을 선호 점수에서 뺌, 탈퇴로 지운 것(MEMBER_WITHDRAWN)은 그 찜의 활동 기록을 지움) |
 
 - `kidly.community.events`는 커밋된 뒤 아웃박스에서 보내는 최소 한 번 전달입니다. 같은 `eventId`가 두 번 갈 수 있고(보낸 뒤 아웃박스에서 지우기 전에 서버가 멈추면), 순서는 키 단위로 대체로 지키지만 커밋 순서와 아웃박스 id 순서가 다를 때 · 격리 뒤 수동으로 다시 보낼 때 바뀔 수 있습니다. 받는 쪽은 `eventId`로 중복을 거르고, 리뷰는 `reviewId`, 찜은 (`memberId`, `productId`)마다 `occurredAt`이 더 늦은 것만 반영합니다. 닉네임 · 리뷰 본문 · 사진 주소는 담지 않습니다
 - 순서는 **같은 토픽 + 같은 키** 안에서만 보장됩니다. 한 주문의 이벤트(생성 → 결제 요청 → 취소 → 구매확정)는 모두 `kidly.order.events`에 주문 ID 키로 들어가므로 순서가 지켜집니다.
