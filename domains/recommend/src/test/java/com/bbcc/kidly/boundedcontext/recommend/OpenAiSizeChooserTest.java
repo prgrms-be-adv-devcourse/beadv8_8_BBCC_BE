@@ -17,6 +17,9 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.ObservationView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -24,7 +27,9 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import tools.jackson.databind.json.JsonMapper;
 
 class OpenAiSizeChooserTest {
@@ -168,5 +173,60 @@ class OpenAiSizeChooserTest {
         String system = prompts.getFirst().getSystemMessage().getText();
         assertThat(system).contains("growthSpeed", "recentCmPerMonth", "wearablePeriods", "tableSource")
             .doesNotContain("growthSpeed가 null이면 무시하세요");
+    }
+
+    @Test
+    @DisplayName("사이즈 AI는 빠른 처리 등급(Fast mode, service_tier priority)으로 부르고, 모델 · 추론 강도 · 최대 토큰 설정은 그대로 둔다")
+    void callWithFastServiceTier() {
+        List<Prompt> prompts = new ArrayList<>();
+        // 실제 OpenAI 모델처럼 기본 옵션이 OpenAI 옵션이어야 요청 옵션의 처리 등급이 합쳐진다
+        ChatModel model = new ChatModel() {
+            @Override
+            public ChatResponse call(Prompt prompt) {
+                prompts.add(prompt);
+                return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                    {"recommendedSize":"110","fit":"TIGHT","reasons":[]}
+                    """))));
+            }
+
+            @Override
+            public ChatOptions getOptions() {
+                return OpenAiChatOptions.builder().model("gpt-6.1-terra").reasoningEffort("low")
+                    .maxCompletionTokens(2048).build();
+            }
+        };
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
+
+        assertThat(prompts.getFirst().getOptions()).isInstanceOfSatisfying(OpenAiChatOptions.class,
+            options -> {
+                assertThat(options.getServiceTier()).isEqualTo("priority");
+                assertThat(options.getModel()).isEqualTo("gpt-6.1-terra");
+                assertThat(options.getReasoningEffort()).isEqualTo("low");
+                assertThat(options.getMaxCompletionTokens()).isEqualTo(2048);
+            });
+    }
+
+    @Test
+    @DisplayName("모델 호출은 앱의 관측 레지스트리로 만든 ChatClient 안에서 돌아, 추천 AI 호출 관측 아래에 놓인다")
+    void callModelUnderRecommendAiObservation() {
+        ObservationRegistry observations = ObservationRegistry.create();
+        observations.observationConfig().observationHandler(context -> true);
+        List<String> currentChain = new ArrayList<>();
+        ChatModel model = prompt -> {
+            ObservationView current = observations.getCurrentObservation();
+            while (current != null) {
+                currentChain.add(current.getContextView().getName());
+                current = current.getContextView().getParentObservation();
+            }
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[]}
+                """))));
+        };
+
+        Observation.createNotStarted("kidly.recommend.ai.call", observations).observe(
+            () -> new OpenAiSizeChooser(model, JsonMapper.builder().build(), observations).choose(QUESTION));
+
+        assertThat(currentChain).contains("kidly.recommend.ai.call");
     }
 }

@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.BDDMockito.given;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
@@ -74,8 +77,12 @@ class HomePreviewServiceTest {
     void setUp() {
         aiResponseService = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK,
             2_000, Map.of(AiResponseType.HOME_PREVIEW, Duration.ofSeconds(1)), Duration.ofSeconds(10),
-            Duration.ofHours(24));
+            Duration.ofHours(24), new RecommendAiMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP));
     }
+
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    private final RecommendAiMetrics metrics = new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP);
 
     @Test
     @DisplayName("HOME-03 AI가 고른 상품을 AI 답 순서와 이유 그대로 돌려준다")
@@ -209,7 +216,7 @@ class HomePreviewServiceTest {
 
     private HomePreviewService service(HomePreviewPicker picker) {
         return new HomePreviewService(candidateReader, replicaSellerRepository, aiResponseService,
-            Optional.ofNullable(picker));
+            Optional.ofNullable(picker), metrics);
     }
 
     // 상품 ID 순서가 선호 점수 순서인 후보를 읽게 한다
@@ -299,6 +306,11 @@ class HomePreviewServiceTest {
         public boolean tryAcquire(LocalDate date, int dailyLimit) {
             acquired++;
             return true;
+        }
+
+        @Override
+        public int usedOn(LocalDate date) {
+            return acquired;
         }
     }
 }

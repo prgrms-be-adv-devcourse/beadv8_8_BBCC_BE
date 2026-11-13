@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
@@ -72,6 +75,10 @@ class SizeRecommendationServiceTest {
     private static final SizeAiEvidence EVIDENCE =
         new SizeAiEvidence(null, Set.of(new BigDecimal("114"), new BigDecimal("110")));
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    private final RecommendAiMetrics metrics = new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP);
+
     @Mock
     private SizeRecommendationReader reader;
 
@@ -121,7 +128,8 @@ class SizeRecommendationServiceTest {
     void answerWithRuleWithoutAiModel() {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftOf(RULE_120));
 
-        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+        SizeRecommendationResult result = new SizeRecommendationService(
+                reader, aiResponseService, Optional.empty(), metrics)
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertRuleResult(result);
@@ -155,7 +163,7 @@ class SizeRecommendationServiceTest {
     }
 
     private SizeRecommendationService service() {
-        return new SizeRecommendationService(reader, aiResponseService, Optional.of(aiSizeChooser));
+        return new SizeRecommendationService(reader, aiResponseService, Optional.of(aiSizeChooser), metrics);
     }
 
     private static SizeRecommendationDraft draftOf(SizeRecommendation rule) {
@@ -210,6 +218,19 @@ class SizeRecommendationServiceTest {
     }
 
     @Test
+    @DisplayName("AI 답을 검증에서 버리면 사이즈 추천의 검증 버림 수를 하나 센다")
+    void countRejectedAnswer() {
+        given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(draftWithReferenceFit());
+        given(aiSizeChooser.choose(QUESTION_WITH_FIT)).willReturn(answerWithChestDiff("2.5"));
+        givenAiResponseServiceCallsChooser();
+
+        service().recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
+
+        assertThat(meterRegistry.get("kidly.recommend.ai.rejected").tag("feature", "size_recommendation")
+            .counter().count()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("GROW-01 · WEAR-03 AI 모델이 없어 규칙 결과로 답해도 성장 속도와 사이즈별 입을 수 있는 기간을 결과에 담는다")
     void resultHasGrowthSpeedAndWearablePeriodsWithoutAi() {
         SizeAiQuestion question = new SizeAiQuestion(null, List.of(), null, null,
@@ -219,7 +240,8 @@ class SizeRecommendationServiceTest {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
             PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, question, EVIDENCE, null, null));
 
-        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+        SizeRecommendationResult result = new SizeRecommendationService(
+                reader, aiResponseService, Optional.empty(), metrics)
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertThat(result.source()).isEqualTo("RULE");
@@ -239,7 +261,8 @@ class SizeRecommendationServiceTest {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
             PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, preview, null));
 
-        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+        SizeRecommendationResult result = new SizeRecommendationService(
+                reader, aiResponseService, Optional.empty(), metrics)
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertThat(result.wearPreview()).isEqualTo(new SizeRecommendationResult.WearPreview("TOP",
@@ -254,7 +277,8 @@ class SizeRecommendationServiceTest {
         given(reader.read(MEMBER_ID, PRODUCT_ID, CHILD_ID)).willReturn(new SizeRecommendationDraft(
             PRODUCT_ID, CHILD_ID, RecommendFixture.productA(), RULE_120, KEY_INPUT, QUESTION, EVIDENCE, null, null));
 
-        SizeRecommendationResult result = new SizeRecommendationService(reader, aiResponseService, Optional.empty())
+        SizeRecommendationResult result = new SizeRecommendationService(
+                reader, aiResponseService, Optional.empty(), metrics)
             .recommend(MEMBER_ID, PRODUCT_ID, CHILD_ID);
 
         assertThat(result.wearPreview()).isNull();

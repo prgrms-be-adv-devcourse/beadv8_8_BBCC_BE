@@ -16,6 +16,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
@@ -37,6 +41,8 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -73,12 +79,96 @@ class AiResponseServiceTest {
 
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     private AiResponseService service;
 
     @BeforeEach
     void setUp() {
+        ObservationRegistry observations = ObservationRegistry.create();
+        observations.observationConfig().observationHandler(new DefaultMeterObservationHandler(meterRegistry));
         service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUTS,
-            Duration.ofSeconds(10), REUSE_PERIOD);
+            Duration.ofSeconds(10), REUSE_PERIOD, new RecommendAiMetrics(meterRegistry, observations));
+    }
+
+    @Test
+    @DisplayName("저장한 응답을 쓰면 기능 이름으로 요청 결과 stored와 저장 답 조회 hit를 하나씩 세고, AI 호출 시간은 재지 않는다")
+    void countStoredAndLookupHit() {
+        given(store.find(TYPE, KEY))
+            .willReturn(Optional.of("{\"productIds\":[1,2],\"reason\":\"저장된 답\"}"));
+
+        service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(count("kidly.recommend.ai.requests", "stored")).isEqualTo(1);
+        assertThat(count("kidly.recommend.ai.store.lookups", "hit")).isEqualTo(1);
+        assertThat(meterRegistry.find("kidly.recommend.ai.call").timers()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("저장한 응답이 없어 AI가 답하면 요청 결과 answered와 저장 답 조회 miss를 세고, 기능 이름을 붙여 AI 호출 시간을 잰다")
+    void countAnsweredAndTimeCall() {
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
+        given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(true);
+
+        service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(count("kidly.recommend.ai.requests", "answered")).isEqualTo(1);
+        assertThat(count("kidly.recommend.ai.store.lookups", "miss")).isEqualTo(1);
+        assertThat(meterRegistry.get("kidly.recommend.ai.call").tag("feature", "home_preview").timer().count())
+            .isEqualTo(1);
+    }
+
+    enum Failure { CALL_THROWS, CALL_RETURNS_NULL, QUOTA_THROWS }
+
+    @ParameterizedTest
+    @EnumSource(Failure.class)
+    @DisplayName("AI 호출이 실패하거나 null을 돌려주거나 호출 횟수를 세지 못하면 요청 결과 error를 센다")
+    void countError(Failure failure) {
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
+        Supplier<Answer> call = this::freshAnswerCall;
+        if (failure == Failure.QUOTA_THROWS) {
+            given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willThrow(new QueryTimeoutException("느림"));
+        } else {
+            given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(true);
+            call = failure == Failure.CALL_THROWS ? AiResponseServiceTest::failingCall : () -> null;
+        }
+
+        service.respond(TYPE, INPUT, Answer.class, call);
+
+        assertThat(count("kidly.recommend.ai.requests", "error")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("하루 호출 상한에 걸리면 요청 결과 daily_limit을 세고 error는 세지 않는다")
+    void countDailyLimit() {
+        given(store.find(TYPE, KEY)).willReturn(Optional.empty());
+        given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(false);
+
+        service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(count("kidly.recommend.ai.requests", "daily_limit")).isEqualTo(1);
+        assertThat(count("kidly.recommend.ai.requests", "error")).isZero();
+    }
+
+    @Test
+    @DisplayName("저장소가 저장 답을 읽지 못하면 저장 답 조회 error를 세고, miss는 세지 않는다")
+    void countLookupError() {
+        given(store.find(TYPE, KEY)).willThrow(new QueryTimeoutException("Redis 시간 초과"));
+        given(quota.tryAcquire(NOW.toLocalDate(), DAILY_LIMIT)).willReturn(true);
+
+        service.respond(TYPE, INPUT, Answer.class, this::freshAnswerCall);
+
+        assertThat(count("kidly.recommend.ai.store.lookups", "error")).isEqualTo(1);
+        assertThat(count("kidly.recommend.ai.store.lookups", "miss")).isZero();
+    }
+
+    private static Answer failingCall() {
+        throw new IllegalStateException("모델 오류");
+    }
+
+    // TYPE(홈 맛보기)의 그 결과 카운터 값이다
+    private double count(String name, String result) {
+        return meterRegistry.get(name).tag("feature", "home_preview").tag("result", result).counter().count();
     }
 
     @Test
