@@ -134,7 +134,7 @@ class RecommendReplicaReviewIntegrationTest {
             List.of(601L, 602L, 603L));
 
         assertThat(found)
-            .extracting(RecommendReplicaReview::getOrderItemId, RecommendReplicaReview::countedFit)
+            .extracting(RecommendReplicaReview::getOrderItemId, RecommendReplicaReview::visibleFit)
             .containsExactly(tuple(601L, ReviewFit.SMALL));
     }
 

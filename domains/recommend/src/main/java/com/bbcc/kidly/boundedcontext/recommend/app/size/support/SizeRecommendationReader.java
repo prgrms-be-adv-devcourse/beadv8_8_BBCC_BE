@@ -175,19 +175,8 @@ public class SizeRecommendationReader {
         for (PurchaseRecord record : records) {
             orderItemIds.add(record.getOrderItemId());
         }
-        Map<Long, RecommendReplicaReview> latestReviews = new HashMap<>();
-        for (RecommendReplicaReview review : replicaReviewRepository.findVisibleFitsByOrderItemIds(orderItemIds)) {
-            RecommendReplicaReview stored = latestReviews.get(review.getOrderItemId());
-            // 한 주문상품에 공개된 핏 리뷰가 둘 이상이면 이벤트 시각이 늦은 리뷰의 핏을 쓴다
-            if (stored == null || review.getEventOccurredAt().isAfter(stored.getEventOccurredAt())) {
-                latestReviews.put(review.getOrderItemId(), review);
-            }
-        }
-        Map<Long, ReviewFit> reviewFits = new HashMap<>();
-        for (RecommendReplicaReview review : latestReviews.values()) {
-            reviewFits.put(review.getOrderItemId(), review.countedFit());
-        }
-        return reviewFits;
+        return RecommendReplicaReview.visibleFitsByOrderItem(
+            replicaReviewRepository.findVisibleFitsByOrderItemIds(orderItemIds));
     }
 
     // 산 상품 복사본이 없으면 칸 · 브랜드 · 실측을 몰라 비워 넘기고, 칸을 모르는 구매는 domain이 뺀다.

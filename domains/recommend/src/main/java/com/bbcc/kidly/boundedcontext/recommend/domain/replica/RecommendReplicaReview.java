@@ -10,6 +10,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -81,11 +84,42 @@ public class RecommendReplicaReview extends BaseTimeEntity {
     /**
      * 사이즈 AI 입력에 쓸 핏이다. 숨기거나 삭제한 리뷰는 핏이 있어도 쓰지 않는다.
      */
-    public ReviewFit countedFit() {
+    public ReviewFit visibleFit() {
         if (!visible) {
             return null;
         }
         return fit;
+    }
+
+    /**
+     * 주문상품마다 쓸 리뷰 핏을 고른다. 숨긴 리뷰와 핏을 남기지 않은 리뷰는 빼고, 리뷰가 없는 주문상품은 Map에 없다.
+     * 리뷰를 지우고 다시 쓰면 한 주문상품에 공개된 리뷰가 잠시 둘일 수 있어, 더 늦게 일어난 리뷰의 핏을 쓴다.
+     * 시각이 같으면 읽은 순서와 상관없이 같은 결과가 나오게 리뷰 ID가 큰 리뷰를 쓴다.
+     */
+    public static Map<Long, ReviewFit> visibleFitsByOrderItem(List<RecommendReplicaReview> reviews) {
+        requireNonNull(reviews, "reviews는 필수입니다");
+        Map<Long, RecommendReplicaReview> chosen = new HashMap<>();
+        for (RecommendReplicaReview review : reviews) {
+            if (review.visibleFit() == null) {
+                continue;
+            }
+            RecommendReplicaReview current = chosen.get(review.orderItemId);
+            if (current == null || review.isLaterThan(current)) {
+                chosen.put(review.orderItemId, review);
+            }
+        }
+        Map<Long, ReviewFit> fits = new HashMap<>();
+        for (RecommendReplicaReview review : chosen.values()) {
+            fits.put(review.orderItemId, review.fit);
+        }
+        return fits;
+    }
+
+    private boolean isLaterThan(RecommendReplicaReview other) {
+        if (eventOccurredAt.equals(other.eventOccurredAt)) {
+            return reviewId > other.reviewId;
+        }
+        return eventOccurredAt.isAfter(other.eventOccurredAt);
     }
 
     // fit만 비어 있어도 된다
