@@ -18,6 +18,10 @@ import com.bbcc.kidly.shared.order.dto.MemberOrderSummary;
 import com.bbcc.kidly.shared.order.dto.SellerOrderItemSummary;
 import com.bbcc.kidly.shared.order.out.MemberOrderHistory;
 import com.bbcc.kidly.shared.order.out.SellerOrderItems;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
@@ -43,6 +47,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
+
+    private static final DateTimeFormatter CANCELLED_FROM_FORMAT =
+        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss").withResolverStyle(ResolverStyle.STRICT);
 
     private final OrderRepository orderRepository;
     private final OrderDeliveries orderDeliveries;
@@ -224,6 +231,52 @@ public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
             return new PageImpl<>(List.of(), pageable, orderRepository.countByStatus(filter));
         }
         return toAdminSummaries(orderRepository.findAllByStatusOrderByIdDesc(filter, pageable));
+    }
+
+    /**
+     * 관리자 전체 주문 목록(#1280 상태 필터 + #1325 취소 시각). 줄마다 cancelledAt(취소 주문만, 상태 이력의 취소 시각)을 페이지 단위로
+     * 한 번에 읽어 붙인다(주문마다 조회하지 않음).
+     * cancelledFrom(한국 시간 yyyy-MM-ddTHH:mm:ss, 포함)이 있으면 그 시각 이후 취소된 주문만이다: status 없이 와도 취소된 주문만,
+     * status와 함께면 AND라 CANCELLED가 아니면 0건. 형식이 틀리면 INVALID_CANCELLED_FROM(400). 없으면 #1280과 같다.
+     */
+    public Page<AdminOrderSummary> getAllOrders(String status, String cancelledFrom, int page, int size) {
+        if (cancelledFrom == null) {
+            return withCancelledAt(getAllOrders(status, page, size));
+        }
+        LocalDateTime from = toCancelledFrom(cancelledFrom);
+        Order.Status filter = status == null ? null : toOrderStatus(status);
+        PageRequest pageable = PageRequest.of(page, size);
+        if (filter != null && filter != Order.Status.CANCELLED) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, orderRepository.countCancelledSince(from));
+        }
+        return withCancelledAt(toAdminSummaries(orderRepository.findCancelledSince(from, pageable)));
+    }
+
+    // 페이지의 취소 주문만 모아 취소 시각을 한 번에 읽는다(취소 주문이 없으면 조회하지 않는다)
+    private Page<AdminOrderSummary> withCancelledAt(Page<AdminOrderSummary> summaries) {
+        List<Long> cancelledIds = summaries.getContent().stream()
+            .filter(summary -> Order.Status.CANCELLED.name().equals(summary.status()))
+            .map(AdminOrderSummary::orderId)
+            .toList();
+        if (cancelledIds.isEmpty()) {
+            return summaries;
+        }
+        Map<Long, LocalDateTime> cancelledAt = historyRepository.findOrderCancelledAt(cancelledIds).stream()
+            .collect(Collectors.toMap(OrderStatusHistoryRepository.CancelledAt::getOrderId,
+                OrderStatusHistoryRepository.CancelledAt::getCancelledAt));
+        return summaries.map(summary -> summary.withCancelledAt(cancelledAt.get(summary.orderId())));
+    }
+
+    // 한국 시간 그대로(오프셋 · 밀리초 없이 초까지). 날짜만 · 빈 값 · 없는 날짜는 받지 않는다
+    private static LocalDateTime toCancelledFrom(String cancelledFrom) {
+        try {
+            return LocalDateTime.parse(cancelledFrom, CANCELLED_FROM_FORMAT);
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(OrderErrorCode.INVALID_CANCELLED_FROM);
+        }
     }
 
     // 상태 이름 그대로(대문자)만 받는다. 소문자 · 공백 · 빈 값을 너그럽게 맞추지 않는다(응답 status 값과 같게)

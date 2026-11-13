@@ -42,6 +42,9 @@ class OrderListQueryCountIntegrationTest {
     @Autowired
     private QueryCounter queryCounter;
 
+    @Autowired
+    private OrderService orderService;
+
     @Test
     @DisplayName("주문 · 판매자가 1건이든 5건이든 쿼리 수가 같고, 각 주문은 첫 주문상품 상품명 · 판매자 상호명 · 주문상품 수를 갖는다")
     void sameQueryCountRegardlessOfOrderCount() {
@@ -92,6 +95,28 @@ class OrderListQueryCountIntegrationTest {
         assertThat(singleCount).as("주문 페이지 1번 + 그 페이지 주문(주문상품 포함) 1번").isEqualTo(2);
         assertThat(all).hasSize(MANY);
         assertThat(all).extracting(AdminOrderSummary::itemCount).containsOnly(2);
+    }
+
+    @Test
+    @DisplayName("관리자 목록의 취소 시각(#1325)은 취소 주문이 1건이든 5건이든 쿼리 1번 더(이력 한 번), cancelledFrom 조회도 같다")
+    void adminListCancelledAtSameQueryCount() {
+        orderService.cancelForPaymentFailure(place(SINGLE_BUYER_ID, 0, "첫 주문", "둘째"));
+        long singleCount = queryCounter.count(() -> orderQueries.getAllOrders(null, null, 0, 20));
+        long singleSinceCount = queryCounter.count(
+            () -> orderQueries.getAllOrders(null, "2000-01-01T00:00:00", 0, 20));
+
+        for (int i = 1; i < MANY; i++) {
+            orderService.cancelForPaymentFailure(place(MANY_BUYER_ID, i, "대표 " + i, "둘째 " + i));
+        }
+        long manyCount = queryCounter.count(() -> orderQueries.getAllOrders(null, null, 0, 20));
+        long manySinceCount = queryCounter.count(
+            () -> orderQueries.getAllOrders(null, "2000-01-01T00:00:00", 0, 20));
+        List<AdminOrderSummary> all = orderQueries.getAllOrders(null, null, 0, 20).getContent();
+
+        assertThat(manyCount).isEqualTo(singleCount);
+        assertThat(singleCount).as("주문 페이지 1번 + 주문상품 1번 + 취소 시각 1번").isEqualTo(3);
+        assertThat(manySinceCount).isEqualTo(singleSinceCount).isEqualTo(3);
+        assertThat(all).hasSize(MANY).allSatisfy(summary -> assertThat(summary.cancelledAt()).isNotNull());
     }
 
     private void saveSeller(Long sellerId, String businessName) {

@@ -29,13 +29,18 @@ public class AdminOrderController {
     /**
      * 모든 회원의 주문을 최근 주문부터. size는 1~100. status(#1280, 선택)는 응답 status와 같은 값 하나(PENDING_PAYMENT · PAID ·
      * CANCELLED, 대문자 그대로)로 거르고 totalElements가 그 상태의 전체 건수가 된다. 모르는 값 · 빈 값은 400(INVALID_ORDER_STATUS).
+     * 줄마다 cancelledAt(#1325, 취소 주문만). cancelledFrom(#1325, 선택, 한국 시간 yyyy-MM-ddTHH:mm:ss, 포함)이면 그 시각 이후 취소된
+     * 주문만(status와 AND), 형식이 틀리면 400(INVALID_CANCELLED_FROM).
      */
     @GetMapping
     public PageResponse<AdminOrderSummaryResponse> getAllOrders(
         @RequestParam(required = false) String status,
+        // 형식이 틀려도 기본 400(안내 없음) 대신 형식을 안내하는 INVALID_CANCELLED_FROM으로 답하게 서비스가 검사한다
+        @RequestParam(required = false) String cancelledFrom,
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return PageResponse.from(orderQueries.getAllOrders(status, page, size).map(AdminOrderSummaryResponse::from));
+        return PageResponse.from(
+            orderQueries.getAllOrders(status, cancelledFrom, page, size).map(AdminOrderSummaryResponse::from));
     }
 
     /**
