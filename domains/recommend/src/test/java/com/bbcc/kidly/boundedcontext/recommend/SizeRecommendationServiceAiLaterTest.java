@@ -54,7 +54,7 @@ class SizeRecommendationServiceAiLaterTest {
         null, 0, new BigDecimal("0"), 0, new BigDecimal("0.50"), "한국아동패널");
 
     private static final SizeAiQuestion QUESTION =
-        new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of(), List.of());
+        new SizeAiQuestion(null, List.of(), null, null, GROWTH, List.of(), List.of(), null);
 
     // 기준 핏 없이 키 114cm와 사이즈 110을 AI에게 준 질문의 검증 값이다
     private static final SizeAiEvidence EVIDENCE =
