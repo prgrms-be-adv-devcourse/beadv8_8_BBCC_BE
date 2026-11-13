@@ -29,7 +29,13 @@ public enum DeliveryErrorCode implements ErrorCode {
         "판매자 취소 기능이 꺼져 있습니다. 관리자에게 문의해 주세요."),
     // 판매 주문 목록 상태 필터(#1280): 응답 status와 같은 값 하나만
     INVALID_DELIVERY_STATUS(HttpStatus.BAD_REQUEST, "지원하지 않는 판매 주문 상태입니다",
-        "status는 READY · SHIPPING · DELIVERED · CANCELLED 중 하나를 대문자 그대로 보내 주세요. 전체는 status를 빼고 보내 주세요.");
+        "status는 READY · SHIPPING · DELIVERED · CANCELLED 중 하나를 대문자 그대로 보내 주세요. 전체는 status를 빼고 보내 주세요."),
+    // 구매자 택배 진행 이력(#1320). 판매자 문구(DELIVERY_NOT_FOUND · NOT_SHIPPED)와 따로 구매자에게 맞춘다
+    TRACKING_DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "배송을 찾을 수 없습니다", "없는 배송입니다. 주문 상세를 새로고침해 주세요."),
+    TRACKING_INVALID_NUMBER(HttpStatus.CONFLICT, "운송장 번호를 조회할 수 없습니다",
+        "택배사가 운송장 번호를 확인하지 못했어요. 판매자에게 운송장 번호를 문의해 주세요."),
+    TRACKING_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "택배 조회를 할 수 없습니다",
+        "지금 택배 조회를 할 수 없어요. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;
     private final String title;
