@@ -15,6 +15,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecordRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ProductFitTendency;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
@@ -172,6 +173,26 @@ class SizeRecommendationPurchaseIntegrationTest {
         assertThat(draft.aiQuestion().purchases())
             .extracting(PurchaseFit::size, PurchaseFit::reviewFit)
             .containsExactly(tuple("120", null), tuple("110", ReviewFit.SMALL));
+    }
+
+    @Test
+    @DisplayName("FIT-13 이 상품의 공개된 핏 리뷰가 5건이 되면 핏별 리뷰 수를 AI 질문의 상품 핏 성향으로 넣고, 4건이면 숨긴 리뷰가 더 있어도 넣지 않는다")
+    void putProductFitTendencyIntoAiQuestion() {
+        saveProductAndChild();
+        saveReview(21L, 201L, PRODUCT_A_ID, "SMALL", true);
+        saveReview(22L, 202L, PRODUCT_A_ID, "SMALL", true);
+        saveReview(23L, 203L, PRODUCT_A_ID, "TRUE_TO_SIZE", true);
+        saveReview(24L, 204L, PRODUCT_A_ID, "LARGE", true);
+        saveReview(25L, 205L, PRODUCT_A_ID, "SMALL", false);
+        ProductFitTendency withFourReviews =
+            reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiQuestion().productFitTendency();
+
+        saveReview(26L, 206L, PRODUCT_A_ID, "LARGE", true);
+        ProductFitTendency withFiveReviews =
+            reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID).aiQuestion().productFitTendency();
+
+        assertThat(withFourReviews).isNull();
+        assertThat(withFiveReviews).isEqualTo(new ProductFitTendency(2, 1, 2));
     }
 
     private void saveReview(Long reviewId, Long orderItemId, Long productId, String fit, boolean visible) {

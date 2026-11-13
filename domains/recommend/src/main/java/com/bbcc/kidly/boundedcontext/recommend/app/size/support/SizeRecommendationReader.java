@@ -17,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchasedGarment;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ProductFitTendency;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategoryPathEntry;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
@@ -125,7 +126,7 @@ public class SizeRecommendationReader {
             product, fitProduct, childId, growthSpeed.cmPerMonth(), today);
         SizeAiQuestion question = new SizeAiQuestion(
             questionChildOf(child, childInput, ageMonths, today), sizeLines, ruleResultOf(rule), referenceFit,
-            growthSpeed, wearablePeriods, purchaseHistory.purchases(), null);
+            growthSpeed, wearablePeriods, purchaseHistory.purchases(), productFitTendencyOf(productId));
         return new SizeRecommendationDraft(
             productId, childId, productSizes, rule,
             keyInputOf(productId, childId, child, ageMonths, question), question,
@@ -155,6 +156,14 @@ public class SizeRecommendationReader {
         // 성장 속도는 AI에 준 반올림 값을 쓴다. 그래야 예상 성장량이 질문에 있는 숫자와 맞는다.
         return PurchaseHistory.compare(new PurchaseHistory.CompareInfo(
             fitProduct, product.getBrand(), garments, cmPerMonth, today));
+    }
+
+    // 이 상품에 공개된 리뷰의 핏별 수다. 핏 리뷰가 적으면 성향으로 보지 않아 null이다
+    private ProductFitTendency productFitTendencyOf(Long productId) {
+        return ProductFitTendency.ofCounts(
+            Math.toIntExact(replicaReviewRepository.countVisibleFits(productId, ReviewFit.SMALL)),
+            Math.toIntExact(replicaReviewRepository.countVisibleFits(productId, ReviewFit.TRUE_TO_SIZE)),
+            Math.toIntExact(replicaReviewRepository.countVisibleFits(productId, ReviewFit.LARGE)));
     }
 
     // 구매한 주문상품마다 공개된 리뷰의 핏을 한 번에 읽는다. 리뷰가 없는 구매는 Map에 없다.
