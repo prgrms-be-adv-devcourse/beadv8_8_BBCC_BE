@@ -79,6 +79,9 @@ public enum OrderErrorCode implements ErrorCode {
     // 목록 상태 필터(#1280): 응답 status와 같은 값 하나만
     INVALID_ORDER_STATUS(HttpStatus.BAD_REQUEST, "지원하지 않는 주문 상태입니다",
         "status는 PENDING_PAYMENT · PAID · CANCELLED 중 하나를 대문자 그대로 보내 주세요. 전체는 status를 빼고 보내 주세요."),
+    // 관리자 목록 취소일 기준 조회(#1325)
+    INVALID_CANCELLED_FROM(HttpStatus.BAD_REQUEST, "취소 시각 형식이 맞지 않습니다",
+        "cancelledFrom은 한국 시간 yyyy-MM-ddTHH:mm:ss 형식으로 보내 주세요(예: 2026-11-12T00:00:00)."),
     CANCEL_NOT_ALLOWED_SHIPPED(HttpStatus.CONFLICT, "이미 발송된 상품이 있습니다",
         "판매자가 발송을 시작해 취소할 수 없습니다. 판매자에게 문의해 주세요.");
 

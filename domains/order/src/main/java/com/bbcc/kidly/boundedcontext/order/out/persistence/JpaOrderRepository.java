@@ -20,6 +20,29 @@ import org.springframework.data.repository.Repository;
  */
 public interface JpaOrderRepository extends Repository<Order, Long>, OrderRepository {
 
+    // 취소일 기준 조회(#1325): 바깥은 주문 상태(idx_orders_status_payment_due_at), 이력은 주문마다
+    // idx_order_status_history_order(order_id, occurred_at, id)로 찾는다. 취소는 되돌지 않으므로 이력 하나라도 from 이상이면 된다
+    String CANCELLED_SINCE = """
+        from Order o
+        where o.status = com.bbcc.kidly.boundedcontext.order.domain.order.Order.Status.CANCELLED
+          and exists (
+            select h.id
+            from OrderStatusHistory h
+            where h.orderId = o.id
+              and h.targetType = com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory.TargetType.ORDER
+              and h.toStatus = 'CANCELLED'
+              and h.occurredAt >= :from)
+        """;
+
+    @Override
+    @Query(value = "select o " + CANCELLED_SINCE + " order by o.id desc",
+        countQuery = "select count(o) " + CANCELLED_SINCE)
+    Page<Order> findCancelledSince(LocalDateTime from, Pageable pageable);
+
+    @Override
+    @Query("select count(o) " + CANCELLED_SINCE)
+    long countCancelledSince(LocalDateTime from);
+
     // 주문상품의 판매자 ID(order_item.seller_id) · 상태 인덱스(idx_order_item_seller_status, #1120)로 찾고 주문 상태로 거른다
     @Override
     @Query("select count(i) from Order o join o.items i where i.product.sellerId = :sellerId "

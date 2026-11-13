@@ -193,6 +193,17 @@ public interface OrderRepository {
     long countByStatus(Order.Status status);
 
     /**
+     * from 이후(포함)에 취소된 주문(#1325, 관리자). 지금 CANCELLED이고 주문 대상 상태 이력에 CANCELLED가 된 시각이 from 이상인 것.
+     * 최근 주문부터, 건수(totalElements)도 같은 조건으로 센다.
+     */
+    Page<Order> findCancelledSince(LocalDateTime from, Pageable pageable);
+
+    /**
+     * from 이후(포함)에 취소된 주문 수(#1325). 목록을 읽을 수 없는 큰 page의 빈 페이지에 건수를 채운다.
+     */
+    long countCancelledSince(LocalDateTime from);
+
+    /**
      * 그 판매자 상품의 주문상품 중 이 상태이고 주문이 그 상태가 아닌 수(#1120 판매자 미종결 주문상품). 주문 전체 취소(구매자 취소 ·
      * 결제 만료 · 재고 부족 · 결제 실패)는 주문 상태만 바꾸고 주문상품은 주문됨으로 남으므로 주문 상태로 함께 거른다. 건수 쿼리 한 번.
      */

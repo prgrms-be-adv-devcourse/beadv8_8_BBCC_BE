@@ -194,7 +194,7 @@
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리(처음 완료 때 `delivery.delivered` 1번: 그 몫 주문상품(취소 제외) · 자동 구매확정 예정 시각, #1061. 택배 조회 완료도 같다) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409. 판매자가 판매할 수 없게 되면(#1121, 판매자 상태가 ACTIVE 아님) 시스템이 그 판매자의 배송 전 주문을 정리한다: 결제대기 주문은 전체 취소(`cancelReason` `SELLER_UNAVAILABLE`), 결제완료 · 배송 준비 몫은 이 취소와 같은 결과(주문상품 `cancelReason` `SELLER_UNAVAILABLE`, 판매자가 고르는 사유는 아님. 그 몫으로 주문 전체가 취소되면 주문 `cancelReason`도 `SELLER_UNAVAILABLE`), 배송 중 · 배송 완료는 그대로 | 🏪 |
-| GET | `/api/v1/admin/orders` | 전체 주문 조회. `status`(선택, #1280): 내 주문 목록과 같은 값 · 규칙(`PENDING_PAYMENT` · `PAID` · `CANCELLED`, `totalElements` = 그 상태 전체 건수, 모르는 값 400 `INVALID_ORDER_STATUS`) | 🛠 |
+| GET | `/api/v1/admin/orders` | 전체 주문 조회. `status`(선택, #1280): 내 주문 목록과 같은 값 · 규칙(`PENDING_PAYMENT` · `PAID` · `CANCELLED`, `totalElements` = 그 상태 전체 건수, 모르는 값 400 `INVALID_ORDER_STATUS`). 줄마다 `cancelledAt`(#1325, 취소 주문이 취소된 시각 = 상태 이력의 주문 → CANCELLED 시각, 한국 시각, 취소 아니면 null). `cancelledFrom`(선택, #1325): 한국 시간 `yyyy-MM-ddTHH:mm:ss`, 그 시각 포함 이후에 취소된 주문만(`status` 없이 와도 취소된 주문만, `status`와 함께면 AND라 CANCELLED가 아니면 0건). 오늘 취소 건수 = `?status=CANCELLED&cancelledFrom=오늘T00:00:00&size=1`의 `totalElements`. 형식이 틀리면 400 `INVALID_CANCELLED_FROM`(`취소 시각 형식이 맞지 않습니다`). 이력이 없는 옛 취소 주문(#442 이전)은 `cancelledAt`이 null이고 `cancelledFrom` 결과에서도 빠진다 | 🛠 |
 | GET | `/api/v1/admin/orders/{orderId}/history` | 주문 상태 이력 | 🛠 |
 | GET | `/api/v1/admin/orders/stuck` | 멈춘 주문 목록(`kind`). 줄마다 AI 진단 메모 `aiMemo`(#926, 없으면 null) | 🛠 |
 | GET | `/api/v1/admin/orders/stuck/summary` | 멈춘 주문 종류별 건수 | 🛠 |
