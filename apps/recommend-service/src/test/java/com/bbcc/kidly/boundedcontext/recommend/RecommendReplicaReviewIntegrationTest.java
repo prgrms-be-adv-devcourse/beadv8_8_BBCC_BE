@@ -6,6 +6,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaReviewFixt
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendReplicaReviewFixture.REVIEW_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaReviewService;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaReview;
@@ -13,6 +14,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaRe
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -113,5 +115,25 @@ class RecommendReplicaReviewIntegrationTest {
             .isInstanceOf(IllegalArgumentException.class);
 
         assertThat(replicaReviewRepository.findById(REVIEW_ID)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("FIT-12 주문상품으로 리뷰 핏을 찾으면 공개되고 핏을 남긴 리뷰만 나온다")
+    void findVisibleFitsByOrderItemIds() {
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            1L, 601L, PRODUCT_ID, "SMALL", true, REVIEW_CHANGED_AT));
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            2L, 602L, PRODUCT_ID, "LARGE", false, REVIEW_CHANGED_AT));
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            3L, 603L, PRODUCT_ID, null, true, REVIEW_CHANGED_AT));
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            4L, 604L, PRODUCT_ID, "TRUE_TO_SIZE", true, REVIEW_CHANGED_AT));
+
+        List<RecommendReplicaReview> found = replicaReviewRepository.findVisibleFitsByOrderItemIds(
+            List.of(601L, 602L, 603L));
+
+        assertThat(found)
+            .extracting(RecommendReplicaReview::getOrderItemId, RecommendReplicaReview::countedFit)
+            .containsExactly(tuple(601L, ReviewFit.SMALL));
     }
 }

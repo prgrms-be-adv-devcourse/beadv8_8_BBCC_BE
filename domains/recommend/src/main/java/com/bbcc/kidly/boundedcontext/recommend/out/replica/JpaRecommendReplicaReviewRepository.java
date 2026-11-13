@@ -2,8 +2,19 @@ package com.bbcc.kidly.boundedcontext.recommend.out.replica;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaReview;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaReviewRepository;
+import java.util.Collection;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface JpaRecommendReplicaReviewRepository
     extends JpaRepository<RecommendReplicaReview, Long>, RecommendReplicaReviewRepository {
+
+    @Override
+    @Query("""
+        select r from RecommendReplicaReview r
+        where r.orderItemId in :orderItemIds and r.visible = true and r.fit is not null
+        """)
+    List<RecommendReplicaReview> findVisibleFitsByOrderItemIds(@Param("orderItemIds") Collection<Long> orderItemIds);
 }
