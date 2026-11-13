@@ -17,7 +17,6 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchasedGarment;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.FitProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceGarmentRepository;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ProductFitTendency;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCategoryPathEntry;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
@@ -30,6 +29,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSi
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductFitTendency;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeNotice;

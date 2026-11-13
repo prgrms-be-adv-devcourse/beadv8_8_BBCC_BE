@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.recommend.domain.replica;
+package com.bbcc.kidly.boundedcontext.recommend.domain.size;
 
 /**
  * 상품에 공개된 리뷰 핏이 작아요 · 잘 맞아요 · 커요로 몇 건씩인지를 사이즈 AI 입력으로 넘기는 값이다.

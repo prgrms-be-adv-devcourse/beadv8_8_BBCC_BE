@@ -7,7 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriodCalcu
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseHistory;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ProductFitTendency;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductFitTendency;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
