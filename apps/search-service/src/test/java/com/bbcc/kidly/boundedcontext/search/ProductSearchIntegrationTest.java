@@ -78,7 +78,7 @@ class ProductSearchIntegrationTest {
     }
 
     @Test
-    @DisplayName("검색어는 브랜드에서도 찾는다. 단어마다 상품명이나 브랜드에 있으면 맞고, 브랜드는 단어를 다 써야 맞는다")
+    @DisplayName("검색어는 브랜드에서도 찾는다. 단어마다 상품명이나 브랜드에 있으면 맞고, 브랜드는 2글자 이상이면 앞부분으로도 맞는다")
     void brand() {
         indexService.applyProductChanged(product(5L, "봄 원피스", "키들리", SHOP, DRESS, ProductStatus.ON_SALE,
             18_000, PINK, 5, SearchEvents.OCCURRED_AT));
@@ -90,7 +90,11 @@ class ProductSearchIntegrationTest {
         assertThat(ids(keyword("키들리 원피스"))).containsExactly(5L);
         assertThat(ids(keyword("키들리 셔츠"))).isEmpty();
         assertThat(ids(keyword("꼬마숲 셔츠"))).containsExactly(6L);
-        assertThat(ids(keyword("꼬마"))).isEmpty();
+        assertThat(ids(keyword("꼬마"))).containsExactly(6L);
+        assertThat(ids(keyword("꼬마 셔츠"))).containsExactly(6L);
+        assertThat(ids(keyword("꼬마 원피스"))).isEmpty();
+        assertThat(ids(keyword("꼬"))).isEmpty();
+        assertThat(ids(keyword("마숲"))).isEmpty();
         assertThat(ids(keyword("원피스"))).containsExactly(5L, 4L, 1L);
     }
 
