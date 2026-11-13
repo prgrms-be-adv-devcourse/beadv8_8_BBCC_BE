@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ProductFitTendency;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -60,6 +61,19 @@ class SizeAiQuestionTest {
             .isNotEqualTo(questionWith(basePurchaseReviewed(before)).keyText());
     }
 
+    @Test
+    @DisplayName("FIT-13 지난 AI 답을 찾는 키 글은 상품 핏 성향이 생기거나 핏별 리뷰 수가 달라지면 달라진다")
+    void keyTextChangesWithProductFitTendency() {
+        String withoutTendency = questionWith(basePurchase(), null).keyText();
+        String withTendency = questionWith(basePurchase(), new ProductFitTendency(6, 3, 1)).keyText();
+
+        assertThat(withTendency).isNotEqualTo(withoutTendency);
+        assertThat(questionWith(basePurchase(), new ProductFitTendency(6, 3, 2)).keyText())
+            .isNotEqualTo(withTendency);
+        assertThat(questionWith(basePurchase(), new ProductFitTendency(3, 6, 1)).keyText())
+            .isNotEqualTo(withTendency);
+    }
+
     private static PurchaseFit basePurchaseReviewed(ReviewFit reviewFit) {
         PurchaseFit base = basePurchase();
         return new PurchaseFit(base.size(), base.monthsAgo(), base.sameBrand(), base.expectedGrowthCm(),
@@ -90,12 +104,16 @@ class SizeAiQuestionTest {
     }
 
     private static SizeAiQuestion questionWith(PurchaseFit purchase) {
+        return questionWith(purchase, null);
+    }
+
+    private static SizeAiQuestion questionWith(PurchaseFit purchase, ProductFitTendency productFitTendency) {
         return new SizeAiQuestion(
             new SizeAiQuestion.Child(94, 115.0, 20.0, BodyType.NORMAL, PreferredFit.LOOSE, BodyType.NORMAL),
             List.of(new SizeAiQuestion.SizeLine("120", 115, 125, Map.of("CHEST_WIDTH", new BigDecimal("36")))),
             new SizeAiQuestion.RuleResult("120", "PROPER", List.of("120"), List.of()), null,
             new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0,
                 new BigDecimal("0.50"), "한국아동패널"),
-            List.of(), List.of(purchase));
+            List.of(), List.of(purchase), productFitTendency);
     }
 }

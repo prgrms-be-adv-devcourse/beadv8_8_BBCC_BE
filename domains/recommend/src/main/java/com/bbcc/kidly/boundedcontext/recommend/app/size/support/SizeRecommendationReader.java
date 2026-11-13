@@ -119,7 +119,7 @@ public class SizeRecommendationReader {
             product, fitProduct, childId, growthSpeed.cmPerMonth(), today);
         SizeAiQuestion question = new SizeAiQuestion(
             questionChildOf(child, childInput, ageMonths, today), sizeLines, ruleResultOf(rule), referenceFit,
-            growthSpeed, wearablePeriods, purchaseHistory.purchases());
+            growthSpeed, wearablePeriods, purchaseHistory.purchases(), null);
         return new SizeRecommendationDraft(
             productId, childId, productSizes, rule,
             keyInputOf(productId, childId, child, ageMonths, question), question,

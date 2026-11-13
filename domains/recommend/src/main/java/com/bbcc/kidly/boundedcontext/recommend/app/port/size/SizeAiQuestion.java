@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.growth.WearablePeriodCalcu
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseHistory;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ProductFitTendency;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeAiEvidence;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -30,6 +31,7 @@ import java.util.Set;
  *     사이즈 무관 상품이나 모자 · 양말처럼 계산하지 않는 상품은 빈 목록이다
  * @param purchases 이 자녀가 12개월 안에 같은 기준 옷 칸에서 구매확정한 최근 구매(최대 3개)를 지금 상품과 견준 결과이고,
  *     같은 칸의 구매가 없거나 사이즈 무관 상품이나 모자 · 양말이면 빈 목록이다
+ * @param productFitTendency 이 상품에 공개된 리뷰의 핏별 수(작아요 · 잘 맞아요 · 커요)이고, 핏 리뷰가 적어 성향으로 보기 어려우면 null이다
  */
 public record SizeAiQuestion(
     Child child,
@@ -38,7 +40,8 @@ public record SizeAiQuestion(
     ReferenceFit referenceFit,
     GrowthSpeed growthSpeed,
     List<WearablePeriod> wearablePeriods,
-    List<PurchaseFit> purchases) {
+    List<PurchaseFit> purchases,
+    ProductFitTendency productFitTendency) {
 
     public SizeAiQuestion {
         Objects.requireNonNull(growthSpeed, "growthSpeed는 필수입니다");
@@ -134,7 +137,7 @@ public record SizeAiQuestion(
     }
 
     /**
-     * 지난 AI 답을 찾는 키에 넣을 글이다. 답에 영향을 주는 기준 핏 · 성장 속도 · 입을 수 있는 기간 · 지난 구매를
+     * 지난 AI 답을 찾는 키에 넣을 글이다. 답에 영향을 주는 기준 핏 · 성장 속도 · 입을 수 있는 기간 · 지난 구매 · 상품 핏 성향을
      * 늘 같은 순서의 글로 이어 붙이고, 이 질문에 넣은 반올림 값으로 만든다.
      */
     public String keyText() {
@@ -159,6 +162,12 @@ public record SizeAiQuestion(
         text.append("|purchases=");
         for (PurchaseFit purchase : purchases) {
             appendPurchaseKey(text, purchase);
+        }
+        text.append("|productFitTendency=");
+        if (productFitTendency != null) {
+            text.append(productFitTendency.smallCount()).append(',')
+                .append(productFitTendency.trueToSizeCount()).append(',')
+                .append(productFitTendency.largeCount());
         }
         return text.toString();
     }

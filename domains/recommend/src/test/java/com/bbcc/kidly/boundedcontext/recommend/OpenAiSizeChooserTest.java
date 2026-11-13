@@ -45,7 +45,7 @@ class OpenAiSizeChooserTest {
         new SizeAiQuestion.Child(82, 115.0, 20.0, BodyType.NORMAL, PreferredFit.LOOSE, BodyType.NORMAL),
         List.of(new SizeAiQuestion.SizeLine("110", 105, 115, Map.of("TOTAL_LENGTH", new BigDecimal("42")))),
         new SizeAiQuestion.RuleResult("110", "TIGHT", List.of("110"), List.of()),
-        null, GROWTH, List.of(), List.of());
+        null, GROWTH, List.of(), List.of(), null);
 
     // 상의 기준 옷 가슴단면 35cm와 상품 110의 가슴단면 34cm를 비교한 기준 핏을 담은 질문이다
     private static final SizeAiQuestion QUESTION_WITH_FIT = new SizeAiQuestion(
@@ -53,7 +53,7 @@ class OpenAiSizeChooserTest {
         new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(new ReferenceFit.Item("CHEST_WIDTH",
             new BigDecimal("35.0"), List.of(new ReferenceFit.SizeDiff("110", new BigDecimal("34"),
                 new BigDecimal("-1.0")))))),
-        GROWTH, List.of(), List.of());
+        GROWTH, List.of(), List.of(), null);
 
     @Test
     @DisplayName("시스템 지시와 질문 JSON을 모델에 보내고, 모델이 준 JSON을 사이즈 답으로 읽는다")
@@ -112,7 +112,7 @@ class OpenAiSizeChooserTest {
         SizeAiQuestion question = new SizeAiQuestion(QUESTION.child(), QUESTION.sizes(), QUESTION.ruleResult(), null,
             GROWTH, List.of(), List.of(new PurchaseFit("100", 5, true, new BigDecimal("2.5"),
                 List.of(new ReferenceFit.Item("TOTAL_LENGTH", new BigDecimal("40"), List.of(
-                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("2"))))), null)));
+                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("2"))))), null)), null);
 
         new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(question);
 
