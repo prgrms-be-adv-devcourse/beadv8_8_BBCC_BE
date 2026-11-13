@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class SizeAiQuestionTest {
@@ -44,6 +46,24 @@ class SizeAiQuestionTest {
     @DisplayName("PUR-05 지난 AI 답을 찾는 키 글은 구매의 사이즈 · 개월 · 같은 브랜드 · 예상 성장량 · 실측 차이 중 하나만 달라도 달라진다")
     void keyTextChangesWithEachPurchaseValue(String changed, PurchaseFit purchase) {
         assertThat(questionWith(purchase).keyText()).isNotEqualTo(questionWith(basePurchase()).keyText());
+    }
+
+    @ParameterizedTest(name = "{0} → {1}")
+    @CsvSource(value = {
+        "null, SMALL",
+        "SMALL, LARGE",
+        "TRUE_TO_SIZE, null"
+    }, nullValues = "null")
+    @DisplayName("FIT-12 지난 AI 답을 찾는 키 글은 구매의 리뷰 핏이 달라지면 달라진다")
+    void keyTextChangesWithPurchaseReviewFit(ReviewFit before, ReviewFit after) {
+        assertThat(questionWith(basePurchaseReviewed(after)).keyText())
+            .isNotEqualTo(questionWith(basePurchaseReviewed(before)).keyText());
+    }
+
+    private static PurchaseFit basePurchaseReviewed(ReviewFit reviewFit) {
+        PurchaseFit base = basePurchase();
+        return new PurchaseFit(base.size(), base.monthsAgo(), base.sameBrand(), base.expectedGrowthCm(),
+            base.items(), reviewFit);
     }
 
     private static Stream<Arguments> purchasesDifferentFromBase() {

@@ -163,10 +163,11 @@ public record SizeAiQuestion(
         return text.toString();
     }
 
-    // 구매 하나를 「사이즈:개월:같은 브랜드:예상 성장량」 뒤에 기준 핏과 같은 형식의 항목 글을 이어 붙이고 「#」으로 끝낸다
+    // 구매 하나를 「사이즈:개월:같은 브랜드:예상 성장량:리뷰 핏」 뒤에 기준 핏과 같은 형식의 항목 글을 이어 붙이고 「#」으로 끝낸다
     private static void appendPurchaseKey(StringBuilder text, PurchaseFit purchase) {
         text.append(purchase.size()).append(':').append(purchase.monthsAgo()).append(':')
-            .append(purchase.sameBrand()).append(':').append(plain(purchase.expectedGrowthCm()));
+            .append(purchase.sameBrand()).append(':').append(plain(purchase.expectedGrowthCm())).append(':')
+            .append(Objects.toString(purchase.reviewFit(), ""));
         for (ReferenceFit.Item item : purchase.items()) {
             text.append(item.keyText());
         }
