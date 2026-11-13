@@ -42,6 +42,16 @@ public interface DeliveryRepository {
     long countBySellerId(Long sellerId);
 
     /**
+     * 판매자의 그 상태 배송 목록(#1280). 최근 것부터. 건수(totalElements)도 같은 조건으로 센다.
+     */
+    Page<Delivery> findAllBySellerIdAndStatusOrderByIdDesc(Long sellerId, Delivery.Status status, Pageable pageable);
+
+    /**
+     * 판매자의 그 상태 배송 수(#1280). 목록을 읽을 수 없는 큰 page의 빈 페이지에 건수를 채운다.
+     */
+    long countBySellerIdAndStatus(Long sellerId, Delivery.Status status);
+
+    /**
      * 발송 지연 목록 한 줄(#617-2). 지연 로딩 없이 필요한 값만 읽는다.
      */
     interface ShippingDelayedRow {

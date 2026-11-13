@@ -26,7 +26,10 @@ public enum DeliveryErrorCode implements ErrorCode {
     INVALID_CANCEL_REASON(HttpStatus.BAD_REQUEST, "지원하지 않는 취소 사유입니다",
         "취소 사유는 OUT_OF_STOCK · WRONG_PRODUCT_INFO · OTHER입니다."),
     PARTIAL_CANCEL_DISABLED(HttpStatus.CONFLICT, "판매자 취소를 아직 쓸 수 없습니다",
-        "판매자 취소 기능이 꺼져 있습니다. 관리자에게 문의해 주세요.");
+        "판매자 취소 기능이 꺼져 있습니다. 관리자에게 문의해 주세요."),
+    // 판매 주문 목록 상태 필터(#1280): 응답 status와 같은 값 하나만
+    INVALID_DELIVERY_STATUS(HttpStatus.BAD_REQUEST, "지원하지 않는 판매 주문 상태입니다",
+        "status는 READY · SHIPPING · DELIVERED · CANCELLED 중 하나를 대문자 그대로 보내 주세요. 전체는 status를 빼고 보내 주세요.");
 
     private final HttpStatus status;
     private final String title;

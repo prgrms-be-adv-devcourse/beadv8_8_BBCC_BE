@@ -174,7 +174,7 @@
 | PATCH | `/api/v1/cart/items/{cartItemId}` | 장바구니 수량 변경(예약된 칸 409) | 🔒 |
 | DELETE | `/api/v1/cart/items/{cartItemId}` | 장바구니에서 빼기(예약된 칸 409) | 🔒 |
 | POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸이라도 그 예약의 결제 가능 기한이 지났으면 409 `RESERVATION_EXPIRED`(`결제 기한이 지난 예약입니다`, #1008). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음. 기한도 지났으면 `RESERVATION_EXPIRED`가 먼저). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) | 🔒 |
-| GET | `/api/v1/orders` | 내 주문 목록 | 🔒 |
+| GET | `/api/v1/orders` | 내 주문 목록. `status`(선택, #1280): 응답 `status`와 같은 값 하나 — `PENDING_PAYMENT` · `PAID` · `CANCELLED`(대문자 그대로)로 서버가 거르고 `totalElements`가 그 상태의 전체 건수(상태별 건수는 `?status=X&size=1`). 없으면 지금과 같다. 모르는 값 · 소문자 · 빈 값 · 여러 값은 400 `INVALID_ORDER_STATUS`(`지원하지 않는 주문 상태입니다`) | 🔒 |
 | GET | `/api/v1/orders/{orderId}` | 주문 상세 | 🔒 |
 | GET | `/internal/sellers/{sellerId}/order-items/summary` | 서비스 사이 전용(#1120, 판매자 탈퇴 #1091의 남은 주문 확인). 200 `{"sellerId": 12, "openItemCount": 3}`: 그 판매자 상품의 주문상품 중 주문이 취소되지 않았고 주문상품이 `ORDERED`인 수(결제대기 · 결제완료 · 배송 준비 · 배송 중 · 배송 완료 후 구매확정 전. 구매확정 · 취소된 주문상품과 전체 취소된 주문의 주문상품은 빠짐, 주문이 없으면 0). `sellerId`는 숫자다(주문의 다른 응답은 ID가 문자열). 같은 모양의 계약 `shared.order.out.SellerOrderItems`(`summarize`)를 주문이 구현한다. 판매자 ID가 숫자가 아니거나 1 미만이면 400 `잘못된 판매자 ID입니다`. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
 | GET | `/internal/members/{memberId}/orders` | 서비스 사이 전용(#1191, 챗봇 내 주문 조회). 쿼리 `limit`(1~10, 기본 5). 그 회원의 주문을 최근 주문부터 준다. 200 `[{"orderId": 31, "orderedAt": "2026-11-11T09:05:00", "status": "PAID", "items": [{"productName": "여아 원피스", "optionName": "110", "quantity": 1, "status": "ORDERED", "delivery": {"status": "SHIPPING", "carrier": "CJ", "shippedAt": "2026-11-11T15:20:00", "deliveredAt": null}}]}]`(주문이 없으면 `[]`, ID는 숫자, 주문상품은 주문상품 ID 순, `delivery`는 그 상품 판매자의 배송이고 결제 전이면 `null`). 상태 · 택배사는 enum 이름이다. 배송지 · 연락처 · 수령인 · 송장번호 · 금액 · 자녀 정보는 주지 않는다. 같은 모양의 계약 `shared.order.out.MemberOrderHistory`(`recent`)를 주문이 구현한다. 회원 ID가 숫자가 아니거나 1 미만, `limit`이 범위 밖이면 400. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
@@ -188,11 +188,11 @@
 | POST | `/api/v1/wish/requests/{requestId}/rejection` | 조르기 거절(승인자만, 사유. 예약이 풀린다) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/cancellation` | 조르기 철회(보낸 사람만, 처리 전에만. 상태 `CANCELLED` · `cancelReason` DIRECT, 예약이 풀리고 칸은 장바구니에 남음, #968) | 🔒 |
 | GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 결제 완료 · 거절 · 철회 · 만료(시스템), 산 주문 ID `orderIds`, 직접 철회면 `cancelledBy`) | 🔒 |
-| GET | `/api/v1/seller/orders` | 판매 주문 목록. 주문상품에 자녀 정보(`child`)는 없다(#997, 제3자 제공 동의 없이 판매자에게 넘기지 않음) | 🏪 |
+| GET | `/api/v1/seller/orders` | 판매 주문 목록. 주문상품에 자녀 정보(`child`)는 없다(#997, 제3자 제공 동의 없이 판매자에게 넘기지 않음). `status`(선택, #1280): 응답 `status`(배송 상태)와 같은 값 하나 — `READY` · `SHIPPING` · `DELIVERED` · `CANCELLED`(대문자 그대로)로 자기 판매 주문만 거르고 `totalElements`가 그 상태의 전체 건수. 없으면 지금과 같다. 모르는 값 · 소문자 · 빈 값 · 여러 값은 400 `INVALID_DELIVERY_STATUS`(`지원하지 않는 판매 주문 상태입니다`) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리(처음 완료 때 `delivery.delivered` 1번: 그 몫 주문상품(취소 제외) · 자동 구매확정 예정 시각, #1061. 택배 조회 완료도 같다) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409. 판매자가 판매할 수 없게 되면(#1121, 판매자 상태가 ACTIVE 아님) 시스템이 그 판매자의 배송 전 주문을 정리한다: 결제대기 주문은 전체 취소(`cancelReason` `SELLER_UNAVAILABLE`), 결제완료 · 배송 준비 몫은 이 취소와 같은 결과(주문상품 `cancelReason` `SELLER_UNAVAILABLE`, 판매자가 고르는 사유는 아님. 그 몫으로 주문 전체가 취소되면 주문 `cancelReason`도 `SELLER_UNAVAILABLE`), 배송 중 · 배송 완료는 그대로 | 🏪 |
-| GET | `/api/v1/admin/orders` | 전체 주문 조회 | 🛠 |
+| GET | `/api/v1/admin/orders` | 전체 주문 조회. `status`(선택, #1280): 내 주문 목록과 같은 값 · 규칙(`PENDING_PAYMENT` · `PAID` · `CANCELLED`, `totalElements` = 그 상태 전체 건수, 모르는 값 400 `INVALID_ORDER_STATUS`) | 🛠 |
 | GET | `/api/v1/admin/orders/{orderId}/history` | 주문 상태 이력 | 🛠 |
 | GET | `/api/v1/admin/orders/stuck` | 멈춘 주문 목록(`kind`). 줄마다 AI 진단 메모 `aiMemo`(#926, 없으면 null) | 🛠 |
 | GET | `/api/v1/admin/orders/stuck/summary` | 멈춘 주문 종류별 건수 | 🛠 |

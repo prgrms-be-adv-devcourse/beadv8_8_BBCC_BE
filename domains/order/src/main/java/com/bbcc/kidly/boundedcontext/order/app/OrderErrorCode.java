@@ -76,6 +76,9 @@ public enum OrderErrorCode implements ErrorCode {
     INVALID_STUCK_KIND(HttpStatus.BAD_REQUEST, "지원하지 않는 멈춘 주문 종류입니다",
         "kind는 STOCK_CHECK_STALE · PAYMENT_EXPIRY_MISSED · PAID_WITHOUT_DELIVERY · RECOVERY_PENDING_STALE · "
             + "SHIPPING_DELAYED · AUTO_CONFIRM_MISSED · OUTBOX_STUCK 중 하나를 대문자 그대로 보내 주세요."),
+    // 목록 상태 필터(#1280): 응답 status와 같은 값 하나만
+    INVALID_ORDER_STATUS(HttpStatus.BAD_REQUEST, "지원하지 않는 주문 상태입니다",
+        "status는 PENDING_PAYMENT · PAID · CANCELLED 중 하나를 대문자 그대로 보내 주세요. 전체는 status를 빼고 보내 주세요."),
     CANCEL_NOT_ALLOWED_SHIPPED(HttpStatus.CONFLICT, "이미 발송된 상품이 있습니다",
         "판매자가 발송을 시작해 취소할 수 없습니다. 판매자에게 문의해 주세요.");
 
