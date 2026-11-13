@@ -50,6 +50,11 @@ public interface OrderRepository {
 
         Order.Status getOrderStatus();
 
+        /**
+         * 주문 당시 상품 썸네일(#1328, 스냅샷). 없으면 null.
+         */
+        String getThumbnailUrl();
+
         LocalDateTime getDeliveredAt();
     }
 

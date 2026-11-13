@@ -32,6 +32,7 @@ public class ReplicaProduct extends OrderTimeEntity {
      * @param productStatus 상품 판매 상태 이름. 모르는 값이면 구매 불가
      * @param optionSaleStatus 옵션 판매 상태 이름. null이면 판매 중으로 본다(이 값이 없던 옛 행), 모르는 값이면 구매 불가
      * @param occurredAt 이벤트 발생 시각. 저장된 값보다 늦을 때만 반영한다
+     * @param thumbnailUrl 상품 썸네일 URL(#1328). 없거나 이 칸이 없던 옛 메시지면 null
      */
     public record Values(
         Long optionId,
@@ -45,7 +46,18 @@ public class ReplicaProduct extends OrderTimeEntity {
         String productStatus,
         String optionSaleStatus,
         boolean soldOut,
-        LocalDateTime occurredAt) {
+        LocalDateTime occurredAt,
+        String thumbnailUrl) {
+
+        /**
+         * 썸네일 없이(#1328 전 입력 모양). 썸네일은 null.
+         */
+        public Values(Long optionId, Long productId, Long sellerId, String productName, String optionName, String size,
+            long unitPrice, Long categoryId, String productStatus, String optionSaleStatus, boolean soldOut,
+            LocalDateTime occurredAt) {
+            this(optionId, productId, sellerId, productName, optionName, size, unitPrice, categoryId, productStatus,
+                optionSaleStatus, soldOut, occurredAt, null);
+        }
     }
 
     @Id
@@ -87,6 +99,10 @@ public class ReplicaProduct extends OrderTimeEntity {
 
     @Column(nullable = false)
     private LocalDateTime eventOccurredAt;
+
+    // 상품 썸네일(#1328, 상품 쪽과 같은 길이). 칸을 더하기 전 행은 null이다
+    @Column(length = 255)
+    private String thumbnailUrl;
 
     private static final String ON_SALE = "ON_SALE";
     private static final String SOLD_OUT = "SOLD_OUT";
@@ -168,5 +184,6 @@ public class ReplicaProduct extends OrderTimeEntity {
         optionSaleStatus = values.optionSaleStatus();
         soldOut = values.soldOut();
         eventOccurredAt = values.occurredAt();
+        thumbnailUrl = values.thumbnailUrl();
     }
 }

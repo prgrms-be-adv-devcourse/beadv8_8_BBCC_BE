@@ -144,7 +144,7 @@ public interface JpaOrderRepository extends Repository<Order, Long>, OrderReposi
         select i.id as orderItemId, o.id as orderId, o.createdAt as orderedAt, i.product.productId as productId,
             i.product.sellerId as sellerId, i.product.productName as productName,
             i.product.optionName as optionName, i.quantity as quantity, i.status as itemStatus,
-            o.status as orderStatus, i.deliveredAt as deliveredAt
+            o.status as orderStatus, i.deliveredAt as deliveredAt, i.product.thumbnailUrl as thumbnailUrl
         from OrderItem i join i.order o
         where i.child.childId = :childId and o.paidAt is not null
         order by o.createdAt desc, i.id desc

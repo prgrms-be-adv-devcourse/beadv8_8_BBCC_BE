@@ -41,6 +41,7 @@ public interface ReplicaLookup {
      *
      * @param purchasable 지금 살 수 있는지(판매 중 · 옵션 판매 중 · 품절 아님). 주문 복사본이 정한 값 그대로
      * @param saleStatus 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED · SALE_PENDING 등, #701). ON_SALE일 때만 purchasable
+     * @param thumbnailUrl 상품 썸네일 URL(#1328). 없으면 null
      */
     record ProductOptionView(
         Long optionId,
@@ -51,7 +52,8 @@ public interface ReplicaLookup {
         String size,
         long unitPrice,
         boolean purchasable,
-        String saleStatus) {
+        String saleStatus,
+        String thumbnailUrl) {
     }
 
     /**

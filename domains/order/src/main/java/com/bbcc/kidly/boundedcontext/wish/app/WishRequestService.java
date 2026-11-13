@@ -333,12 +333,12 @@ public class WishRequestService {
         Map<Long, String> sellerNames, boolean purchased) {
         if (product == null) {
             return new WishRequestView.Line(line.getCartItemId(), line.getOptionId(), line.getProductId(), null,
-                null, null, null, null, line.getQuantity(), null, false, null, purchased);
+                null, null, null, null, line.getQuantity(), null, false, null, purchased, null);
         }
         return new WishRequestView.Line(line.getCartItemId(), line.getOptionId(), product.productId(),
             product.sellerId(), product.productName(), product.optionName(), product.size(),
             sellerNames.get(product.sellerId()), line.getQuantity(), product.unitPrice(), product.purchasable(),
-            product.saleStatus(), purchased);
+            product.saleStatus(), purchased, product.thumbnailUrl());
     }
 
     private static String nameOf(Enum<?> value) {

@@ -37,7 +37,8 @@ public interface CartCatalog {
         String optionName,
         String size,
         long unitPrice,
-        boolean purchasable) {
+        boolean purchasable,
+        String thumbnailUrl) {
     }
 
     /**

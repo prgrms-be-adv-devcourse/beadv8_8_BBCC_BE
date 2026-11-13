@@ -48,6 +48,7 @@ public record WishRequestResponse(
      * @param unitPrice 지금 가격. 상품 정보가 없으면 null
      * @param saleStatus 지금 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED 등). 판매 중이 아니어도 빼지 않는다(화면이 버튼을 막는다)
      * @param purchased 결제돼 장바구니에서 빠졌는지
+     * @param thumbnailUrl 상품 썸네일 URL(#1328, 장바구니와 같은 지금 상품 복사본 값). 없으면 null
      */
     public record Line(
         String cartItemId,
@@ -62,12 +63,14 @@ public record WishRequestResponse(
         Long unitPrice,
         boolean purchasable,
         String saleStatus,
-        boolean purchased) {
+        boolean purchased,
+        String thumbnailUrl) {
 
         static Line from(WishRequestView.Line view) {
             return new Line(toText(view.cartItemId()), toText(view.optionId()), toText(view.productId()),
                 toText(view.sellerId()), view.productName(), view.optionName(), view.size(), view.sellerName(),
-                view.quantity(), view.unitPrice(), view.purchasable(), view.saleStatus(), view.purchased());
+                view.quantity(), view.unitPrice(), view.purchasable(), view.saleStatus(), view.purchased(),
+                view.thumbnailUrl());
         }
     }
 

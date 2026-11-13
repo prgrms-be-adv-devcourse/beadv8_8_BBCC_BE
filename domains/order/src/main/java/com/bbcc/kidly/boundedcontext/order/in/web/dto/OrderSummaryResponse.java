@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
  * @param representativeProductName 대표 상품명(주문상품 ID가 가장 작은 주문상품의 주문 당시 상품명). 없으면 null
  * @param itemCount 주문상품 수
  * @param sellerName 대표 주문상품 판매자의 지금 상호명. 판매자 정보가 아직 없으면 null
+ * @param representativeProductId 대표 주문상품의 상품 ID(#1328). 없으면 null
+ * @param representativeThumbnailUrl 대표 주문상품의 주문 당시 썸네일(#1328). 없으면 null
  */
 public record OrderSummaryResponse(
     String orderId,
@@ -17,10 +19,14 @@ public record OrderSummaryResponse(
     LocalDateTime orderedAt,
     String representativeProductName,
     int itemCount,
-    String sellerName) {
+    String sellerName,
+    String representativeProductId,
+    String representativeThumbnailUrl) {
 
     public static OrderSummaryResponse from(OrderSummary summary) {
         return new OrderSummaryResponse(String.valueOf(summary.orderId()), summary.status(), summary.totalAmount(),
-            summary.orderedAt(), summary.representativeProductName(), summary.itemCount(), summary.sellerName());
+            summary.orderedAt(), summary.representativeProductName(), summary.itemCount(), summary.sellerName(),
+            summary.representativeProductId() == null ? null : String.valueOf(summary.representativeProductId()),
+            summary.representativeThumbnailUrl());
     }
 }

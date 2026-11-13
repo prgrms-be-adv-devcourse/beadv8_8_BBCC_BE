@@ -32,6 +32,7 @@ public record CartView(List<Line> items, long totalAmount) {
         boolean purchasable,
         long lineAmount,
         String sellerName,
-        boolean reserved) {
+        boolean reserved,
+        String thumbnailUrl) {
     }
 }
