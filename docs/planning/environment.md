@@ -10,7 +10,7 @@
 | 데이터 | PostgreSQL 18 · Flyway로 스키마 관리 (`V{yyyyMMddHHmm}__*.sql`, JPA는 검증만, 적용된 파일은 고치지 않고 새 파일 추가) · 모듈마다 DB 스키마를 나눔 (member · childprofile · seller · product · recommend · orders · payment · settlement · community · notification · setting) · 암호화는 토스 paymentKey (AES-256-GCM, 대상은 2.1) · 검색은 PostgreSQL이 아니라 Elasticsearch(상품의 검색용 표는 되돌리기용으로 남음) |
 | 이벤트 | Kafka. 보내는 도메인마다 토픽 하나(`kidly.{도메인}.events`, 파티션 3 · 복제 1), 키는 correlationId, 받는 도메인마다 구독 그룹 `kidly.{도메인}`과 DLT. 결제는 아웃박스 표(`payment.payment_outbox`)로 보냄. 도메인마다 Kafka 수신 스위치로 Spring 이벤트로 되돌릴 수 있음 |
 | 인증 | 카카오 로그인(화면이 인가 코드를 받아 서버로 보냄) · JWT(RS256) · API Gateway(apps/gateway, WebFlux)가 검증 · 무효화 확인 · 역할 검사 · CORS |
-| 외부 API | 토스페이먼츠 테스트 API(결제) · Delivery Tracker(택배 조회) · 공공데이터포털 한국천문연구원 특일 정보(정산 공휴일) · OpenAI(추천) · 카카오(로그인) · Gmail SMTP(알림) |
+| 외부 API | 토스페이먼츠 테스트 API(결제) · Delivery Tracker(택배 조회) · 공공데이터포털 한국천문연구원 특일 정보(정산 공휴일) · OpenAI(추천) · OpenAI 호환 API(기본 Groq, 주문 멈춘 주문 AI 진단 #926 — 기본 꺼짐, 켜도 키가 없으면 꺼짐) · 카카오(로그인) · Gmail SMTP(알림) |
 | 인프라 | AWS EC2 2대(t3.large: Docker Compose로 Gateway · 앱 · 검색 서비스 · PostgreSQL · Kafka / t3.medium: k3s로 Elasticsearch · 모니터링) · S3(상품 이미지) · Nginx · GitHub Actions |
 | 검색 | Elasticsearch 9.4 + analysis-nori(한글 형태소), elasticsearch-java 클라이언트(Boot starter). 검색 서비스(search-service)는 DB 없이 뜨고 색인 이름 앞에 환경 이름(`dev-products`)을 붙여 dev · prod가 Elasticsearch 하나를 나눠 씀. Elasticsearch는 t3.medium k3s(heap 1g), 검색 서비스는 앱 서버 t3.large의 docker compose(heap 512m, 프로필 `search`) |
 | AI 호출 | Spring AI 2.0.x(`spring-ai-starter-model-openai`), OpenAI Responses API. 구조화 출력은 `ChatClient.entity()`로 Java record에 받음. tool은 쓰지 않음 |

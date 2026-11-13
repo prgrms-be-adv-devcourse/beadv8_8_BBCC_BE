@@ -29,11 +29,14 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | `order.cancelled` 주문 취소됨 | 주문 → 상품 · 결제 (추천 예정) | 재고 복구 / 결제됐으면 남은 금액 환불, 아직이면 이후 결제 요청 거절 / 구매자 취소면 활동 기록(추천) | orderId · memberId · reason(OUT_OF_STOCK · PAYMENT_FAILED · PAYMENT_EXPIRED · BUYER_CANCELLED) · items(orderItemId · optionId · quantity) | 보완 |
 | order-item.cancelled 판매자 주문상품 취소됨 | 주문 → 결제 · 상품 | 주문상품 금액만큼 환불 / 재고 복구 | orderId · memberId · sellerId · cancellationId · reason(OUT_OF_STOCK · WRONG_PRODUCT_INFO · OTHER) · items(orderItemId · optionId · quantity · amount) | 최종 |
 | payment.refunded 환불 완료됨 (계약만) | 결제 → 주문 · 정산 | 취소 완료 / 미정산 대상 제외 (K18) | refundId · paymentId · orderId · cancellationId · items(orderItemId · amount) · amount · refundedAt | 최종 |
-| cart.item-added 장바구니 담김(발행은 이미 있음) | 주문 → 추천 | 활동 기록 저장(선호 점수는 하루 한 번 배치가 계산) | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
-| cart.item-removed 장바구니 빠짐(발행 요청) | 주문 → 추천 | 활동 기록 저장(선호 점수는 하루 한 번 배치가 계산) | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity | 최종 |
+| cart.item-added 장바구니 담김 | 주문 → 추천 | 활동 기록 저장(선호 점수는 하루 한 번 배치가 계산) | cartItemId · memberId · childId · productId · optionId · quantity · cartQuantity · ownerType · ownerId | 최종 |
+| cart.item-removed 장바구니 빠짐(#709, 사용자가 뺄 때만) | 주문 → 추천 | 활동 기록 저장(선호 점수는 하루 한 번 배치가 계산) | cartItemId · memberId · childId · productId · optionId · quantity · ownerType · ownerId | 최종 |
+| `cart.item-purchased` 장바구니 칸 결제됨(#998) | 주문 → 주문(조르기 결제 완료) | 그 칸의 조르기를 결제 완료로 | cartItemId · ownerType · ownerId · memberId · optionId · childId · quantity(이번에 산 수량) · orderId · orderItemId · reservationId(예약 칸이었으면) | 최종 |
+| `order.paid` 결제 완료됨(주문, #899) | 주문 → 알림 | 구매자 주문 확인 · 판매자 새 주문 알림 | orderId · memberId · paidAt · totalAmount · items(orderItemId · sellerId · productId · productName · optionName · quantity · amount) | 최종 |
+| `delivery.shipped` · `delivery.delivered` 배송 출발 · 완료(#900) | 주문 → 알림 | 배송 알림 | deliveryId · orderId · memberId · sellerId · carrier · carrierName · trackingNumber · shippedAt / deliveredAt. 완료에는 autoConfirmAt(자동 구매확정 예정 시각) · items(orderItemId · productId · quantity, #1061) | 최종 |
 | search.performed 검색어 기록됨(발행은 이미 있음) | 검색 → 추천 | 활동 기록 저장 | memberId · keyword · categoryId · attributeValueIds · resultCount | 최종 |
 | `auth.tokens-revoked` 토큰 무효화됨 | 인증 → API Gateway | 무효화 목록에 넣어 그 주체의 기존 토큰 거절 (도메인 아님) | principalType · principalId · 무효화 시각 | 최종 |
-| `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected` 조르기 | 주문 → 알림 · 추천(`wish.sent` · 직접 철회한 `wish.cancelled`, #1284) | 활동 신호 · 인앱 알림 | 키 = 자녀 프로필 ID | 최종(예정) |
+| `wish.sent` · `wish.paid` · `wish.rejected` · `wish.cancelled` · `wish.expired` 조르기 | 주문 → 알림(보냄 · 결제 완료 · 거절 · 만료) · 추천(`wish.sent` · 직접 철회한 `wish.cancelled`, #1284) | 인앱 알림 · 활동 신호 | 키 = 자녀 프로필 ID. `wish.approved` · `wish.item-added`는 보내지 않음(#999, 승인 단계 · 공용 장바구니 없앰) | 최종 |
 | `review.created` 리뷰 작성됨 | 커뮤니티 → (미정) | 추천 · 검색 신호 (K28) | 리뷰 ID · 상품 ID · 주문상품 ID · 회원 ID · 별점 · 작성 시각(본문 · 닉네임 제외) | 최종(보류) |
 
 이벤트 형식 · 보내고 받는 법은 6.2.
@@ -99,10 +102,10 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 | 보내는 이벤트 | order.created (④) · order.payment-requested (④) · order-item.purchase-confirmed (⑥) · order.cancelled (보완, 구매자 취소 포함) |
 | 받는 이벤트 | child.changed · product.changed 복사본 저장 (④) · stock.deducted (④) · payment.completed (④) · stock.deduction-failed · payment.failed · seller.changed 판매자 복사본 (보완) |
 | 시간 작업 | 자동 구매확정 (⑥, 10분마다) · 결제 제한 시간 만료 (보완, 1분마다) |
-| 보내는 이벤트 (최종) | `cart.item-added` · `order-item.cancelled`(스위치) — 모두 아웃박스로 `kidly.order.events`. 예정: `cart.item-removed` · `wish.item-added` · `wish.sent` · `wish.approved` · `wish.rejected` |
-| 받는 이벤트 (최종) | 상품 · 판매자 · 자녀 프로필 · 결제 토픽을 모두 Kafka로(그룹 `kidly.order`). 실패는 `{토픽}.order.dlt`, 관리자가 DLT를 확인 · 재처리 · 종료 |
-| 시간 작업 (최종) | 택배 조회 자동 배송 완료 · 아웃박스 릴레이. 주기 작업은 한 서버에서만(advisory lock) |
-| 외부 연동 (최종) | Delivery Tracker (인증값이 없으면 기능만 꺼짐). 서킷브레이커(Resilience4j)는 예정(#708) |
+| 보내는 이벤트 (최종) | `cart.item-added` · `cart.item-removed`(#709) · `cart.item-purchased`(#998) · `order.paid`(#899) · `delivery.shipped` · `delivery.delivered`(#900, autoConfirmAt · items #1061) · `order-item.cancelled`(스위치 기본 켜짐 #924) · `wish.sent` · `wish.paid` · `wish.rejected` · `wish.cancelled` · `wish.expired` — 모두 아웃박스로 `kidly.order.events`. `wish.approved` · `wish.item-added`는 보내지 않음(#999) |
+| 받는 이벤트 (최종) | 상품 · 판매자 · 자녀 프로필 · 결제 · 회원(`member.withdrawn`, #1001) · 인증(`child-account.changed`, #906) 토픽과 자기 토픽(`cart.item-purchased`, 조르기 결제 완료 #999)을 모두 Kafka로(그룹 `kidly.order`). 실패는 `{토픽}.order.dlt`, 관리자가 DLT를 확인 · 재처리 · 종료 |
+| 시간 작업 (최종) | 택배 조회 자동 배송 완료 · 아웃박스 릴레이 · 조르기 만료(#1008) · 멈춘 주문 AI 진단(#926, 기본 꺼짐). 주기 작업은 한 서버에서만(advisory lock) |
+| 외부 연동 (최종) | Delivery Tracker (인증값이 없으면 기능만 꺼짐, 서킷브레이커 Resilience4j #708) · 멈춘 주문 AI 진단(OpenAI 호환 API, 키가 없으면 꺼짐, #926) |
 
 ## 결제 · codes-gy
 
