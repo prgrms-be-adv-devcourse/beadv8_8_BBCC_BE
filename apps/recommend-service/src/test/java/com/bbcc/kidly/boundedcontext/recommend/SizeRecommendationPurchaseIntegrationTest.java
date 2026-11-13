@@ -4,8 +4,10 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_I
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaChildService;
+import com.bbcc.kidly.boundedcontext.recommend.app.replica.RecommendReplicaReviewService;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationDraft;
 import com.bbcc.kidly.boundedcontext.recommend.app.size.support.SizeRecommendationReader;
 import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseKey;
@@ -15,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseRecordRep
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
@@ -59,6 +62,9 @@ class SizeRecommendationPurchaseIntegrationTest {
 
     @Autowired
     private PurchaseRecordRepository purchaseRecordRepository;
+
+    @Autowired
+    private RecommendReplicaReviewService replicaReviewService;
 
     @Test
     @DisplayName("PUR-01 지난 구매 사이즈는 그 자녀가 같은 칸에서 마지막으로 구매확정한 사이즈이고, 더 최근인 다른 칸 · 다른 자녀의 구매는 보지 않는다")
@@ -148,6 +154,29 @@ class SizeRecommendationPurchaseIntegrationTest {
             given.add(number.stripTrailingZeros().toPlainString());
         }
         assertThat(given).contains("43", "33", "5", "2.5");
+    }
+
+    @Test
+    @DisplayName("FIT-12 지난 구매마다 그 주문상품에 남긴 공개된 리뷰의 핏을 붙이고, 숨긴 리뷰의 핏이나 다른 주문상품의 리뷰는 붙이지 않는다")
+    void attachReviewFitToPurchases() {
+        saveProductAndChild();
+        replicaProductRepository.save(boughtProduct(BOUGHT_TOP_ID, 52L, "상의"));
+        savePurchase(1L, CHILD_1_ID, BOUGHT_TOP_ID, "110", NOW.minusMonths(5));
+        savePurchase(2L, CHILD_1_ID, BOUGHT_TOP_ID, "120", NOW.minusMonths(2));
+        saveReview(11L, 1L, BOUGHT_TOP_ID, "SMALL", true);
+        saveReview(12L, 2L, BOUGHT_TOP_ID, "LARGE", false);
+        saveReview(13L, 3L, BOUGHT_TOP_ID, "TRUE_TO_SIZE", true);
+
+        SizeRecommendationDraft draft = reader.read(MEMBER_1_ID, PRODUCT_A_ID, CHILD_1_ID);
+
+        assertThat(draft.aiQuestion().purchases())
+            .extracting(PurchaseFit::size, PurchaseFit::reviewFit)
+            .containsExactly(tuple("120", null), tuple("110", ReviewFit.SMALL));
+    }
+
+    private void saveReview(Long reviewId, Long orderItemId, Long productId, String fit, boolean visible) {
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            reviewId, orderItemId, productId, fit, visible, NOW.minusDays(1)));
     }
 
     private void saveProductAndChild() {

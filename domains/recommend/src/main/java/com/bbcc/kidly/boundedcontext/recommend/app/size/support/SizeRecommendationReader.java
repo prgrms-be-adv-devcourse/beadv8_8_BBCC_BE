@@ -23,7 +23,10 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaCh
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaReview;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaReviewRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSizeSpec;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductSizes;
@@ -62,6 +65,7 @@ public class SizeRecommendationReader {
     private final ReferenceGarmentRepository referenceGarmentRepository;
     private final RecommendGrowthRecordRepository growthRecordRepository;
     private final PurchaseRecordRepository purchaseRecordRepository;
+    private final RecommendReplicaReviewRepository replicaReviewRepository;
     private final SizeRecommender sizeRecommender;
     private final GrowthVelocityCalculator growthVelocityCalculator;
     private final WearablePeriodCalculator wearablePeriodCalculator;
@@ -73,6 +77,7 @@ public class SizeRecommendationReader {
         ReferenceGarmentRepository referenceGarmentRepository,
         RecommendGrowthRecordRepository growthRecordRepository,
         PurchaseRecordRepository purchaseRecordRepository,
+        RecommendReplicaReviewRepository replicaReviewRepository,
         GrowthChart growthChart,
         GrowthVelocityTable growthVelocityTable,
         GirthRatioTable girthRatioTable,
@@ -82,6 +87,7 @@ public class SizeRecommendationReader {
         this.referenceGarmentRepository = referenceGarmentRepository;
         this.growthRecordRepository = growthRecordRepository;
         this.purchaseRecordRepository = purchaseRecordRepository;
+        this.replicaReviewRepository = replicaReviewRepository;
         this.sizeRecommender = new SizeRecommender(growthChart);
         this.growthVelocityCalculator = new GrowthVelocityCalculator(growthVelocityTable);
         this.wearablePeriodCalculator = new WearablePeriodCalculator(girthRatioTable);
@@ -140,23 +146,50 @@ public class SizeRecommendationReader {
         for (RecommendReplicaProduct bought : replicaProductRepository.findAllById(productIds)) {
             boughtProducts.put(bought.getProductId(), bought);
         }
+        Map<Long, ReviewFit> reviewFits = reviewFitsOf(records);
         List<PurchasedGarment> garments = new ArrayList<>();
         for (PurchaseRecord record : records) {
-            garments.add(purchasedGarmentOf(record, boughtProducts.get(record.getProductId())));
+            garments.add(purchasedGarmentOf(record, boughtProducts.get(record.getProductId()),
+                reviewFits.get(record.getOrderItemId())));
         }
         // 성장 속도는 AI에 준 반올림 값을 쓴다. 그래야 예상 성장량이 질문에 있는 숫자와 맞는다.
         return PurchaseHistory.compare(new PurchaseHistory.CompareInfo(
             fitProduct, product.getBrand(), garments, cmPerMonth, today));
     }
 
+    // 구매한 주문상품마다 공개된 리뷰의 핏을 한 번에 읽는다. 리뷰가 없는 구매는 Map에 없다.
+    private Map<Long, ReviewFit> reviewFitsOf(List<PurchaseRecord> records) {
+        if (records.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> orderItemIds = new ArrayList<>();
+        for (PurchaseRecord record : records) {
+            orderItemIds.add(record.getOrderItemId());
+        }
+        Map<Long, RecommendReplicaReview> latestReviews = new HashMap<>();
+        for (RecommendReplicaReview review : replicaReviewRepository.findVisibleFitsByOrderItemIds(orderItemIds)) {
+            RecommendReplicaReview stored = latestReviews.get(review.getOrderItemId());
+            // 한 주문상품에 공개된 핏 리뷰가 둘 이상이면 이벤트 시각이 늦은 리뷰의 핏을 쓴다
+            if (stored == null || review.getEventOccurredAt().isAfter(stored.getEventOccurredAt())) {
+                latestReviews.put(review.getOrderItemId(), review);
+            }
+        }
+        Map<Long, ReviewFit> reviewFits = new HashMap<>();
+        for (RecommendReplicaReview review : latestReviews.values()) {
+            reviewFits.put(review.getOrderItemId(), review.countedFit());
+        }
+        return reviewFits;
+    }
+
     // 산 상품 복사본이 없으면 칸 · 브랜드 · 실측을 몰라 비워 넘기고, 칸을 모르는 구매는 domain이 뺀다.
-    private PurchasedGarment purchasedGarmentOf(PurchaseRecord record, RecommendReplicaProduct bought) {
+    private PurchasedGarment purchasedGarmentOf(PurchaseRecord record, RecommendReplicaProduct bought,
+        ReviewFit reviewFit) {
         if (bought == null) {
             return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), null, List.of(),
-                null, Map.of(), null);
+                null, Map.of(), reviewFit);
         }
         return new PurchasedGarment(record.getId(), record.getSize(), record.getConfirmedAt(), bought.getCategoryId(),
-            categoryPathNamesOf(bought), bought.getBrand(), measurementsOf(bought, record.getSize()), null);
+            categoryPathNamesOf(bought), bought.getBrand(), measurementsOf(bought, record.getSize()), reviewFit);
     }
 
     // 산 사이즈의 실측이고, 그 사이즈 줄이 없으면 빈 Map이다
