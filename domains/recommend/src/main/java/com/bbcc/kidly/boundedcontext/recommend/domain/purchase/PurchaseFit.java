@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.purchase;
 import static java.util.Objects.requireNonNull;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -14,9 +15,10 @@ import java.util.List;
  * @param sameBrand 지금 상품과 산 상품의 브랜드가 같은지다
  * @param expectedGrowthCm 산 뒤 자란 것으로 예상하는 키(cm)다
  * @param items 지금 상품 사이즈별 실측에서 그때 산 옷 실측을 뺀 차이다
+ * @param reviewFit 그때 산 사이즈가 작았는지 · 맞았는지 · 컸는지다. 공개 리뷰의 핏이 없으면 null이다
  */
 public record PurchaseFit(String size, int monthsAgo, boolean sameBrand, BigDecimal expectedGrowthCm,
-                          List<ReferenceFit.Item> items) {
+                          List<ReferenceFit.Item> items, ReviewFit reviewFit) {
 
     public PurchaseFit {
         requireNonNull(size, "size는 필수입니다");

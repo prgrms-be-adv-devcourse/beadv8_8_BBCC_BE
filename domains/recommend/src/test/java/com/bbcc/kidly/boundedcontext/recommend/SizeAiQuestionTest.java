@@ -6,6 +6,8 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.domain.growth.GrowthVelocity;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductFitTendency;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import java.math.BigDecimal;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class SizeAiQuestionTest {
@@ -46,36 +49,83 @@ class SizeAiQuestionTest {
         assertThat(questionWith(purchase).keyText()).isNotEqualTo(questionWith(basePurchase()).keyText());
     }
 
+    @ParameterizedTest(name = "{0} → {1}")
+    @CsvSource(value = {
+        "null, SMALL",
+        "SMALL, LARGE",
+        "TRUE_TO_SIZE, null"
+    }, nullValues = "null")
+    @DisplayName("FIT-12 지난 AI 답을 찾는 키 글은 구매의 리뷰 핏이 달라지면 달라진다")
+    void keyTextChangesWithPurchaseReviewFit(ReviewFit before, ReviewFit after) {
+        assertThat(questionWith(basePurchaseReviewed(after)).keyText())
+            .isNotEqualTo(questionWith(basePurchaseReviewed(before)).keyText());
+    }
+
+    @Test
+    @DisplayName("FIT-13 지난 AI 답을 찾는 키 글은 상품 핏 성향이 생기거나 핏별 리뷰 수가 달라지면 달라진다")
+    void keyTextChangesWithProductFitTendency() {
+        String withoutTendency = questionWith(basePurchase(), null).keyText();
+        String withTendency = questionWith(basePurchase(), new ProductFitTendency(6, 3, 1)).keyText();
+
+        assertThat(withTendency).isNotEqualTo(withoutTendency);
+        assertThat(questionWith(basePurchase(), new ProductFitTendency(6, 3, 2)).keyText())
+            .isNotEqualTo(withTendency);
+        assertThat(questionWith(basePurchase(), new ProductFitTendency(3, 6, 1)).keyText())
+            .isNotEqualTo(withTendency);
+    }
+
+    @Test
+    @DisplayName("FIT-13 상품 핏 성향의 핏별 리뷰 수와 그 합계는 질문에 든 숫자여서 AI가 근거 문장에 「40건 중 16건」처럼 쓸 수 있다")
+    void givenNumbersContainProductFitTendencyCounts() {
+        SizeAiQuestion question = questionWith(basePurchase(), new ProductFitTendency(16, 13, 11));
+
+        assertThat(question.givenNumbers())
+            .contains(BigDecimal.valueOf(16), BigDecimal.valueOf(13), BigDecimal.valueOf(11), BigDecimal.valueOf(40));
+        assertThat(questionWith(basePurchase(), null).givenNumbers())
+            .doesNotContain(BigDecimal.valueOf(16), BigDecimal.valueOf(13), BigDecimal.valueOf(11),
+                BigDecimal.valueOf(40));
+    }
+
+    private static PurchaseFit basePurchaseReviewed(ReviewFit reviewFit) {
+        PurchaseFit base = basePurchase();
+        return new PurchaseFit(base.size(), base.monthsAgo(), base.sameBrand(), base.expectedGrowthCm(),
+            base.items(), reviewFit);
+    }
+
     private static Stream<Arguments> purchasesDifferentFromBase() {
         PurchaseFit base = basePurchase();
         return Stream.of(
             Arguments.of("사이즈", new PurchaseFit("120", base.monthsAgo(), base.sameBrand(), base.expectedGrowthCm(),
-                base.items())),
+                base.items(), null)),
             Arguments.of("개월", new PurchaseFit(base.size(), 6, base.sameBrand(), base.expectedGrowthCm(),
-                base.items())),
+                base.items(), null)),
             Arguments.of("같은 브랜드", new PurchaseFit(base.size(), base.monthsAgo(), false, base.expectedGrowthCm(),
-                base.items())),
+                base.items(), null)),
             Arguments.of("예상 성장량", new PurchaseFit(base.size(), base.monthsAgo(), base.sameBrand(),
-                new BigDecimal("3.0"), base.items())),
+                new BigDecimal("3.0"), base.items(), null)),
             Arguments.of("실측 차이", new PurchaseFit(base.size(), base.monthsAgo(), base.sameBrand(),
                 base.expectedGrowthCm(), List.of(new ReferenceFit.Item("CHEST_WIDTH", new BigDecimal("32"),
-                    List.of(new ReferenceFit.SizeDiff("120", new BigDecimal("36"), new BigDecimal("4"))))))));
+                    List.of(new ReferenceFit.SizeDiff("120", new BigDecimal("36"), new BigDecimal("4"))))), null)));
     }
 
     // 다섯 달 전 같은 브랜드에서 산 110(가슴단면 33cm)을 상품 120(36cm)과 견준 구매다
     private static PurchaseFit basePurchase() {
         return new PurchaseFit("110", 5, true, new BigDecimal("2.5"), List.of(new ReferenceFit.Item("CHEST_WIDTH",
             new BigDecimal("33"), List.of(new ReferenceFit.SizeDiff("120", new BigDecimal("36"),
-                new BigDecimal("3"))))));
+                new BigDecimal("3"))))), null);
     }
 
     private static SizeAiQuestion questionWith(PurchaseFit purchase) {
+        return questionWith(purchase, null);
+    }
+
+    private static SizeAiQuestion questionWith(PurchaseFit purchase, ProductFitTendency productFitTendency) {
         return new SizeAiQuestion(
             new SizeAiQuestion.Child(94, 115.0, 20.0, BodyType.NORMAL, PreferredFit.LOOSE, BodyType.NORMAL),
             List.of(new SizeAiQuestion.SizeLine("120", 115, 125, Map.of("CHEST_WIDTH", new BigDecimal("36")))),
             new SizeAiQuestion.RuleResult("120", "PROPER", List.of("120"), List.of()), null,
             new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"), null, 0, new BigDecimal("0"), 0,
                 new BigDecimal("0.50"), "한국아동패널"),
-            List.of(), List.of(purchase));
+            List.of(), List.of(purchase), productFitTendency);
     }
 }

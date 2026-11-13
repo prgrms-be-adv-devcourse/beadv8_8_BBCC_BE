@@ -5,10 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaReview;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaReviewRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import com.bbcc.kidly.boundedcontext.recommend.out.activity.JpaActivityRecordRepository;
 import com.bbcc.kidly.shared.community.event.FavoriteAddedEvent;
 import com.bbcc.kidly.shared.community.event.FavoriteRemovalCause;
 import com.bbcc.kidly.shared.community.event.FavoriteRemovedEvent;
+import com.bbcc.kidly.shared.community.event.ReviewChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.LocalDateTime;
@@ -28,9 +32,9 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 추천이 커뮤니티 토픽의 찜 · 찜 해제를 받아 활동 기록에 저장하는지 확인한다(#1316).
+ * 추천이 커뮤니티 토픽의 찜 · 찜 해제를 받아 활동 기록에, 리뷰 변경됨을 받아 리뷰 복사본에 저장하는지 확인한다(#1316).
  * 메시지는 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다. 커뮤니티는 다른 앱이라 이 테스트에서 띄우지 않는다.
- * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 회원 ID(찜 이벤트의 키)를 테스트마다 새로 만든다.
+ * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 회원 ID(찜 이벤트의 키)와 리뷰 ID(리뷰 이벤트의 키)를 테스트마다 새로 만든다.
  */
 @KafkaIntegrationTest
 class RecommendCommunityKafkaIntegrationTest {
@@ -39,9 +43,13 @@ class RecommendCommunityKafkaIntegrationTest {
     private static final String COMMUNITY_DLT = "kidly.community.events.recommend.dlt";
     private static final LocalDateTime FAVORITED_AT = LocalDateTime.of(2026, 11, 3, 10, 4);
     private static final Long PRODUCT_ID = 31L;
+    private static final LocalDateTime REVIEWED_AT = LocalDateTime.of(2026, 11, 5, 9, 0);
 
     @Autowired
     private JpaActivityRecordRepository activityRecordRepository;
+
+    @Autowired
+    private RecommendReplicaReviewRepository replicaReviewRepository;
 
     @Autowired
     private JsonMapper jsonMapper;
@@ -164,6 +172,58 @@ class RecommendCommunityKafkaIntegrationTest {
             .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
                 .isLessThan(RecommendKafkaMessages.RETRY_BACKOFF_TOTAL_MS));
         assertThat(recordsOf(memberId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("FIT-12 리뷰 변경됨을 커뮤니티 토픽에서 받아 리뷰 복사본으로 저장한다")
+    void saveReviewChanged() throws Exception {
+        Long reviewId = newId();
+        var event = reviewChanged(reviewId, "SMALL", REVIEWED_AT);
+
+        messages.send(COMMUNITY_TOPIC, event);
+
+        AsyncWait.until(TIMEOUT, () -> replicaReviewRepository.findById(reviewId).isPresent());
+        assertThat(replicaReviewRepository.findById(reviewId)).get()
+            .extracting(RecommendReplicaReview::getOrderItemId, RecommendReplicaReview::getProductId,
+                RecommendReplicaReview::getFit, RecommendReplicaReview::isVisible,
+                RecommendReplicaReview::getEventOccurredAt)
+            .containsExactly(601L, PRODUCT_ID, ReviewFit.SMALL, true, REVIEWED_AT);
+    }
+
+    @Test
+    @DisplayName("FIT-12 같은 리뷰 변경됨을 두 번 받아도 리뷰 복사본은 그대로이고 DLT로 보내지 않는다")
+    void keepReviewReplicaForSameReviewChanged() throws Exception {
+        Long reviewId = newId();
+        var event = reviewChanged(reviewId, "LARGE", REVIEWED_AT);
+
+        messages.send(COMMUNITY_TOPIC, event);
+        var second = messages.send(COMMUNITY_TOPIC, event);
+
+        messages.awaitProcessed(COMMUNITY_TOPIC, second);
+        assertThat(replicaReviewRepository.findById(reviewId)).get()
+            .extracting(RecommendReplicaReview::getFit, RecommendReplicaReview::getEventOccurredAt)
+            .containsExactly(ReviewFit.LARGE, REVIEWED_AT);
+        assertThat(messages.deadLetters(COMMUNITY_DLT, String.valueOf(reviewId))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("FIT-12 리뷰 핏이 추천이 모르는 값이면 재시도 없이 커뮤니티 DLT로 보내고 리뷰 복사본을 남기지 않는다")
+    void deadLetterReviewChangedWithUnknownFit() throws Exception {
+        Long reviewId = newId();
+        String key = String.valueOf(reviewId);
+
+        var sent = messages.send(COMMUNITY_TOPIC, reviewChanged(reviewId, "TOO_BIG", REVIEWED_AT));
+
+        AsyncWait.until(TIMEOUT, () -> !messages.deadLetters(COMMUNITY_DLT, key).isEmpty());
+        assertThat(messages.deadLetters(COMMUNITY_DLT, key)).singleElement()
+            .satisfies(deadLetter -> assertThat(deadLetter.timestamp() - sent.timestamp())
+                .isLessThan(RecommendKafkaMessages.RETRY_BACKOFF_TOTAL_MS));
+        assertThat(replicaReviewRepository.findById(reviewId)).isEmpty();
+    }
+
+    // 리뷰 ID(리뷰 이벤트의 키)만 바꾼 공개 리뷰다. 주문상품 601로 산 상품 31의 리뷰다
+    private static ReviewChangedEvent reviewChanged(Long reviewId, String fit, LocalDateTime occurredAt) {
+        return RecommendReplicaReviewFixture.reviewChangedEvent(reviewId, 601L, PRODUCT_ID, fit, true, occurredAt);
     }
 
     private List<ActivityRecord> recordsOf(Long memberId) {
