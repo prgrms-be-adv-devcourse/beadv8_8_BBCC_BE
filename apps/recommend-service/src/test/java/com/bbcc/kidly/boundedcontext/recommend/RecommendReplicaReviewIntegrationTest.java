@@ -18,6 +18,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -135,5 +136,30 @@ class RecommendReplicaReviewIntegrationTest {
         assertThat(found)
             .extracting(RecommendReplicaReview::getOrderItemId, RecommendReplicaReview::countedFit)
             .containsExactly(tuple(601L, ReviewFit.SMALL));
+    }
+
+    @ParameterizedTest(name = "{0} {1}건")
+    @CsvSource({
+        "SMALL, 2",
+        "TRUE_TO_SIZE, 0",
+        "LARGE, 1"
+    })
+    @DisplayName("FIT-13 상품의 핏별 리뷰 수는 그 상품의 공개된 리뷰만 세고, 숨긴 리뷰 · 핏을 남기지 않은 리뷰 · 다른 상품의 리뷰는 세지 않는다")
+    void countVisibleFitsOfProduct(ReviewFit fit, long expected) {
+        Long otherProductId = PRODUCT_ID + 1;
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            1L, 601L, PRODUCT_ID, "SMALL", true, REVIEW_CHANGED_AT));
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            2L, 602L, PRODUCT_ID, "SMALL", true, REVIEW_CHANGED_AT));
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            3L, 603L, PRODUCT_ID, "SMALL", false, REVIEW_CHANGED_AT));
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            4L, 604L, PRODUCT_ID, "LARGE", true, REVIEW_CHANGED_AT));
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            5L, 605L, PRODUCT_ID, null, true, REVIEW_CHANGED_AT));
+        replicaReviewService.applyReviewChanged(RecommendReplicaReviewFixture.reviewChangedEvent(
+            6L, 606L, otherProductId, "TRUE_TO_SIZE", true, REVIEW_CHANGED_AT));
+
+        assertThat(replicaReviewRepository.countVisibleFits(PRODUCT_ID, fit)).isEqualTo(expected);
     }
 }
