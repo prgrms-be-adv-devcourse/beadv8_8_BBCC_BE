@@ -26,6 +26,11 @@ proxy_set_header X-Admin-Id        "";
 proxy_set_header X-Child-Account-Id  "";
 proxy_set_header X-Child-Guardian-Id "";
 
+# 공개 요청이 내부 트레이스와 샘플링 결정을 지정하지 못하게 한다.
+proxy_set_header traceparent "";
+proxy_set_header tracestate  "";
+proxy_set_header baggage     "";
+
 # 모르는 호스트(IP 로 직접 접속 등)는 응답 없이 끊는다
 server {
     listen 80 default_server;
