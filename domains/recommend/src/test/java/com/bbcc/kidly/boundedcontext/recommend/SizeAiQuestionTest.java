@@ -75,14 +75,15 @@ class SizeAiQuestionTest {
     }
 
     @Test
-    @DisplayName("FIT-13 상품 핏 성향의 핏별 리뷰 수는 질문에 든 숫자여서 AI가 근거 문장에 쓸 수 있다")
+    @DisplayName("FIT-13 상품 핏 성향의 핏별 리뷰 수와 그 합계는 질문에 든 숫자여서 AI가 근거 문장에 「40건 중 16건」처럼 쓸 수 있다")
     void givenNumbersContainProductFitTendencyCounts() {
         SizeAiQuestion question = questionWith(basePurchase(), new ProductFitTendency(16, 13, 11));
 
         assertThat(question.givenNumbers())
-            .contains(BigDecimal.valueOf(16), BigDecimal.valueOf(13), BigDecimal.valueOf(11));
+            .contains(BigDecimal.valueOf(16), BigDecimal.valueOf(13), BigDecimal.valueOf(11), BigDecimal.valueOf(40));
         assertThat(questionWith(basePurchase(), null).givenNumbers())
-            .doesNotContain(BigDecimal.valueOf(16), BigDecimal.valueOf(13), BigDecimal.valueOf(11));
+            .doesNotContain(BigDecimal.valueOf(16), BigDecimal.valueOf(13), BigDecimal.valueOf(11),
+                BigDecimal.valueOf(40));
     }
 
     private static PurchaseFit basePurchaseReviewed(ReviewFit reviewFit) {

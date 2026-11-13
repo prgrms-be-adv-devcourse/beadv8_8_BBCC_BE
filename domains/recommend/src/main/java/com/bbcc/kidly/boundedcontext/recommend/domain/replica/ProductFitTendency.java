@@ -14,4 +14,11 @@ public record ProductFitTendency(int smallCount, int trueToSizeCount, int largeC
         }
         return new ProductFitTendency(small, trueToSize, large);
     }
+
+    /**
+     * 핏을 남긴 공개 리뷰의 전체 수다.
+     */
+    public int totalCount() {
+        return smallCount + trueToSizeCount + largeCount;
+    }
 }
