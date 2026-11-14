@@ -49,6 +49,29 @@ class RecommendAiMetricsTest {
         assertThat(registry.find("kidly.recommend.ai.rejected").counters()).hasSize(3);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"size_recommendation", "home_preview", "bought_together"})
+    @DisplayName("기동하면 기능마다 AI 호출 시간 Timer가 호출 0번으로 있다")
+    void registerZeroCallTimerOnStart(String feature) {
+        new RecommendAiMetrics(registry, ObservationRegistry.NOOP);
+
+        assertThat(registry.get("kidly.recommend.ai.call").tag("feature", feature).timer().count()).isZero();
+    }
+
+    @Test
+    @DisplayName("AI를 호출하면 기동 때 만든 Timer의 횟수가 오르고, 같은 기능의 Timer가 따로 생기지 않는다")
+    void countCallOnTimerRegisteredOnStart() {
+        ObservationRegistry observations = ObservationRegistry.create();
+        observations.observationConfig().observationHandler(new DefaultMeterObservationHandler(registry));
+        RecommendAiMetrics metrics = new RecommendAiMetrics(registry, observations);
+
+        metrics.observeCall(AiResponseType.SIZE_RECOMMENDATION, () -> "답").get();
+
+        assertThat(registry.find("kidly.recommend.ai.call").tag("feature", "size_recommendation").timers())
+            .singleElement()
+            .satisfies(timer -> assertThat(timer.count()).isEqualTo(1));
+    }
+
     @Test
     @DisplayName("AI 호출 시간은 AI 대기 경계(3 · 3.5 · 4초 등)에 맞춘 구간으로 세어, 제한을 넘은 비율을 정확히 구할 수 있다")
     void bucketCallTimeAtTimeoutBoundaries() {

@@ -101,7 +101,8 @@ class AiResponseServiceTest {
 
         assertThat(count("kidly.recommend.ai.requests", "stored")).isEqualTo(1);
         assertThat(count("kidly.recommend.ai.store.lookups", "hit")).isEqualTo(1);
-        assertThat(meterRegistry.find("kidly.recommend.ai.call").timers()).isEmpty();
+        assertThat(meterRegistry.get("kidly.recommend.ai.call").tag("feature", "home_preview").timer().count())
+            .isZero();
     }
 
     @Test
