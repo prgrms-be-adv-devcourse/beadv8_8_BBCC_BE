@@ -208,6 +208,15 @@ public class ActivityRecordService {
         activityRecordRepository.saveProductViewedIfAbsent(ActivityRecord.productViewed(info));
     }
 
+    public void recordProductQuickViewed(Long memberId, Long productId, Long childId) {
+        if (childId != null) {
+            requireVisibleChild(memberId, childId);
+        }
+        ActivityRecord.ProductViewedInfo info = new ActivityRecord.ProductViewedInfo(
+            UUID.randomUUID(), memberId, childId, productId, LocalDateTime.now(SERVICE_ZONE));
+        activityRecordRepository.saveProductQuickViewedIfAbsent(ActivityRecord.productQuickViewed(info));
+    }
+
     private void requireVisibleChild(Long memberId, Long childId) {
         Optional<RecommendReplicaChild> child = replicaChildRepository.findById(childId);
         if (child.isEmpty() || !child.get().isVisibleTo(memberId)) {
