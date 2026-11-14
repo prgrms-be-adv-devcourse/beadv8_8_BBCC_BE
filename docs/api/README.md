@@ -332,6 +332,7 @@
 | GET | `/api/v1/favorites/summary` | 찜 요약(찜 수) | 🌐 |
 | GET | `/api/v1/admin/community/reviews` | 검사 상태별 리뷰 목록(`status` 필수: `PENDING` · `PASSED` · `HIDDEN` · `CONFIRMED_HIDDEN` · `RESTORED`, `cursor` · `size`, 최신순) | 🛠 |
 | PATCH | `/api/v1/admin/community/reviews/{reviewId}/visibility` | 숨김 확정 · 다시 공개(본문 `visibility` `HIDDEN` → `CONFIRMED_HIDDEN`, `VISIBLE` → `RESTORED`). 같은 값을 다시 보내도 200 | 🛠 |
+| POST | `/api/v1/admin/community/reviews/moderation/retry-exhausted` | 재시도 상한에 닿은 검사 대기 리뷰를 다시 검사 대기로 되돌림. 응답 `{"resetCount": n}`, 다시 불러도 200 | 🛠 |
 | GET | `/api/v1/admin/community/dead-letters` | DLT에 남은 메시지 목록(`status` 기본 OPEN, `page` · `size` 기본 0 · 20, 1~100) | 🛠 |
 | GET | `/api/v1/admin/community/dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/community/dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
@@ -341,7 +342,7 @@
 
 **리뷰 사진**: 업로드 주소 발급으로 받은 `uploadUrl`에 요청한 `Content-Type` · 크기 그대로 PUT 해 S3에 직접 올리고, 받은 `imageUrl`을 작성 · 수정의 `imageUrls`에 넣는다. 본인에게 발급된 주소만 받는다. 리뷰에 새로 붙는 사진은 실제로 올라갔는지 확인한다(이미 붙어 있던 사진은 다시 확인하지 않는다). 올라가지 않았으면 400 `IMAGE_NOT_UPLOADED`, 저장소가 답하지 못하면(장애 · 시간 초과 · 권한) 503 `IMAGE_STORAGE_UNAVAILABLE`이고 요청은 반영되지 않는다. 최대 장수 · 크기 · 만료는 `kidly.community.review.image.*`(`max-count` · `max-file-size` · `upload-url-expiry`), 확인 방식은 `upload-check`(`s3` 기본, 로컬 실행은 `none`)다.
 
-**리뷰 검사(#1002)**: 리뷰는 저장하면 바로 공개되고 검사 대기(`PENDING`)가 된다. 스케줄러가 1분 간격으로 대기 리뷰를 10건씩 금칙어 → AI(키가 있을 때만) 순으로 검사해, 통과하면 `PASSED`, 걸리면 `HIDDEN`(숨김, 관리자 판단 대기)으로 바꾼다. 숨겨진 리뷰는 상품별 목록 · 리뷰 요약에서 빠지고 작성자의 내 리뷰에는 `UNDER_REVIEW`로 보인다. 관리자는 `CONFIRMED_HIDDEN`(숨김 확정) 또는 `RESTORED`(다시 공개)로 정한다. 공개 상태(`PENDING` · `PASSED` · `RESTORED`)에서 글 · 사진을 고치면 다시 검사 대기가 되고, 숨김 상태(`HIDDEN` · `CONFIRMED_HIDDEN`)는 작성자가 고쳐도 숨김 그대로다. 판단하지 못한 검사(장애 · 시간 초과)는 다시 하고, 판단하지 못한 횟수가 10번(`max-attempts`)에 닿으면 공개 그대로 관리자 목록에서 본다(`attemptsExhausted`). AI 한도 초과(429)는 횟수에 넣지 않고 그 주기의 남은 검사만 멈춘다.
+**리뷰 검사(#1002)**: 리뷰는 저장하면 바로 공개되고 검사 대기(`PENDING`)가 된다. 스케줄러가 1분 간격으로 대기 리뷰를 10건씩 금칙어 → AI(키가 있을 때만) 순으로 검사해, 통과하면 `PASSED`, 걸리면 `HIDDEN`(숨김, 관리자 판단 대기)으로 바꾼다. 숨겨진 리뷰는 상품별 목록 · 리뷰 요약에서 빠지고 작성자의 내 리뷰에는 `UNDER_REVIEW`로 보인다. 관리자는 `CONFIRMED_HIDDEN`(숨김 확정) 또는 `RESTORED`(다시 공개)로 정한다. 공개 상태(`PENDING` · `PASSED` · `RESTORED`)에서 글 · 사진을 고치면 다시 검사 대기가 되고, 숨김 상태(`HIDDEN` · `CONFIRMED_HIDDEN`)는 작성자가 고쳐도 숨김 그대로다. 판단하지 못한 검사(장애 · 시간 초과)는 다시 하고, 판단하지 못한 횟수가 10번(`max-attempts`)에 닿으면 공개 그대로 관리자 목록에서 본다(`attemptsExhausted`). AI 한도 초과(429)는 횟수에 넣지 않고 그 주기의 남은 검사만 멈춘다. 검사는 글만 본다(사진은 지금 어떤 검사기도 보지 않는다).
 
 **커뮤니티 운영 조회 MCP 창구(#1005)**: AI가 커뮤니티 운영 상태(리뷰 요약 · DLT · 검사 현황 · 상품 복사본)를 조회해 원인을 진단하는 읽기 전용 [MCP](https://modelcontextprotocol.io) 서버다. 재처리 · 숨김 같은 조작 도구는 없고, 조작은 위 관리자 API로 사람이 한다.
 

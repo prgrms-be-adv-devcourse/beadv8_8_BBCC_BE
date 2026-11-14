@@ -212,6 +212,46 @@ class ReviewModerationApiTest {
             .jsonPath("$.items[0].updatedAt").isEqualTo("2026-11-01T10:00:00.123456");
     }
 
+    @Test
+    @DisplayName("상한 리뷰 재검사: 상한에 닿은 대기 리뷰만 시도 횟수를 0으로(200 resetCount), 상한 전 · 다른 상태 · "
+        + "수정 시각 · 활동 기록은 그대로, 다시 부르면 0, 관리자 헤더가 없으면 401")
+    void retryExhausted() {
+        String before = write(3L, 13, 4);
+        String hidden = write(4L, 14, 2);
+        // 테스트 상한(max-attempts) 3
+        attempts(mine, "PENDING", 3);
+        attempts(others, "PENDING", 7);
+        attempts(before, "PENDING", 2);
+        attempts(hidden, "HIDDEN", 3);
+        jdbcTemplate.update("update community.review set updated_at = '2026-11-01 10:00:00.123456'");
+        long activities = jdbcTemplate.queryForObject("select count(*) from community.activity", Long.class);
+
+        client.post().uri(ADMIN_REVIEWS + "/moderation/retry-exhausted").exchange()
+            .expectStatus().isUnauthorized();
+        client.post().uri(ADMIN_REVIEWS + "/moderation/retry-exhausted").headers(TestAdmins.of(ADMIN)).exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.resetCount").isEqualTo(2);
+
+        assertThat(jdbcTemplate.queryForList("select id || ':' || moderation_status || ':' || moderation_attempts "
+            + "from community.review order by id", String.class)).containsExactly(mine + ":PENDING:0",
+            others + ":PENDING:0", before + ":PENDING:2", hidden + ":HIDDEN:3");
+        assertThat(jdbcTemplate.queryForList("select distinct updated_at::text from community.review", String.class))
+            .containsExactly("2026-11-01 10:00:00.123456");
+        assertThat(jdbcTemplate.queryForObject("select count(*) from community.activity", Long.class))
+            .isEqualTo(activities);
+
+        client.post().uri(ADMIN_REVIEWS + "/moderation/retry-exhausted").headers(TestAdmins.of(ADMIN)).exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.resetCount").isEqualTo(0);
+    }
+
+    private void attempts(String reviewId, String status, int attempts) {
+        jdbcTemplate.update("update community.review set moderation_status = ?, moderation_attempts = ? where id = ?",
+            status, attempts, Long.valueOf(reviewId));
+    }
+
     private RestTestClient.ResponseSpec visibility(String reviewId, String visibility) {
         return client.patch().uri(ADMIN_REVIEWS + "/" + reviewId + "/visibility").headers(TestAdmins.of(ADMIN))
             .contentType(MediaType.APPLICATION_JSON).body(Map.of("visibility", visibility)).exchange();
