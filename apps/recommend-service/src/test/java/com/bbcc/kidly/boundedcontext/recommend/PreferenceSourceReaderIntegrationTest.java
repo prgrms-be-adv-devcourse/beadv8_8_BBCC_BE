@@ -138,6 +138,20 @@ class PreferenceSourceReaderIntegrationTest {
             new RecentActivity(ActivityType.SEARCH_RESULT_CLICKED, 100L, 10L, "Nike", SINCE.plusHours(1), false));
     }
 
+    @Test
+    @DisplayName("PREF-22 자녀 · 회원 활동은 팝업 조회도 본 상품의 복사본 카테고리 · 브랜드와 함께 읽는다")
+    void readQuickViewsWithProductValues() {
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", null);
+        insert(ActivityType.PRODUCT_QUICK_VIEWED, 7L, SINCE, 100L, null, null, null);
+        PreferenceTestData.insertActivity(jdbc, ActivityType.PRODUCT_QUICK_VIEWED, 1L, null, SINCE.plusHours(1),
+            100L, null, null, null);
+
+        assertThat(reader.findChildActivities(7L, SINCE, SINCE.plusHours(3))).containsExactly(
+            new RecentActivity(ActivityType.PRODUCT_QUICK_VIEWED, 100L, 10L, "Nike", SINCE, false));
+        assertThat(reader.findMemberActivities(1L, SINCE, SINCE.plusHours(3))).containsExactly(
+            new RecentActivity(ActivityType.PRODUCT_QUICK_VIEWED, 100L, 10L, "Nike", SINCE.plusHours(1), false));
+    }
+
     @ParameterizedTest
     @CsvSource({"-60, true", "0, true", "1, false"})
     @DisplayName("PREF-07 담은 장바구니 줄은 기간 끝 시각까지 뺐을 때만 관심을 거둔 활동(withdrawn)이다")

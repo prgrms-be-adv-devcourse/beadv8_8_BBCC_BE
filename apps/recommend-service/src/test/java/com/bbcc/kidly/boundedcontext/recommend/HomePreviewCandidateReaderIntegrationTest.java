@@ -132,6 +132,28 @@ class HomePreviewCandidateReaderIntegrationTest {
     }
 
     @Test
+    @DisplayName("HOME-05 팝업 조회도 찾아본 횟수에 들어가 검색 4번과 팝업 조회 1번이면 자주 찾아본 카테고리 · 브랜드다")
+    void countQuickViewAsLookedUp() {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+        replicaProductService.applyProductChanged(productAWithColorsAndInfo());
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        for (int i = 0; i < 4; i++) {
+            insertActivity(ActivityType.SEARCH, now.minusDays(1), PRODUCT_A_CATEGORY_ID, PRODUCT_A_BRAND, null);
+        }
+        // 팝업 조회 기록은 카테고리 · 브랜드 칸 없이 상품만 남고, 읽을 때 상품 복사본 값으로 채운다
+        PreferenceTestData.insertActivity(jdbc, ActivityType.PRODUCT_QUICK_VIEWED, MEMBER_1_ID, CHILD_1_ID,
+            now.minusDays(1), PRODUCT_A_ID, null, null, null);
+
+        HomePreviewCandidates candidates = candidateReader.read(MEMBER_1_ID, CHILD_1_ID);
+
+        assertThat(candidates.aiRequest().candidates())
+            .filteredOn(candidate -> candidate.productId().equals(PRODUCT_A_ID))
+            .singleElement()
+            .satisfies(candidate -> assertThat(candidate.evidence())
+                .contains("자주 찾아본 카테고리: 상의", "자주 찾아본 브랜드: 키들리"));
+    }
+
+    @Test
     @DisplayName("HOME-05 조른 상품은 장바구니 담기로 이미 세었으므로 조르기는 찾아본 횟수에 넣지 않는다")
     void notCountWishSentAsLookedUp() {
         replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
