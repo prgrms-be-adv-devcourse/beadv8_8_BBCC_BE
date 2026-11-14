@@ -1,0 +1,651 @@
+{
+  "uid": "kidly-recommend-ai",
+  "title": "Kidly 추천 AI",
+  "tags": [
+    "03 상세 진단",
+    "kidly",
+    "recommend",
+    "ai"
+  ],
+  "timezone": "browser",
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "홈",
+      "type": "link",
+      "url": "/",
+      "includeVars": false,
+      "keepTime": false,
+      "targetBlank": false
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "환경",
+        "type": "custom",
+        "query": "운영 : dev,prod : prod",
+        "current": {
+          "text": "운영",
+          "value": "dev"
+        },
+        "options": [
+          {
+            "text": "운영",
+            "value": "dev",
+            "selected": true
+          },
+          {
+            "text": "prod",
+            "value": "prod",
+            "selected": false
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "AI 답으로 나간 비율",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "고른 기간 동안 AI 답(저장한 답 포함, 검증에서 버린 답 제외)으로 나간 요청의 비율입니다. 나머지는 규칙 결과입니다.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (feature) (increase(kidly_recommend_ai_requests_total{env=\"$env\", job=\"kidly-recommend\", result=~\"stored|answered\"}[$__range])) - sum by (feature) (increase(kidly_recommend_ai_rejected_total{env=\"$env\", job=\"kidly-recommend\"}[$__range]))) / sum by (feature) (increase(kidly_recommend_ai_requests_total{env=\"$env\", job=\"kidly-recommend\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "{{feature}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)size_recommendation(.*)",
+            "renamePattern": "$1사이즈$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)home_preview(.*)",
+            "renamePattern": "$1홈 맛보기$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)bought_together(.*)",
+            "renamePattern": "$1함께 사면$2"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "AI 대기 3.5초를 넘은 호출",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "모델 호출 시간이 3.5초(사이즈 AI 대기)를 넘은 비율입니다. 화면이 시간 초과로 끊은 호출도 모델이 답할 때까지 잽니다.",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "1 - (sum by (feature) (increase(kidly_recommend_ai_call_seconds_bucket{env=\"$env\", job=\"kidly-recommend\", le=\"3.5\"}[$__range])) / sum by (feature) (increase(kidly_recommend_ai_call_seconds_count{env=\"$env\", job=\"kidly-recommend\"}[$__range])))",
+          "instant": true,
+          "legendFormat": "{{feature}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)size_recommendation(.*)",
+            "renamePattern": "$1사이즈$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)home_preview(.*)",
+            "renamePattern": "$1홈 맛보기$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)bought_together(.*)",
+            "renamePattern": "$1함께 사면$2"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "오늘 AI 호출 사용량",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "한국 시간 오늘 하루 호출 상한(2,000회) 중 쓴 횟수입니다. 추천 DB의 하루 횟수 표에서 읽습니다.",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(kidly_recommend_ai_daily_calls{env=\"$env\", job=\"kidly-recommend\"})",
+          "instant": true,
+          "legendFormat": "오늘"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 2000,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1600
+              },
+              {
+                "color": "red",
+                "value": 2000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)size_recommendation(.*)",
+            "renamePattern": "$1사이즈$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)home_preview(.*)",
+            "renamePattern": "$1홈 맛보기$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)bought_together(.*)",
+            "renamePattern": "$1함께 사면$2"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdMarkers": true
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "AI 호출 시간 (중앙값 · 95%)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "기능별 모델 호출 시간입니다. 구간 경계는 1 · 2 · 3 · 3.5 · 4 · 4.5 · 5 · 6 · 8 · 10초라 그 사이 값은 근사입니다.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, feature) (rate(kidly_recommend_ai_call_seconds_bucket{env=\"$env\", job=\"kidly-recommend\"}[$__rate_interval])))",
+          "legendFormat": "{{feature}} 중앙값"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, feature) (rate(kidly_recommend_ai_call_seconds_bucket{env=\"$env\", job=\"kidly-recommend\"}[$__rate_interval])))",
+          "legendFormat": "{{feature}} 95%"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)size_recommendation(.*)",
+            "renamePattern": "$1사이즈$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)home_preview(.*)",
+            "renamePattern": "$1홈 맛보기$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)bought_together(.*)",
+            "renamePattern": "$1함께 사면$2"
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "규칙 결과로 나간 이유",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "고른 기간 동안 규칙 결과로 나간 요청 수입니다. timeout(AI 대기 초과) · error(호출 실패 · null 답 · 횟수 세기 오류) · daily_limit(하루 상한) · rejected(검증에서 버림).",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (feature, result) (increase(kidly_recommend_ai_requests_total{env=\"$env\", job=\"kidly-recommend\", result=~\"timeout|error|daily_limit\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "{{feature}} {{result}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (feature) (increase(kidly_recommend_ai_rejected_total{env=\"$env\", job=\"kidly-recommend\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "{{feature}} rejected"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)size_recommendation(.*)",
+            "renamePattern": "$1사이즈$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)home_preview(.*)",
+            "renamePattern": "$1홈 맛보기$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)bought_together(.*)",
+            "renamePattern": "$1함께 사면$2"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "저장한 AI 답 적중률",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "같은 입력의 AI 답을 Redis에서 다시 쓴 비율과 Redis 조회 오류 수입니다.",
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (feature) (increase(kidly_recommend_ai_store_lookups_total{env=\"$env\", job=\"kidly-recommend\", result=\"hit\"}[$__range])) / sum by (feature) (increase(kidly_recommend_ai_store_lookups_total{env=\"$env\", job=\"kidly-recommend\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "{{feature}} 적중"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (feature) (increase(kidly_recommend_ai_store_lookups_total{env=\"$env\", job=\"kidly-recommend\", result=\"error\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "{{feature}} 조회 오류"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)size_recommendation(.*)",
+            "renamePattern": "$1사이즈$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)home_preview(.*)",
+            "renamePattern": "$1홈 맛보기$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)bought_together(.*)",
+            "renamePattern": "$1함께 사면$2"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "토큰 수 (고른 기간 합계)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Spring AI가 내는 토큰 수에 기능 이름을 붙인 값입니다.",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (feature, gen_ai_token_type) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=~\"input|output\", feature!=\"\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "{{feature}} {{gen_ai_token_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)size_recommendation(.*)",
+            "renamePattern": "$1사이즈$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)home_preview(.*)",
+            "renamePattern": "$1홈 맛보기$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)bought_together(.*)",
+            "renamePattern": "$1함께 사면$2"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "예상 비용 (고른 기간)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "토큰 수 × 단가(100만 토큰당 입력 $1 · 출력 $5)입니다. 사이즈는 빠른 처리 등급이라 2배로 셉니다. 캐시된 입력 할인은 넣지 않은 상한입니다.",
+      "gridPos": {
+        "x": 16,
+        "y": 21,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (feature) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=\"input\", feature=~\"home_preview|bought_together\"}[$__range])) + sum by (feature) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=\"output\", feature=~\"home_preview|bought_together\"}[$__range])) * 5) * 1 / 1e6",
+          "instant": true,
+          "legendFormat": "{{feature}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (feature) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=\"input\", feature=~\"size_recommendation\"}[$__range])) + sum by (feature) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=\"output\", feature=~\"size_recommendation\"}[$__range])) * 5) * 2 / 1e6",
+          "instant": true,
+          "legendFormat": "{{feature}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)size_recommendation(.*)",
+            "renamePattern": "$1사이즈$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)home_preview(.*)",
+            "renamePattern": "$1홈 맛보기$2"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "(.*)bought_together(.*)",
+            "renamePattern": "$1함께 사면$2"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "horizontal"
+      }
+    }
+  ]
+}
