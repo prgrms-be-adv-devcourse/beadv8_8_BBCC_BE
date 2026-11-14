@@ -8,6 +8,11 @@ public final class PreferenceWeights {
 
     public static final double VIEW_INTENSITY = 0.3;
 
+    /**
+     * 담기 팝업은 상세 화면까지 들어가지 않고 상품을 본 것이라 상세 진입보다 약하게 센다.
+     */
+    public static final double QUICK_VIEW_INTENSITY = 0.2;
+
     public static final double SEARCH_INTENSITY = 0.3;
 
     public static final double SEARCH_RESULT_CLICK_INTENSITY = 0.3;
