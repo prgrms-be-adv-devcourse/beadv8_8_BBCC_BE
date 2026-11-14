@@ -144,6 +144,24 @@ class ProductViewApiTest {
             .containsExactlyInAnyOrder(tuple(MEMBER_1_ID, null), tuple(OTHER_MEMBER_ID, null));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(delimiter = '|', value = {
+        "{\"productId\": 31, \"viewType\": \"QUICK\"} |",
+        "{\"productId\": 31, \"childId\": 11, \"viewType\": \"QUICK\"} | 11"})
+    @DisplayName("PREF-22 viewType이 QUICK이면 204와 빈 본문을 받고, 활동 기록에 팝업 조회 한 줄이 남는다")
+    void recordProductQuickView(String body, Long childId) {
+        replicaChildService.applyChildChanged(RecommendFixture.childChangedEvent());
+
+        view(MEMBER_1_ID, body)
+            .expectStatus().isNoContent()
+            .expectBody().isEmpty();
+
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .extracting(ActivityRecord::getType, ActivityRecord::getMemberId, ActivityRecord::getProductId,
+                ActivityRecord::getChildProfileId)
+            .containsExactly(ActivityType.PRODUCT_QUICK_VIEWED, MEMBER_1_ID, PRODUCT_A_ID, childId);
+    }
+
     @Test
     @DisplayName("로그인하지 않으면 401을 받고 기록은 남지 않는다")
     void rejectWithoutToken() {
