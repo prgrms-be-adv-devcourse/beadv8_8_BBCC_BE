@@ -276,6 +276,20 @@ class PreferenceCalculatorTest {
         assertThat(snapshot.tasteVector().weightSum()).isCloseTo(0.5, within(1e-9));
     }
 
+    @Test
+    @DisplayName("PREF-22 팝업 조회는 강도 0.2로 카테고리 · 브랜드 친밀도와 취향 벡터에 모두 들어간다")
+    void quickViewCountsForEveryAffinity() {
+        PreferenceSignal quickView =
+            signal(PreferenceSignalType.PRODUCT_QUICK_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 1L);
+
+        PreferenceSnapshot snapshot = calculator.calculate(List.of(quickView), Map.of(1L, axis(0)), BASE_TIME);
+
+        assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(0.2, within(1e-9));
+        assertThat(snapshot.brandAffinity(BRAND)).isCloseTo(0.2, within(1e-9));
+        assertThat(snapshot.tasteVector().embedding()).isEqualTo(axis(0));
+        assertThat(snapshot.tasteVector().weightSum()).isCloseTo(0.2, within(1e-9));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("signalsWithoutTasteVector")
     @DisplayName("PREF-13 넣을 활동이 없거나 합이 0 벡터면 취향 벡터는 없다")
