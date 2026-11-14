@@ -5,6 +5,7 @@ import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.CHILD_1_I
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.MEMBER_1_ID;
 import static com.bbcc.kidly.boundedcontext.recommend.RecommendFixture.PRODUCT_A_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityRecord;
 import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
@@ -14,9 +15,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -56,6 +61,64 @@ class ProductQuickViewRecordIntegrationTest {
 
     static Stream<Long> childProfileIds() {
         return Stream.of(CHILD_1_ID, null);
+    }
+
+    @ParameterizedTest(name = "두 번째 팝업: {0}일 뒤, 상품 ID +{1}")
+    @CsvSource({
+        "1, 0",
+        "0, 1",
+    })
+    @DisplayName("PREF-22 같은 회원이라도 날짜나 상품이 다르면 팝업 조회를 각각 기록한다")
+    void keepQuickViewsOfOtherDayOrProduct(long daysLater, long productIdOffset) {
+        saveIfAbsent(quickViewed(null, PRODUCT_A_ID, QUICK_VIEWED_AT.withHour(23).withMinute(59)));
+
+        boolean saved = saveIfAbsent(quickViewed(null, PRODUCT_A_ID + productIdOffset,
+            QUICK_VIEWED_AT.withHour(0).withMinute(0).plusDays(daysLater)));
+
+        assertThat(saved).isTrue();
+        assertThat(activityRecordRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("PREF-22 같은 회원 · 상품 · 날짜라도 상세 진입과 팝업 조회는 종류가 달라 둘 다 저장한다")
+    void keepProductViewAndQuickViewOfSameDay() {
+        transactionTemplate.execute(status -> activityRecordRepository.saveProductViewedIfAbsent(
+            ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+                UUID.randomUUID(), MEMBER_1_ID, null, PRODUCT_A_ID, QUICK_VIEWED_AT))));
+
+        boolean saved = saveIfAbsent(quickViewed(null, PRODUCT_A_ID, QUICK_VIEWED_AT));
+
+        assertThat(saved).isTrue();
+        assertThat(activityRecordRepository.findAll()).extracting(ActivityRecord::getType)
+            .containsExactlyInAnyOrder(ActivityType.PRODUCT_VIEWED, ActivityType.PRODUCT_QUICK_VIEWED);
+    }
+
+    @Test
+    @DisplayName("같은 eventId로 다른 상품의 팝업 조회를 저장하면 같은 날 한 번 규칙과 달리 조용히 버리지 않고 예외가 난다")
+    void failWhenEventIdIsAlreadyUsed() {
+        UUID eventId = UUID.randomUUID();
+        saveIfAbsent(ActivityRecord.productQuickViewed(new ActivityRecord.ProductViewedInfo(
+            eventId, MEMBER_1_ID, null, PRODUCT_A_ID, QUICK_VIEWED_AT)));
+
+        assertThatThrownBy(() -> saveIfAbsent(ActivityRecord.productQuickViewed(
+            new ActivityRecord.ProductViewedInfo(eventId, MEMBER_1_ID, null, PRODUCT_A_ID + 1, QUICK_VIEWED_AT))))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(activityRecordRepository.findAll()).singleElement()
+            .extracting(ActivityRecord::getProductId).isEqualTo(PRODUCT_A_ID);
+    }
+
+    // 저장소 프록시가 IllegalArgumentException을 Spring 예외로 바꾸므로 원인으로 확인한다
+    @Test
+    @DisplayName("팝업 조회가 아닌 기록을 팝업 조회로 저장하려 하면 예외가 나고 아무것도 저장하지 않는다")
+    void rejectRecordOtherThanQuickView() {
+        ActivityRecord viewed = ActivityRecord.productViewed(new ActivityRecord.ProductViewedInfo(
+            UUID.randomUUID(), MEMBER_1_ID, null, PRODUCT_A_ID, QUICK_VIEWED_AT));
+
+        assertThatThrownBy(() -> saveIfAbsent(viewed))
+            .isInstanceOf(InvalidDataAccessApiUsageException.class)
+            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("팝업 조회 기록만 저장할 수 있습니다");
+        assertThat(activityRecordRepository.findAll()).isEmpty();
     }
 
     // 저장소의 조건부 INSERT는 수정 쿼리라 트랜잭션 안에서 불러야 한다
