@@ -110,7 +110,7 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
         return embeddings;
     }
 
-    // 상세 진입 · 담기 · 검색 결과 클릭 · 조르기 · 찜 기록은 카테고리 · 브랜드 칸을 채우지 않을 수 있어 상품 복사본의 지금 값으로 채운다.
+    // 상세 진입 · 팝업 조회 · 담기 · 검색 결과 클릭 · 조르기 · 찜 기록은 카테고리 · 브랜드 칸을 채우지 않을 수 있어 상품 복사본의 지금 값으로 채운다.
     // 뺀 장바구니 줄의 담기, 철회한 조르기, 해제한 찜은 withdrawn으로 표시해 선호 계산이 무게 0으로 센다
     private List<RecentActivity> findActivities(String ownerCondition, Long id, LocalDateTime from, LocalDateTime to) {
         return jdbcClient.sql("""
@@ -131,8 +131,8 @@ public class PostgresPreferenceSourceReader implements PreferenceSourceReader {
                 FROM recommend.activity_record a
                 LEFT JOIN recommend.replica_product p ON p.product_id = a.product_id
                 WHERE %s
-                  AND a.type IN ('SEARCH', 'PRODUCT_VIEWED', 'CART_ITEM_ADDED', 'SEARCH_RESULT_CLICKED', 'WISH_SENT',
-                                 'FAVORITE_ADDED')
+                  AND a.type IN ('SEARCH', 'PRODUCT_VIEWED', 'PRODUCT_QUICK_VIEWED', 'CART_ITEM_ADDED',
+                                 'SEARCH_RESULT_CLICKED', 'WISH_SENT', 'FAVORITE_ADDED')
                   AND a.occurred_at >= :from AND a.occurred_at <= :to
                 ORDER BY a.occurred_at, a.id
                 """.formatted(ownerCondition))
