@@ -43,6 +43,16 @@ class PreferenceSignalsTest {
     }
 
     @Test
+    @DisplayName("PREF-22 팝업 조회 활동은 본 상품의 카테고리 · 브랜드를 담은 팝업 조회 신호가 된다")
+    void quickViewBecomesQuickViewSignal() {
+        List<RecentActivity> activities = List.of(
+            new RecentActivity(ActivityType.PRODUCT_QUICK_VIEWED, 9L, 18L, "브랜드I", AT, false));
+
+        assertThat(PreferenceSignals.of(activities, List.of())).containsExactly(
+            new PreferenceSignal(PreferenceSignalType.PRODUCT_QUICK_VIEWED, AT, 18L, "브랜드I", 9L, false));
+    }
+
+    @Test
     @DisplayName("PREF-19 조르기 활동은 조른 상품을 담은 조르기 신호가 되고 철회했는지는 그대로 옮겨진다")
     void wishSentBecomesWishSignalWithWithdrawnFlag() {
         List<RecentActivity> activities = List.of(
