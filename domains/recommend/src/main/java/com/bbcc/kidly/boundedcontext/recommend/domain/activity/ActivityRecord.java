@@ -170,8 +170,19 @@ public class ActivityRecord extends BaseTimeEntity {
     }
 
     public static ActivityRecord productViewed(ProductViewedInfo info) {
+        return viewed(ActivityType.PRODUCT_VIEWED, info);
+    }
+
+    /**
+     * 담기 팝업을 연 것을 기록한다. 담는 값이 상세 진입과 같아 같은 값 묶음을 받는다.
+     */
+    public static ActivityRecord productQuickViewed(ProductViewedInfo info) {
+        return viewed(ActivityType.PRODUCT_QUICK_VIEWED, info);
+    }
+
+    private static ActivityRecord viewed(ActivityType type, ProductViewedInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        ActivityRecord record = of(ActivityType.PRODUCT_VIEWED, info.eventId(), info.memberId());
+        ActivityRecord record = of(type, info.eventId(), info.memberId());
         record.childProfileId = info.childProfileId();
         record.productId = requireNonNull(info.productId(), "productId는 필수입니다");
         record.occurredAt = requireNonNull(info.occurredAt(), "occurredAt은 필수입니다");
