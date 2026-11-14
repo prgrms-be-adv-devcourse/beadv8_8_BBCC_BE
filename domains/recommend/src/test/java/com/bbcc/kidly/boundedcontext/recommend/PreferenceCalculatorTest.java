@@ -290,6 +290,19 @@ class PreferenceCalculatorTest {
         assertThat(snapshot.tasteVector().weightSum()).isCloseTo(0.2, within(1e-9));
     }
 
+    @Test
+    @DisplayName("PREF-22 같은 상품을 오늘 팝업으로 보고 상세에도 들어갔으면 카테고리 · 브랜드 친밀도는 1 − 0.8 × 0.7 = 0.44다")
+    void quickViewCombinesWithProductView() {
+        List<PreferenceSignal> signals = List.of(
+            signal(PreferenceSignalType.PRODUCT_QUICK_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 1L),
+            signal(PreferenceSignalType.PRODUCT_VIEWED, BASE_TIME, CATEGORY_ID, BRAND, 1L));
+
+        PreferenceSnapshot snapshot = calculator.calculate(signals, NO_EMBEDDINGS, BASE_TIME);
+
+        assertThat(snapshot.categoryAffinity(CATEGORY_ID)).isCloseTo(0.44, within(1e-9));
+        assertThat(snapshot.brandAffinity(BRAND)).isCloseTo(0.44, within(1e-9));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("signalsWithoutTasteVector")
     @DisplayName("PREF-13 넣을 활동이 없거나 합이 0 벡터면 취향 벡터는 없다")
