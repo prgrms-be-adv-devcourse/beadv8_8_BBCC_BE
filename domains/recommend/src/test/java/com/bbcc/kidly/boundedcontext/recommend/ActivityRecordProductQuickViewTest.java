@@ -20,7 +20,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * 담기 팝업을 연 것(팝업 조회)의 활동 기록을 만드는 규칙을 확인한다. 다른 활동 종류는 ActivityRecordTest가 확인한다.
  */
-class ActivityRecordQuickViewTest {
+class ActivityRecordProductQuickViewTest {
 
     @ParameterizedTest(name = "자녀 ID {0}")
     @MethodSource("childProfileIds")
