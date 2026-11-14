@@ -12,7 +12,15 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.activity.ActivityType;
 import com.bbcc.kidly.boundedcontext.recommend.out.activity.JpaActivityRecordRepository;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +37,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @IntegrationTest
 class ProductQuickViewRecordIntegrationTest {
+
+    private static final int THREADS = 5;
+
+    private static final long TIMEOUT_SECONDS = 10;
 
     // 저장된 기록 전체를 읽으려고 JpaRepository의 기본 조회를 쓴다
     @Autowired
@@ -79,6 +91,48 @@ class ProductQuickViewRecordIntegrationTest {
         assertThat(activityRecordRepository.findAll()).hasSize(2);
     }
 
+    @ParameterizedTest(name = "먼저 연 자녀 {0}, 다음에 연 회원 {1} · 자녀 {2}")
+    @CsvSource({
+        "11, 1, 12",
+        "11, 1,",
+        ", 2,",
+    })
+    @DisplayName("PREF-22 같은 날 같은 상품이라도 회원이나 자녀가 다르면 팝업 조회를 각각 기록한다")
+    void keepQuickViewsOfOtherMemberOrChild(Long firstChildId, Long secondMemberId, Long secondChildId) {
+        saveIfAbsent(quickViewedBy(MEMBER_1_ID, firstChildId));
+
+        boolean saved = saveIfAbsent(quickViewedBy(secondMemberId, secondChildId));
+
+        assertThat(saved).isTrue();
+        assertThat(activityRecordRepository.findAll()).hasSize(2);
+    }
+
+    @ParameterizedTest(name = "자녀 ID {0}")
+    @MethodSource("childProfileIds")
+    @DisplayName("PREF-22 같은 팝업 조회를 실제 스레드 여러 개가 동시에 저장해도 예외 없이 한 줄만 남는다")
+    void saveSameQuickViewAtOnce(Long childProfileId) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(THREADS);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Boolean> saved = new ArrayList<>();
+        try {
+            List<Future<Boolean>> futures = IntStream.range(0, THREADS)
+                .mapToObj(i -> executor.submit(() -> {
+                    start.await();
+                    return saveIfAbsent(quickViewed(childProfileId, PRODUCT_A_ID, QUICK_VIEWED_AT.plusMinutes(i)));
+                }))
+                .toList();
+            start.countDown();
+            for (Future<Boolean> future : futures) {
+                saved.add(future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(saved).containsOnlyOnce(true).hasSize(THREADS);
+        assertThat(activityRecordRepository.findAll()).hasSize(1);
+    }
+
     @Test
     @DisplayName("PREF-22 같은 회원 · 상품 · 날짜라도 상세 진입과 팝업 조회는 종류가 달라 둘 다 저장한다")
     void keepProductViewAndQuickViewOfSameDay() {
@@ -125,6 +179,11 @@ class ProductQuickViewRecordIntegrationTest {
     private boolean saveIfAbsent(ActivityRecord record) {
         return Boolean.TRUE.equals(transactionTemplate.execute(
             status -> activityRecordRepository.saveProductQuickViewedIfAbsent(record)));
+    }
+
+    private static ActivityRecord quickViewedBy(Long memberId, Long childProfileId) {
+        return ActivityRecord.productQuickViewed(new ActivityRecord.ProductViewedInfo(
+            UUID.randomUUID(), memberId, childProfileId, PRODUCT_A_ID, QUICK_VIEWED_AT));
     }
 
     private static ActivityRecord quickViewed(Long childProfileId, Long productId, LocalDateTime occurredAt) {
