@@ -162,6 +162,79 @@ class ProductViewApiTest {
             .containsExactly(ActivityType.PRODUCT_QUICK_VIEWED, MEMBER_1_ID, PRODUCT_A_ID, childId);
     }
 
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {
+        "{\"productId\": 31, \"viewType\": \"DETAIL\"}",
+        "{\"productId\": 31, \"viewType\": null}"})
+    @DisplayName("PREF-22 viewType이 DETAIL이거나 null이면 204를 받고, 활동 기록에 상세 진입 한 줄이 남는다")
+    void recordProductViewWhenViewTypeIsDetailOrNull(String body) {
+        view(MEMBER_1_ID, body)
+            .expectStatus().isNoContent()
+            .expectBody().isEmpty();
+
+        assertThat(activityRecordRepository.findAll())
+            .extracting(ActivityRecord::getType, ActivityRecord::getProductId)
+            .containsExactly(tuple(ActivityType.PRODUCT_VIEWED, PRODUCT_A_ID));
+    }
+
+    @Test
+    @DisplayName("PREF-22 같은 회원이 같은 상품의 팝업을 같은 날 두 번 열면 둘 다 204를 받고 팝업 조회는 한 줄만 남는다")
+    void recordSameProductQuickViewOnceOnSameDay() {
+        String body = "{\"productId\": 31, \"viewType\": \"QUICK\"}";
+
+        view(MEMBER_1_ID, body).expectStatus().isNoContent();
+        view(MEMBER_1_ID, body).expectStatus().isNoContent().expectBody().isEmpty();
+
+        assertThat(activityRecordRepository.findAll())
+            .extracting(ActivityRecord::getType, ActivityRecord::getProductId)
+            .containsExactly(tuple(ActivityType.PRODUCT_QUICK_VIEWED, PRODUCT_A_ID));
+    }
+
+    @Test
+    @DisplayName("PREF-22 같은 날 같은 상품의 팝업을 열고 상세에도 들어가면 팝업 조회와 상세 진입이 각각 한 줄씩 남는다")
+    void recordQuickViewAndDetailViewSeparately() {
+        view(MEMBER_1_ID, "{\"productId\": 31, \"viewType\": \"QUICK\"}").expectStatus().isNoContent();
+        view(MEMBER_1_ID, "{\"productId\": 31}").expectStatus().isNoContent();
+
+        assertThat(activityRecordRepository.findAll())
+            .extracting(ActivityRecord::getType)
+            .containsExactlyInAnyOrder(ActivityType.PRODUCT_QUICK_VIEWED, ActivityType.PRODUCT_VIEWED);
+    }
+
+    @Test
+    @DisplayName("모르는 viewType을 보내면 400 ProblemDetail을 받고 기록은 남지 않는다")
+    void rejectUnknownViewType() {
+        view(MEMBER_1_ID, "{\"productId\": 31, \"viewType\": \"POPUP\"}")
+            .expectStatus().isBadRequest()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").isEqualTo("about:blank")
+            .jsonPath("$.title").isEqualTo("잘못된 요청입니다")
+            .jsonPath("$.status").isEqualTo(400)
+            .jsonPath("$.detail").isEqualTo("요청 값을 확인해 주세요.")
+            .jsonPath("$.instance").isEqualTo(PATH);
+
+        assertThat(activityRecordRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("다른 회원의 자녀 ID로 팝업 조회를 기록하면 404 ProblemDetail을 받고 기록은 남지 않는다")
+    void rejectQuickViewOfOtherMembersChild() {
+        replicaChildService.applyChildChanged(childChanged(OTHER_MEMBER_ID, false));
+
+        view(MEMBER_1_ID, "{\"productId\": 31, \"childId\": 11, \"viewType\": \"QUICK\"}")
+            .expectStatus().isNotFound()
+            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+            .expectBody()
+            .jsonPath("$.type").isEqualTo("about:blank")
+            .jsonPath("$.title").isEqualTo("자녀를 찾을 수 없습니다")
+            .jsonPath("$.status").isEqualTo(404)
+            .jsonPath("$.detail").isEqualTo("자녀를 찾을 수 없습니다.")
+            .jsonPath("$.instance").isEqualTo(PATH);
+
+        assertThat(activityRecordRepository.findAll()).isEmpty();
+    }
+
     @Test
     @DisplayName("로그인하지 않으면 401을 받고 기록은 남지 않는다")
     void rejectWithoutToken() {
