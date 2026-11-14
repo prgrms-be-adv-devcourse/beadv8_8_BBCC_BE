@@ -89,21 +89,21 @@
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)size_recommendation(.*)",
-            "renamePattern": "$1사이즈$2"
+            "renamePattern": "$1사이즈 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)home_preview(.*)",
-            "renamePattern": "$1홈 맛보기$2"
+            "renamePattern": "$1홈 상품 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)bought_together(.*)",
-            "renamePattern": "$1함께 사면$2"
+            "renamePattern": "$1함께 살 상품 추천$2"
           }
         }
       ],
@@ -124,12 +124,12 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "AI 대기 3.5초를 넘은 호출",
+      "title": "AI 대기 시간을 넘은 호출",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "모델 호출 시간이 3.5초(사이즈 AI 대기)를 넘은 비율입니다. 화면이 시간 초과로 끊은 호출도 모델이 답할 때까지 잽니다.",
+      "description": "모델 호출 시간이 기능별 AI 대기(홈 상품 추천 3초 · 사이즈 추천 3.5초 · 함께 살 상품 추천 4초)를 넘은 비율입니다. 화면이 시간 초과로 끊은 호출도 모델이 답할 때까지 잽니다.",
       "gridPos": {
         "x": 8,
         "y": 0,
@@ -143,7 +143,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "1 - (sum by (feature) (increase(kidly_recommend_ai_call_seconds_bucket{env=\"$env\", job=\"kidly-recommend\", le=\"3.5\"}[$__range])) / sum by (feature) (increase(kidly_recommend_ai_call_seconds_count{env=\"$env\", job=\"kidly-recommend\"}[$__range])))",
+          "expr": "1 - (sum by (feature) (increase(kidly_recommend_ai_call_seconds_bucket{env=\"$env\", job=\"kidly-recommend\", feature=\"home_preview\", le=\"3.0\"}[$__range]) or increase(kidly_recommend_ai_call_seconds_bucket{env=\"$env\", job=\"kidly-recommend\", feature=\"size_recommendation\", le=\"3.5\"}[$__range]) or increase(kidly_recommend_ai_call_seconds_bucket{env=\"$env\", job=\"kidly-recommend\", feature=\"bought_together\", le=\"4.0\"}[$__range])) / sum by (feature) (increase(kidly_recommend_ai_call_seconds_count{env=\"$env\", job=\"kidly-recommend\"}[$__range])))",
           "instant": true,
           "legendFormat": "{{feature}}"
         }
@@ -159,21 +159,21 @@
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)size_recommendation(.*)",
-            "renamePattern": "$1사이즈$2"
+            "renamePattern": "$1사이즈 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)home_preview(.*)",
-            "renamePattern": "$1홈 맛보기$2"
+            "renamePattern": "$1홈 상품 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)bought_together(.*)",
-            "renamePattern": "$1함께 사면$2"
+            "renamePattern": "$1함께 살 상품 추천$2"
           }
         }
       ],
@@ -247,21 +247,21 @@
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)size_recommendation(.*)",
-            "renamePattern": "$1사이즈$2"
+            "renamePattern": "$1사이즈 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)home_preview(.*)",
-            "renamePattern": "$1홈 맛보기$2"
+            "renamePattern": "$1홈 상품 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)bought_together(.*)",
-            "renamePattern": "$1함께 사면$2"
+            "renamePattern": "$1함께 살 상품 추천$2"
           }
         }
       ],
@@ -322,21 +322,21 @@
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)size_recommendation(.*)",
-            "renamePattern": "$1사이즈$2"
+            "renamePattern": "$1사이즈 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)home_preview(.*)",
-            "renamePattern": "$1홈 맛보기$2"
+            "renamePattern": "$1홈 상품 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)bought_together(.*)",
-            "renamePattern": "$1함께 사면$2"
+            "renamePattern": "$1함께 살 상품 추천$2"
           }
         }
       ]
@@ -389,21 +389,21 @@
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)size_recommendation(.*)",
-            "renamePattern": "$1사이즈$2"
+            "renamePattern": "$1사이즈 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)home_preview(.*)",
-            "renamePattern": "$1홈 맛보기$2"
+            "renamePattern": "$1홈 상품 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)bought_together(.*)",
-            "renamePattern": "$1함께 사면$2"
+            "renamePattern": "$1함께 살 상품 추천$2"
           }
         }
       ],
@@ -483,21 +483,21 @@
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)size_recommendation(.*)",
-            "renamePattern": "$1사이즈$2"
+            "renamePattern": "$1사이즈 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)home_preview(.*)",
-            "renamePattern": "$1홈 맛보기$2"
+            "renamePattern": "$1홈 상품 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)bought_together(.*)",
-            "renamePattern": "$1함께 사면$2"
+            "renamePattern": "$1함께 살 상품 추천$2"
           }
         }
       ],
@@ -553,21 +553,21 @@
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)size_recommendation(.*)",
-            "renamePattern": "$1사이즈$2"
+            "renamePattern": "$1사이즈 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)home_preview(.*)",
-            "renamePattern": "$1홈 맛보기$2"
+            "renamePattern": "$1홈 상품 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)bought_together(.*)",
-            "renamePattern": "$1함께 사면$2"
+            "renamePattern": "$1함께 살 상품 추천$2"
           }
         }
       ],
@@ -592,7 +592,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "토큰 수 × 단가(100만 토큰당 입력 $1 · 출력 $5)입니다. 사이즈는 빠른 처리 등급이라 2배로 셉니다. 캐시된 입력 할인은 넣지 않은 상한입니다.",
+      "description": "토큰 수 × 단가(100만 토큰당 입력 $1 · 출력 $5)입니다. 사이즈 추천은 빠른 처리 등급이라 2배로 셉니다. 캐시된 입력 할인은 넣지 않은 상한입니다.",
       "gridPos": {
         "x": 16,
         "y": 21,
@@ -632,21 +632,21 @@
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)size_recommendation(.*)",
-            "renamePattern": "$1사이즈$2"
+            "renamePattern": "$1사이즈 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)home_preview(.*)",
-            "renamePattern": "$1홈 맛보기$2"
+            "renamePattern": "$1홈 상품 추천$2"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
             "regex": "(.*)bought_together(.*)",
-            "renamePattern": "$1함께 사면$2"
+            "renamePattern": "$1함께 살 상품 추천$2"
           }
         }
       ],

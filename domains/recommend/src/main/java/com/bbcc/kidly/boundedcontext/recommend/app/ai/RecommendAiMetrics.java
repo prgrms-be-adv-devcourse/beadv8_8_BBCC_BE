@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.ai.AiResponseType;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.config.MeterFilter;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import io.micrometer.observation.Observation;
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Component;
 /**
  * 추천 AI 호출 지표다. 지표 이름 · 태그 값은 이 클래스에만 둔다. 태그에는 기능 · 결과 같은 고정 값만 넣는다(회원 · 자녀 · 상품 ID 금지).
  * dev는 Pod가 자주 다시 뜨고 요청이 적어, 카운터가 처음 오를 때 생기면 Prometheus가 첫 증가를 놓친다.
- * 그래서 기동할 때 모든 기능 · 결과 조합의 카운터를 0으로 만들어 둔다.
+ * 그래서 기동할 때 모든 기능 · 결과 조합의 카운터와 기능마다 AI 호출 시간 Timer를 0으로 만들어 둔다.
  */
 @Component
 public class RecommendAiMetrics {
@@ -29,6 +30,8 @@ public class RecommendAiMetrics {
     static final String AI_CALL = "kidly.recommend.ai.call";
     static final String REJECTED = "kidly.recommend.ai.rejected";
     static final String FEATURE_KEY = "feature";
+    private static final String ERROR_KEY = "error";
+    private static final String NO_ERROR = "none";
     static final String DAILY_CALLS = "kidly.recommend.ai.daily.calls";
 
     /**
@@ -54,6 +57,7 @@ public class RecommendAiMetrics {
             requests.put(feature, registerRequests(feature));
             storeLookups.put(feature, registerStoreLookups(feature));
             rejected.put(feature, registerRejected(feature));
+            registerCallTimer(feature);
         }
     }
 
@@ -127,6 +131,17 @@ public class RecommendAiMetrics {
         return Counter.builder(REJECTED)
             .description("AI 답이 검증에서 버려져 규칙 결과로 답한 횟수")
             .tag("feature", tagValue(feature))
+            .register(meterRegistry);
+    }
+
+    /**
+     * 관측이 성공한 호출에 만드는 Timer와 이름 · 태그가 같아야 같은 Timer로 이어진다.
+     * 관측은 기능 태그 말고 오류 태그도 붙이고, 성공한 호출의 값은 none이다.
+     */
+    private void registerCallTimer(AiResponseType feature) {
+        Timer.builder(AI_CALL)
+            .tag(FEATURE_KEY, tagValue(feature))
+            .tag(ERROR_KEY, NO_ERROR)
             .register(meterRegistry);
     }
 
