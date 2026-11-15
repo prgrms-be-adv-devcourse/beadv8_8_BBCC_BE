@@ -14,7 +14,7 @@
 | 관리자 | `postgres`. 비밀번호는 Secret `postgres-admin`(처음 배포 때 무작위). 부트스트랩은 Pod 안 로컬 소켓으로 접속한다 |
 | 서비스 접속 | `DB_URL=jdbc:postgresql://<medium 사설 IP>:30432/kidly_<환경>`, `DB_USERNAME=kidly_<환경>`(`deploy/.env.<환경>`), 비밀번호는 Environment Secret `DB_PASSWORD` |
 
-서비스마다 커넥션 풀은 5개입니다(`spring.datasource.hikari.maximum-pool-size`). 서비스 8개 × 5 × 두 환경 = 80 연결이 `max_connections` 120 안에 듭니다.
+서비스마다 커넥션 풀은 5개이고 상품만 10개입니다(`spring.datasource.hikari.maximum-pool-size`, #1369). (다른 서비스 8개 × 5 + 상품 10) × 두 환경 = 100 연결이 `max_connections` 120 안에 듭니다.
 pgvector 는 trusted 확장이 아니라 앱 계정이 켜지 못하므로 부트스트랩이 database 마다 `recommend` 스키마에 먼저 켭니다. 확장이 더 필요해지면 `deploy.sh` 의 부트스트랩에 더합니다.
 
 ## 준비 (처음 한 번)
