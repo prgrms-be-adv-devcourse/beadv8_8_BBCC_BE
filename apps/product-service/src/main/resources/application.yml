@@ -91,9 +91,10 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-    # dev · prod 가 DB 인스턴스 하나(max_connections 120)를 나눠 쓴다. 기본 10 이면 서비스 8개 × 두 환경이 160 연결이다
+    # dev · prod 가 DB 인스턴스 하나(max_connections 120)를 나눠 쓴다. 다른 서비스는 5개인데 상품만 10개다
+    # 5개일 때 dev 에서 풀이 다 차고 대기가 12건까지 쌓였다(연결 대기 최장 3.1초, #1369). 다른 서비스 8개 × 5 + 상품 10 = 50, 두 환경이 100 연결이다
     hikari:
-      maximum-pool-size: 5
+      maximum-pool-size: 10
 
 # 상품 이미지 객체 key의 환경 경로. 서버는 기본값 없이 dev · prod를 반드시 넣는다(빠지면 기동 실패)
 kidly:
