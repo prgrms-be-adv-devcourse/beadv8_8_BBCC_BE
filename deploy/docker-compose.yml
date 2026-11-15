@@ -217,9 +217,8 @@ services:
       retries: 12
       # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
-    # 힙 192m · 상한 640m. 힙 밖(클래스 정보 · JIT 코드 · 스레드 · 네이티브)이 약 340MiB 라 상한 512m 에서는 힙이 170MiB 를 넘게 커지면
-    # full GC 전에 컨테이너가 종료됐다(dev 11-15 실측: 평소 460MiB, 종료 직전 힙 146MiB · 컨테이너 510MiB, #1369)
-    mem_limit: 640m
+    # 힙 192m · 상한 512m 은 자녀 서비스 기준 추측값이다. 켠 뒤 재서 정한다
+    mem_limit: 512m
     oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
@@ -295,8 +294,9 @@ services:
       retries: 12
       # 여러 서비스가 함께 떠 CPU 경합으로 3분 가까이 걸린다. 유예 동안의 실패는 세지 않는다(최대 약 5분 기다림)
       start_period: 180s
-    # 힙 192m · 상한 512m 은 메모리 논의에서 정한 시작값이다. 켠 뒤 재서 정한다
-    mem_limit: 512m
+    # 힙 192m · 상한 640m. 힙 밖(클래스 정보 · JIT 코드 · 스레드 · 네이티브)이 약 340MiB 라 상한 512m 에서는 힙이 170MiB 를 넘게 커지면
+    # full GC 전에 컨테이너가 종료됐다(dev 11-15 실측: 평소 460MiB, 종료 직전 힙 146MiB · 컨테이너 510MiB, #1369)
+    mem_limit: 640m
     oom_score_adj: ${OOM_SCORE_ADJ:-0}
     restart: unless-stopped
     logging: *logging
