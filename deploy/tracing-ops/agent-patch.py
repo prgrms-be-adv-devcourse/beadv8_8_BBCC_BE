@@ -7,6 +7,7 @@ import sys
 
 NAMESPACE = 'kidly-dev'
 AGENT_JAR = '/opt/kidly-tracing/opentelemetry-javaagent.jar'
+HOST_AGENT_JAR = '/opt/app/kidly-tracing/opentelemetry-javaagent.jar'
 AGENT_VOLUME = 'kidly-tracing-agent'
 OTLP_ENDPOINT = 'http://tracing-alloy.kidly-dev.svc:4318/v1/traces'
 
@@ -58,7 +59,7 @@ def render_patch(deployment, java_options):
                 'env': [{'name': name, 'value': value} for name, value in settings.items()],
                 'volumeMounts': [{'name': AGENT_VOLUME, 'mountPath': AGENT_JAR, 'readOnly': True}],
             }],
-            'volumes': [{'name': AGENT_VOLUME, 'hostPath': {'path': AGENT_JAR, 'type': 'File'}}],
+            'volumes': [{'name': AGENT_VOLUME, 'hostPath': {'path': HOST_AGENT_JAR, 'type': 'File'}}],
         }}},
     }
 

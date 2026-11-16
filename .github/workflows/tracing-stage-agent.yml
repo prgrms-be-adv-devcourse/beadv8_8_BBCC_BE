@@ -1,0 +1,62 @@
+name: tracing-stage-agent
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/develop'
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 작업 시간 확인
+        run: |
+          hour=$(TZ=Asia/Seoul date +%H)
+          if (( 10#$hour < 9 || 10#$hour >= 18 )); then
+            echo "::error::Agent 파일 준비는 09:00~18:00 KST에 실행합니다."
+            exit 1
+          fi
+      - name: 서버 접속 확인 · SSH 키 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
+      - name: 고정 버전 Java Agent를 앱 노드에 준비
+        run: |
+          set -euo pipefail
+          jar=$(mktemp)
+          trap 'rm -f "$jar"' EXIT
+          curl --fail --silent --show-error --location --retry 2 --max-time 120 \
+            'https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.33.1/opentelemetry-javaagent.jar' \
+            --output "$jar"
+          printf '%s  %s\n' e43a270df53c6f423e0ab157be9c27ccc01d5dc3232e162fe54777573db2f149 "$jar" \
+            | sha256sum --check --status
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" '
+            set -eu
+            dir=/opt/app/kidly-tracing
+            expected=e43a270df53c6f423e0ab157be9c27ccc01d5dc3232e162fe54777573db2f149
+            target="$dir/opentelemetry-javaagent.jar"
+            mkdir -p "$dir"
+            incoming=$(mktemp "$dir/.agent.XXXXXX")
+            trap "rm -f \"$incoming\"" EXIT
+            cat > "$incoming"
+            printf "%s  %s\n" "$expected" "$incoming" | sha256sum --check --status
+            chmod 0644 "$incoming"
+            if ! test -f "$target"; then
+              ln "$incoming" "$target"
+            fi
+            printf "%s  %s\n" "$expected" "$target" | sha256sum --check --status
+            echo "Java Agent JAR: verified"
+          ' < "$jar"
