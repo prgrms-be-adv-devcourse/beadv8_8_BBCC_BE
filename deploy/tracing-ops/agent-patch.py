@@ -8,14 +8,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'k3s'))
-from tracing_agent import AGENT_JAR, AGENT_VOLUME, NAMESPACE, SERVICES, agent_settings
+from tracing_agent import AGENT_JAR, AGENT_VOLUME, NAMESPACE, PILOT_SERVICES, agent_settings
 
 
 def render_patch(deployment, java_options, rollback=False):
     metadata = deployment['metadata']
     service = metadata['name']
     if (deployment['kind'] != 'Deployment' or metadata['namespace'] != NAMESPACE
-            or service not in SERVICES):
+            or service not in PILOT_SERVICES):
         raise ValueError('expected the gateway or order Deployment in kidly-dev')
 
     pod = deployment['spec']['template']['spec']

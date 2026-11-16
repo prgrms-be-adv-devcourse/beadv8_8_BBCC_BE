@@ -177,6 +177,7 @@ def manifest(env, name, node_port, job, service, project_dir):
             container['env'] = agent_env
             container['volumeMounts'].append(agent_mount)
             volumes.append(agent_volume)
+            pod_labels['kidly/tracing'] = 'enabled'
     items = [
         {'apiVersion': 'v1', 'kind': 'Secret', 'metadata': {'name': name + '-env', 'namespace': ns},
          'type': 'Opaque', 'stringData': variables},

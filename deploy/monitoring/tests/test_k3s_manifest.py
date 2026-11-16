@@ -52,11 +52,9 @@ class K3sManifestTests(unittest.TestCase):
         self.assertEqual(items['Deployment/member']['metadata']['namespace'], 'kidly-dev')
         self.assertNotIn('HorizontalPodAutoscaler/member', items)
 
-    def test_tracing_agent_only_persists_for_enabled_pilot_services(self):
+    def test_tracing_agent_only_persists_for_selected_services(self):
         markers = self.project / 'operations' / 'tracing-agent'
         markers.mkdir(parents=True)
-        for name in ('gateway', 'order', 'payment'):
-            (markers / f'{name}.enabled').touch()
         jar = self.project / 'opentelemetry-javaagent.jar'
         jar.write_bytes(b'fixture')
         agent_spec = importlib.util.spec_from_file_location(
@@ -64,11 +62,13 @@ class K3sManifestTests(unittest.TestCase):
         module = importlib.util.module_from_spec(agent_spec)
         agent_spec.loader.exec_module(module)
         module.HOST_AGENT_JAR = str(jar)
+        for name in (*module.SERVICES, 'redis'):
+            (markers / f'{name}.enabled').touch()
         service = self.service(environment={'JAVA_TOOL_OPTIONS': '-Xmx192m'})
         with mock.patch.dict(sys.modules, {'tracing_agent': module}):
             for env, name, enabled in (
-                    ('dev', 'gateway', True), ('dev', 'order', True),
-                    ('dev', 'payment', False), ('prod', 'order', False)):
+                    *(('dev', name, True) for name in module.SERVICES),
+                    ('dev', 'redis', False), ('prod', 'order', False)):
                 with self.subTest(env=env, name=name):
                     deployment = self.items(env=env, name=name, service=service)[f'Deployment/{name}']
                     pod = deployment['spec']['template']['spec']
@@ -78,10 +78,12 @@ class K3sManifestTests(unittest.TestCase):
                         self.assertEqual(settings['JAVA_TOOL_OPTIONS'], f'-Xmx192m -javaagent:{module.AGENT_JAR}')
                         self.assertEqual(settings['OTEL_SERVICE_NAME'], f'kidly-{name}')
                         self.assertEqual(settings['OTEL_TRACES_SAMPLER_ARG'], '0.05')
+                        self.assertEqual(deployment['spec']['template']['metadata']['labels']['kidly/tracing'], 'enabled')
                         self.assertTrue(container['volumeMounts'][-1]['readOnly'])
                         self.assertEqual(pod['volumes'][-1]['hostPath']['path'], str(jar))
                     else:
                         self.assertNotIn('env', container)
+                        self.assertNotIn('kidly/tracing', deployment['spec']['template']['metadata']['labels'])
                         self.assertNotIn(module.AGENT_VOLUME, {v['name'] for v in pod['volumes']})
 
             (markers / 'order.enabled').unlink()

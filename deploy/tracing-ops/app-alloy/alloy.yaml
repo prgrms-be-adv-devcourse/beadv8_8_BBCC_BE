@@ -20,6 +20,8 @@ spec:
           env:
             - name: TRACING_OTLP_LISTEN
               value: "0.0.0.0:4318"
+            - name: TRACING_ALLOWED_SERVICES
+              value: '^(kidly-gateway|kidly-order)$'
             - name: TRACING_TEMPO_ENDPOINT
               valueFrom:
                 configMapKeyRef:

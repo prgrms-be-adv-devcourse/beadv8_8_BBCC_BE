@@ -1,7 +1,11 @@
 """Shared Java Agent settings for the tracing pilot."""
 
 NAMESPACE = 'kidly-dev'
-SERVICES = ('gateway', 'order')
+PILOT_SERVICES = ('gateway', 'order')
+SERVICES = PILOT_SERVICES + (
+    'search', 'product', 'member', 'payment', 'community',
+    'notification', 'settlement', 'recommend', 'chatbot',
+)
 AGENT_JAR = '/opt/kidly-tracing/opentelemetry-javaagent.jar'
 HOST_AGENT_JAR = '/opt/app/kidly-tracing/opentelemetry-javaagent.jar'
 AGENT_VOLUME = 'kidly-tracing-agent'
