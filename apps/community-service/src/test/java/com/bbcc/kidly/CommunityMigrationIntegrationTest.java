@@ -297,6 +297,59 @@ class CommunityMigrationIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("찜 소유자: 기존 찜은 MEMBER · owner_id = guardian_id = member_id, 같은 파일을 다시 돌려도 같다. "
+        + "같은 소유자의 같은 상품은 막히고, 회원 7과 자녀 계정 7은 같은 상품을 각각 찜한다")
+    void addsFavoriteOwner() throws Exception {
+        try (var postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"))) {
+            postgres.start();
+            var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            createCommunityTablesUpTo(dataSource, jdbc, BASELINE_VERSION);
+            serviceFlyway(dataSource).target("202611121420").load().migrate();
+            jdbc.update("insert into community.favorite (member_id, product_id, created_at, updated_at) values "
+                + "(7, 14, now(), now()), (7, 15, now(), now()), (8, 14, now(), now())");
+
+            serviceFlyway(dataSource).load().migrate();
+
+            List<String> expected = List.of("7:14:MEMBER:7:7", "7:15:MEMBER:7:7", "8:14:MEMBER:8:8");
+            assertThat(favoriteOwners(jdbc)).isEqualTo(expected);
+            // 같은 파일을 다시 돌려도 오류 없이 같은 결과
+            String sql = new ClassPathResource("db/migration/community/V202611161100__community_favorite_owner.sql")
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+            jdbc.execute(sql);
+            assertThat(favoriteOwners(jdbc)).isEqualTo(expected);
+            assertThat(jdbc.queryForList("select indexname from pg_indexes where schemaname = 'community' "
+                + "and tablename = 'favorite'", String.class))
+                .contains("uk_favorite_owner_product", "idx_favorite_owner_created", "idx_favorite_guardian")
+                .doesNotContain("uk_favorite_member_product", "idx_favorite_member_created");
+
+            // 회원 7과 자녀 계정 7(보호자 70)은 같은 상품을 각각 찜한다
+            jdbc.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
+                + "created_at, updated_at) values (70, 'CHILD', 7, 70, 14, now(), now())");
+            assertThatThrownBy(() -> jdbc.update("insert into community.favorite (member_id, owner_type, owner_id, "
+                + "guardian_id, product_id, created_at, updated_at) values (70, 'CHILD', 7, 70, 14, now(), now())"))
+                .hasMessageContaining("uk_favorite_owner_product");
+            assertThatThrownBy(() -> jdbc.update("insert into community.favorite (member_id, owner_type, owner_id, "
+                + "guardian_id, product_id, created_at, updated_at) values (7, 'MEMBER', 7, 7, 14, now(), now())"))
+                .hasMessageContaining("uk_favorite_owner_product");
+            // 소유자 칸 없이 넣는 옛 방식은 NOT NULL에 막힌다(배포 중 잠깐의 실패는 받아들임)
+            assertThatThrownBy(() -> jdbc.update("insert into community.favorite (member_id, product_id, created_at, "
+                + "updated_at) values (7, 16, now(), now())")).hasMessageContaining("owner_id");
+            assertThatThrownBy(() -> jdbc.update("insert into community.favorite (member_id, owner_type, owner_id, "
+                + "guardian_id, product_id, created_at, updated_at) values (9, 'ADMIN', 9, 9, 14, now(), now())"))
+                .hasMessageContaining("ck_favorite_owner_type");
+            assertThat(jdbc.queryForObject("select count(*) from community.deleted_child_account", Long.class))
+                .isZero();
+        }
+    }
+
+    private static List<String> favoriteOwners(JdbcTemplate jdbc) {
+        return jdbc.queryForList("select member_id || ':' || product_id || ':' || owner_type || ':' || owner_id "
+            + "|| ':' || guardian_id from community.favorite order by member_id, product_id", String.class);
+    }
+
     private static List<String> updatedAts(JdbcTemplate jdbc) {
         return jdbc.queryForList("select id || ' ' || updated_at::text from community.review order by id",
             String.class);

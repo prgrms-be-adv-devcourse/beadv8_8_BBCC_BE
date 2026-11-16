@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteProducts.ProductV
 import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteStatsReader;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.Favorites;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.Favorites.FavoriteRow;
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteStats;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 내 찜 목록(최신순 커서 또는 productIds 필터)과 상품별 찜 수. 한 쪽은 찜 1번 + 상품 정보 1번(상품 수와 무관)으로 읽는다.
+ * 내 찜 목록(소유자 본인 것만, 최신순 커서 또는 productIds 필터)과 상품별 찜 수(회원 · 자녀 계정 찜 합계). 한 쪽은 찜 1번 + 상품 정보 1번(상품 수와 무관)으로 읽는다.
  * 찜한 뒤 판매 종료된 상품도 목록에 남고(표시 상태로 구분), 상품 정보가 없으면 그 칸은 null이다.
  */
 @Service
@@ -37,21 +38,26 @@ public class FavoriteQueryService {
      * @param cursor 직전 응답의 nextCursor
      * @param size 1~50, 기본 20
      */
-    public FavoritePage findMine(Long memberId, String productIds, String cursor, String size) {
+    public FavoritePage findMine(FavoriteActor actor, String productIds, String cursor, String size) {
+        return findMine(actor.toOwner(), productIds, cursor, size);
+    }
+
+    public FavoritePage findMine(FavoriteOwner owner, String productIds, String cursor, String size) {
         if (productIds != null) {
             if (cursor != null) {
                 throw new BusinessException(FavoriteErrorCode.INVALID_PRODUCT_IDS);
             }
-            return new FavoritePage(withProducts(favorites.findMineIn(memberId, parseProductIds(productIds))), null);
+            return new FavoritePage(withProducts(favorites.findMineIn(owner.type(), owner.id(),
+                parseProductIds(productIds))), null);
         }
         int pageSize = FavoritePaging.pageSize(size);
         Limit limit = Limit.of(pageSize + 1);
         List<FavoriteRow> rows;
         if (cursor == null) {
-            rows = favorites.findMine(memberId, limit);
+            rows = favorites.findMine(owner.type(), owner.id(), limit);
         } else {
             FavoritePaging.Cursor after = FavoritePaging.Cursor.decode(cursor);
-            rows = favorites.findMineAfter(memberId, after.at(), after.id(), limit);
+            rows = favorites.findMineAfter(owner.type(), owner.id(), after.at(), after.id(), limit);
         }
         List<FavoriteRow> page = rows.stream().limit(pageSize).toList();
         String next = rows.size() > pageSize

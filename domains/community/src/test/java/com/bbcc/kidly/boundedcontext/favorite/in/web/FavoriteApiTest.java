@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteErrorCode;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
+import com.bbcc.kidly.global.security.TestChildren;
 import com.bbcc.kidly.global.security.TestMembers;
+import com.bbcc.kidly.shared.auth.MemberHeaders;
+import com.bbcc.kidly.shared.auth.PrincipalHeaders;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +25,7 @@ class FavoriteApiTest {
 
     private static final String PATH = "/api/v1/favorites";
     private static final long ME = 1L;
+    private static final long GUARDIAN = 50L;
 
     @Autowired
     private RestTestClient client;
@@ -106,6 +110,80 @@ class FavoriteApiTest {
             .jsonPath("$.productId").isEqualTo("999")
             .jsonPath("$.favoriteCount").isEqualTo(0);
         expectProblem(client.get().uri(PATH + "/summary").exchange(), 400, FavoriteErrorCode.INVALID_PRODUCT_ID);
+    }
+
+    @Test
+    @DisplayName("자녀 토큰: PUT · DELETE 204, 목록은 자기 찜만(회원 1과 자녀 계정 1은 섞이지 않음), 요약은 회원 · 자녀 찜 합계")
+    void childFavorites() {
+        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
+            + "source_occurred_at, created_at, updated_at) values (16, '상품 C', null, 'ON_SALE', now(), now(), now())");
+        client.put().uri(PATH + "/14").headers(TestChildren.of(ME, GUARDIAN)).exchange().expectStatus().isNoContent();
+        client.put().uri(PATH + "/16").headers(TestChildren.of(ME, GUARDIAN)).exchange().expectStatus().isNoContent();
+        put("14").expectStatus().isNoContent();
+
+        client.get().uri(PATH).headers(TestChildren.of(ME, GUARDIAN)).exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(2)
+            .jsonPath("$.items[0].productId").isEqualTo("16")
+            .jsonPath("$.items[1].productId").isEqualTo("14");
+        client.get().uri(PATH).headers(TestMembers.buyer(ME)).exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(1)
+            .jsonPath("$.items[0].productId").isEqualTo("14");
+        client.get().uri(PATH + "/summary?productId=14").exchange()
+            .expectBody().jsonPath("$.favoriteCount").isEqualTo(2);
+
+        client.delete().uri(PATH + "/14").headers(TestChildren.of(ME, GUARDIAN)).exchange()
+            .expectStatus().isNoContent();
+        client.get().uri(PATH + "?productIds=14,16").headers(TestChildren.of(ME, GUARDIAN)).exchange()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(1)
+            .jsonPath("$.items[0].productId").isEqualTo("16");
+        client.get().uri(PATH + "?productIds=14,16").headers(TestMembers.buyer(ME)).exchange()
+            .expectBody()
+            .jsonPath("$.items.length()").isEqualTo(1)
+            .jsonPath("$.items[0].productId").isEqualTo("14");
+    }
+
+    @Test
+    @DisplayName("주체 헤더: 자녀 헤더가 하나뿐이거나 잘못되면 401, 회원 헤더가 있으면 회원으로 보고 잘못되면 401")
+    void callerHeaders() {
+        client.put().uri(PATH + "/14").header(PrincipalHeaders.CHILD_ACCOUNT_ID, "1").exchange()
+            .expectStatus().isUnauthorized();
+        client.put().uri(PATH + "/14").header(PrincipalHeaders.CHILD_GUARDIAN_ID, "50").exchange()
+            .expectStatus().isUnauthorized();
+        client.get().uri(PATH).header(PrincipalHeaders.CHILD_ACCOUNT_ID, "abc")
+            .header(PrincipalHeaders.CHILD_GUARDIAN_ID, "50").exchange().expectStatus().isUnauthorized();
+        client.get().uri(PATH).header(PrincipalHeaders.CHILD_ACCOUNT_ID, "0")
+            .header(PrincipalHeaders.CHILD_GUARDIAN_ID, "50").exchange().expectStatus().isUnauthorized();
+        client.get().uri(PATH).header(MemberHeaders.MEMBER_ID, "x").headers(TestChildren.of(ME, GUARDIAN)).exchange()
+            .expectStatus().isUnauthorized();
+        // 회원 헤더가 있으면 자녀 헤더보다 먼저 본다
+        client.put().uri(PATH + "/14").headers(TestMembers.buyer(ME)).headers(TestChildren.of(2L, GUARDIAN))
+            .exchange().expectStatus().isNoContent();
+        assertThat(jdbcTemplate.queryForList("select owner_type || ':' || owner_id from community.favorite",
+            String.class)).containsExactly("MEMBER:1");
+    }
+
+    @Test
+    @DisplayName("지운 자녀 계정의 PUT · DELETE · GET은 403 FAVORITE_CHILD_ACCOUNT_DELETED, 같은 ID의 회원 · 다른 자녀 계정은 그대로")
+    void deletedChildForbidden() {
+        jdbcTemplate.update("insert into community.deleted_child_account (account_id, guardian_id, deleted_at, "
+            + "created_at) values (?, ?, now(), now())", ME, GUARDIAN);
+
+        expectProblem(client.put().uri(PATH + "/14").headers(TestChildren.of(ME, GUARDIAN)).exchange(), 403,
+            FavoriteErrorCode.FAVORITE_CHILD_ACCOUNT_DELETED);
+        expectProblem(client.delete().uri(PATH + "/14").headers(TestChildren.of(ME, GUARDIAN)).exchange(), 403,
+            FavoriteErrorCode.FAVORITE_CHILD_ACCOUNT_DELETED);
+        expectProblem(client.get().uri(PATH).headers(TestChildren.of(ME, GUARDIAN)).exchange(), 403,
+            FavoriteErrorCode.FAVORITE_CHILD_ACCOUNT_DELETED);
+        put("14").expectStatus().isNoContent();
+        client.put().uri(PATH + "/14").headers(TestChildren.of(ME + 1, GUARDIAN)).exchange()
+            .expectStatus().isNoContent();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from community.favorite where owner_type = 'CHILD' "
+            + "and owner_id = ?", Long.class, ME)).isZero();
     }
 
     private RestTestClient.ResponseSpec put(String productId) {

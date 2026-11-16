@@ -64,7 +64,7 @@ public class ActivityRecordingService implements ActivityRecorder {
     public void record(FavoriteAdded activity) {
         LocalDateTime now = ActivityTimes.now();
         save(Activity.favoriteAdded(activity.favoriteId(), activity.productId()), now);
-        outbox.favoriteAdded(activity.favoriteId(), activity.memberId(), activity.productId(), now);
+        outbox.favoriteAdded(activity, now);
     }
 
     @Override

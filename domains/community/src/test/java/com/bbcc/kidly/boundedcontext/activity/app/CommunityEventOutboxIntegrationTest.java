@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.activity.app;
 
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -56,6 +57,9 @@ class CommunityEventOutboxIntegrationTest {
 
     @Autowired
     private MemberFavoritesRemover memberFavoritesRemover;
+
+    @Autowired
+    private com.bbcc.kidly.boundedcontext.favorite.app.port.in.ChildFavoritesRemover childFavoritesRemover;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -128,11 +132,11 @@ class CommunityEventOutboxIntegrationTest {
     @Test
     @DisplayName("찜 추가 · 해제(USER) · 탈퇴 삭제(MEMBER_WITHDRAWN, 행마다)는 키 = 회원 ID로 남고, 이미 찜 · 없는 찜 해제는 남지 않는다")
     void favorites() {
-        favoriteService.add(ME, String.valueOf(PRODUCT));
-        favoriteService.add(ME, String.valueOf(PRODUCT));
-        favoriteService.remove(ME, String.valueOf(PRODUCT));
-        favoriteService.remove(ME, String.valueOf(PRODUCT));
-        favoriteService.add(ME, String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
+        favoriteService.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
+        favoriteService.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         memberFavoritesRemover.removeAll(ME);
 
         List<Map<String, Object>> messages = messages();
@@ -148,13 +152,38 @@ class CommunityEventOutboxIntegrationTest {
     }
 
     @Test
+    @DisplayName("자녀 계정 찜: ownerType CHILD · ownerId 계정 ID · memberId · 키 = 보호자 ID. 회원 찜은 MEMBER · 본인. "
+        + "자녀 계정 삭제 · 보호자 탈퇴는 MEMBER_WITHDRAWN + 소유자 종류")
+    void childFavorites() {
+        long account = 7L;
+        favoriteService.add(FavoriteOwner.child(account, ME), String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
+        favoriteService.remove(FavoriteOwner.child(account, ME), String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.child(account, ME), String.valueOf(PRODUCT));
+        childFavoritesRemover.removeAll(account, ME, LocalDateTime.of(2026, 11, 16, 10, 0));
+        memberFavoritesRemover.removeAll(ME);
+
+        List<Map<String, Object>> messages = messages();
+        assertThat(messages.stream().map(message -> message.get("event_type") + ":" + data(message).get("cause")
+            + ":" + data(message).get("ownerType") + ":" + data(message).get("ownerId")).toList())
+            .containsExactly("favorite.added:null:CHILD:7", "favorite.added:null:MEMBER:13",
+                "favorite.removed:USER:CHILD:7", "favorite.added:null:CHILD:7",
+                "favorite.removed:MEMBER_WITHDRAWN:CHILD:7", "favorite.removed:MEMBER_WITHDRAWN:MEMBER:13");
+        assertThat(messages).allSatisfy(message -> {
+            assertThat(message).containsEntry("message_key", String.valueOf(ME));
+            assertThat(data(message)).containsEntry("memberId", 13);
+            assertThat(body(message)).containsEntry("correlationId", String.valueOf(ME));
+        });
+    }
+
+    @Test
     @DisplayName("원래 트랜잭션이 롤백되면(찜 수 행이 없어 해제 실패) 아웃박스 행도 없다")
     void rollbackLeavesNoMessage() {
-        favoriteService.add(ME, String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         jdbcTemplate.update("delete from community.event_outbox");
         jdbcTemplate.update("delete from community.favorite_stats");
 
-        assertThatThrownBy(() -> favoriteService.remove(ME, String.valueOf(PRODUCT)))
+        assertThatThrownBy(() -> favoriteService.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT)))
             .isInstanceOf(IllegalStateException.class);
 
         assertThat(messages()).isEmpty();
@@ -163,7 +192,7 @@ class CommunityEventOutboxIntegrationTest {
     @Test
     @DisplayName("보낸 행 지우기 · 실패 기록 · 격리는 읽은 행과 id · eventId가 모두 같을 때만 바꾼다(id를 다시 쓴 다른 행은 그대로)")
     void guardsByEventId() {
-        favoriteService.add(ME, String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         var message = outbox.findPending(10).getFirst();
         java.util.UUID other = java.util.UUID.randomUUID();
 

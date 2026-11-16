@@ -333,10 +333,10 @@
 | GET | `/api/v1/reviews` | 상품별 리뷰 목록(`productId`, 최신순). 공개 리뷰만 | 🌐 |
 | GET | `/api/v1/reviews/me` | 내 리뷰(숨겨진 리뷰 포함) | 🔒 |
 | GET | `/api/v1/reviews/summary` | 리뷰 요약(리뷰 수 · 평균 별점 · 사이즈 핏 분포 `fitSummary`). 공개 리뷰만 센다 | 🌐 |
-| PUT | `/api/v1/favorites/{productId}` | 찜(다시 해도 1건) | 🔒 |
-| DELETE | `/api/v1/favorites/{productId}` | 찜 취소(없어도 204) | 🔒 |
-| GET | `/api/v1/favorites` | 내 찜 목록. `productIds`를 주면 그중 찜한 것만 | 🔒 |
-| GET | `/api/v1/favorites/summary` | 찜 요약(찜 수) | 🌐 |
+| PUT | `/api/v1/favorites/{productId}` | 찜(다시 해도 1건). 회원 · 로그인한 자녀 각자 | 🔒 |
+| DELETE | `/api/v1/favorites/{productId}` | 찜 취소(없어도 204). 자기 찜만 | 🔒 |
+| GET | `/api/v1/favorites` | 내 찜 목록(회원 · 로그인한 자녀 각자 자기 것만). `productIds`를 주면 그중 찜한 것만 | 🔒 |
+| GET | `/api/v1/favorites/summary` | 찜 요약(찜 수, 회원 · 자녀 계정 찜 합계) | 🌐 |
 | GET | `/api/v1/admin/community/reviews` | 검사 상태별 리뷰 목록(`status` 필수: `PENDING` · `PASSED` · `HIDDEN` · `CONFIRMED_HIDDEN` · `RESTORED`, `cursor` · `size`, 최신순) | 🛠 |
 | PATCH | `/api/v1/admin/community/reviews/{reviewId}/visibility` | 숨김 확정 · 다시 공개(본문 `visibility` `HIDDEN` → `CONFIRMED_HIDDEN`, `VISIBLE` → `RESTORED`). 같은 값을 다시 보내도 200 | 🛠 |
 | POST | `/api/v1/admin/community/reviews/moderation/retry-exhausted` | 재시도 상한에 닿은 검사 대기 리뷰를 다시 검사 대기로 되돌림. 응답 `{"resetCount": n}`, 다시 불러도 200 | 🛠 |
@@ -344,6 +344,8 @@
 | GET | `/api/v1/admin/community/dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/community/dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 | POST | `/api/v1/admin/community/mcp` | 커뮤니티 운영 조회 MCP 창구(읽기 전용, 스위치 기본 꺼짐) | 🛠 |
+
+**찜(#1377)**: 찜 · 찜 취소 · 내 찜 목록은 회원 로그인과 자녀 로그인(자녀 토큰)을 함께 받고, 각자 자기 찜만 보고 바꾼다(보호자가 자녀 찜을 보는 API는 없다). 같은 숫자 ID라도 회원과 자녀 계정의 찜은 섞이지 않는다. 회원 헤더가 있으면 회원으로, 없으면 자녀 헤더 둘(`X-Child-Account-Id` · `X-Child-Guardian-Id`)로 보고, 하나라도 없거나 잘못되면 401이다. 삭제된 자녀 계정이면 403 `FAVORITE_CHILD_ACCOUNT_DELETED`이고, 자녀 계정을 지우면 그 계정의 찜도 지워진다. 보호자가 탈퇴하면 보호자 본인 찜과 그 자녀 계정 찜이 함께 지워진다. 찜 요약의 찜 수는 회원 · 자녀 계정 찜을 합한 값이다.
 
 리뷰 목록(상품별 · 내 리뷰) 항목에는 사진 공개 주소 `imageUrls`(순서대로, 없으면 빈 목록)와 `visibility`가 있다. `visibility`는 `PUBLIC`(공개) 또는 `UNDER_REVIEW`(숨겨짐: 검사 숨김 · 숨김 확정)이고, `UNDER_REVIEW`는 내 리뷰에서만 보인다. 상품별 목록은 늘 `PUBLIC`이다. 커서 목록의 `size`는 1~50(기본 20)이다.
 

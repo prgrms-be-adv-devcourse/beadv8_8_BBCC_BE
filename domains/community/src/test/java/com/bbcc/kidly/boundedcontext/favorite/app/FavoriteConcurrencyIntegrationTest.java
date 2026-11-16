@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.favorite.app;
 
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
@@ -45,7 +46,7 @@ class FavoriteConcurrencyIntegrationTest {
     @DisplayName("같은 회원이 같은 상품을 동시에 8번 찜해도 행 1개 · 찜 수 1이고 모두 성공한다")
     void sameMemberConcurrentAdds() throws Exception {
         List<Object> results = runConcurrently(8, i -> () -> {
-            favoriteService.add(1L, "14");
+            favoriteService.add(FavoriteOwner.member(1L), "14");
             return "ok";
         });
 
@@ -60,9 +61,9 @@ class FavoriteConcurrencyIntegrationTest {
         for (int round = 0; round < ROUNDS; round++) {
             List<Object> results = runConcurrently(6, i -> () -> {
                 if (i % 2 == 0) {
-                    favoriteService.add(1L, "14");
+                    favoriteService.add(FavoriteOwner.member(1L), "14");
                 } else {
-                    favoriteService.remove(1L, "14");
+                    favoriteService.remove(FavoriteOwner.member(1L), "14");
                 }
                 return "ok";
             });
@@ -77,7 +78,7 @@ class FavoriteConcurrencyIntegrationTest {
     @DisplayName("여러 회원이 같은 상품을 동시에 찜하면 찜 수 = 회원 수 = 행 수")
     void manyMembersConcurrentAdds() throws Exception {
         List<Object> results = runConcurrently(10, i -> () -> {
-            favoriteService.add(100L + i, "14");
+            favoriteService.add(FavoriteOwner.member(100L + i), "14");
             return "ok";
         });
 

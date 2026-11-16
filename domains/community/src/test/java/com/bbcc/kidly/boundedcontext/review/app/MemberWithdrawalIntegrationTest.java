@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.review.app;
 
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteService;
@@ -63,10 +64,10 @@ class MemberWithdrawalIntegrationTest {
                 + "display_status, source_occurred_at, created_at, updated_at) "
                 + "values (?, '상품', null, 'ON_SALE', now(), now(), now())", product);
         }
-        favoriteService.add(A, "14");
-        favoriteService.add(A, "15");
-        favoriteService.add(A, "16");
-        favoriteService.add(B, "14");
+        favoriteService.add(FavoriteOwner.member(A), "14");
+        favoriteService.add(FavoriteOwner.member(A), "15");
+        favoriteService.add(FavoriteOwner.member(A), "16");
+        favoriteService.add(FavoriteOwner.member(B), "14");
         eligible(101, A, 14);
         eligible(102, A, 15);
         eligible(103, B, 14);
@@ -129,8 +130,8 @@ class MemberWithdrawalIntegrationTest {
     void withdrawalAndRemoveConcurrently() throws Exception {
         for (int round = 0; round < 5; round++) {
             long member = 100L + round;
-            favoriteService.add(member, "14");
-            favoriteService.add(member, "15");
+            favoriteService.add(FavoriteOwner.member(member), "14");
+            favoriteService.add(FavoriteOwner.member(member), "15");
 
             List<Object> results = runConcurrently(List.of(
                 () -> {
@@ -138,7 +139,7 @@ class MemberWithdrawalIntegrationTest {
                     return "withdrawn";
                 },
                 () -> {
-                    favoriteService.remove(member, "14");
+                    favoriteService.remove(FavoriteOwner.member(member), "14");
                     return "removed";
                 }));
 
@@ -153,7 +154,7 @@ class MemberWithdrawalIntegrationTest {
     void withdrawalAndAddConcurrently() throws Exception {
         for (int round = 0; round < 5; round++) {
             long member = 200L + round;
-            favoriteService.add(member, "14");
+            favoriteService.add(FavoriteOwner.member(member), "14");
 
             List<Object> results = runConcurrently(List.of(
                 () -> {
@@ -161,7 +162,7 @@ class MemberWithdrawalIntegrationTest {
                     return "withdrawn";
                 },
                 () -> {
-                    favoriteService.add(member, "15");
+                    favoriteService.add(FavoriteOwner.member(member), "15");
                     return "added";
                 }));
 
