@@ -27,6 +27,7 @@ curl -sL "https://raw.githubusercontent.com/k3s-io/k3s/$(k3s --version | awk 'NR
 nginx는 건드리지 않았습니다. 서버의 이 폴더에서 Traefik만 지웁니다. HelmChart 삭제 시 helm-controller가 uninstall Job을 실행합니다.
 
 ```bash
+export KUBECONFIG=$HOME/.kube/config   # deploy 유저의 kubectl 은 이 값이 있어야 붙는다(deploy.sh 는 스스로 넣는다)
 kubectl delete -f routes.yaml --ignore-not-found
 kubectl -n kube-system delete helmchart kidly-traefik kidly-traefik-crd --ignore-not-found
 kubectl -n edge delete ingressroute,service,deployment whoami --ignore-not-found
@@ -113,4 +114,46 @@ kubectl -n edge delete secret kidly-tls --ignore-not-found
    kubectl -n edge delete ingressroute,service,deployment whoami
    ```
 
-2단계 80/443 전환과 3단계 ACME는 다음 단계에서 되돌리기와 함께 이 README에 추가합니다. 3단계에서는 `tls.secretName`을 `tls.certResolver`로 바꿉니다.
+## 2단계 되돌리기
+
+Traefik을 테스트 포트로 다시 배포하고 nginx를 1개로 올립니다. nginx Pod는 호스트 네트워크로 80 · 443을 선언하므로, Traefik이 80 · 443 hostPort를 놓기 전에는 스케줄되지 않습니다. 그래서 Traefik을 먼저 옮깁니다. NodePort 30200, nginx 매니페스트, certbot CronJob은 이 단계에서 지우지 않았으므로 그대로 이어받습니다.
+
+```bash
+cd ~/kidly-traefik/deploy/traefik
+export KUBECONFIG=$HOME/.kube/config
+MONITORING_HOST=<모니터링 서버 사설 IP> WEB_PORT=18080 WEBSECURE_PORT=18443 ./deploy.sh <도메인>
+kubectl -n edge scale deploy/nginx --replicas 1
+kubectl -n edge wait --for=condition=Ready pod -l app=nginx --timeout 120s
+curl -s -o /dev/null -w '%{http_code}\n' "https://api.<도메인>/api/v1/products?page=0&size=1"   # 200
+```
+
+## 2단계: 80 · 443 넘기기
+
+전환 시각은 #1349 Agent 패치(Gateway · 주문 Deployment 수동 패치) 적용과 겹치지 않게 잡습니다. 전환 전에 `kubectl -n kidly-dev get deploy gateway order` 로 진행 중인 롤아웃이 없는지 봅니다. Traefik이 추적 헤더를 지우므로 전환 뒤에는 Agent를 붙여도 됩니다.
+
+nginx를 내린 뒤 Traefik을 80 · 443으로 배포합니다. 두 Pod가 같은 호스트 포트를 선언하므로 순서를 바꿀 수 없고, 그 사이 공개 요청이 끊깁니다. 2026-11-16 전환에서 약 17초 끊겼습니다(바깥에서 1초마다 호출해 잰 값). Traefik Pod가 Recreate로 옛 Pod를 내린 뒤 뜨는 시간입니다.
+
+```bash
+cd ~/kidly-traefik/deploy/traefik
+export KUBECONFIG=$HOME/.kube/config
+kubectl -n edge scale deploy/nginx --replicas 0
+MONITORING_HOST=<모니터링 서버 사설 IP> ./deploy.sh <도메인>
+```
+
+바깥 PC에서 확인합니다.
+
+```bash
+DOMAIN=<도메인>
+curl -s -o /dev/null -w '%{http_code} %{http_version}\n' "https://api.$DOMAIN/api/v1/products?page=0&size=1"   # 200 2
+curl -s "https://api.$DOMAIN/actuator/prometheus"                                    # 404 ProblemDetail
+curl -s -o /dev/null -w '%{http_code}\n' "https://grafana.$DOMAIN/api/health"        # 200
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' "http://api.$DOMAIN/"       # 301 https://api.<도메인>/
+openssl s_client -connect "api.$DOMAIN:443" -servername "unknown.$DOMAIN" </dev/null # 핸드셰이크 실패
+curl -sk "https://<탄력적 IP>/"                                                       # 핸드셰이크 실패(SNI 없음)
+```
+
+헤더는 1단계 5번의 whoami를 443으로 붙여 확인합니다(`--resolve` 없이 `https://api.$DOMAIN/__whoami`). `X-Real-Ip`가 그 PC의 공인 IP여야 합니다.
+
+certbot CronJob은 그대로 둡니다. 갱신은 만료 30일 전(2027-01-15)부터 시작해 그 전에는 아무것도 하지 않습니다. nginx가 없어 webroot 갱신은 실패하므로 그 전에 3단계(Traefik ACME)를 마칩니다.
+
+3단계 ACME는 다음 단계에서 되돌리기와 함께 이 README에 추가합니다. 3단계에서는 `tls.secretName`을 `tls.certResolver`로 바꿉니다.
