@@ -30,7 +30,6 @@ wait_rollout() {
 }
 wait_rollout deploy/prometheus 180s
 wait_rollout deploy/loki 180s
-wait_rollout deploy/tempo 120s
 wait_rollout deploy/grafana 180s
 wait_rollout ds/alloy 120s
 
@@ -75,4 +74,9 @@ if [[ "$installed" == "$expected" ]]; then
     echo "Logs Drilldown 앱 $installed"
 else
     echo "::warning::Logs Drilldown 앱이 ${installed:-알 수 없음} 입니다(기대 $expected). 플러그인 저장소에 닿지 못했을 수 있습니다. 기본 열이 보이지 않으면 monitoring-deploy 를 다시 돌리세요"
+fi
+
+# Tempo 준비 실패 시 기존 수집기 배포는 이어가고 경고를 남긴다.
+if ! k rollout status deploy/tempo --timeout 120s; then
+    echo "::warning::Tempo 가 120초 안에 준비되지 않았습니다. 기존 모니터링 배포는 계속합니다."
 fi
