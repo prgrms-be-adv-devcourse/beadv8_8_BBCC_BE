@@ -32,9 +32,8 @@ class KafkaDisabledIntegrationTest {
     }
 
     @Test
-    @DisplayName("일반 통합 테스트에서는 커밋 뒤 Kafka로 보내는 회원 · 인증 · 판매자 빈을 만들지 않는다")
+    @DisplayName("일반 통합 테스트에서는 커밋 뒤 Kafka로 보내는 인증 · 판매자 빈을 만들지 않는다")
     void noKafkaRelay() {
-        assertThat(context.containsBean("memberEventRelay")).isFalse();
         assertThat(context.containsBean("authEventRelay")).isFalse();
         assertThat(context.containsBean("sellerEventRelay")).isFalse();
     }

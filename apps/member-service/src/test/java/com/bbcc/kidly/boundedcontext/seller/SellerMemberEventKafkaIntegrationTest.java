@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.NOW;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
@@ -268,8 +269,12 @@ class SellerMemberEventKafkaIntegrationTest {
         return sellerApplicationRepository.getById(applicationId).getApplicantNickname();
     }
 
+    @Autowired
+    private MemberOutboxRelayService memberOutboxRelayService;
+
     private void publishInTransaction(MemberChangedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(event));
+        memberOutboxRelayService.relay();
     }
 
     private MemberChangedEvent memberChanged(String nickname, LocalDateTime occurredAt) {

@@ -14,7 +14,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Kafka로 보낼 회원 가입 · 정지 · 탈퇴 이벤트를 업무 트랜잭션 안에서 먼저 저장해 두는 아웃박스 메시지다.
  * 업무가 롤백되면 메시지도 남지 않고, 아직 보내지 않은 메시지는 sentAt이 비어 있다.
  */
 @Entity

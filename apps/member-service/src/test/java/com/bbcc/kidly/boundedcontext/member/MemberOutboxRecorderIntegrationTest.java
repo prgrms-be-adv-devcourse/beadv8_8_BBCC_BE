@@ -7,6 +7,8 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
+import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
+import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
@@ -25,7 +27,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 회원 가입 · 정지 · 탈퇴 이벤트를 커밋 직전에 아웃박스에 저장하는지 실제 트랜잭션으로 확인한다.
  * 저장은 발행한 트랜잭션 안에서 일어나야 하므로 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest
@@ -52,7 +53,7 @@ class MemberOutboxRecorderIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("가입과 정지는 업무 트랜잭션에 저장하고 변경은 저장하지 않는다")
+    @DisplayName("가입 · 정지 · 변경을 업무 트랜잭션에 저장한다")
     void recordsSelectedEvents() {
         transactionTemplate.executeWithoutResult(status -> {
             eventPublisher.publishEvent(new MemberRegisteredEvent(UUID.randomUUID(), OCCURRED_AT,
@@ -61,9 +62,11 @@ class MemberOutboxRecorderIntegrationTest {
                 new MemberSuspendedEvent.Data(1L, "사유", OCCURRED_AT)));
             eventPublisher.publishEvent(new MemberChangedEvent(UUID.randomUUID(), OCCURRED_AT,
                 new MemberChangedEvent.Data(1L, "닉네임")));
+            eventPublisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), OCCURRED_AT,
+                new SellerChangedEvent.Data(1L, "상호", SellerStatus.ACTIVE)));
         });
         assertThat(outboxRows()).extracting(row -> row.get("event_type"))
-            .containsExactly("member.registered", "member.suspended");
+            .containsExactly("member.registered", "member.suspended", "member.changed");
     }
 
     @Test

@@ -4,6 +4,8 @@ import com.bbcc.kidly.boundedcontext.member.app.port.outbox.MemberOutboxSender;
 import java.time.Duration;
 import java.util.Map;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -12,12 +14,19 @@ import org.springframework.kafka.support.ProducerListener;
 
 /**
  * 회원 아웃박스 릴레이가 쓰는 동기 전송기를 회원 전용 KafkaTemplate으로 만든다.
- * 커밋 뒤 바로 보내는 변경의 전송기(out/kafka/MemberKafkaConfig)와 템플릿을 따로 둔다. 각자 앱이 내려갈 때 자기 것을 닫는다.
  * 템플릿은 Boot 프로듀서 설정(주소 · 직렬화 등)을 그대로 쓰고 대기 시간만 덮어쓴다.
  * 빈으로 등록하지 않으므로 Boot 기본 KafkaTemplate과 앱 spring.kafka 설정은 그대로다.
  */
 @Configuration
 class MemberOutboxKafkaConfig {
+
+    static final String TOPIC = "kidly.member.events";
+
+    // 파티션 수는 만든 뒤 바꾸지 않는다(늘리면 키가 들어가는 파티션이 바뀌어 순서가 깨진다)
+    @Bean
+    NewTopic memberEventsTopic() {
+        return TopicBuilder.name(TOPIC).partitions(3).replicas(1).build();
+    }
 
     // 브로커가 응답하지 않거나 토픽 정보가 없을 때 send가 기다리는 시간이다. 기본 60초는 메시지 하나에 너무 길다
     static final int MAX_BLOCK_MS = 3000;
