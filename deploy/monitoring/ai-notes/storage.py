@@ -141,6 +141,10 @@ def render(publication):
         lines.extend(f'{i+1}. {check}' for i, check in enumerate(finding.checks))
         lines.extend(('관측: '+finding.observation, '원인 후보: '+finding.hypothesis))
         lines.append('대응 제안: '+finding.recommendation)
+        # 사람이 바로 열 서비스를 근거에서 뽑는다(AI 문구가 아니라 발급된 근거 기준)
+        services = list(dict.fromkeys(facts[ref].service for ref in finding.evidence_ids if facts[ref].service))
+        if services:
+            lines.append('영향 서비스: '+', '.join(services)+' → 운영 홈 상태판의 같은 줄에서 서비스 상태 · 오류 로그 열기')
         for ref in finding.evidence_ids:
             fact = facts[ref]
             label = HOST_PERCENT_LABELS.get(fact.metric) if fact.environment == 'global' and fact.unit == 'percent' else None

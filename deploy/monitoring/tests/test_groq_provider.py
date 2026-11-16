@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]/'ai-notes'))
 from contracts import AnalysisContext, Evidence
-from groq_provider import GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect
+from groq_provider import GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect, groq_limitations
 from groq_once import run_once, read_key, PRINCIPAL
 from storage import Store, LokiPublisher, deliver_accepted
 from errors import NotesError
@@ -70,6 +70,29 @@ class GroqProviderTest(unittest.TestCase):
         self.assertEqual(fields['check']['type'], 'string')
         self.assertNotIn('test-not-a-real-api-key', request.data.decode())
         client.open.assert_called_once()
+
+    def test_mcp_only_service_metrics_stay_out_of_groq_input(self):
+        extra = (Evidence('f1', 'error_logs_30m', 3, 'estimated_count', 'dev', 'kidly-order'),
+                 Evidence('f2', 'restarts_30m', 1, 'count', 'dev', 'kidly-order'),
+                 Evidence('f3', 'kafka_lag_by_service', 12, 'count', 'dev', 'kidly-order'))
+        client = transport()
+        self.provider(client).analyze(replace(context(), evidence=context().evidence+extra), 2300)
+        payload = json.loads(client.open.call_args.args[0].data)
+        sent = json.loads(payload['messages'][1]['content'])
+        self.assertEqual([item['evidence_id'] for item in sent['evidence']], ['f0'])
+        fields = payload['response_format']['json_schema']['schema']['properties']['finding']['properties']
+        self.assertEqual(fields['evidence_id']['enum'], ['f0'])
+        self.assertEqual(sent['limitations'], ['Host aggregate only'])
+        mixed = ('No finite fresh/available result for: kafka_lag, restarts_30m, error_logs_30m; absence is not healthy zero.',
+                 'No finite fresh/available result for: restarts_30m; absence is not healthy zero.',
+                 'Kafka lag is one snapshot; it does not establish increasing lag.',
+                 'kafka_lag_by_service maps consumer group kidly.<domain> to kidly-<domain>.')
+        self.assertEqual(groq_limitations(mixed), [
+            'No finite fresh/available result for: kafka_lag; absence is not healthy zero.',
+            'Kafka lag is one snapshot; it does not establish increasing lag.'])
+        only_extra = replace(context(), evidence=extra)
+        with self.assertRaisesRegex(ProviderError, '^insufficient_evidence$'):
+            self.provider(transport()).analyze(only_extra, 2300)
 
     def test_rejects_actual_trial_health_claim(self):
         sample = json.loads(json.loads(body())['choices'][0]['message']['content'])
