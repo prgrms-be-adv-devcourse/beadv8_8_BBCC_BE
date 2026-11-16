@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.auth.app.outbox;
 import com.bbcc.kidly.boundedcontext.auth.app.port.outbox.AuthOutboxSender;
 import com.bbcc.kidly.boundedcontext.auth.app.port.outbox.AuthOutboxSendException;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxRepository;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthOutboxRelayService {
     // 한 번 실행에서 보내는 최대 건수. 남은 메시지는 다음 실행에서 보낸다
     private static final int BATCH_SIZE = 100;
+    // 바로 전송이 끝날 시간을 주어 두 경로가 같은 행을 함께 보지 않게 한다.
+    private static final Duration IMMEDIATE_SEND_GRACE = Duration.ofMinutes(5);
 
     private final AuthOutboxRepository repository;
     private final AuthOutboxSender sender;
@@ -25,7 +29,7 @@ public class AuthOutboxRelayService {
         if (!repository.tryLockRelay()) {
             return;
         }
-        for (var message : repository.findOldest(BATCH_SIZE)) {
+        for (var message : repository.findCreatedBefore(LocalDateTime.now().minus(IMMEDIATE_SEND_GRACE), BATCH_SIZE)) {
             try {
                 sender.send(message);
             } catch (AuthOutboxSendException e) {
