@@ -24,12 +24,17 @@ public interface JpaSellerOutboxRepository
     @Query(value = "select pg_try_advisory_xact_lock(hashtext('kidly.seller.outbox-relay'))", nativeQuery = true)
     boolean tryLockRelay();
 
-    List<SellerOutboxMessage> findBySentAtIsNullOrderByIdAsc(Limit limit);
+    List<SellerOutboxMessage> findBySentAtIsNullAndCreatedAtBeforeOrderByIdAsc(LocalDateTime cutoff, Limit limit);
 
     @Override
-    default List<SellerOutboxMessage> findUnsent(int limit) {
-        return findBySentAtIsNullOrderByIdAsc(Limit.of(limit));
+    default List<SellerOutboxMessage> findUnsentCreatedBefore(LocalDateTime cutoff, int limit) {
+        return findBySentAtIsNullAndCreatedAtBeforeOrderByIdAsc(cutoff, Limit.of(limit));
     }
+
+    @Override
+    @Modifying
+    @Query("update SellerOutboxMessage m set m.sentAt = :now, m.attemptCount = m.attemptCount + 1 where m.id in :ids")
+    void markSent(@Param("ids") List<Long> ids, @Param("now") LocalDateTime now);
 
     // sent_at이 null인 행은 비교 결과가 참이 아니므로 지우지 않는다
     @Override

@@ -9,11 +9,11 @@
 
 | 이벤트 | 보내는 길 |
 |---|---|
-| `seller.changed` · `seller.application-rejected` | 아웃박스(`app/outbox/SellerOutboxRecorder` → `seller.seller_outbox` → 200ms 릴레이) |
+| `seller.changed` · `seller.application-rejected` | 아웃박스 저장 → 커밋 뒤 전송 |
 
 - 아웃박스
   - 커밋 직전(`BEFORE_COMMIT`)에 저장한다. 업무가 롤백되면 메시지도 없고, 저장이 실패하면 업무도 커밋되지 않는다. 트랜잭션 밖에서 발행하면 저장되지 않는다. Kafka 보내기를 꺼도 저장은 한다
-  - 릴레이(`in/outbox/SellerOutboxScheduler` → `app/outbox/SellerOutboxRelayService`): 200ms마다 보내지 않은 메시지를 `id` 순서로 최대 100건, 브로커 응답을 기다리며 보낸다. 실패하면 `attempt_count` · `last_error`를 남기고 그 자리에서 멈춘 뒤 다음 주기에 같은 메시지부터 다시 보낸다
+  - 커밋 뒤 대기열에서 바로 전송한다. 릴레이는 1분마다 5분 지난 미전송 행을 최대 100건 보낸다. 릴레이 실패 시 시도와 오류를 기록하고 멈춘다
   - 한 트랜잭션에서 PostgreSQL 트랜잭션 advisory lock을 먼저 얻는다. 못 얻으면 아무것도 하지 않는다(서버가 여러 대여도 릴레이는 한 번에 하나). 브로커가 멈추면 실패한 메시지 하나를 기다리는 동안(최대 약 15초) DB 연결 하나를 쥔다
   - 커밋 전에 앱이 멈추거나 커밋이 실패하면 그 실행에서 보낸 메시지(최대 100건)가 다시 간다. 받는 쪽은 두 번 받아도 결과가 같다(회원은 `occurredAt`으로 늦은 변경만 반영, 복사본은 같은 값으로 덮어씀, 알림은 같은 메시지로 메일을 한 통만 만듦)
   - 정리: 보낸 지 7일(브로커 보존 기간) 지난 행을 매일 04:00에 지운다. 릴레이와 같은 스케줄러라 Kafka 보내기를 끄면 정리도 돌지 않는다
@@ -23,7 +23,7 @@
 ## 다시 발행 (`app/SellerChangedRepublishService`, #643)
 - `POST /api/v1/admin/sellers/changed-events`(관리자): 판매자마다(활성 · 정지 모두) 지금 상태로 `seller.changed`를 다시 보내고 보낸 수를 돌려준다. 판매자는 바꾸지 않는다
 - 이벤트를 놓친 쪽(새로 붙은 검색 색인, 색인 재구축)을 따라잡게 할 때 쓴다. 받는 쪽은 같은 값으로 덮어써 여러 번 불러도 결과가 같다. 회원은 SELLER 역할을 잃을 때만 토큰을 무효화하므로 상태가 그대로인 이벤트로는 무효화되지 않는다
-- 위 아웃박스로 나가므로 한 트랜잭션에 판매자 수만큼 행을 저장하고, 릴레이가 200ms마다 최대 100건씩 보낸다(초당 최대 500건). 메모리 대기열 한도는 없다
+- 위 아웃박스로 나가므로 한 트랜잭션에 판매자 수만큼 행을 저장한다. 대기열이 가득 차면 남은 행은 릴레이가 보낸다
 
 ## DLT 보관 · 재처리 (`app/SellerDeadLetterService`, #962)
 - `in/SellerDeadLetterKafkaListener`가 `kidly.member.events.seller.dlt`를 그룹 `kidly.seller.dlt`(earliest)로 읽어 `seller.dead_letter`(`domain/SellerDeadLetter`)에 DLT 위치당 1행으로 보관한다. 같은 위치가 이미 있으면 건너뛴다(DLT는 파티션 1개를 컨테이너 하나가 차례로 읽고, 유니크 제약이 뒷받침한다). 저장 실패는 최대 60초 간격으로 끝없이 재시도하고, DLT의 DLT는 없다
