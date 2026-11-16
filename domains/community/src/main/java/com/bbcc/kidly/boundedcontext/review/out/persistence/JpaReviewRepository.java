@@ -85,6 +85,15 @@ public interface JpaReviewRepository extends JpaRepository<Review, Long>, Review
     List<ModerationCandidateRow> findModerationCandidates(@Param("maxAttempts") int maxAttempts, Limit limit);
 
     @Override
+    @Modifying
+    @Query("""
+        update CommunityReview r set r.moderationAttempts = 0
+        where r.moderationStatus = com.bbcc.kidly.boundedcontext.review.domain.ModerationStatus.PENDING
+          and r.moderationAttempts >= :maxAttempts
+        """)
+    int resetExhaustedAttempts(@Param("maxAttempts") int maxAttempts);
+
+    @Override
     @Query(ADMIN_SELECT + " where r.moderationStatus = :status order by r.id desc")
     List<AdminReviewRow> findByModerationStatus(@Param("status") ModerationStatus status, Limit limit);
 

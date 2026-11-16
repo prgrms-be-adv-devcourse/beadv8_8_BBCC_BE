@@ -26,6 +26,13 @@ public interface ReviewModerations {
      */
     List<AdminReviewRow> findByModerationStatusAfter(ModerationStatus status, Long id, Limit limit);
 
+    /**
+     * 재시도 상한에 닿은 검사 대기 리뷰(PENDING, 시도 횟수 ≥ 상한)의 시도 횟수를 0으로 한 문장에 되돌린다. 수정 시각은 바꾸지 않는다.
+     *
+     * @return 되돌린 리뷰 수
+     */
+    int resetExhaustedAttempts(int maxAttempts);
+
     interface ModerationCandidateRow {
 
         Long getId();

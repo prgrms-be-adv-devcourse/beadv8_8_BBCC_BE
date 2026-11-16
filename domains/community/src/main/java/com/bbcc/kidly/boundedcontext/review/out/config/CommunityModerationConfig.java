@@ -4,7 +4,9 @@ import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.BannedWordsModerator;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.ChainedContentModerator;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.ModerationAdapter;
-import com.bbcc.kidly.boundedcontext.review.out.moderation.OpenAiCompatibleModerator;
+import com.bbcc.kidly.boundedcontext.review.out.moderation.SafeguardModerator;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 
 /**
  * 리뷰 검사기를 만들고 설정(moderators) 순서대로 이어 붙인다. 쓸 수 없는 검사기(키 없는 AI)는 빼고 기동 때 한 줄 남긴다.
@@ -31,10 +35,28 @@ public class CommunityModerationConfig {
         return new BannedWordsModerator(properties.bannedWords());
     }
 
+    static final String POLICY_KEY = "kidly.community.moderation.ai.policy";
+
     @Bean
-    ModerationAdapter communityAiModerator(CommunityModerationProperties properties) {
+    ModerationAdapter communityAiModerator(CommunityModerationProperties properties, ResourceLoader resourceLoader) {
         CommunityModerationProperties.Ai ai = properties.ai();
-        return new OpenAiCompatibleModerator(ai.baseUrl(), ai.model(), ai.apiKey(), ai.timeout());
+        return new SafeguardModerator(new SafeguardModerator.Settings(ai.baseUrl(), ai.model(), ai.apiKey(),
+            ai.timeout(), policy(resourceLoader, ai.policy()), ai.temperature(), ai.maxTokens(), ai.jsonResponse(),
+            ai.reasoningEffort()));
+    }
+
+    // 정책 전문을 읽는다. 없거나 비면 키 이름이 나오는 오류로 기동에 실패한다(정책 없이 모델을 부르지 않는다)
+    private static String policy(ResourceLoader resourceLoader, String location) {
+        Resource resource = resourceLoader.getResource(location);
+        try {
+            String text = resource.exists() ? resource.getContentAsString(StandardCharsets.UTF_8).strip() : "";
+            if (text.isEmpty()) {
+                throw new IllegalStateException(POLICY_KEY + "의 정책 파일이 없거나 비어 있습니다: " + location);
+            }
+            return text;
+        } catch (IOException e) {
+            throw new IllegalStateException(POLICY_KEY + "의 정책 파일을 읽지 못했습니다: " + location, e);
+        }
     }
 
     @Bean
