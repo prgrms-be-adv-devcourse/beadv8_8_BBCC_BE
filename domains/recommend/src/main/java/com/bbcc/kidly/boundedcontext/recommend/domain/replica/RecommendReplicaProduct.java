@@ -317,6 +317,13 @@ public class RecommendReplicaProduct extends BaseTimeEntity {
         return Collections.unmodifiableList(categoryPath);
     }
 
+    /**
+     * 판매 가능한 사이즈를 읽기 전용 집합으로 돌려준다.
+     */
+    public Set<String> getSellableSizes() {
+        return Collections.unmodifiableSet(sellableSizes);
+    }
+
     // 화면 · 프롬프트에 늘 같은 순서로 보이도록 이름 순서로 돌려준다
     public List<String> getColors() {
         List<String> sorted = new ArrayList<>(colors);

@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionAiPro
 import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionAiRequest;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionSimilarityReader;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.recommended.RecommendExcludedProducts;
+import com.bbcc.kidly.boundedcontext.recommend.app.recommended.support.OnSaleProductCatalog;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionCandidate;
 import com.bbcc.kidly.boundedcontext.recommend.domain.companion.CompanionCandidateRanker;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceWeights;
@@ -17,6 +18,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaProductSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -33,8 +35,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 함께 사면 좋은 상품의 후보를 트랜잭션 안에서 읽어 규칙 순서로 정한다.
- * 상품의 사이즈 줄과 카테고리 경로는 지연 로딩이므로 이 트랜잭션 안에서 모두 읽는다.
+ * 함께 사면 좋은 상품의 후보를 규칙 순서로 정한다.
+ * 판매중인 상품은 메모리에 보관한 스냅숏으로 읽고, 보고 있는 상품은 DB에서 읽는다.
+ * 보관소는 확인 간격이 지난 요청에서는 이 호출 안에서 고쳐진 상품 복사본을 DB에서 읽는다.
+ * 보고 있는 상품의 카테고리 경로는 지연 로딩이므로 이 트랜잭션 안에서 읽는다.
  */
 @Component
 public class CompanionCandidateReader {
@@ -44,6 +48,7 @@ public class CompanionCandidateReader {
     private final RecommendReplicaChildRepository replicaChildRepository;
     private final RecommendReplicaProductRepository replicaProductRepository;
     private final RecommendReplicaSellerRepository replicaSellerRepository;
+    private final OnSaleProductCatalog onSaleProductCatalog;
     private final RecommendExcludedProducts excludedProducts;
     private final CompanionSimilarityReader similarityReader;
     private final RecommendedProductSelector selector;
@@ -53,6 +58,7 @@ public class CompanionCandidateReader {
         RecommendReplicaChildRepository replicaChildRepository,
         RecommendReplicaProductRepository replicaProductRepository,
         RecommendReplicaSellerRepository replicaSellerRepository,
+        OnSaleProductCatalog onSaleProductCatalog,
         RecommendExcludedProducts excludedProducts,
         CompanionSimilarityReader similarityReader,
         GrowthChart growthChart
@@ -60,6 +66,7 @@ public class CompanionCandidateReader {
         this.replicaChildRepository = replicaChildRepository;
         this.replicaProductRepository = replicaProductRepository;
         this.replicaSellerRepository = replicaSellerRepository;
+        this.onSaleProductCatalog = onSaleProductCatalog;
         this.excludedProducts = excludedProducts;
         this.similarityReader = similarityReader;
         this.selector = new RecommendedProductSelector(new SizeRecommender(growthChart));
@@ -77,7 +84,7 @@ public class CompanionCandidateReader {
             .orElseThrow(() -> new BusinessException(RecommendErrorCode.PRODUCT_NOT_FOUND));
         List<String> viewedPathNames = categoryPathNames(viewed);
 
-        List<RecommendReplicaProduct> onSale = replicaProductRepository.findAllOnSale(null);
+        List<ReplicaProductSnapshot> onSale = onSaleProductCatalog.onSale(null);
         List<RecommendedProduct> selected = selector.select(child.toChildSizeInput(), onSale,
             LocalDate.now(SERVICE_ZONE));
         List<RecommendedProduct> candidates = withoutExcluded(selected, memberId, child);
@@ -105,10 +112,10 @@ public class CompanionCandidateReader {
     }
 
     private List<CompanionCandidate> toCandidates(Long viewedProductId, List<RecommendedProduct> candidates,
-        List<RecommendReplicaProduct> onSale) {
-        Map<Long, RecommendReplicaProduct> entitiesById = new HashMap<>();
-        for (RecommendReplicaProduct entity : onSale) {
-            entitiesById.put(entity.getProductId(), entity);
+        List<ReplicaProductSnapshot> onSale) {
+        Map<Long, ReplicaProductSnapshot> snapshotsById = new HashMap<>();
+        for (ReplicaProductSnapshot snapshot : onSale) {
+            snapshotsById.put(snapshot.productId(), snapshot);
         }
         List<Long> candidateIds = new ArrayList<>();
         for (RecommendedProduct candidate : candidates) {
@@ -118,7 +125,7 @@ public class CompanionCandidateReader {
         Map<Long, Double> similarities = similarityReader.similarities(viewedProductId, candidateIds);
         List<CompanionCandidate> result = new ArrayList<>();
         for (RecommendedProduct candidate : candidates) {
-            List<String> pathNames = categoryPathNames(entitiesById.get(candidate.productId()));
+            List<String> pathNames = snapshotsById.get(candidate.productId()).categoryPathNames();
             result.add(new CompanionCandidate(candidate, pathNames, similarities.get(candidate.productId())));
         }
         return result;

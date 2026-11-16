@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend.out.replica;
 
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,4 +18,18 @@ public interface JpaRecommendReplicaProductRepository
           AND (:categoryId IS NULL OR p.categoryId = :categoryId)
         """)
     List<RecommendReplicaProduct> findAllOnSale(@Param("categoryId") Long categoryId);
+
+    @Override
+    @Query("""
+        SELECT p FROM RecommendReplicaProduct p
+        WHERE p.updatedAt > :since
+        """)
+    List<RecommendReplicaProduct> findAllChangedAfter(@Param("since") LocalDateTime since);
+
+    @Override
+    @Query("""
+        SELECT COUNT(p) FROM RecommendReplicaProduct p
+        WHERE p.status = com.bbcc.kidly.shared.product.domain.ProductStatus.ON_SALE
+        """)
+    long countOnSale();
 }

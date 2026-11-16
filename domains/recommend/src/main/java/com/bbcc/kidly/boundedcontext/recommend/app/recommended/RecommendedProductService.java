@@ -45,7 +45,6 @@ public class RecommendedProductService {
         this.ranking = ranking;
     }
 
-    // 상품의 사이즈 줄은 지연 로딩이므로 트랜잭션 안에서 읽어 계산한다
     // asOf가 없으면 지금 시각(한국 시간, 초 단위)을 기준 시각으로 정해 결과에 담는다
     @Transactional(readOnly = true)
     public RecommendedProductPage list(Long memberId, Long childId, Long categoryId, int page, int size,
