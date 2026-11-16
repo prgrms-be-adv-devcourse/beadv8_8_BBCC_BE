@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.childprofile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -40,7 +42,7 @@ class ChildProfileOutboxRelayServiceTest {
         var first = message();
         var second = message();
         given(outboxRepository.tryLockRelay()).willReturn(true);
-        given(outboxRepository.findUnsent(100)).willReturn(List.of(first, second));
+        given(outboxRepository.findUnsentCreatedBefore(any(), eq(100))).willReturn(List.of(first, second));
 
         relayService().relay();
 
@@ -61,7 +63,7 @@ class ChildProfileOutboxRelayServiceTest {
 
         relayService().relay();
 
-        verify(outboxRepository, never()).findUnsent(anyInt());
+        verify(outboxRepository, never()).findUnsentCreatedBefore(any(), anyInt());
         verifyNoInteractions(sender);
     }
 
@@ -72,7 +74,7 @@ class ChildProfileOutboxRelayServiceTest {
         var failing = message();
         var after = message();
         given(outboxRepository.tryLockRelay()).willReturn(true);
-        given(outboxRepository.findUnsent(100)).willReturn(List.of(first, failing, after));
+        given(outboxRepository.findUnsentCreatedBefore(any(), eq(100))).willReturn(List.of(first, failing, after));
         var error = "자녀 프로필 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. eventType=child.changed eventId="
             + failing.getEventId() + " key=3 reason=broker down";
         // 다른 메시지를 보낼 때 이 스텁과 인자가 달라도 정상이다(엄격 스텁이 인자 불일치로 보지 않게)

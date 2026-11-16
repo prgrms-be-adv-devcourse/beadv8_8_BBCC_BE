@@ -23,11 +23,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
 class JpaChildProfileEventOutboxTest {
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final UUID EVENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000077");
@@ -81,7 +85,7 @@ class JpaChildProfileEventOutboxTest {
     void appendGrowthRecordBody() {
         var event = new ChildGrowthRecordedEvent(EVENT_ID, NOW,
             new ChildGrowthRecordedEvent.Data(7L, CHILD_ID, ChildProfileFixture.HEIGHT, null, NOW));
-        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER).append(event);
+        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(event);
         var captor = ArgumentCaptor.forClass(ChildProfileOutboxMessage.class);
         verify(outboxRepository).save(captor.capture());
         var body = JSON_MAPPER.readTree(captor.getValue().getPayload());
@@ -97,13 +101,13 @@ class JpaChildProfileEventOutboxTest {
     void skipSameEventId() {
         given(outboxRepository.existsByEventId(EVENT_ID)).willReturn(true);
 
-        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER).append(DELETED);
+        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(DELETED);
 
         then(outboxRepository).should(never()).save(any());
     }
 
     private ChildProfileOutboxMessage appendAndCapture() {
-        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER).append(DELETED);
+        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(DELETED);
         var captor = ArgumentCaptor.forClass(ChildProfileOutboxMessage.class);
         verify(outboxRepository).save(captor.capture());
         return captor.getValue();

@@ -14,9 +14,14 @@ public interface ChildProfileOutboxRepository {
     boolean tryLockRelay();
 
     /**
-     * 아직 보내지 않은 메시지를 id 오름차순으로 최대 limit건 찾는다.
+     * cutoff보다 먼저 만든, 아직 보내지 않은 메시지를 id 오름차순으로 최대 limit건 찾는다.
      */
-    List<ChildProfileOutboxMessage> findUnsent(int limit);
+    List<ChildProfileOutboxMessage> findUnsentCreatedBefore(LocalDateTime cutoff, int limit);
+
+    /**
+     * 메시지들을 보낸 것으로 한 번에 기록한다. 트랜잭션 안에서 부른다.
+     */
+    void markSent(List<Long> ids, LocalDateTime now);
 
     /**
      * cutoff보다 먼저 보낸 메시지를 지운다. 아직 보내지 않은 메시지는 지우지 않는다.
