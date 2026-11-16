@@ -15,6 +15,13 @@
   },
   "links": [
     {
+      "title": "운영 홈",
+      "type": "link",
+      "url": "/d/kidly-home",
+      "includeVars": false,
+      "keepTime": false
+    },
+    {
       "title": "서비스 상태 확인",
       "type": "link",
       "url": "/d/kidly-http",
@@ -50,14 +57,29 @@
   },
   "panels": [
     {
+      "id": 4,
+      "type": "text",
+      "title": "이슈 조사에 사용하는 방법",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "1. 메모의 **관측 시각·환경**을 알림과 맞춥니다. 메모가 없거나 시각이 다르면 [운영 홈](/d/kidly-home)의 증상별 경로를 이용합니다.\n2. **첫 확인**을 실행하고 [서비스 상태](/d/kidly-http)나 [오류 로그](/d/kidly-logs)에서 원인 후보의 근거를 대조합니다.\n3. 이슈에는 **발생 시각 · 영향 서비스 · 확인한 지표/화면 링크 · 다음 조치**를 남깁니다. 원인 후보는 확인 전 가설로 표시합니다."
+      }
+    },
+    {
       "id": 3,
       "type": "logs",
       "title": "최신 AI 분석 메모",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 6,
         "w": 24,
-        "h": 17
+        "h": 14
       },
       "timeFrom": "14d",
       "datasource": {
@@ -83,149 +105,148 @@
       }
     },
     {
-      "id": 1,
-      "type": "stat",
-      "title": "게시된 메모의 관측 경과 · 서비스 정상 여부 아님",
+      "id": 5,
+      "type": "row",
+      "title": "메모 게시 상태",
+      "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 17,
-        "w": 12,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "time() - (max(kidly_ai_notes_last_observed_seconds{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_last_observed_seconds{env=\"$env\"})<60)) > 0)",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "게시 전 / 수집 확인 필요",
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "게시 전 / 수집 확인 필요",
-                  "color": "gray"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 2400
-              },
-              {
-                "color": "red",
-                "value": 3600
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": false
-        },
-        "colorMode": "background"
-      }
-    },
-    {
-      "id": 2,
-      "type": "stat",
-      "title": "미전송 메모 · 실패 시 AI 재호출하지 않음",
-      "gridPos": {
-        "x": 12,
-        "y": 17,
-        "w": 12,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(kidly_ai_notes_pending{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_pending{env=\"$env\"})<60))",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "noValue": "게시 전 / 수집 확인 필요",
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "게시 전 / 수집 확인 필요",
-                  "color": "gray"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "values": false
-        },
-        "colorMode": "background"
-      }
-    },
-    {
-      "id": 4,
-      "type": "text",
-      "title": "읽는 방법",
-      "gridPos": {
-        "x": 0,
-        "y": 22,
+        "y": 20,
         "w": 24,
-        "h": 4
+        "h": 1
       },
-      "options": {
-        "mode": "markdown",
-        "content": "최신 메모에서 먼저 확인할 항목과 관측·원인 후보·대응 제안·근거를 볼 수 있습니다. 원인 후보와 제안은 확인이 필요한 AI 분석입니다. 관측 시각과 제약을 함께 읽어 주세요."
-      }
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "게시된 메모의 관측 경과 · 서비스 정상 여부 아님",
+          "gridPos": {
+            "x": 0,
+            "y": 21,
+            "w": 12,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "time() - (max(kidly_ai_notes_last_observed_seconds{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_last_observed_seconds{env=\"$env\"})<60)) > 0)",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "noValue": "게시 전 / 수집 확인 필요",
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "게시 전 / 수집 확인 필요",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 2400
+                  },
+                  {
+                    "color": "red",
+                    "value": 3600
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "values": false
+            },
+            "colorMode": "background"
+          }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "미전송 메모 · 실패 시 AI 재호출하지 않음",
+          "gridPos": {
+            "x": 12,
+            "y": 21,
+            "w": 12,
+            "h": 5
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "max(kidly_ai_notes_pending{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_pending{env=\"$env\"})<60))",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "noValue": "게시 전 / 수집 확인 필요",
+              "mappings": [
+                {
+                  "type": "special",
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "게시 전 / 수집 확인 필요",
+                      "color": "gray"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "values": false
+            },
+            "colorMode": "background"
+          }
+        }
+      ]
     }
   ]
 }
