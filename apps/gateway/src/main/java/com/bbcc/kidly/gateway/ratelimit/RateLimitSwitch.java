@@ -32,7 +32,9 @@ class RateLimitSwitch implements SmartLifecycle {
 
     @Override
     public void start() {
+        // 읽기가 주기보다 오래 걸리면 interval 이 OverflowException 으로 끝나 다시 읽지 않는다. 그동안 온 틱은 버린다
         refresh = Flux.interval(properties.switchRefresh())
+            .onBackpressureDrop()
             .concatMap(tick -> read())
             .subscribe();
     }
