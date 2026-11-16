@@ -5,6 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.context.annotation.Import;
@@ -19,6 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Tag("integration")
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import(RecordingBackendConfiguration.class)
+@Import({RecordingBackendConfiguration.class, RedisTestcontainersConfiguration.class})
+@ExtendWith(RedisCleanerExtension.class)
 public @interface IntegrationTest {
 }

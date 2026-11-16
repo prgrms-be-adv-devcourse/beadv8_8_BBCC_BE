@@ -10,6 +10,7 @@ import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerConta
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.NestedExceptionUtils;
+import org.springframework.dao.DataAccessException;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
@@ -24,9 +25,10 @@ import org.springframework.util.backoff.FixedBackOff;
 /**
  * Gateway가 auth.tokens-revoked를 받을 때 쓰는 컨테이너 팩토리 · DLT.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고, 한 건씩 처리 완료를 표시한다.
- * 메모리에 넣기만 해서 잠깐 실패할 일이 없으므로 재시도하지 않는다: 어떤 예외든 바로 DLT로 보낸다.
+ * 읽지 못한 메시지는 재시도해도 같으므로 바로 DLT로 보낸다. Redis 쓰기 실패(DataAccessException)는 DLT로 보내면 무효화를 잃으므로
+ * Redis가 돌아올 때까지 고정 간격으로 다시 시도한다. 그동안 이 리스너는 뒤 메시지를 읽지 않는다.
  * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate에 영향이 없다.
- * 더 읽을 메시지가 없으면 idle 이벤트를 낸다. RevocationReplay 가 이것으로 무효화 목록을 다 읽었는지 안다(#1176).
+ * 더 읽을 메시지가 없으면 idle 이벤트를 낸다.
  */
 @Slf4j
 @Configuration
@@ -37,6 +39,7 @@ class GatewayKafkaListenerConfig {
     private static final String DLT_SUFFIX = ".gateway.dlt";
     // 이 간격(첫 메시지 전에는 기본 배수 5를 곱한 5초) 동안 받은 메시지가 없으면 idle 이벤트를 낸다
     private static final long IDLE_EVENT_INTERVAL_MS = 1000L;
+    private static final long REDIS_RETRY_INTERVAL_MS = 5000L;
 
     @Bean
     NewTopic gatewayAuthEventsDeadLetterTopic() {
@@ -56,14 +59,16 @@ class GatewayKafkaListenerConfig {
         return factory;
     }
 
-    // 실패한 메시지는 재시도 없이 kidly.auth.events.gateway.dlt로 보낸다
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
-        return new DefaultErrorHandler((record, e) -> {
+        var errorHandler = new DefaultErrorHandler((record, e) -> {
             logDeadLetter(record, e);
             deadLetter.accept(record, e);
-        }, new FixedBackOff(0L, 0L));
+        }, new FixedBackOff(REDIS_RETRY_INTERVAL_MS, FixedBackOff.UNLIMITED_ATTEMPTS));
+        errorHandler.defaultFalse();
+        errorHandler.addRetryableExceptions(DataAccessException.class);
+        return errorHandler;
     }
 
     // Boot 프로듀서 팩토리를 그대로 써서 공용 프로듀서를 빌려 쓰므로 따로 닫을 것이 없다

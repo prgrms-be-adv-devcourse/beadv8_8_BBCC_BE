@@ -21,6 +21,8 @@ dependencies {
     implementation("org.springframework.security:spring-security-web")
     // auth.tokens-revoked 수신, 읽지 못한 메시지는 DLT로
     implementation("org.springframework.boot:spring-boot-starter-kafka")
+    // 토큰 무효화 목록 저장소(#1327)
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
     // 헬스체크 · 메트릭
     implementation("org.springframework.boot:spring-boot-starter-actuator")

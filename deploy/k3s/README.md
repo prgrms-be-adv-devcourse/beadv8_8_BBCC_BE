@@ -13,7 +13,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 | 배포 | 하나씩 차례로. 새 Pod 가 준비된 뒤 옛 Pod 를 내린다. 순서는 롤링 서비스 → 상품 · 알림(스케줄러가 두 번 돌면 안 돼서 옛 Pod 를 먼저 내림, `SINGLE_INSTANCE`) → Gateway(다른 서비스가 다 뜬 뒤, `EDGE`). 소스가 바뀌지 않았거나(#1169, `.github/scripts/image-key.sh`) 소스는 바뀌어도 실행 jar 가 쓰는 코드가 같은(#1192, `.github/scripts/runtime-key.sh`) 서비스는 이미지 digest 가 같아 다시 뜨지 않는다 |
 | 자동 확장 | 추천만 HPA(CPU 70%가 5분 이어질 때, 1 ~ 2개). 나머지는 1개 |
 | 하루 한 번 실행(CronJob) | 정산은 매일 한국 시간 10시에 같은 이미지로 일회 실행한다. 영업일과 중복 실행은 앱이 판단한다 |
-| Redis | 캐시용(#690). 같은 namespace 에서 `redis:6379`, 비밀번호 없음(ClusterIP 라 밖에서 닿지 않는다). 영속성 없음(Pod 가 다시 뜨면 비어 있다), `maxmemory 64mb` · `allkeys-lru`, 메모리 128Mi. 지표는 긁지 않고 로그만 모은다 |
+| Redis | 추천 AI 답 캐시(#690) · Gateway 토큰 무효화 목록(#1327). 같은 namespace 에서 `redis:6379`, 비밀번호 없음(ClusterIP 라 밖에서 닿지 않는다). 영속성 없음(Pod 가 다시 뜨면 비어 있다. Gateway 는 Kafka 에서 다시 채운다), `maxmemory 64mb` · `volatile-lru`(TTL 있는 추천 AI 답만 지우고 TTL 없는 무효화 목록은 남긴다), 메모리 128Mi. 지표는 긁지 않고 로그만 모은다 |
 | 지표 · 로그 | monitoring-agent Alloy(이 k3s 의 namespace monitoring, #1210)가 k3s API 로 Pod 를 찾는다. Pod 라벨 `kidly/job` 을 job · `service_name` 으로 쓴다(compose 때와 같은 `kidly-<이름>`, exporter 는 `kidly-kafka`). `instance` 는 Pod 이름 |
 | Spring 이 아닌 것 | kafka-exporter 처럼 `/actuator` 가 없으면 포트 연결로 확인하고, compose 의 `command` · 포트 · `user` · `read_only` · `cap_drop` 을 그대로 옮긴다 |
 
@@ -62,7 +62,7 @@ curl -s localhost:30200/actuator/health     # nginx 가 붙는 Gateway
 ## 알려진 한계
 
 - **environment-operation 의 dev 끄기 · 켜기**: k3s CronJob 을 suspend · 재개하고 Deployment 를 0개 · 1개로 돌린다(추천은 다시 HPA 가 맡는다)
-- **Gateway 를 다시 띄울 때**: 옛 Pod 와 새 Pod 가 겹치는 몇 초 동안 구독 그룹 `kidly.gateway` 의 파티션을 나눠 가져, 새 Pod 가 토큰 무효화 목록을 일부만 안다. 옛 Pod 가 내려가면 모든 파티션을 31분 전부터 다시 읽는다(apps/gateway CLAUDE.md 의 무효화 목록)
+- **Redis 를 다시 띄울 때**: 비어 있으므로 Gateway 가 토큰 무효화 목록을 Kafka 에서 31분 전부터 다시 채운다(1초 안에 알아챈다). 그 몇 초 동안 무효화된 토큰이 통과할 수 있다. Gateway 재시작 · 롤링 배포는 같은 Redis 를 보므로 공백이 없다(apps/gateway CLAUDE.md 의 무효화 목록, #1327)
 - **노드가 이미지를 지우면 다음 배포까지 다시 받지 못한다.** pull secret 의 토큰이 배포 잡이 끝나면 만료된다. `deploy/search/README.md` 의 ImagePullBackOff 와 같다. 배포 끝의 이미지 정리는 k3s 가 쓰는 이미지를 남기므로 떠 있는 Pod 에는 닿지 않고, 지운 옛 이미지로 롤백할 때만 다음 배포가 다시 받는다
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)
