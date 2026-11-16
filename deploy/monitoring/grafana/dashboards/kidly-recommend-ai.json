@@ -199,7 +199,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "한국 시간 오늘 하루 호출 상한(2,000회) 중 쓴 횟수입니다. 추천 DB의 하루 횟수 표에서 읽습니다.",
+      "description": "한국 시간 오늘 하루 호출 상한(dev 100,000회) 중 쓴 횟수입니다. 추천 DB의 하루 횟수 표에서 읽습니다.",
       "gridPos": {
         "x": 16,
         "y": 0,
@@ -221,7 +221,7 @@
       "fieldConfig": {
         "defaults": {
           "min": 0,
-          "max": 2000,
+          "max": 100000,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -231,11 +231,11 @@
               },
               {
                 "color": "orange",
-                "value": 1600
+                "value": 80000
               },
               {
                 "color": "red",
-                "value": 2000
+                "value": 100000
               }
             ]
           }

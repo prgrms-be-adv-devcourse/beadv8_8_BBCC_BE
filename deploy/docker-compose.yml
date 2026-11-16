@@ -125,7 +125,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       # 비어 있으면 OpenAI 모델 빈 없이 뜬다
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      # AI 하루 호출 상한(kidly.recommend.ai.daily-call-limit, #1409). 홈 미리보기 · 함께 구매 · 사이즈 추천이 함께 쓴다. 0 이하면 AI 를 부르지 않는다
+      # AI 하루 호출 상한(kidly.recommend.ai.daily-call-limit, #1409). 홈 맛보기 · 함께 사면 좋은 상품 · 사이즈 추천이 함께 쓴다. 0 이하면 AI 를 부르지 않는다
       KIDLY_RECOMMEND_AI_DAILY_CALL_LIMIT: ${KIDLY_RECOMMEND_AI_DAILY_CALL_LIMIT:-2000}
       # AI 답 저장소. 같은 k3s namespace 의 redis 서비스(K3S_PROFILES 의 redis)에 붙는다
       SPRING_DATA_REDIS_HOST: redis
