@@ -398,7 +398,7 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| POST | `/api/v1/chatbot/messages` | 챗봇에게 묻기. 본문 `message`(1~500자) · `history`(선택, 오래된 것부터 최대 10개, 각 `role` `USER` · `ASSISTANT`, `content` 1~1000자). 응답 `{ answer, sources: [{ documentId, title }], products: [{ productId, name, businessName, price, thumbnailUrl, soldOut }] }`. `products`는 이번 답에서 찾은 상품 카드(최대 6개, 없으면 `[]`, ID · 가격은 숫자, 없는 상호명 · 썸네일은 `null`). 대화는 저장하지 않는다 | 🔒 |
+| POST | `/api/v1/chatbot/messages` | 챗봇에게 묻기. 본문 `message`(1~500자) · `history`(선택, 오래된 것부터 최대 10개, 각 `role` `USER` · `ASSISTANT`, `content` 1~1000자). 응답 `{ answer, sources: [{ documentId, title }], products: [{ productId, name, businessName, price, thumbnailUrl, soldOut }] }`. `products`는 이번 답에서 찾은 상품 카드(최대 6개, 없으면 `[]`, ID · 가격은 숫자, 없는 상호명 · 썸네일은 `null`). 대화는 저장하지 않는다. `history`는 회원이 바꿀 수 있으므로 AI에는 챗봇의 이전 답이 아니라 확인되지 않은 기록으로만 넘기고(턴마다 한 줄로 펴서 한 메시지로 묶는다), 주문 · 상품 · 가격 · 정책 사실은 도구 결과와 근거 문서로만 말하게 한다(#1388) | 🔒 |
 | POST | `/api/v1/admin/chatbot/documents` | 답변 근거 문서 저장(201 + `Location`). 본문 `title`(1~200자) · `category`(`FAQ` · `POLICY` · `SIZE_GUIDE`) · `content`(1~20,000자). 응답에 만든 조각 수 `chunkCount` | 🛠 |
 | GET | `/api/v1/admin/chatbot/documents` | 문서 목록(최신순, `page` · `size` 1~100, 기본 0 · 20). 본문은 넣지 않는다 | 🛠 |
 | GET | `/api/v1/admin/chatbot/documents/{id}` | 문서 상세(본문 · `chunkCount` 포함) | 🛠 |
