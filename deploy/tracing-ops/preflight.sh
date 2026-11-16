@@ -5,7 +5,7 @@ export KUBECONFIG="$HOME/.kube/config"
 
 deployment_ready() {
     local namespace=$1 name=$2 replicas
-    replicas=$(kubectl -n "$namespace" get deployment "$name" \
+    replicas=$(kubectl -n "$namespace" get deployment "$name" --ignore-not-found \
         -o jsonpath='{.status.availableReplicas}')
     if [[ "$replicas" =~ ^[1-9][0-9]*$ ]]; then
         printf '%s: ready (%s replica(s))\n' "$name" "$replicas"
@@ -23,7 +23,7 @@ case "${1:-}" in
         deployment_ready kidly-dev gateway
         deployment_ready kidly-dev order
         for workload in gateway order; do
-            agent=$(kubectl -n kidly-dev get deployment "$workload" \
+            agent=$(kubectl -n kidly-dev get deployment "$workload" --ignore-not-found \
                 -o 'jsonpath={.spec.template.spec.volumes[?(@.name=="kidly-tracing-agent")].name}')
             printf '%s tracing volume: %s\n' "$workload" "${agent:-absent}"
         done
