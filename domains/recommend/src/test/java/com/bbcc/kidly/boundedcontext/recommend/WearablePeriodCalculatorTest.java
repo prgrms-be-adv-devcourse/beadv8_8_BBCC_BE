@@ -77,9 +77,9 @@ class WearablePeriodCalculatorTest {
     }
 
     @Test
-    @DisplayName("WEAR-02 상의 너비 기준은 가슴단면 차이 ÷ (한 달 성장량 × 가슴 비율 ÷ 2)를 내린 개월 수이고 어깨너비는 쓰지 않는다")
+    @DisplayName("WEAR-02 상의 너비 기준은 (가슴단면 차이 ÷ (가슴 비율 ÷ 2) + 5cm) ÷ 한 달 성장량을 내린 개월 수이고 어깨너비는 쓰지 않는다")
     void widthMonthsFromChest() {
-        // 만 6세 여 가슴 비율 0.30: 1 ÷ (0.5 × 0.30 ÷ 2) = 13.3 → 13. 130 사이즈는 비교한 차이가 없다
+        // 만 6세 여 가슴 비율 0.30: (1 ÷ 0.15 + 5) ÷ 0.5 = 23.3 → 23. 130 사이즈는 비교한 차이가 없다
         ReferenceFit fit = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
             item("CHEST_WIDTH", "30.0", "31.0"),
             item("SHOULDER_WIDTH", "28.0", "28.2")));
@@ -88,13 +88,13 @@ class WearablePeriodCalculatorTest {
             new WearInfo(LONG_SIZES, TOP_PATH, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), fit));
 
         assertThat(periods).extracting(WearablePeriod::size, WearablePeriod::widthMonths)
-            .containsExactly(tuple("120", 13), tuple("130", null));
+            .containsExactly(tuple("120", 23), tuple("130", null));
     }
 
     @Test
     @DisplayName("WEAR-02 너비 항목이 여럿이면 부위마다 계산해 가장 짧은 개월 수를 쓴다")
     void widthMonthsIsShortestPart() {
-        // 허리 비율 0.25: 1 ÷ 0.0625 = 16, 엉덩이 비율 0.38: 1 ÷ 0.095 = 10.5 → 10
+        // 허리 비율 0.25: (1 ÷ 0.125 + 5) ÷ 0.5 = 26 → 24, 엉덩이 비율 0.38: (1 ÷ 0.19 + 5) ÷ 0.5 = 20.5 → 20
         ReferenceFit fit = new ReferenceFit(GarmentPart.SKIRT, GarmentPart.SKIRT, List.of(
             item("WAIST_WIDTH", "25.0", "26.0"),
             item("HIP_WIDTH", "33.0", "34.0")));
@@ -103,7 +103,7 @@ class WearablePeriodCalculatorTest {
             new WearInfo(LONG_SIZES, SKIRT_PATH, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), fit));
 
         assertThat(periods).extracting(WearablePeriod::size, WearablePeriod::widthMonths)
-            .containsExactly(tuple("120", 10), tuple("130", null));
+            .containsExactly(tuple("120", 20), tuple("130", null));
     }
 
     @ParameterizedTest(name = "기준 옷 30.0cm, 상품 {0}cm → {1}개월")
@@ -125,7 +125,7 @@ class WearablePeriodCalculatorTest {
     @Test
     @DisplayName("WEAR-03 길이 기준과 너비 기준이 둘 다 있으면 짧은 쪽을 쓴다")
     void monthsIsShorterOfLengthAndWidth() {
-        // 120: 길이 (125 − 120) ÷ 0.5 = 10, 가슴 +3cm → 40 → 24 / 130: 길이 40 → 24, 가슴 +1cm → 13
+        // 120: 길이 (125 − 120) ÷ 0.5 = 10, 가슴 +3cm → 50 → 24 / 130: 길이 40 → 24, 가슴 +1cm → 23
         ProductSizes sizes = ProductSizes.of(false, List.of(
             SizeRange.of("120", 115, 125),
             SizeRange.of("130", 125, 140)));
@@ -139,13 +139,13 @@ class WearablePeriodCalculatorTest {
 
         assertThat(periods).containsExactly(
             new WearablePeriod("120", 10, 24, 10),
-            new WearablePeriod("130", 24, 13, 13));
+            new WearablePeriod("130", 24, 23, 23));
     }
 
     @Test
     @DisplayName("WEAR-03 개월 수가 0 이하면 0, 24개월을 넘으면 24개월로 맞춘다")
     void clampMonthsBetweenZeroAndTwentyFour() {
-        // 110: 길이 (118 − 120) ÷ 0.5 = −4 → 0, 가슴 −1cm → −13.3 → 0 / 140: 길이 40 → 24, 너비 없음
+        // 110: 길이 (118 − 120) ÷ 0.5 = −4 → 0, 가슴 −1cm → (−6.7 + 5) ÷ 0.5 = −3.3 → 0 / 140: 길이 40 → 24, 너비 없음
         ProductSizes sizes = ProductSizes.of(false, List.of(
             SizeRange.of("110", 105, 118),
             SizeRange.of("140", 125, 140)));
