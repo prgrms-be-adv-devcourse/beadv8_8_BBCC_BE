@@ -37,20 +37,21 @@ public interface JpaPaymentOutboxRepository
     @Query(value = "select pg_try_advisory_xact_lock(hashtext('kidly.payment.outbox-relay'))", nativeQuery = true)
     boolean tryLockRelay();
 
-    // 안 보낸 행은 부분 인덱스(idx_payment_outbox_unsent)로, 같은 키의 격리 행은 idx_payment_outbox_parked로 찾는다
+    // 안 보낸 행은 부분 인덱스(idx_payment_outbox_unsent)로, 같은 키의 앞선 행은 idx_payment_outbox_unsent_key로 찾는다
     @Query("""
         select m from PaymentOutboxMessage m
         where m.sentAt is null and m.parkedAt is null
           and not exists (
             select 1 from PaymentOutboxMessage p
-            where p.messageKey = m.messageKey and p.sentAt is null and p.parkedAt is not null)
+            where p.messageKey = m.messageKey and p.sentAt is null and p.id < m.id
+              and (p.parkedAt is not null or p.attemptCount >= :maxAttempts))
         order by m.id
         """)
-    List<PaymentOutboxMessage> findSendable(Limit limit);
+    List<PaymentOutboxMessage> findSendable(@Param("maxAttempts") int maxAttempts, Limit limit);
 
     @Override
-    default List<PaymentOutboxMessage> findUnsent(int limit) {
-        return findSendable(Limit.of(limit));
+    default List<PaymentOutboxMessage> findUnsent(int limit, int maxAttempts) {
+        return findSendable(maxAttempts, Limit.of(limit));
     }
 
     @Override

@@ -42,7 +42,8 @@ public class PaymentOutboxRelayService {
         if (!outboxRepository.tryLockRelay()) {
             return new PaymentOutboxRelayResult(Outcome.LOCKED, 0, 0, 0);
         }
-        List<PaymentOutboxMessage> unsent = outboxRepository.findUnsent(properties.batchSize());
+        List<PaymentOutboxMessage> unsent =
+            outboxRepository.findUnsent(properties.batchSize(), properties.maxAttempts());
         Set<String> blockedKeys = new HashSet<>();
         List<PaymentOutboxMessage> exhausted = new ArrayList<>();
         int sent = 0;

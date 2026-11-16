@@ -59,7 +59,7 @@ class PaymentOutboxRelayServiceTest {
         PaymentOutboxMessage first = PaymentFixture.outboxMessage();
         PaymentOutboxMessage second = PaymentFixture.outboxMessage();
         given(outboxRepository.tryLockRelay()).willReturn(true);
-        given(outboxRepository.findUnsent(BATCH_SIZE)).willReturn(List.of(first, second));
+        given(outboxRepository.findUnsent(BATCH_SIZE, MAX_ATTEMPTS)).willReturn(List.of(first, second));
 
         PaymentOutboxRelayResult result = relayService.relay();
 
@@ -78,7 +78,7 @@ class PaymentOutboxRelayServiceTest {
 
         PaymentOutboxRelayResult result = relayService.relay();
 
-        then(outboxRepository).should(never()).findUnsent(BATCH_SIZE);
+        then(outboxRepository).should(never()).findUnsent(BATCH_SIZE, MAX_ATTEMPTS);
         then(sender).should(never()).send(any());
         assertThat(result).isEqualTo(new PaymentOutboxRelayResult(PaymentOutboxRelayResult.Outcome.LOCKED, 0, 0, 0));
     }
@@ -90,7 +90,7 @@ class PaymentOutboxRelayServiceTest {
         PaymentOutboxMessage failed = PaymentFixture.outboxMessage();
         PaymentOutboxMessage after = PaymentFixture.outboxMessage();
         given(outboxRepository.tryLockRelay()).willReturn(true);
-        given(outboxRepository.findUnsent(BATCH_SIZE)).willReturn(List.of(first, failed, after));
+        given(outboxRepository.findUnsent(BATCH_SIZE, MAX_ATTEMPTS)).willReturn(List.of(first, failed, after));
         willAnswer(invocation -> {
             if (invocation.getArgument(0) == failed) {
                 throw new PaymentEventSendException("결제 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. "
@@ -118,7 +118,7 @@ class PaymentOutboxRelayServiceTest {
         PaymentOutboxMessage failed = PaymentFixture.outboxMessage();
         PaymentOutboxMessage after = PaymentFixture.outboxMessage();
         given(outboxRepository.tryLockRelay()).willReturn(true);
-        given(outboxRepository.findUnsent(BATCH_SIZE)).willReturn(List.of(failed, after));
+        given(outboxRepository.findUnsent(BATCH_SIZE, MAX_ATTEMPTS)).willReturn(List.of(failed, after));
         willThrow(new PaymentEventSendException("실패", null)).willDoNothing().given(sender).send(failed);
         relayService.relay();
 
@@ -139,7 +139,7 @@ class PaymentOutboxRelayServiceTest {
         PaymentOutboxMessage sameKey = message("order-1");
         PaymentOutboxMessage otherKey = message("order-2");
         given(outboxRepository.tryLockRelay()).willReturn(true);
-        given(outboxRepository.findUnsent(BATCH_SIZE)).willReturn(List.of(poison, sameKey, otherKey));
+        given(outboxRepository.findUnsent(BATCH_SIZE, MAX_ATTEMPTS)).willReturn(List.of(poison, sameKey, otherKey));
         willThrow(new PaymentEventSendException("RecordTooLargeException", null)).given(sender).send(poison);
 
         PaymentOutboxRelayResult result = relayService.relay();
@@ -161,7 +161,7 @@ class PaymentOutboxRelayServiceTest {
         PaymentOutboxMessage otherKey = message("order-2");
         PaymentOutboxMessage last = message("order-3");
         given(outboxRepository.tryLockRelay()).willReturn(true);
-        given(outboxRepository.findUnsent(BATCH_SIZE)).willReturn(List.of(exhausted, otherKey, last));
+        given(outboxRepository.findUnsent(BATCH_SIZE, MAX_ATTEMPTS)).willReturn(List.of(exhausted, otherKey, last));
         willThrow(new PaymentEventSendException("브로커 없음", null)).given(sender).send(any());
 
         PaymentOutboxRelayResult result = relayService.relay();
@@ -177,7 +177,7 @@ class PaymentOutboxRelayServiceTest {
     void sendExhaustedWhenRecovered() {
         PaymentOutboxMessage exhausted = exhausted("order-1");
         given(outboxRepository.tryLockRelay()).willReturn(true);
-        given(outboxRepository.findUnsent(BATCH_SIZE)).willReturn(List.of(exhausted));
+        given(outboxRepository.findUnsent(BATCH_SIZE, MAX_ATTEMPTS)).willReturn(List.of(exhausted));
 
         PaymentOutboxRelayResult result = relayService.relay();
 

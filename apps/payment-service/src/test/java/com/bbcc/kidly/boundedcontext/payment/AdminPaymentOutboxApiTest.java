@@ -21,6 +21,7 @@ class AdminPaymentOutboxApiTest {
 
     private static final String PATH = "/api/v1/admin/payments/parked-events";
     private static final Long ADMIN_ID = 3L;
+    private static final int MAX_ATTEMPTS = 30;
 
     @Autowired
     private RestTestClient client;
@@ -61,21 +62,37 @@ class AdminPaymentOutboxApiTest {
         release(-1L).expectStatus().isNotFound();
     }
 
+    @Test
+    @DisplayName("시도 상한에 닿은 메시지는 주되 그 키의 뒤 메시지는 빼서, 뒤 메시지가 읽는 건수를 다 채워 다른 키를 막지 않는다")
+    void exhaustedKeyDoesNotFillBatch() {
+        long exhausted = insert("order-1", MAX_ATTEMPTS, false);
+        insert("order-1", 0, false);
+        insert("order-1", 0, false);
+        long otherKey = insert("order-2", 0, false);
+
+        assertThat(outboxRepository.findUnsent(2, MAX_ATTEMPTS)).extracting(PaymentOutboxMessage::getId)
+            .containsExactly(exhausted, otherKey);
+    }
+
     private RestTestClient.ResponseSpec release(long outboxId) {
         return client.post().uri(PATH + "/" + outboxId + "/release").headers(TestAdmins.of(ADMIN_ID)).exchange();
     }
 
     private java.util.List<Long> unsentIds() {
-        return outboxRepository.findUnsent(100).stream().map(PaymentOutboxMessage::getId).toList();
+        return outboxRepository.findUnsent(100, MAX_ATTEMPTS).stream().map(PaymentOutboxMessage::getId).toList();
     }
 
     private long insert(String key, boolean parked) {
+        return insert(key, parked ? MAX_ATTEMPTS : 0, parked);
+    }
+
+    private long insert(String key, int attemptCount, boolean parked) {
         return jdbcTemplate.queryForObject("""
             insert into payment.payment_outbox (event_id, event_type, topic, message_key, payload, attempt_count,
                 last_error, parked_at, created_at, updated_at)
             values (?, 'payment.completed', 'kidly.payment.events', ?, '{}', ?, ?, ?, now(), now())
             returning id
-            """, Long.class, UUID.randomUUID(), key, parked ? 30 : 0, parked ? "RecordTooLargeException" : null,
+            """, Long.class, UUID.randomUUID(), key, attemptCount, attemptCount > 0 ? "RecordTooLargeException" : null,
             parked ? java.sql.Timestamp.valueOf(java.time.LocalDateTime.now()) : null);
     }
 }

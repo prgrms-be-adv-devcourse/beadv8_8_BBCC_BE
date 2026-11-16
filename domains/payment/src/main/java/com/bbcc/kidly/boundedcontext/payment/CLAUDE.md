@@ -233,7 +233,7 @@
   - 한 트랜잭션에서 PostgreSQL advisory lock(`pg_try_advisory_xact_lock`)을 얻은 쪽만 보낸다. 서버가 여러 대여도 한 번에 하나만 돌아 순서가 지켜진다. 못 얻으면 아무것도 하지 않는다
   - 보내다 실패하면 그 메시지에 `attempt_count` · `last_error`를 남기고 멈춘다. 다음 주기에 같은 메시지부터 다시 보낸다(순서 유지)
   - 격리(#1389): `attempt_count`가 `max-attempts`(기본 30)에 닿은 메시지는 실패해도 멈추지 않고 같은 키(`message_key`)의 뒤 메시지만 건너뛰고 계속 보낸다. 그 뒤 다른 메시지가 보내지면 브로커는 살아 있으니 그 메시지만의 문제로 보고 `parked_at`을 남긴다(ERROR 로그). 아무것도 보내지지 않으면(브로커 장애) 격리하지 않는다
-  - 읽는 대상은 안 보냈고 격리되지 않았으며 같은 키에 격리된 메시지가 없는 것이다. 격리된 키는 관리자가 풀 때까지 멈춰 같은 키 순서가 지켜진다
+  - 읽는 대상은 안 보냈고 격리되지 않았으며, 같은 키의 앞선 안 보낸 메시지가 격리됐거나 상한에 닿지 않은 것이다. 상한에 닿은 메시지 자신은 읽고 그 키의 뒤 메시지는 빼서, 뒤 메시지가 `batch-size`를 다 채워 다른 키를 막지 않는다. 격리된 키는 관리자가 풀 때까지 멈춰 같은 키 순서가 지켜진다
   - 관리자 API(`in/AdminPaymentOutboxController`): `GET /api/v1/admin/payments/parked-events`(본문 없이 `outboxId` · `eventId` · `eventType` · `messageKey` · `attemptCount` · `lastError` · 시각), `POST .../{outboxId}/release`(격리를 풀고 `attempt_count`를 0으로. 다음 릴레이가 그 메시지부터 같은 키 뒤 메시지까지 순서대로 보낸다). 격리되지 않은 메시지는 409 `OUTBOX_MESSAGE_NOT_PARKED`, 없으면 404
   - 실패는 업무를 실패시키지 않고 본문 없는 WARN(`eventType` · `eventId` · `key` · 원인)만 남긴다
   - 메시지는 **한 번 이상** 갈 수 있다(보낸 뒤 커밋 전에 죽으면 다시 보낸다). 받는 쪽은 `eventId`나 업무 상태로 거른다
