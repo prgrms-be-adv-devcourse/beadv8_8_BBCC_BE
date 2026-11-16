@@ -49,3 +49,8 @@ kidly:
     outbox:
       relay-interval: P3650D
       cleanup-cron: "-"
+
+  seller:
+    outbox:
+      relay-interval: P3650D
+      cleanup-cron: "-"

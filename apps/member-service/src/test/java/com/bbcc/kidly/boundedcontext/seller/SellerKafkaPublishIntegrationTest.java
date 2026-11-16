@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.member.MemberFixture;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerService;
+import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
@@ -41,8 +42,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 판매자 이벤트가 커밋 뒤 kidly.seller.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#548).
- * 받는 쪽(회원 · 주문 · 상품 · 추천)이 Spring 이벤트로 받는 것은 기존 테스트가 본다.
+ * 판매자 이벤트가 아웃박스 릴레이를 거쳐 kidly.seller.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#548).
  * 다른 테스트의 판매자 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
  */
 @KafkaIntegrationTest
@@ -74,6 +74,9 @@ class SellerKafkaPublishIntegrationTest {
     @Autowired
     private KafkaContainer kafka;
 
+    @Autowired
+    private SellerOutboxRelayService relayService;
+
     private KafkaConsumer<String, String> consumer;
     private final List<ConsumerRecord<String, String>> received = new ArrayList<>();
 
@@ -99,6 +102,7 @@ class SellerKafkaPublishIntegrationTest {
         var sellerId = approveSeller();
 
         var changed = events.stream(SellerChangedEvent.class).findFirst().orElseThrow();
+        relayService.relay();
         var record = awaitRecord(changed);
         assertThat(record.key()).isEqualTo(String.valueOf(sellerId));
         assertThat(header(record, "eventType")).isEqualTo("seller.changed");
@@ -117,6 +121,7 @@ class SellerKafkaPublishIntegrationTest {
         var suspended = events.stream(SellerChangedEvent.class)
             .filter(event -> event.data().status() == SellerStatus.SUSPENDED)
             .findFirst().orElseThrow();
+        relayService.relay();
         assertSent(suspended, "seller.changed", sellerId);
         assertThat(JSON_MAPPER.readTree(awaitRecord(suspended).value()).get("data").get("status").asString())
             .isEqualTo("SUSPENDED");
@@ -139,11 +144,12 @@ class SellerKafkaPublishIntegrationTest {
             .filter(event -> event.data().status() == SellerStatus.SUSPENDED)
             .filter(event -> !event.eventId().equals(rolledBack.eventId()))
             .findFirst().orElseThrow();
+        relayService.relay();
         awaitRecord(committed);
         assertThat(findRecord(rolledBack)).isEmpty();
     }
 
-    // 트랜잭션 없이 호출해야 커밋 뒤 Kafka 전송이 돈다
+    // 트랜잭션 없이 호출해야 서비스 트랜잭션이 커밋돼 아웃박스에 남는다
     private Long approveSeller() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
         var request = new SellerApplicationRequest(SellerFixture.BUSINESS_NAME, SellerFixture.REPRESENTATIVE_NAME,
@@ -171,6 +177,7 @@ class SellerKafkaPublishIntegrationTest {
             new SellerApplicationRejectRequest("서류 미비"));
         var committed = events.stream(SellerApplicationRejectedEvent.class)
             .filter(event -> !event.eventId().equals(rolledBack.eventId())).findFirst().orElseThrow();
+        relayService.relay();
         assertSent(committed, "seller.application-rejected", application.id());
         var body = JSON_MAPPER.readTree(awaitRecord(committed).value());
         assertThat(body.get("producer").asString()).isEqualTo("seller");

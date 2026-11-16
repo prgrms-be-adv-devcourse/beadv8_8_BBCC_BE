@@ -3,11 +3,14 @@ package com.bbcc.kidly.boundedcontext.member;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.app.port.AccessTokenIssuer;
 import com.bbcc.kidly.boundedcontext.auth.app.port.TokenSubject;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.SellerState;
+import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
@@ -65,6 +68,15 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class MemberSellerEventKafkaIntegrationTest {
+
+    @Autowired
+    private SellerOutboxRelayService sellerOutboxRelayService;
+
+    @Autowired
+    private AuthOutboxRelayService authOutboxRelayService;
+
+    @Autowired
+    private AuthEventOutbox authEventOutbox;
 
     private static final String TOPIC = "kidly.seller.events";
     private static final String AUTH_TOPIC = "kidly.auth.events";
@@ -295,6 +307,7 @@ class MemberSellerEventKafkaIntegrationTest {
 
     // 지금까지 받은 인증 이벤트 중 이 테스트 회원 키의 auth.tokens-revoked 수
     private long tokensRevokedCount() {
+        authOutboxRelayService.relay();
         authEventConsumer.poll(Duration.ofMillis(200)).forEach(authEvents::add);
         return authEvents.stream()
             .filter(record -> String.valueOf(memberId).equals(record.key()))
@@ -303,14 +316,15 @@ class MemberSellerEventKafkaIntegrationTest {
             .count();
     }
 
-    // 무효화하지 않았음을 보려면 기다릴 기준이 필요하다. 인증 이벤트는 한 스레드가 받은 순서대로 보내고 같은 키는 같은 파티션이라,
+    // 무효화하지 않았음을 보려면 기다릴 기준이 필요하다. 인증 이벤트는 아웃박스 순서대로 보내고 같은 키는 같은 파티션이라,
     // 처리가 끝난 뒤 같은 회원 키로 보낸 확인용 무효화가 왔으면 그 앞의 무효화도 이미 와 있다
     private long tokensRevokedCountAfterMarker() {
         var now = LocalDateTime.now();
         var marker = new AuthTokensRevokedEvent(UUID.randomUUID(), now,
             new AuthTokensRevokedEvent.Data(PrincipalType.MEMBER, memberId, now));
         markerIds.add(marker.eventId().toString());
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(marker));
+        transactionTemplate.executeWithoutResult(status -> authEventOutbox.append(marker));
+        authOutboxRelayService.relay();
         AsyncWait.until(TIMEOUT, () -> {
             authEventConsumer.poll(Duration.ofMillis(200)).forEach(authEvents::add);
             return authEvents.stream()
@@ -332,6 +346,7 @@ class MemberSellerEventKafkaIntegrationTest {
 
     private void publishInTransaction(SellerChangedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(event));
+        sellerOutboxRelayService.relay();
     }
 
     private SellerChangedEvent sellerChanged(SellerStatus status, LocalDateTime occurredAt) {

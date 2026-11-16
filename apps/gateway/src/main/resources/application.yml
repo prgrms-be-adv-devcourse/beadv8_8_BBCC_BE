@@ -3,6 +3,11 @@ spring:
     name: kidly-gateway
   profiles:
     default: local
+  # Lettuce 기본 명령 제한 시간(60초)이면 Redis가 멈췄을 때 요청이 그만큼 붙잡힌다. 넘기면 무효화 확인 없이 통과시킨다
+  data:
+    redis:
+      timeout: 300ms
+      connect-timeout: 300ms
   cloud:
     gateway:
       server:
@@ -191,6 +196,8 @@ spring:
       properties:
         enable.idempotence: true
     consumer:
+      # 책갈피 없는 파티션을 끝부터 읽으면 표식이 있는 파티션의 무효화를 건너뛴다. 처음부터 읽어도 오래된 무효화는 지우거나 무시한다
+      auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
@@ -204,6 +211,10 @@ management:
     web:
       exposure:
         include: health,prometheus
+  # Redis가 죽어도 요청은 통과시키므로, nginx · 외부 확인이 보는 전체 health가 DOWN이 되지 않게 뺀다
+  health:
+    redis:
+      enabled: false
 
 kidly:
   gateway:

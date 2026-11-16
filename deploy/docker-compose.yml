@@ -37,7 +37,9 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # 캐시용 Redis(#690). 영속성을 끄고(RDB · AOF 없음) 64MB 를 넘으면 가장 오래 안 쓴 키부터 지운다. 원본은 DB 에 둔다
+  # Redis(#690). 추천 AI 답 캐시와 Gateway 토큰 무효화 목록(#1327)을 둔다. 영속성을 끈다(RDB · AOF 없음)
+  # 64MB 를 넘으면 TTL 있는 키 중 가장 오래 안 쓴 것부터 지운다(volatile-lru). 추천 AI 답은 24시간 TTL 이라 지워지고,
+  # TTL 없는 Gateway 무효화 목록 · 표식은 지워지지 않는다
   # 포트를 밖에 열지 않고 같은 namespace 의 서비스만 redis:6379 로 붙는다(k3s ClusterIP). 그래서 비밀번호 없이 protected-mode 를 끈다
   # dev 는 K3S_PROFILES 의 redis 로 k3s 에 뜬다(deploy/k3s). 쓰는 앱은 용도별 이슈에서 붙인다
   redis:
@@ -52,7 +54,7 @@ services:
       - --maxmemory
       - 64mb
       - --maxmemory-policy
-      - allkeys-lru
+      - volatile-lru
       - --protected-mode
       - "no"
     expose:
@@ -512,6 +514,8 @@ services:
       KIDLY_CHATBOT_URI: ${KIDLY_CHATBOT_URI:-http://chatbot-service:8080}
       JWT_PUBLIC_KEY_LOCATION: file:/app/jwt/public.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # 토큰 무효화 목록(#1327). 같은 k3s namespace 의 redis 서비스에 붙는다
+      SPRING_DATA_REDIS_HOST: redis
       LOG_PATH: /app/logs
     # 서비스가 k3s 에 뜨는 환경(dev)은 KIDLY_*_URI 가 이 서버의 NodePort(host.docker.internal)를 가리킨다(#1142)
     extra_hosts:

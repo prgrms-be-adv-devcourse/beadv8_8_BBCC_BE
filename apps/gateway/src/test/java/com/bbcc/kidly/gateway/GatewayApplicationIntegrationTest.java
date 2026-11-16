@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Gateway가 DB 없이 뜨고 살아 있는지(liveness) 본다.
- * 전체 health 는 토큰 무효화 목록을 다 읽기 전까지 readiness 때문에 DOWN 이라(RevocationReplay) 시점에 따라 달라진다.
  */
 @IntegrationTest
 class GatewayApplicationIntegrationTest extends GatewayTestSupport {

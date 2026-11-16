@@ -228,6 +228,15 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
+    @DisplayName("발급 시각(iat)이 없는 토큰은 무효화를 확인할 수 없으므로 401이다")
+    void rejectsTokenWithoutIssuedAt() {
+        var now = Instant.now();
+        revocations.revoke(member(12L), now, now);
+
+        expectUnauthorized(bearer(TestTokens.issueWithoutIssuedAt(12L)), PATH);
+    }
+
+    @Test
     @DisplayName("로그아웃은 Refresh Token 쿠키로 인증하므로 탈퇴로 무효화된 토큰이 실려도 검증하지 않고 주체 헤더 없이 넘긴다")
     void passesLogoutWithRevokedToken() {
         var now = Instant.now();

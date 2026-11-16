@@ -2,7 +2,7 @@
 # k3s ConfigMap 으로 만들고, nginx Pod(nginx.yaml)가 /etc/nginx/conf.d/kidly.conf 로 읽는다(#1309)
 # Pod 는 호스트 네트워크를 쓰므로 127.0.0.1 은 이 서버(t3.large)다
 
-# 아래 server 블록들이 함께 쓰는 설정 (인증서 하나에 api · dev-api · grafana 세 이름이 들어 있다)
+# 아래 server 블록들이 함께 쓰는 설정 (인증서 하나에 api · grafana 두 이름이 들어 있다)
 ssl_certificate     /etc/letsencrypt/live/kidly/fullchain.pem;
 ssl_certificate_key /etc/letsencrypt/live/kidly/privkey.pem;
 ssl_protocols       TLSv1.2 TLSv1.3;
@@ -41,10 +41,9 @@ server {
 }
 
 # HTTP: 인증서 발급·갱신용 경로만 열고 나머지는 https 로 보낸다
-# 인증서에 dev-api 이름이 들어 있어 갱신할 때 dev-api 로도 확인 요청이 온다. 앱은 api 로 옮겼지만(#1335) 여기 이름은 남긴다
 server {
     listen 80;
-    server_name api.__DOMAIN__ dev-api.__DOMAIN__ grafana.__DOMAIN__;
+    server_name api.__DOMAIN__ grafana.__DOMAIN__;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;

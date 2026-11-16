@@ -103,7 +103,7 @@ Elasticsearch 응답 시간은 따로 재지 않습니다. 검색 API 지연(`ht
 
 ### Elasticsearch 내려감 · 느림
 
-검색은 연결 1초 · 응답 3초(`search.yml` `spring.elasticsearch.*`)를 넘으면 503 으로 답합니다. 그동안 받은 상품 · 판매자 변경은 1초 간격 3번 더 시도한 뒤 DLT 로 갑니다.
+검색은 연결 1초 · 응답 3초(`search.yml` `spring.elasticsearch.*`)를 넘으면 503 으로 답합니다. 상호명을 붙이는 판매자 색인 조회만 실패하면 503 이 아니라 상호명을 비운 목록으로 답하고, `kidly_search_seller_lookup_failures_total` 이 늘어납니다. 그동안 받은 상품 · 판매자 변경은 1초 간격 3번 더 시도한 뒤 DLT 로 갑니다.
 
 1. medium 에서 상태를 봅니다(위 "확인"): `kubectl -n search get pods`, `_cluster/health`, `kubectl -n search logs deploy/elasticsearch --tail 200`
 2. Pod 가 다시 뜨는 중이면(배포 · OOM) 준비될 때까지 기다립니다. `Pending` 이면 노드 라벨 · 메모리, `ImagePullBackOff` 면 위 절차입니다
@@ -117,7 +117,8 @@ Elasticsearch 를 새로 만들었거나(PVC 삭제) 색인이 지워진 경우�
 
 1. `_cat/indices?v` 에서 `<환경>-products` · `<환경>-sellers` 가 있는지 봅니다
 2. 없으면 그 환경의 검색 서비스를 다시 시작해 색인을 만듭니다(t3.large 에서 deploy 유저로 `kubectl -n kidly-<환경> rollout restart deploy/search`)
-3. 검색 서비스를 다시 시작하기 전에 이벤트가 와서 색인이 자동으로 만들어졌을 수 있습니다. `curl -s 'localhost:30920/<환경>-products/_mapping'` 에 `"dynamic":"strict"` 와 `name` 의 `"analyzer":"nori"` 가 없으면 잘못 만들어진 것이므로, 그 색인을 지우고 2 를 다시 합니다
+3. 색인이 없는 동안 온 상품 · 판매자 변경은 저장에 실패해(404 `index_not_found_exception`) DLT 로 가고, 색인이 생기면 DLT 를 다시 읽어 반영합니다.
+   ES 는 저장 요청으로 색인을 자동으로 만들지 않습니다(`action.auto_create_index=false`, #1385). 매핑(`"dynamic":"strict"`, `name` 의 nori)이 없는 색인이 생기지 않습니다
 4. 위 "색인 다시 채우기"로 판매자 → 상품을 다시 발행합니다
 
 ### DLT 가 줄지 않음
@@ -135,6 +136,8 @@ Elasticsearch 를 새로 만들었거나(PVC 삭제) 색인이 지워진 경우�
 ### OpenAI 키 만료 · 한도 초과
 
 임베딩 API 가 연속 5번 실패하면 30초씩 부르지 않고 키워드로만 찾습니다. 30초마다 하나만 시험으로 불러 성공하면 저절로 다시 씁니다.
+문장 하나를 거절한 응답(400 · 413 · 422)은 API 가 살아 있는 것이라 세지 않습니다. 그 상품만 벡터 없이 남아 `kidly_search_products_without_embedding` 에 계속 잡힙니다.
+이 지표가 판매중 상품 거의 전부로 늘고 로그의 `임베딩 API` 실패가 모두 `status=400` 이면, 상품이 아니라 설정(`search.yml` 의 모델 · 차원 수)이 잘못된 것이니 고쳐서 배포합니다. 이 경우 차단은 열리지 않습니다.
 
 1. 검색 서비스 로그에서 `임베딩 API` 실패의 상태 코드를 봅니다. 401 은 키 만료 · 폐기, 429 는 한도 초과, 5xx · 시간 초과는 OpenAI 장애입니다
 2. 401: OpenAI 에서 새 키를 만들어 GitHub Environment Secret `OPENAI_API_KEY` 를 바꾸고, deploy 워크플로를 다시 돌려 서버 `.env` 에 넣습니다. 429: OpenAI 결제 · 한도를 봅니다. 5xx: 기다립니다

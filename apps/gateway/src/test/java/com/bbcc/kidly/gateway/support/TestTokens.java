@@ -69,6 +69,11 @@ public final class TestTokens {
         return encode(LOCAL, subject, List.of("BUYER"), null, issuedAt, expiresAt);
     }
 
+    // 발급 시각(iat) 없이 서명한 토큰. 회원은 늘 iat를 넣는다
+    public static String issueWithoutIssuedAt(long memberId) {
+        return encode(LOCAL, String.valueOf(memberId), List.of("BUYER"), null, null, Instant.now().plus(VALIDITY));
+    }
+
     // 모양은 같지만 Gateway가 모르는 키로 서명한 토큰
     public static String issueWithOtherKey(long memberId) {
         var now = Instant.now();
@@ -79,9 +84,11 @@ public final class TestTokens {
         Instant issuedAt, Instant expiresAt) {
         var claims = JwtClaimsSet.builder()
             .subject(subject)
-            .issuedAt(issuedAt)
             .expiresAt(expiresAt)
             .claim(AccessTokenClaims.ROLES, roles);
+        if (issuedAt != null) {
+            claims.issuedAt(issuedAt);
+        }
         if (nickname != null) {
             claims.claim(AccessTokenClaims.NICKNAME, nickname);
         }
