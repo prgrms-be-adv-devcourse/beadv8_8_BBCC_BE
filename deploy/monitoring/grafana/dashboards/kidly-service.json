@@ -117,20 +117,6 @@
           "text": "kidly-gateway",
           "value": "kidly-gateway"
         }
-      },
-      {
-        "name": "domain",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "hide": 2,
-        "query": "label_values(kidly_app_expected{env=\"$env\",app_job=\"$service\"}, app_job)",
-        "regex": "/kidly-(.*)/",
-        "refresh": 1,
-        "includeAll": false,
-        "multi": false
       }
     ]
   },
@@ -1240,7 +1226,7 @@
     {
       "type": "timeseries",
       "title": "구독 그룹 미처리",
-      "description": "이 서비스의 구독 그룹(kidly.<도메인>, DLT 포함)의 토픽별 미처리입니다. 계속 늘면 소비자 로그와 Kafka 처리 화면을 확인합니다. 구독하지 않는 서비스는 데이터가 없습니다.",
+      "description": "이 서비스가 쓰는 구독 그룹(DLT 포함)의 토픽별 미처리입니다. member 서비스는 auth · childprofile · member · seller 그룹을 함께 씁니다. 계속 늘면 소비자 로그와 Kafka 처리 화면을 확인합니다. 구독하지 않는 서비스는 데이터가 없습니다.",
       "gridPos": {
         "x": 0,
         "y": 40,
@@ -1254,7 +1240,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\",consumergroup=~\"kidly[.]${domain}([.].+)?\"} >= 0)",
+          "expr": "sum by (consumergroup, topic) (label_replace(label_replace(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\",consumergroup=~\"kidly[.].+\"} >= 0, \"job\", \"kidly-$1\", \"consumergroup\", \"kidly[.]([a-z]+)([.].+)?\"), \"job\", \"kidly-member\", \"consumergroup\", \"kidly[.](auth|childprofile|member|seller)([.].+)?\") and on (job) label_replace(vector(1), \"job\", \"$service\", \"\", \"\"))",
           "legendFormat": "{{consumergroup}} · {{topic}}"
         }
       ],
