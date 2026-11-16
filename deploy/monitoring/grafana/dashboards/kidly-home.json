@@ -538,7 +538,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"kidly-ai-notes\",env=~\"dev|prod\"} | json | __error__=\"\" | line_format \"{{.report}}\" | regexp `(?m)^AI analysis .* observed (?P<observed_at>[^\\r\\n]+)` | regexp `(?m)^1\\. (?P<next_check>[^\\r\\n]+)` | regexp `(?m)^대응 제안: (?P<advice>[^\\r\\n]+)` | regexp `(?m)^원인 후보: (?P<cause>[^\\r\\n]+)` | regexp `(?m)^근거 f[0-9]+: [a-z]+/(?P<evidence_service>kidly-[a-z-]+) ` | advice!=\"\" | label_format detected_level=\"info\",level=\"info\" | line_format `{{if eq .env \"dev\"}}운영{{else}}{{.env}}{{end}} · 관측 {{.observed_at}}{{if .next_check}}{{\"\\n\"}}먼저 확인: {{.next_check}}{{end}}{{if .cause}}{{\"\\n\"}}원인 후보: {{.cause}}{{end}}{{\"\\n\"}}대응 제안: {{.advice}}{{if .evidence_service}}{{\"\\n\"}}근거 서비스: {{.evidence_service}} (상태판의 같은 줄부터 확인){{end}}`",
+          "expr": "{job=\"kidly-ai-notes\",env=~\"dev|prod\"} | json | __error__=\"\" | line_format \"{{.report}}\" | regexp `(?m)^AI analysis .* observed (?P<observed_at>[^\\r\\n]+)` | regexp `(?m)^1\\. (?P<next_check>[^\\r\\n]+)` | regexp `(?m)^대응 제안: (?P<advice>[^\\r\\n]+)` | regexp `(?m)^원인 후보: (?P<cause>[^\\r\\n]+)` | regexp `(?m)^근거 f[0-9]+: [a-z]+/(?P<evidence_service>kidly-[a-z0-9-]+)` | advice!=\"\" | label_format detected_level=\"info\",level=\"info\" | line_format `{{if eq .env \"dev\"}}운영{{else}}{{.env}}{{end}} · 관측 {{.observed_at}}{{if .next_check}}{{\"\\n\"}}먼저 확인: {{.next_check}}{{end}}{{if .cause}}{{\"\\n\"}}원인 후보: {{.cause}}{{end}}{{\"\\n\"}}대응 제안: {{.advice}}{{if .evidence_service}}{{\"\\n\"}}근거 서비스: {{.evidence_service}} (상태판의 같은 줄부터 확인){{end}}`",
           "queryType": "range",
           "maxLines": 1
         }
