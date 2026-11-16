@@ -10,12 +10,12 @@ Tempo 조회용 리소스와 Grafana 데이터소스는 기본 모니터링 배�
 
 ## 앱 패치 미리보기
 
-Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent-patch.py --java-tool-options='<현재 JVM 옵션>'`의 표준 입력으로 넣으면 strategic merge 패치를 출력합니다. 생성기는 클러스터에 연결하지 않습니다. 입력은 배포 산출물 또는 승인된 대상에서 읽어온 명세를 사용합니다.
+Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent-patch.py --java-tool-options='<현재 JVM 옵션>'`의 표준 입력으로 넣으면 strategic merge 패치를 출력합니다. 생성기는 클러스터에 연결하지 않습니다. 입력은 승인된 대상에서 방금 읽은 Deployment 명세를 사용합니다. 출력에 현재 resourceVersion을 포함해 이후 배포 변경과 충돌하면 다시 읽어야 합니다.
 
 - 현재 배포에 사용한 Compose 설정에서 민감정보가 없는 `JAVA_TOOL_OPTIONS` 값만 확인해 인자로 전달합니다. 앱의 기존 Secret 참조는 유지하고, 같은 옵션에 Agent를 붙인 값을 명시적인 환경 변수로 설정합니다. Secret 파일을 출력하거나 전달할 필요가 없습니다. JAR은 #1127에서 검증한 버전과 SHA-256을 대조한 뒤 모든 대상 노드에 읽기 전용으로 준비합니다.
 - 수집 목적지는 계획된 앱 클러스터 내부 서비스 `tracing-alloy.kidly-dev.svc:4318`입니다. Alloy가 준비되고 모니터링 쪽과 사설 전송이 검증될 때 적용합니다.
 - 공개 추적 헤더 제거가 운영에 반영된 뒤 5% 샘플링으로 시작합니다. 로그·메트릭 exporter와 Kafka 자동 계측은 끕니다.
-- 적용 전 명세를 보관하고 운영 배포와 실행 시간이 겹치지 않게 조율합니다. 원복은 기존 명세로 복원합니다. 이 수동 패치는 이후 일반 배포가 덮어쓸 수 있습니다.
+- 적용 전 명세를 보관하고 운영 배포와 실행 시간이 겹치지 않게 조율합니다. 원복할 때는 현재 Deployment JSON에 같은 JVM 옵션과 `--rollback`을 전달합니다. 계측 당시 추가한 필드만 지우고 다른 배포 필드는 유지합니다. 값이 달라 원복 도구가 중단되면 적용 전 명세와 현재 명세를 비교합니다. 이 수동 패치는 이후 일반 배포가 덮어쓸 수 있습니다.
 
 ## 앱 클러스터 수집기
 
