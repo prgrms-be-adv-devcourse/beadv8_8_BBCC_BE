@@ -38,6 +38,9 @@ class MemberOutboxKafkaConfig {
     // send가 돌아온 뒤 전송 성공 · 실패가 정해지기까지의 최대 시간이다. 기본 120초 동안 응답을 기다리지 않게 줄인다
     static final int DELIVERY_TIMEOUT_MS = 10_000;
 
+    // 메시지 하나씩 보내고 응답을 기다리므로 배치로 모을 일이 없다. 기본값(5ms)만큼 메시지마다 늦어지지 않게 0으로 둔다
+    static final int LINGER_MS = 0;
+
     // 응답은 실패로라도 delivery.timeout.ms 안에 돌아오므로, 그보다 조금 길게 기다려 응답을 놓치지 않게 한다
     static final Duration SEND_TIMEOUT = Duration.ofMillis(DELIVERY_TIMEOUT_MS + 2000);
 
@@ -46,7 +49,8 @@ class MemberOutboxKafkaConfig {
         var kafkaTemplate = new KafkaTemplate<>(producerFactory, Map.<String, Object>of(
             ProducerConfig.MAX_BLOCK_MS_CONFIG, MAX_BLOCK_MS,
             ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, REQUEST_TIMEOUT_MS,
-            ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, DELIVERY_TIMEOUT_MS));
+            ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, DELIVERY_TIMEOUT_MS,
+            ProducerConfig.LINGER_MS_CONFIG, LINGER_MS));
         // 기본 LoggingProducerListener는 실패 로그에 본문을 찍는다.
         // 실패는 KafkaMemberOutboxSender가 본문 없는 예외로 알린다
         kafkaTemplate.setProducerListener(new ProducerListener<>() {
