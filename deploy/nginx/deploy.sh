@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 export KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 
 DOMAIN=${1:-}
-if [[ ! $DOMAIN =~ ^[a-z0-9-]+(\.[a-z0-9-]+)+$ ]] || [[ $DOMAIN == api.* || $DOMAIN == dev-api.* || $DOMAIN == grafana.* ]]; then
+if [[ ! $DOMAIN =~ ^[a-z0-9-]+(\.[a-z0-9-]+)+$ ]] || [[ $DOMAIN == api.* || $DOMAIN == grafana.* ]]; then
     echo "사용법: MONITORING_HOST=<모니터링 서버 사설 IP> $0 <루트 도메인>" >&2
     exit 1
 fi
