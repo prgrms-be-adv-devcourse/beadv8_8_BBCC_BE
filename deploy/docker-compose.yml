@@ -93,7 +93,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${SEARCH_PORT:-8082}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에 열 때는 nginx 가 아니라 Gateway 라우트로(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${SEARCH_PORT:-8082}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에 열 때는 엣지가 아니라 Gateway 라우트로(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -131,7 +131,7 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${RECOMMEND_PORT:-8087}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -167,7 +167,7 @@ services:
       HOLIDAY_API_SERVICE_KEY: ${HOLIDAY_API_SERVICE_KEY:-}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${SETTLEMENT_PORT:-8089}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${SETTLEMENT_PORT:-8089}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -250,7 +250,7 @@ services:
       PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED: ${PAYMENT_KAFKA_SETTLEMENT_CONSUMER_ENABLED:-true}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${PAYMENT_PORT:-8092}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${PAYMENT_PORT:-8092}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -288,7 +288,7 @@ services:
       PRODUCT_KAFKA_CONSUMER_ENABLED: ${PRODUCT_KAFKA_CONSUMER_ENABLED:-true}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${PRODUCT_PORT:-8097}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${PRODUCT_PORT:-8097}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -331,7 +331,7 @@ services:
       NOTIFICATION_SITE_URL: ${NOTIFICATION_SITE_URL}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${NOTIFICATION_PORT:-8099}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${NOTIFICATION_PORT:-8099}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -386,7 +386,7 @@ services:
       ORDER_AI_API_KEY: ${ORDER_AI_API_KEY:-${GROQ_API_KEY:-}}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${ORDER_PORT:-8100}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${ORDER_PORT:-8100}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -429,7 +429,7 @@ services:
       COMMUNITY_REVIEW_IMAGE_CLEANUP_ENABLED: ${COMMUNITY_REVIEW_IMAGE_CLEANUP_ENABLED:-false}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${COMMUNITY_PORT:-8102}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${COMMUNITY_PORT:-8102}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -467,7 +467,7 @@ services:
       KIDLY_ORDER_URI: ${KIDLY_ORDER_URI:-http://order-service:8080}
       LOG_PATH: /app/logs
     ports:
-      - "127.0.0.1:${CHATBOT_PORT:-8104}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(nginx 가 바로 넘기면 X-Member-* 위조 가능)
+      - "127.0.0.1:${CHATBOT_PORT:-8104}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)
     volumes:
       - ./logs:/app/logs
     healthcheck:
@@ -483,7 +483,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Gateway(apps/gateway, #608). nginx 뒤에서 토큰 검증 · 무효화 확인 · CORS 를 하고 app 으로 넘긴다. 상품 목록은 KIDLY_SEARCH_URI 로 넘긴다(#526)
+  # Gateway(apps/gateway, #608). 엣지 뒤에서 토큰 검증 · 무효화 확인 · CORS 를 하고 app 으로 넘긴다. 상품 목록은 KIDLY_SEARCH_URI 로 넘긴다(#526)
   # 토큰 무효화 이벤트를 받는다(구독 그룹 kidly.gateway). DB 가 없어 비밀이 든 .env 대신 필요한 값만 넘기고 공개키만 마운트한다
   gateway:
     image: ${GATEWAY_IMAGE}
@@ -523,7 +523,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:${GATEWAY_PORT:-8083}:8080"     # 외부 비공개. nginx 가 받아 넘긴다
+      - "127.0.0.1:${GATEWAY_PORT:-8083}:8080"     # 외부 비공개. 엣지가 받아 넘긴다
     volumes:
       - ./jwt/public.pem:/app/jwt/public.pem:ro
       - ./logs:/app/logs

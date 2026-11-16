@@ -57,15 +57,9 @@ gh secret set GRAFANA_ADMIN_PASSWORD --env dev
 
 값에 작은따옴표 · 줄바꿈은 쓸 수 없습니다(워크플로가 멈춥니다). `$` 등 다른 문자는 그대로 쓰입니다.
 
-### 4. 배포 뒤 nginx
+### 4. 엣지 라우팅
 
-monitoring-deploy 가 처음 끝나면 t3.large 의 옛 Grafana 가 지워지므로, 바로 t3.large 에서 nginx 를 다시 설치해 `grafana.<도메인>` 을 medium 으로 넘깁니다(그 전까지 502).
-서버의 `~/nginx` 는 예전에 올린 옛 스크립트라 `MONITORING_HOST` 를 모릅니다. **새 `deploy/nginx` 를 먼저 다시 올립니다.**
-
-```bash
-scp -r deploy/nginx ec2-user@<t3.large 탄력적 IP>:~/          # 내 PC 에서
-cd ~/nginx && sudo MONITORING_HOST=<t3.medium 사설 IP> ./install.sh kidly.kro.kr <이메일>   # t3.large 에서 (당시 방식. 지금 nginx 는 k3s Pod 라 deploy/nginx/README.md 의 deploy.sh 를 쓴다, #1309)
-```
+`deploy/traefik`이 `grafana.<도메인>` 요청을 t3.medium의 Traefik(80)으로 넘깁니다. 새 서버에는 `deploy/traefik/README.md`의 처음 설치 절을 따릅니다.
 
 옛 데이터는 옮기지 않습니다. 확인이 끝나면 t3.large 에서 지웁니다.
 

@@ -23,7 +23,7 @@ class WebFilterConfig {
     /**
      * 모든 응답에 Spring Security 기본 보안 헤더를 붙인다(#638). 서비스에서 Spring Security를 지워 서비스가 붙이던 헤더를 Gateway가 대신 붙인다.
      * Cache-Control · Pragma · Expires(응답에 셋 중 하나라도 있거나 304면 셋 다 붙이지 않는다), X-Content-Type-Options: nosniff,
-     * HSTS(요청이 https일 때만. native라 nginx의 X-Forwarded-Proto를 본다), X-Frame-Options: DENY, X-XSS-Protection: 0.
+     * HSTS(요청이 https일 때만. native라 Traefik의 X-Forwarded-Proto를 본다), X-Frame-Options: DENY, X-XSS-Protection: 0.
      * 백엔드 응답 헤더가 다 붙은 뒤(응답을 보내기 직전)에 쓰고, 이미 있는 헤더는 덮거나 더하지 않는다.
      * SecureHeaders 필터는 쓰지 않는다: 라우트를 탄 응답에만 붙고(방화벽 400은 빠진다) Cache-Control이 없으며 기본값이 다르다.
      */

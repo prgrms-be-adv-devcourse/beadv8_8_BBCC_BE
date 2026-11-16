@@ -1,4 +1,4 @@
-# 외부에서는 t3.large nginx 의 grafana.<도메인> → medium Traefik(80) → 이 Ingress 로 들어온다 (deploy/nginx)
+# 외부에서는 t3.large Traefik 의 grafana.<도메인> → medium Traefik(80) → 이 Ingress 로 들어온다 (deploy/traefik)
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -36,7 +36,7 @@ spec:
               value: "3000"
             - name: GF_SERVER_ROOT_URL
               value: https://grafana.kidly.kro.kr
-            # nginx 가 https 로만 받으므로 로그인 쿠키를 https 에서만 보낸다
+            # Traefik이 https 로만 받으므로 로그인 쿠키를 https 에서만 보낸다
             - name: GF_SECURITY_COOKIE_SECURE
               value: "true"
             - name: GF_SECURITY_ADMIN_USER

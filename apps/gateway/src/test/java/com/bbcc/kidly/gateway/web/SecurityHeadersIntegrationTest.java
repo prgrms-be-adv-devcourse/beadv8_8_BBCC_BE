@@ -52,7 +52,7 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("nginx가 https로 받은 요청에는 HSTS를 붙인다")
+    @DisplayName("Traefik이 https로 받은 요청에는 HSTS를 붙인다")
     void addsHstsToHttpsRequest() {
         client.get().uri("/api/v1/products")
             .header("X-Forwarded-Proto", "https")
