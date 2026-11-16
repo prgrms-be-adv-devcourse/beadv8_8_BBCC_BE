@@ -80,6 +80,10 @@ fi
 tempo_profile=tempo
 if [[ -f operations/tempo-private-receiver.enabled ]]; then
     tempo_profile=tempo/private-receiver
+    if ! k get secret tracing-tempo-server-tls -o name >/dev/null; then
+        echo "::warning::Tempo 수신용 Secret을 확인하지 못해 현재 Tempo 배포를 유지합니다."
+        exit 0
+    fi
 fi
 # Tempo 실패 시 기존 모니터링 배포는 계속한다.
 if ! kubectl apply --server-side --force-conflicts -k "$tempo_profile"; then
