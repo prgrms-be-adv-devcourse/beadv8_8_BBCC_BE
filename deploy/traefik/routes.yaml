@@ -1,0 +1,134 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-trace-headers
+  namespace: edge
+spec:
+  headers:
+    # OTel Java Agent가 Netty에서 먼저 읽으므로 Gateway 필터로는 늦다(#1349).
+    customRequestHeaders:
+      traceparent: ""
+      tracestate: ""
+      baggage: ""
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: edge
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+# 서비스는 JSON 본문 크기를 제한하지 않고, 이미지는 S3 presigned URL 로 바로 올라가 API 를 지나지 않는다.
+# v3.7 Buffering 은 응답도 모아서 보내므로(disableResponseBuffer 없음) SSE 라우트에는 걸지 않는다
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: limit-request-body
+  namespace: edge
+spec:
+  buffering:
+    maxRequestBodyBytes: 10485760
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: http-redirect
+  namespace: edge
+spec:
+  entryPoints: [web]
+  routes:
+    # entrypoint 전체가 아니라 이 라우터에만 리다이렉트를 건다. ACME HTTP-01 challenge 경로가 https 로 밀려나지 않게 한다
+    - match: Host(`api.__DOMAIN__`) || Host(`grafana.__DOMAIN__`)
+      kind: Rule
+      middlewares:
+        - name: redirect-https
+      services:
+        - name: noop@internal
+          kind: TraefikService
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: api
+  namespace: edge
+spec:
+  entryPoints: [websecure]
+  routes:
+    # SSE: 알림 수(…/stream, #1302) · AI 추천 스트림(Accept: text/event-stream, #1155) · 관리자 MCP. 규칙이 길어 아래 라우트보다 먼저 맞는다
+    - match: Host(`api.__DOMAIN__`) && (HeaderRegexp(`Accept`, `text/event-stream`) || PathRegexp(`/stream$`))
+      kind: Rule
+      middlewares:
+        - name: strip-trace-headers
+      services:
+        - name: gateway
+          namespace: kidly-dev
+          port: http
+    - match: Host(`api.__DOMAIN__`)
+      kind: Rule
+      middlewares:
+        - name: strip-trace-headers
+        - name: limit-request-body
+      services:
+        - name: gateway
+          namespace: kidly-dev
+          port: http
+  tls:
+    secretName: kidly-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana
+  namespace: edge
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`grafana.__DOMAIN__`)
+      kind: Rule
+      middlewares:
+        - name: strip-trace-headers
+      services:
+        - name: grafana
+          port: 80
+  tls:
+    secretName: kidly-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: edge
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: grafana
+  namespace: edge
+  labels:
+    kubernetes.io/service-name: grafana
+addressType: IPv4
+endpoints:
+  - addresses: [__MONITORING_HOST__]
+    conditions:
+      ready: true
+ports:
+  - name: http
+    port: 80
+    protocol: TCP
+---
+apiVersion: traefik.io/v1alpha1
+kind: TLSOption
+metadata:
+  name: default
+  namespace: edge
+spec:
+  minVersion: VersionTLS12
+  sniStrict: true

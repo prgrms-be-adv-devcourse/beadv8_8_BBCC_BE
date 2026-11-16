@@ -1,0 +1,68 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: kidly-traefik-crd
+  namespace: kube-system
+spec:
+  targetNamespace: edge
+  chart: https://%{KUBERNETES_API}%/static/charts/traefik-crd-41.4.2+up41.4.0.tgz
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: kidly-traefik
+  namespace: kube-system
+spec:
+  targetNamespace: edge
+  chart: https://%{KUBERNETES_API}%/static/charts/traefik-41.4.2+up41.4.0.tgz
+  valuesContent: |-
+    # 차트 기본 태그(v3.7.1)는 미러에 없다. k3s 가 내장 매니페스트(manifests/traefik.yaml)에서 덮어쓰는 태그를 그대로 쓴다
+    image:
+      repository: rancher/mirrored-library-traefik
+      tag: "3.7.13"
+    deployment:
+      replicas: 1
+    updateStrategy:
+      type: Recreate
+      rollingUpdate: null
+    priorityClassName: kidly-edge
+    ports:
+      web:
+        port: 8000
+        hostPort: __WEB_PORT__
+        forwardedHeaders:
+          trustedIPs: []
+          insecure: false
+      websecure:
+        port: 8443
+        hostPort: __WEBSECURE_PORT__
+        http3:
+          enabled: false
+        forwardedHeaders:
+          trustedIPs: []
+          insecure: false
+    service:
+      enabled: false
+    providers:
+      kubernetesCRD:
+        enabled: true
+        allowCrossNamespace: true
+        allowExternalNameServices: false
+      kubernetesIngress:
+        enabled: false
+      kubernetesGateway:
+        enabled: false
+    ingressClass:
+      enabled: false
+    ingressRoute:
+      dashboard:
+        enabled: false
+    global:
+      checkNewVersion: false
+      sendAnonymousUsage: false
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
