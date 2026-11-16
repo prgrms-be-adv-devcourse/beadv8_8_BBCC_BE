@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.payment.app;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.OrderCancellationRetryRepository;
+import com.bbcc.kidly.boundedcontext.payment.domain.OrderItemCancellationRetryRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentOutboxRepository;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import io.micrometer.core.instrument.Counter;
@@ -36,6 +37,8 @@ public class PaymentMetrics {
     private static final String CHARGES_STUCK = "kidly.payment.charges.stuck";
     private static final String REFUND_RETRY_PENDING = "kidly.payment.refund.retry.pending";
     private static final String REFUND_RETRY_OLDEST_AGE = "kidly.payment.refund.retry.oldest.age.seconds";
+    private static final String ITEM_REFUND_RETRY_PENDING = "kidly.payment.item.refund.retry.pending";
+    private static final String ITEM_REFUND_RETRY_OLDEST_AGE = "kidly.payment.item.refund.retry.oldest.age.seconds";
     private static final String PAYOUTS = "kidly.payment.payouts";
     private static final String SCHEDULER_LAST_SUCCESS = "kidly.payment.scheduler.last.success.seconds";
 
@@ -53,7 +56,8 @@ public class PaymentMetrics {
     private final Map<SchedulerTask, AtomicLong> lastSuccessEpochSeconds = new EnumMap<>(SchedulerTask.class);
 
     public PaymentMetrics(MeterRegistry registry, PaymentOutboxRepository outboxRepository,
-        ChargeRepository chargeRepository, OrderCancellationRetryRepository retryRepository) {
+        ChargeRepository chargeRepository, OrderCancellationRetryRepository retryRepository,
+        OrderItemCancellationRetryRepository itemRetryRepository) {
         this.registry = registry;
         Gauge.builder(OUTBOX_UNSENT, outboxRepository::countUnsent)
             .description("아직 Kafka로 보내지 않은 결제 아웃박스 메시지 수")
@@ -73,6 +77,12 @@ public class PaymentMetrics {
             .register(registry);
         Gauge.builder(REFUND_RETRY_OLDEST_AGE, () -> ageSeconds(retryRepository::findOldestCreatedAt))
             .description("가장 오래된 재처리 대기 주문 취소 환불의 나이(초). 없으면 0")
+            .register(registry);
+        Gauge.builder(ITEM_REFUND_RETRY_PENDING, itemRetryRepository::count)
+            .description("환불하지 못해 관리자 처리를 기다리는 주문상품 취소 수")
+            .register(registry);
+        Gauge.builder(ITEM_REFUND_RETRY_OLDEST_AGE, () -> ageSeconds(itemRetryRepository::findOldestCreatedAt))
+            .description("가장 오래된 환불 못 한 주문상품 취소의 나이(초). 없으면 0")
             .register(registry);
         for (SchedulerTask task : SchedulerTask.values()) {
             AtomicLong lastSuccess = new AtomicLong(-1);
