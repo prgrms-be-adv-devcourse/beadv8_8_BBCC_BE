@@ -37,6 +37,12 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 4. Traefik의 공개 추적 헤더 제거를 확인한 뒤 Gateway·주문 Agent를 적용합니다. 운영 Grafana에서 실제 주문 조회 트레이스와 기존 Loki 요청 ID 검색을 확인합니다.
 5. 원복할 때 앱 Agent와 전용 Alloy를 내리고, 별도로 만든 `tempo-otlp-private` Service·NetworkPolicy와 외부 방화벽 허용을 제거합니다. 선택 파일을 제거한 뒤 기본 Tempo 조회 구성을 다시 적용합니다.
 
+## 운영 적용·원복 점검
+
+`tracing-preflight`에서 `applied` 또는 `rolled-back`을 선택합니다. Gateway·주문 롤아웃, Agent 설정, 전용 Alloy, Tempo 수신 설정을 읽어서 기대 상태와 다르면 실패합니다. 이 검사는 설정과 Pod 준비 상태를 확인합니다. 실제 전송·사설 접근 차단과 Grafana의 주문 트레이스는 시범 절차에서 각각 확인합니다.
+
+시험 비교에는 시작·종료 시각(KST), 환경, 대상 서비스와 요청 경로를 기록합니다. 같은 구간의 초당 요청 수, 5xx, 평균 응답 시간, DB 연결 대기, Pod CPU·메모리를 기존 대시보드에서 확인합니다. 지표가 조회되지 않으면 `데이터 없음`으로 적고 마지막에 Grafana 시간 범위 링크를 남깁니다.
+
 ## 운영 사전 점검
 
 GitHub Actions에서 `tracing-preflight`를 develop 기준으로 수동 실행합니다. 두 클러스터의 Gateway·주문·Grafana·Tempo 준비 상태와 수집 리소스 유무를 확인합니다. 앱 환경 변수, Secret, 인증서 내용과 로그 원문은 출력하지 않습니다. 수집 경로가 준비된 이후에는 실제 요청의 Tempo 조회를 별도로 확인합니다.

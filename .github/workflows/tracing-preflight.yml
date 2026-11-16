@@ -2,6 +2,12 @@ name: tracing-preflight
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 점검 단계
+        type: choice
+        default: preflight
+        options: [preflight, applied, rolled-back]
 
 permissions:
   contents: read
@@ -20,6 +26,7 @@ jobs:
     env:
       SSH_HOST: ${{ matrix.role == 'app' && vars.SSH_HOST || vars.MONITORING_SSH_HOST }}
       CLUSTER_ROLE: ${{ matrix.role }}
+      CHECK_MODE: ${{ inputs.mode }}
     steps:
       - uses: actions/checkout@v7
       - name: 서버 접속 확인 · SSH 키 준비
@@ -30,5 +37,14 @@ jobs:
           known-hosts: ${{ matrix.role == 'app' && vars.SSH_KNOWN_HOSTS || vars.MONITORING_SSH_KNOWN_HOSTS }}
       - name: 저장소의 읽기 전용 점검 실행
         run: |
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
-            bash -s -- "$CLUSTER_ROLE" < deploy/tracing-ops/preflight.sh
+          case "$CHECK_MODE" in
+            preflight)
+              ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
+                bash -s -- "$CLUSTER_ROLE" < deploy/tracing-ops/preflight.sh
+              ;;
+            applied|rolled-back)
+              ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" \
+                python3 - "$CLUSTER_ROLE" "$CHECK_MODE" < deploy/tracing-ops/verify-state.py
+              ;;
+            *) exit 2 ;;
+          esac
