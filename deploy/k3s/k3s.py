@@ -167,7 +167,7 @@ def manifest(env, name, node_port, job, service, project_dir):
     if security_context(service):
         container['securityContext'] = security_context(service)
     if env == 'dev' and (project_dir / 'operations' / 'tracing-agent' / (name + '.enabled')).is_file():
-        from tracing_agent import HOST_AGENT_JAR, SERVICES, agent_settings
+        from tracing_agent import HOST_AGENT_JAR, PILOT_SERVICES, SERVICES, agent_settings
 
         if name in SERVICES:
             agent_jar = Path(HOST_AGENT_JAR)
@@ -177,7 +177,8 @@ def manifest(env, name, node_port, job, service, project_dir):
             container['env'] = agent_env
             container['volumeMounts'].append(agent_mount)
             volumes.append(agent_volume)
-            pod_labels['kidly/tracing'] = 'enabled'
+            if name not in PILOT_SERVICES:
+                pod_labels['kidly/tracing'] = 'enabled'
     items = [
         {'apiVersion': 'v1', 'kind': 'Secret', 'metadata': {'name': name + '-env', 'namespace': ns},
          'type': 'Opaque', 'stringData': variables},

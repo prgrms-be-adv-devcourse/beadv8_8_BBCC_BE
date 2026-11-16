@@ -34,11 +34,11 @@ Gateway·주문 시범에서 실제 트레이스와 자원 사용량을 확인�
 
 ## 다른 서비스로 확대
 
-Gateway·주문 시범에 성공한 뒤 `kubectl kustomize deploy/tracing-ops/app-alloy-extended`로 확장 수집 구성을 확인합니다. 기본 Alloy 구성의 허용 대상은 Gateway와 주문입니다. 확장 구성에서도 이 두 서비스의 연결은 유지되며, 나머지는 선택 파일을 둬서 추적 라벨이 붙은 Pod만 연결됩니다.
+Gateway·주문 시범에 성공한 뒤 `kubectl kustomize deploy/tracing-ops/app-alloy-extended`로 확장 수집 구성을 확인합니다. 기본 Alloy 구성의 허용 대상은 Gateway와 주문입니다. 확장 구성에서도 이 두 서비스의 연결은 유지됩니다. 나머지는 앱 서버의 동일한 경로에 서비스 이름으로 선택 파일을 둡니다(예를 들어 `search.enabled`). 추가 서비스는 일반 배포에서 추적 라벨이 붙은 Pod만 연결됩니다. 수동 패치 도구는 Gateway와 주문에만 사용합니다. 송신 Pod는 NetworkPolicy로 제한하며, Alloy가 읽는 서비스 이름 자체는 송신자가 기록한 값입니다.
 
 검색, 상품, 회원, 결제, 커뮤니티, 알림, 정산, 추천, 챗봇을 하나씩 올리고 Grafana에서 대표 읽기 요청을 확인합니다. HTTP·JDBC 속성은 상태 코드만 남기며, 검색에서 Elasticsearch DB span이 들어오면 이름을 Elasticsearch로 고정합니다. 실제 클라이언트가 해당 span을 내보내는지는 운영 시범에서 확인합니다. 오류 메시지, 원래 span 이름, SQL 원문, 요청 본문이 저장되지 않는지도 확인합니다.
 
-원복은 해당 서비스의 선택 파일을 제거하고 그 서비스의 Agent 제거 및 요청 정상 여부를 확인하는 순서입니다. 확장 서비스를 모두 해제한 뒤 기본 Alloy 구성으로 복귀할 수 있습니다.
+원복은 해당 서비스의 선택 파일을 제거하고 그 서비스의 Agent 제거 및 요청 정상 여부를 확인하는 순서입니다. 확장 서비스를 모두 해제한 뒤 기본 Alloy 구성으로 복귀하고 Deployment의 허용 목록과 NetworkPolicy가 Gateway·주문만 허용하는지 확인합니다. 수집기를 먼저 복귀하면 Agent가 아직 켜진 서비스에서 전송 실패가 발생합니다.
 
 ## 두 클러스터 사이 사설 경로
 

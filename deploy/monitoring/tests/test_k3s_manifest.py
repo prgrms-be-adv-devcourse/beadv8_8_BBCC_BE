@@ -2,6 +2,8 @@
 import base64
 import importlib.util
 import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 import tempfile
@@ -78,7 +80,9 @@ class K3sManifestTests(unittest.TestCase):
                         self.assertEqual(settings['JAVA_TOOL_OPTIONS'], f'-Xmx192m -javaagent:{module.AGENT_JAR}')
                         self.assertEqual(settings['OTEL_SERVICE_NAME'], f'kidly-{name}')
                         self.assertEqual(settings['OTEL_TRACES_SAMPLER_ARG'], '0.05')
-                        self.assertEqual(deployment['spec']['template']['metadata']['labels']['kidly/tracing'], 'enabled')
+                        labels = deployment['spec']['template']['metadata']['labels']
+                        self.assertEqual(labels.get('kidly/tracing'),
+                                         None if name in module.PILOT_SERVICES else 'enabled')
                         self.assertTrue(container['volumeMounts'][-1]['readOnly'])
                         self.assertEqual(pod['volumes'][-1]['hostPath']['path'], str(jar))
                     else:
@@ -95,6 +99,41 @@ class K3sManifestTests(unittest.TestCase):
             jar.unlink()
             with self.assertRaisesRegex(ValueError, 'Agent JAR'):
                 self.items(name='gateway', service=service)
+
+    def test_tracing_alloy_profiles_match_supported_services(self):
+        agent_spec = importlib.util.spec_from_file_location(
+            'tracing_agent', Path(spec.origin).with_name('tracing_agent.py'))
+        agent = importlib.util.module_from_spec(agent_spec)
+        agent_spec.loader.exec_module(agent)
+        tracing_ops = Path(spec.origin).parents[1] / 'tracing-ops'
+        for profile, services in (
+                ('app-alloy', agent.PILOT_SERVICES), ('app-alloy-extended', agent.SERVICES)):
+            with self.subTest(profile=profile):
+                yaml = subprocess.check_output(['kubectl', 'kustomize', str(tracing_ops / profile)])
+                items = json.loads(subprocess.check_output(
+                    ['ruby', '-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_stream(STDIN.read))'],
+                    input=yaml,
+                ))
+                deployment = next(item for item in items if item['kind'] == 'Deployment')
+                container = deployment['spec']['template']['spec']['containers'][0]
+                regex = next(item['value'] for item in container['env']
+                             if item['name'] == 'TRACING_ALLOWED_SERVICES')
+                allowed = set(re.findall(r'[a-z]+', regex)) - {'kidly'}
+                self.assertEqual(allowed, set(services))
+                for name in (*services, 'redis'):
+                    self.assertEqual(bool(re.search(regex, f'kidly-{name}')), name in services)
+                    self.assertIsNone(re.search(regex, f'kidly-{name}-shadow'))
+                policy = next(item for item in items if item['kind'] == 'NetworkPolicy')
+                peers = [peer['podSelector'] for peer in policy['spec']['ingress'][0]['from']]
+                self.assertEqual(peers[0]['matchExpressions'][0]['values'], list(agent.PILOT_SERVICES))
+                self.assertNotIn('matchLabels', peers[0])
+                if profile == 'app-alloy-extended':
+                    self.assertEqual(len(peers), 2)
+                    self.assertEqual(peers[1]['matchLabels'], {'kidly/tracing': 'enabled'})
+                    self.assertEqual(set(peers[1]['matchExpressions'][0]['values']),
+                                     set(agent.SERVICES) - set(agent.PILOT_SERVICES))
+                else:
+                    self.assertEqual(len(peers), 1)
 
     def test_settlement_has_daily_cronjob_with_deployment_settings(self):
         service = self.service(user='1001:1001', read_only=True, cap_drop=['ALL'],
