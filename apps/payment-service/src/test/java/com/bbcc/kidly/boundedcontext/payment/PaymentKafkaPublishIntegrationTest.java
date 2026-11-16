@@ -170,7 +170,7 @@ class PaymentKafkaPublishIntegrationTest {
 
         PaymentOutboxRelayResult result = relayService.relay();
 
-        assertThat(result).isEqualTo(new PaymentOutboxRelayResult(PaymentOutboxRelayResult.Outcome.COMPLETED, 3, 3));
+        assertThat(result).isEqualTo(new PaymentOutboxRelayResult(PaymentOutboxRelayResult.Outcome.COMPLETED, 3, 3, 0));
         List<UUID> eventIds = ids.stream().map(this::eventIdOf).toList();
         // 키가 같아 같은 파티션이므로 받은 순서가 보낸 순서다
         awaitEventId(eventIds.getLast());
@@ -191,7 +191,7 @@ class PaymentKafkaPublishIntegrationTest {
 
         PaymentOutboxRelayResult result = relayService.relay();
 
-        assertThat(result).isEqualTo(new PaymentOutboxRelayResult(PaymentOutboxRelayResult.Outcome.STOPPED, 2, 0));
+        assertThat(result).isEqualTo(new PaymentOutboxRelayResult(PaymentOutboxRelayResult.Outcome.STOPPED, 2, 0, 0));
         Map<String, Object> row = jdbcTemplate.queryForMap(
             "select sent_at, attempt_count, last_error from payment.payment_outbox where id = ?", failed);
         assertThat(row).containsEntry("sent_at", null).containsEntry("attempt_count", 1);

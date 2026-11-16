@@ -293,6 +293,8 @@
 | POST | `/api/v1/webhooks/toss` | 토스 웹훅. 토스에서 직접 취소한 충전을 맞춤 | 🌐 |
 | GET | `/api/v1/admin/payments` | 전체 결제 · 환불 조회 | 🛠 |
 | GET | `/api/v1/admin/payments/summary` | 결제일 기준 날짜별 결제 금액 · 건수(`from` · `to`, 한국 시간, 비우면 오늘, 최대 31일)와 환불 이력이 있는 결제 전체 건수 | 🛠 |
+| GET | `/api/v1/admin/payments/parked-events` | 보내지 못해 격리한 결제 이벤트(아웃박스) 목록. 같은 키의 뒤 이벤트도 함께 멈춰 있음 | 🛠 |
+| POST | `/api/v1/admin/payments/parked-events/{outboxId}/release` | 격리를 풀어 그 이벤트부터 같은 키의 뒤 이벤트까지 순서대로 다시 보냄 | 🛠 |
 | GET | `/api/v1/admin/wallets` | 지갑 목록(`frozen` · `hasBalance`로 거름) | 🛠 |
 | POST | `/api/v1/admin/wallets/{walletId}/return-balance` | 동결 지갑의 잔액을 환급했다고 기록하고 0으로 만듦(송금은 하지 않음) | 🛠 |
 

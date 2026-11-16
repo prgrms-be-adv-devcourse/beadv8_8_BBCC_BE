@@ -231,7 +231,10 @@
   - 저장은 Kafka 보내기가 꺼져 있어도(`kidly.kafka.producer.enabled=false`) 한다
 - **릴레이** (`app/PaymentOutboxRelayService`, `in.scheduler.PaymentOutboxRelayScheduler`): 주기(`kidly.payment.outbox.relay-interval`, 기본 1초)마다 안 보낸 메시지를 `id` 순서로 `batch-size`(기본 100)건 보내고 `sent_at`을 기록한다
   - 한 트랜잭션에서 PostgreSQL advisory lock(`pg_try_advisory_xact_lock`)을 얻은 쪽만 보낸다. 서버가 여러 대여도 한 번에 하나만 돌아 순서가 지켜진다. 못 얻으면 아무것도 하지 않는다
-  - 보내다 실패하면 그 메시지에 `attempt_count` · `last_error`를 남기고 멈춘다. 다음 주기에 같은 메시지부터 다시 보낸다(순서 유지). 횟수 제한은 없다
+  - 보내다 실패하면 그 메시지에 `attempt_count` · `last_error`를 남기고 멈춘다. 다음 주기에 같은 메시지부터 다시 보낸다(순서 유지)
+  - 격리(#1389): `attempt_count`가 `max-attempts`(기본 30)에 닿은 메시지는 실패해도 멈추지 않고 같은 키(`message_key`)의 뒤 메시지만 건너뛰고 계속 보낸다. 그 뒤 다른 메시지가 보내지면 브로커는 살아 있으니 그 메시지만의 문제로 보고 `parked_at`을 남긴다(ERROR 로그). 아무것도 보내지지 않으면(브로커 장애) 격리하지 않는다
+  - 읽는 대상은 안 보냈고 격리되지 않았으며, 같은 키의 앞선 안 보낸 메시지가 격리됐거나 상한에 닿지 않은 것이다. 상한에 닿은 메시지 자신은 읽고 그 키의 뒤 메시지는 빼서, 뒤 메시지가 `batch-size`를 다 채워 다른 키를 막지 않는다. 격리된 키는 관리자가 풀 때까지 멈춰 같은 키 순서가 지켜진다
+  - 관리자 API(`in/AdminPaymentOutboxController`): `GET /api/v1/admin/payments/parked-events`(본문 없이 `outboxId` · `eventId` · `eventType` · `messageKey` · `attemptCount` · `lastError` · 시각), `POST .../{outboxId}/release`(격리를 풀고 `attempt_count`를 0으로. 다음 릴레이가 그 메시지부터 같은 키 뒤 메시지까지 순서대로 보낸다). 격리되지 않은 메시지는 409 `OUTBOX_MESSAGE_NOT_PARKED`, 없으면 404
   - 실패는 업무를 실패시키지 않고 본문 없는 WARN(`eventType` · `eventId` · `key` · 원인)만 남긴다
   - 메시지는 **한 번 이상** 갈 수 있다(보낸 뒤 커밋 전에 죽으면 다시 보낸다). 받는 쪽은 `eventId`나 업무 상태로 거른다
   - `kidly.kafka.producer.enabled`가 false면 릴레이 스케줄러를 만들지 않는다
@@ -249,6 +252,7 @@
 |---|---|---|---|
 | `kidly_payment_outbox_unsent_messages` | gauge | - | `sent_at IS NULL`인 아웃박스 메시지 수 |
 | `kidly_payment_outbox_oldest_unsent_age_seconds` | gauge | - | 가장 오래된 미전송 메시지의 나이(`created_at` 기준). 없으면 0 |
+| `kidly_payment_outbox_parked_messages` | gauge | - | 격리한 메시지(`sent_at IS NULL AND parked_at IS NOT NULL`) 수. 같은 키의 뒤 메시지도 함께 멈춰 있다 |
 | `kidly_payment_outbox_send_failures_total` | counter | `event_type`(결제가 보내는 eventType 5종) | 릴레이가 Kafka로 보내지 못한 횟수(`PaymentOutboxRelayService`). 같은 메시지가 주기마다 다시 실패하면 그때마다 센다 |
 | `kidly_payment_dlt_messages_total` | counter | `topic`(받는 토픽 3종) | DLT로 보낸 수신 메시지 수(`PaymentKafkaListenerConfig`의 recoverer) |
 | `kidly_payment_order_payments_total` | counter | `result`(`success` · `failure`), `reason`(`none` · `INSUFFICIENT_BALANCE` · `AMOUNT_MISMATCH` · `WALLET_NOT_FOUND`) | 주문 결제 결과(`OrderPaymentService`). 이미 결제한 주문 · 결제 전 취소된 주문은 세지 않는다 |
