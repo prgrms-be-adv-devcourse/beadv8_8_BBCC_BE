@@ -21,6 +21,7 @@ Gateway·주문을 운영하는 kidly-dev와 별도의 폐기 가능한 시험 �
 
 시험 Grafana에 Tempo 데이터소스가 준비되면 `python3 deploy/tracing-trial/order-trace-link.py`의 출력에서 URL을 복사해 시험 API 처리 시간 패널의 **Panel links**에 **관련 트레이스 보기**로 추가한다.
 
+- 시연에 사용하는 Grafana 계정이 Explore에서 Tempo를 조회할 수 있는지 먼저 확인한다. 시험의 기본 익명 Viewer는 Explore 진입 시 홈으로 돌아갔다.
 - 패널의 시간 범위를 좁힌 뒤 링크를 열어 같은 시간 범위로 주문 서비스의 서버 span을 검색하는지 확인한다. 링크는 주문 서비스로 고정하며 경로별 분리는 후속 검증 범위다.
 - 검색 결과에서 가장 느린 요청 또는 확인하고 싶은 상태의 요청을 열어 Gateway → 주문 HTTP → JDBC의 시간과 상태를 비교한다.
 - 표에는 여러 요청의 p95가 표시된다. Tempo 결과는 그 시간대에 샘플링해 저장한 개별 요청이다. 일치하는 트레이스가 없으면 시간 범위와 수집 상태를 확인하고, 기존 X-Request-Id로 로그를 찾는다.
