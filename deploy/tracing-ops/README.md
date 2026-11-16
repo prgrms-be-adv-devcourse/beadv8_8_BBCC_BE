@@ -16,3 +16,11 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 - 수집 목적지는 계획된 앱 클러스터 내부 서비스 `tracing-alloy.kidly-dev.svc:4318`입니다. Alloy가 준비되고 모니터링 쪽과 사설 전송이 검증될 때 적용합니다.
 - 공개 추적 헤더 제거가 운영에 반영된 뒤 5% 샘플링으로 시작합니다. 로그·메트릭 exporter와 Kafka 자동 계측은 끕니다.
 - 적용 전 명세를 보관하고 운영 배포와 실행 시간이 겹치지 않게 조율합니다. 원복은 기존 명세로 복원합니다. 이 수동 패치는 이후 일반 배포가 덮어쓸 수 있습니다.
+
+## 앱 클러스터 수집기
+
+`kubectl kustomize deploy/tracing-ops/app-alloy`로 Agent와 사설 수신점 사이의 Alloy 구성을 확인합니다. 기존 로그·메트릭 Alloy와 별도입니다.
+
+- 앱 클러스터의 `kidly-dev`에서 Gateway·주문 Pod만 Alloy OTLP ClusterIP에 접근하도록 구성합니다. 수신된 span은 두 서비스의 HTTP·DB로 제한하고 허용된 속성만 남깁니다.
+- 모니터링 쪽 수신기에 상호 TLS를 구성한 뒤, 사설 HTTPS 주소를 `tracing-tempo-endpoint` ConfigMap의 `url`에 지정합니다. `tracing-alloy-client-tls` Secret에는 해당 CA와 클라이언트 인증서·키를 준비합니다. 수신기는 HTTPS와 클라이언트 인증을 모두 검증해야 합니다.
+- 현재 Tempo 조회 구성의 OTLP는 루프백에 있습니다. 모니터링 쪽 사설 수신기가 준비되기 전에 이 Alloy를 적용하면 전송할 수 없습니다. 기존 Prometheus·Loki 수집과 분리해 검증합니다.

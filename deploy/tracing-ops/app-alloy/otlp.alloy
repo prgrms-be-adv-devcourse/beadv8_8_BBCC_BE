@@ -1,0 +1,86 @@
+// Dedicated collector for the opt-in operating trace trial.
+otelcol.receiver.otlp "tracing_ops" {
+  http {
+    endpoint = sys.env("TRACING_OTLP_LISTEN")
+  }
+
+  output {
+    traces = [otelcol.processor.memory_limiter.tracing_ops.input]
+  }
+}
+
+otelcol.processor.memory_limiter "tracing_ops" {
+  check_interval = "1s"
+  limit = "384MiB"
+  spike_limit = "64MiB"
+
+  output {
+    traces = [otelcol.processor.filter.tracing_ops.input]
+  }
+}
+
+otelcol.processor.filter "tracing_ops" {
+  error_mode = "propagate"
+
+  traces {
+    span = [
+      `resource.attributes["deployment.environment.name"] != "dev"`,
+      `resource.attributes["service.name"] != "kidly-gateway" and resource.attributes["service.name"] != "kidly-order"`,
+      `attributes["http.request.method"] == nil and attributes["http.method"] == nil and instrumentation_scope.name != "io.opentelemetry.jdbc" and instrumentation_scope.name != "io.opentelemetry.hibernate-6.0" and instrumentation_scope.name != "io.opentelemetry.spring-data-1.8"`,
+    ]
+    spanevent = ["true"]
+  }
+
+  output {
+    traces = [otelcol.processor.transform.tracing_ops.input]
+  }
+}
+
+otelcol.processor.transform "tracing_ops" {
+  error_mode = "propagate"
+
+  trace_statements {
+    context = "resource"
+    statements = [`keep_keys(attributes, ["service.name", "deployment.environment.name"])`]
+  }
+  trace_statements {
+    context = "span"
+    statements = [
+      `set(name, "HTTP")`,
+      `set(name, "JDBC") where instrumentation_scope.name == "io.opentelemetry.jdbc"`,
+      `set(name, "Hibernate") where instrumentation_scope.name == "io.opentelemetry.hibernate-6.0"`,
+      `set(name, "Spring Data") where instrumentation_scope.name == "io.opentelemetry.spring-data-1.8"`,
+      `set(status.message, "")`,
+      `keep_keys(attributes, ["http.response.status_code", "http.status_code"])`,
+    ]
+  }
+
+  output {
+    traces = [otelcol.processor.batch.tracing_ops.input]
+  }
+}
+
+otelcol.processor.batch "tracing_ops" {
+  send_batch_size = 128
+  send_batch_max_size = 256
+
+  output {
+    traces = [otelcol.exporter.otlphttp.tracing_ops.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tracing_ops" {
+  client {
+    endpoint = sys.env("TRACING_TEMPO_ENDPOINT")
+
+    tls {
+      ca_file   = "/etc/tracing-tls/ca.crt"
+      cert_file = "/etc/tracing-tls/tls.crt"
+      key_file  = "/etc/tracing-tls/tls.key"
+    }
+  }
+
+  sending_queue {
+    enabled = false
+  }
+}
