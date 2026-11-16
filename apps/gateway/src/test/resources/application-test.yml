@@ -19,3 +19,11 @@ jwt:
 
 cors:
   allowed-origins: http://localhost:5173
+
+kidly:
+  gateway:
+    rate-limit:
+      global:
+        capacity: 1000
+        period: 1h
+        switch-refresh: 200ms

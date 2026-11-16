@@ -219,6 +219,13 @@ management:
 kidly:
   gateway:
     rate-limit:
+      # 모든 요청 수 제한(#1417, ratelimit/GlobalRateLimitFilter). 한 클라이언트의 폭주로 백엔드가 죽지 않게 회원 · IP마다 센다.
+      # Redis에 세어 Gateway가 여러 대여도 한도를 공유한다. 값은 측정하지 않은 시작값이라 부하테스트 뒤 고친다.
+      # switch-refresh: 관리자 API로 바꾼 스위치를 다른 Gateway가 Redis에서 다시 읽는 주기
+      global:
+        capacity: 200
+        period: 1m
+        switch-refresh: 2s
       # 검색어가 있는 상품 목록 요청 수 제한(#816, ratelimit/SearchRateLimitFilter). 회원(로그인) · IP(비로그인)마다 센다.
       # 검색어마다 검색 서비스가 임베딩 API(OpenAI)를 부른다. Gateway 메모리에 세므로 다시 뜨면 빈다
       search:
