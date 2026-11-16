@@ -1,7 +1,9 @@
 import importlib.util
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 OPERATIONS = Path(__file__).resolve().parents[2] / 'tracing-ops'
@@ -96,3 +98,10 @@ class TracingVerificationTests(unittest.TestCase):
                     marker.parent.mkdir(parents=True)
                     marker.touch()
                     self.assertFalse(all(dict(state.selection_checks(role, root)).values()))
+
+    def test_kubernetes_read_failure_reports_only_requested_resource(self):
+        error = subprocess.CalledProcessError(1, ['kubectl'], stderr='fixture private stderr')
+        with mock.patch.object(state.subprocess, 'check_output', side_effect=error):
+            with self.assertRaises(RuntimeError) as failure:
+                state.get('monitoring', 'deployment', 'tempo')
+        self.assertEqual(str(failure.exception), 'Kubernetes read failed for monitoring/deployment/tempo')

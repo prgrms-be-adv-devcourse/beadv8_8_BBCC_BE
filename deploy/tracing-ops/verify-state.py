@@ -49,11 +49,14 @@ def private_receiver_policy(policy):
 
 
 def get(namespace, kind, name):
-    output = subprocess.check_output(
-        ['kubectl', '-n', namespace, 'get', kind, name, '--ignore-not-found', '-o', 'json'],
-        text=True,
-    )
-    return json.loads(output) if output.strip() else {}
+    try:
+        output = subprocess.check_output(
+            ['kubectl', '-n', namespace, 'get', kind, name, '--ignore-not-found', '-o', 'json'],
+            text=True, stderr=subprocess.PIPE,
+        )
+        return json.loads(output) if output.strip() else {}
+    except (OSError, subprocess.CalledProcessError, ValueError) as error:
+        raise RuntimeError(f'Kubernetes read failed for {namespace}/{kind}/{name}') from error
 
 
 def ready(deployment):
@@ -158,7 +161,11 @@ def main():
     args = parser.parse_args()
     os.environ['KUBECONFIG'] = str(Path.home() / '.kube' / 'config')
     checks = app_checks if args.role == 'app' else monitoring_checks
-    results = list(checks(get, args.state == 'applied'))
+    try:
+        results = list(checks(get, args.state == 'applied'))
+    except RuntimeError as error:
+        print(f'{error}: CHECK REQUIRED')
+        return 1
     if args.state == 'rolled-back':
         results.extend(selection_checks(args.role, Path('/opt/app')))
     for description, passed in results:
