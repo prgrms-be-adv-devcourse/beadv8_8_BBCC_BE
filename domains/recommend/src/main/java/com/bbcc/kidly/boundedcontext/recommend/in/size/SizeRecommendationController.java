@@ -7,7 +7,6 @@ import com.bbcc.kidly.boundedcontext.recommend.in.size.dto.SizeRecommendationRes
 import com.bbcc.kidly.boundedcontext.recommend.in.support.AiResultStream;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -43,11 +42,10 @@ public class SizeRecommendationController {
     @GetMapping(value = PATH, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(
         @LoginMember AuthMember member,
-        @Valid @ModelAttribute SizeRecommendationRequest request,
-        HttpServletResponse response) {
+        @Valid @ModelAttribute SizeRecommendationRequest request) {
         SizeRecommendationWithAi result =
             sizeRecommendationService.recommendWithAiLater(member.id(), request.productId(), request.childId());
-        return aiResultStream.open(response, SizeRecommendationResponse.from(result.rule()),
+        return aiResultStream.open(SizeRecommendationResponse.from(result.rule()),
             result.ai().thenApply(found -> found.map(SizeRecommendationResponse::from)));
     }
 }

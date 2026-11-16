@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.recommend.in.support;
 
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -19,9 +18,7 @@ public class AiResultStream {
     // AI 공통 서비스가 AI 답을 최대 10초 기다리므로 연결은 그보다 길게 연다
     private static final long TIMEOUT_MILLIS = 15_000;
 
-    public <T> SseEmitter open(HttpServletResponse response, T rule, CompletableFuture<Optional<T>> ai) {
-        // nginx가 응답을 모았다가 한꺼번에 보내지 않고, 이벤트를 받는 대로 흘려보내게 한다
-        response.setHeader("X-Accel-Buffering", "no");
+    public <T> SseEmitter open(T rule, CompletableFuture<Optional<T>> ai) {
         SseEmitter emitter = new SseEmitter(TIMEOUT_MILLIS);
         send(emitter, rule, ai);
         return emitter;

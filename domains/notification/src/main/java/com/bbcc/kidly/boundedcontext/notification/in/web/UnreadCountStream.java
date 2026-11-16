@@ -4,7 +4,6 @@ import com.bbcc.kidly.boundedcontext.notification.app.InboxChanged;
 import com.bbcc.kidly.boundedcontext.notification.app.InboxNotificationService;
 import com.bbcc.kidly.boundedcontext.notification.in.web.dto.UnreadCountResponse;
 import com.bbcc.kidly.shared.auth.PrincipalId;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
@@ -34,9 +33,7 @@ public class UnreadCountStream {
     private final InboxNotificationService inboxNotificationService;
     private final Map<PrincipalId, Set<SseEmitter>> emitters = new ConcurrentHashMap<>();
 
-    public SseEmitter open(PrincipalId principal, HttpServletResponse response) {
-        // nginx가 응답을 모았다가 한꺼번에 보내지 않고, 이벤트를 받는 대로 흘려보내게 한다
-        response.setHeader("X-Accel-Buffering", "no");
+    public SseEmitter open(PrincipalId principal) {
         var emitter = new SseEmitter(TIMEOUT_MILLIS);
         // 꺼내기와 넣기를 compute 한 번에 해야, 같은 사용자의 마지막 연결이 끊기며 remove()가 지우는 Set에 넣지 않는다
         emitters.compute(principal, (key, open) -> {
@@ -61,7 +58,7 @@ public class UnreadCountStream {
         open.forEach(emitter -> send(emitter, SseEmitter.event().name(EVENT).data(count, MediaType.APPLICATION_JSON)));
     }
 
-    // nginx(proxy_read_timeout 기본 60초) · Gateway(response-timeout 55초)는 응답 사이 간격으로 끊으므로 그보다 짧게 주석 한 줄을 보낸다
+    // Gateway(response-timeout 55초)는 응답 사이 간격으로 끊으므로 그보다 짧게 주석 한 줄을 보낸다
     @Scheduled(fixedRate = 30_000)
     public void heartbeat() {
         emitters.values().forEach(open -> open.forEach(emitter -> send(emitter, SseEmitter.event().comment("ping"))));
