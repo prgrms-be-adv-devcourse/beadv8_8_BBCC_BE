@@ -20,6 +20,10 @@ public class WearablePeriodCalculator {
     // 아이 옷을 2년 넘게 입는 경우는 드물고, 그 뒤의 성장은 예측하기 어렵다
     public static final int MAX_MONTHS = 24;
 
+    // 지금 잘 맞는 기준 옷도 키가 이만큼 더 클 때까지는 입는다고 본다
+    // 한 사이즈가 덮는 키 폭 10cm의 절반이다. 기준 옷을 그 폭의 가운데쯤에서 입고 있다고 본 값이다
+    private static final double REFERENCE_GARMENT_GROWTH_ROOM_CM = 5.0;
+
     // 실수 나눗셈 오차로 딱 떨어지는 값이 정수보다 아주 조금 작게 나와 한 달이 줄어드는 것을 막는 여유값이다
     private static final double FLOOR_EPSILON = 1e-9;
 
@@ -86,7 +90,7 @@ public class WearablePeriodCalculator {
     }
 
     /**
-     * 기준 옷보다 큰 너비를 몸이 채우는 데 걸리는 개월 수다. 너비 항목이 여럿이면 가장 짧은 값을 쓰고, 없으면 null이다.
+     * 너비 기준 개월 수다. 너비 항목이 여럿이면 가장 짧은 값을 쓰고, 없으면 null이다.
      * 너비 항목은 단면이라 몸 둘레의 절반만큼 커진다고 본다.
      */
     private Integer widthMonths(WearInfo info, String size) {
@@ -106,7 +110,9 @@ public class WearablePeriodCalculator {
                     continue;
                 }
                 double ratio = girthRatioTable.ratio(info.child().gender(), ageMonths, part);
-                int months = clampMonths(diff.diffCm().doubleValue() / (cmPerMonth * ratio / 2));
+                // 기준 옷과의 너비 차이를 몸이 채우는 데 필요한 키 성장에, 기준 옷을 입고 더 클 수 있는 키를 더한다
+                double growthCm = diff.diffCm().doubleValue() / (ratio / 2) + REFERENCE_GARMENT_GROWTH_ROOM_CM;
+                int months = clampMonths(growthCm / cmPerMonth);
                 if (shortest == null || months < shortest) {
                     shortest = months;
                 }

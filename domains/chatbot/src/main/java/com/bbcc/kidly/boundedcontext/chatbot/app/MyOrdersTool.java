@@ -12,7 +12,12 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 모델이 부르는 내 주문 조회 도구. 질문 하나마다 로그인한 회원으로 만들어, 모델은 회원 ID를 보지도 고르지도 못한다.
- * 모델에는 상품 이름 · 옵션 · 수량 · 상태 · 택배사 · 날짜만 준다. 로그에는 회원 ID와 주문 내용을 남기지 않는다.
+ * 로그에는 회원 ID와 주문 내용을 남기지 않는다.
+ *
+ * <p>OpenAI로 나가는 값이므로 모델에는 "내 주문이 어디쯤 왔나"에 답하는 데 필요한 칸만 준다: 주문 시각 · 상태, 상품 이름 · 옵션 ·
+ * 상태, 배송 상태 · 택배사 · 발송 · 배송 완료 시각. 옵션은 같은 상품을 여러 옵션으로 산 회원이 어느 것을 묻는지 가리는 데,
+ * 택배사는 "어느 택배로 오나요"에 답하는 데 쓴다. 주문 ID · 수량은 답에 쓰이지 않아 넘기지 않는다(주문 계약
+ * {@link MemberOrderSummary}에는 남아 있다). 배송지 · 연락처 · 송장번호 · 금액은 계약에도 없다.
  */
 @Slf4j
 final class MyOrdersTool {
@@ -25,7 +30,7 @@ final class MyOrdersTool {
     private static final int MAX_LIMIT = 10;
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final String DESCRIPTION = """
-        로그인한 회원 본인의 최근 주문을 최근 것부터 봅니다. 주문마다 주문 시각 · 상태와 상품별 옵션 · 수량 · 상태 · 배송(상태 · 택배사 ·
+        로그인한 회원 본인의 최근 주문을 최근 것부터 봅니다. 주문마다 주문 시각 · 상태와 상품별 옵션 · 상태 · 배송(상태 · 택배사 ·
         발송 시각 · 배송 완료 시각)을 줍니다. 주문 · 결제 · 배송 상황을 묻는 질문이면 이 도구를 부르세요. today는 오늘 날짜입니다.
         """;
     private static final String INPUT_SCHEMA = """
@@ -100,18 +105,18 @@ final class MyOrdersTool {
     record Found(String today, List<FoundOrder> orders) {
     }
 
-    record FoundOrder(Long orderId, String orderedAt, String status, List<FoundItem> items) {
+    record FoundOrder(String orderedAt, String status, List<FoundItem> items) {
 
         static FoundOrder from(MemberOrderSummary order) {
-            return new FoundOrder(order.orderId(), format(order.orderedAt()), label(ORDER_STATUS, order.status()),
+            return new FoundOrder(format(order.orderedAt()), label(ORDER_STATUS, order.status()),
                 order.items().stream().map(FoundItem::from).toList());
         }
     }
 
-    record FoundItem(String productName, String optionName, int quantity, String status, FoundDelivery delivery) {
+    record FoundItem(String productName, String optionName, String status, FoundDelivery delivery) {
 
         static FoundItem from(MemberOrderSummary.Item item) {
-            return new FoundItem(item.productName(), item.optionName(), item.quantity(),
+            return new FoundItem(item.productName(), item.optionName(),
                 label(ITEM_STATUS, item.status()), FoundDelivery.from(item.delivery()));
         }
     }
