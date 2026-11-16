@@ -295,6 +295,8 @@
 | GET | `/api/v1/admin/payments/summary` | 결제일 기준 날짜별 결제 금액 · 건수(`from` · `to`, 한국 시간, 비우면 오늘, 최대 31일)와 환불 이력이 있는 결제 전체 건수 | 🛠 |
 | GET | `/api/v1/admin/wallets` | 지갑 목록(`frozen` · `hasBalance`로 거름) | 🛠 |
 | POST | `/api/v1/admin/wallets/{walletId}/return-balance` | 동결 지갑의 잔액을 환급했다고 기록하고 0으로 만듦(송금은 하지 않음) | 🛠 |
+| GET | `/api/v1/admin/wallets/charges/stuck` | 충전 정리 기준 시간(기본 5분)보다 오래 승인 중인 충전, 오래된 순(토스 승인 금액이 다르거나 부분 취소돼 스케줄러가 끝내지 못한 충전) | 🛠 |
+| POST | `/api/v1/admin/wallets/charges/{chargeId}/fail` | 토스에서 돈을 정리한 멈춘 충전을 실패(`ADMIN_CLOSED`)로 끝냄(예치금은 그대로). 토스가 충전 금액대로 승인했거나 멈춘 충전이 아니면 409, 토스 결과를 모르면 503 | 🛠 |
 
 ## 정산
 
