@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -76,3 +77,22 @@ class TracingVerificationTests(unittest.TestCase):
                     'https://10.2.3.4:30438/path', 'https://user@10.2.3.4:30438'):
             with self.subTest(url=url):
                 self.assertFalse(state.private_endpoint(url))
+
+    def test_rollback_allows_unrelated_otel_settings(self):
+        app = deployment('gateway')
+        state.pod_spec(app)['containers'][0]['env'] = [
+            {'name': 'OTEL_SERVICE_NAME', 'value': 'another-operation'},
+        ]
+        self.assertTrue(state.agent_matches(app, 'gateway', False))
+
+    def test_rollback_rejects_selection_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for role, marker in (
+                    ('app', root / 'dev/operations/tracing-agent/gateway.enabled'),
+                    ('monitoring', root / 'monitoring/operations/tempo-private-receiver.enabled')):
+                with self.subTest(role=role):
+                    self.assertTrue(all(dict(state.selection_checks(role, root)).values()))
+                    marker.parent.mkdir(parents=True)
+                    marker.touch()
+                    self.assertFalse(all(dict(state.selection_checks(role, root)).values()))

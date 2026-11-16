@@ -93,8 +93,8 @@ def agent_matches(deployment, name, applied):
     return (not volume and not any(m.get('name') == 'kidly-tracing-agent' or m.get('mountPath') == AGENT
                                    for m in container.get('volumeMounts', []))
             and not any(option.startswith(f'-javaagent:{AGENT}') for option in java_opts)
-            and 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT' not in env
-            and 'OTEL_SERVICE_NAME' not in env)
+            and env.get('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT') != COLLECTOR
+            and env.get('OTEL_SERVICE_NAME') != f'kidly-{name}')
 
 
 def app_checks(read, applied):
@@ -141,6 +141,16 @@ def monitoring_checks(read, applied):
         yield 'private Tempo network policy removed', not policy
 
 
+def selection_checks(role, app_root):
+    if role == 'app':
+        operations = app_root / 'dev' / 'operations' / 'tracing-agent'
+        for service in ('gateway', 'order'):
+            yield f'{service} Agent selection removed', not (operations / f'{service}.enabled').exists()
+    else:
+        marker = app_root / 'monitoring' / 'operations' / 'tempo-private-receiver.enabled'
+        yield 'private receiver selection removed', not marker.exists()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('role', choices=('app', 'monitoring'))
@@ -150,13 +160,7 @@ def main():
     checks = app_checks if args.role == 'app' else monitoring_checks
     results = list(checks(get, args.state == 'applied'))
     if args.state == 'rolled-back':
-        if args.role == 'app':
-            operations = Path('/opt/app/dev/operations/tracing-agent')
-            results.extend((f'{service} Agent selection removed', not (operations / f'{service}.enabled').exists())
-                           for service in ('gateway', 'order'))
-        else:
-            marker = Path('/opt/app/monitoring/operations/tempo-private-receiver.enabled')
-            results.append(('private receiver selection removed', not marker.exists()))
+        results.extend(selection_checks(args.role, Path('/opt/app')))
     for description, passed in results:
         print(f'{description}: {"OK" if passed else "CHECK REQUIRED"}')
     return 0 if all(passed for _, passed in results) else 1
