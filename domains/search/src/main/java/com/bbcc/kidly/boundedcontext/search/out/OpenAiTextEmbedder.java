@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,6 +20,10 @@ import org.springframework.web.client.RestClientResponseException;
  */
 @Slf4j
 public class OpenAiTextEmbedder implements TextEmbedder {
+
+    // 문장 하나를 거절한 응답이다(형식 · 길이). API는 살아 있으므로 연속 실패로 세지 않는다(#1386).
+    // 다시 채우기가 거절되는 상품을 연달아 불러 차단을 열면 그동안 검색의 의미 검색까지 꺼진다
+    private static final Set<Integer> INPUT_REJECTED = Set.of(400, 413, 422);
 
     private final SearchEmbeddingProperties properties;
     private final RestClient restClient;
@@ -62,6 +67,7 @@ public class OpenAiTextEmbedder implements TextEmbedder {
             return Optional.empty();
         }
         Optional<List<Float>> vector = Optional.empty();
+        boolean inputRejected = false;
         try {
             EmbeddingResponse response = restClient.post()
                 .uri("/embeddings")
@@ -72,6 +78,7 @@ public class OpenAiTextEmbedder implements TextEmbedder {
             vector = vectorOf(response);
             return vector;
         } catch (RestClientResponseException e) {
+            inputRejected = INPUT_REJECTED.contains(e.getStatusCode().value());
             log.warn("임베딩 API가 실패해 벡터 없이 이어 갑니다. status={}", e.getStatusCode().value());
         } catch (RestClientException e) {
             log.warn("임베딩 API를 부르지 못해 벡터 없이 이어 갑니다. cause={}",
@@ -81,6 +88,8 @@ public class OpenAiTextEmbedder implements TextEmbedder {
             // 응답은 왔어도 쓸 수 있는 벡터가 없으면(빈 응답 · 차원 불일치) 실패로 센다. 설정이 잘못되면 매번 같아서다
             if (vector.isPresent()) {
                 circuitBreaker.onSuccess(permit);
+            } else if (inputRejected) {
+                circuitBreaker.onInputRejected(permit);
             } else {
                 circuitBreaker.onFailure(permit);
             }

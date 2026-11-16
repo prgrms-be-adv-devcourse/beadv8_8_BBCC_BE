@@ -143,6 +143,74 @@ class OpenAiTextEmbedderTest {
     }
 
     @Test
+    @DisplayName("입력 거절(400)은 그 문장만의 문제라 연속 실패로 세지 않는다. 다시 채우기가 거절되는 상품을 연달아 불러도 검색어 벡터를 만든다")
+    void inputRejectionDoesNotOpen() {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(ExpectedCount.times(20), requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+        server.expect(requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
+
+        for (int i = 0; i < 20; i++) {
+            assertThat(embedder.embed(TEXT)).isEmpty();
+        }
+        assertThat(embedder.isCircuitOpen()).isFalse();
+        assertThat(embedder.embedKeyword("원피스")).isPresent();
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("입력 거절은 쌓인 연속 실패 수를 지우지도 않는다")
+    void inputRejectionKeepsFailureCount() {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(ExpectedCount.times(4), requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        server.expect(requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+        server.expect(requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        for (int i = 0; i < 6; i++) {
+            embedder.embed(TEXT);
+        }
+
+        assertThat(embedder.isCircuitOpen()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("시험 호출이 입력 거절이면 열린 채로 두고, 다음 호출을 다시 시험으로 보낸다")
+    void probeInputRejectionStaysOpen() {
+        OpenAiTextEmbedder embedder = openedEmbedder();
+        server.expect(requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+        server.expect(requestTo("https://api.openai.test/v1/embeddings")).andRespond(vector());
+
+        clock.advance(Duration.ofSeconds(30));
+        assertThat(embedder.embed(TEXT)).isEmpty();
+        assertThat(embedder.isCircuitOpen()).isTrue();
+        assertThat(embedder.embed(TEXT)).isPresent();
+        assertThat(embedder.isCircuitOpen()).isFalse();
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("키 만료(401)는 모든 문장에 같으므로 연속 실패로 센다")
+    void unauthorizedCountsAsFailure() {
+        OpenAiTextEmbedder embedder = embedder("sk-test", 3);
+        server.expect(ExpectedCount.times(5), requestTo("https://api.openai.test/v1/embeddings"))
+            .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        for (int i = 0; i < 6; i++) {
+            assertThat(embedder.embed(TEXT)).isEmpty();
+        }
+
+        assertThat(embedder.isCircuitOpen()).isTrue();
+        server.verify();
+    }
+
+    @Test
     @DisplayName("중간에 성공하면 연속 실패 수를 처음부터 센다")
     void successResetsFailures() {
         OpenAiTextEmbedder embedder = embedder("sk-test", 3);
