@@ -18,6 +18,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
 /**
  * 환불하지 못한 주문상품 취소(order-item.cancelled, #1390). 받은 내용을 그대로 남겨 관리자가 다시 처리하거나 닫는다.
@@ -47,6 +48,8 @@ public class OrderItemCancellationRetry extends BaseTimeEntity {
     // 주문이 보낸 취소 사유 이름
     private String reason;
 
+    // 관리자 목록 한 쪽(최대 100건)의 품목을 한 번에 읽는다
+    @BatchSize(size = 100)
     @ElementCollection
     @CollectionTable(schema = "payment", name = "order_item_cancellation_retry_item",
         joinColumns = @JoinColumn(name = "retry_id"))
