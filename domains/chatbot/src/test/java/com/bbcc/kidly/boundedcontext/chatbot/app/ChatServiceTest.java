@@ -192,7 +192,8 @@ class ChatServiceTest {
     }
 
     @Test
-    @DisplayName("모델이 내 주문을 부르면 로그인한 회원으로 조회하고(모델이 보낸 회원 ID는 무시), 상태 · 택배사를 한국어로 바꿔 날짜와 함께 준다")
+    @DisplayName("모델이 내 주문을 부르면 로그인한 회원으로 조회하고(모델이 보낸 회원 ID는 무시), 상태 · 택배사를 한국어로 바꿔 날짜와 함께 준다. "
+        + "주문 ID · 수량은 모델에 보내지 않는다")
     void answersWithMyOrders() {
         orderHistory.willReturn(MEMBER_ID, List.of(shippingDressOrder()));
         orderHistory.willReturn(1L, List.of(new MemberOrderSummary(99L, LocalDateTime.now(), "PAID",
@@ -204,10 +205,10 @@ class ChatServiceTest {
         assertThat(answer.answer()).isEqualTo(FakeChatModel.ANSWER);
         assertThat(orderHistory.requests()).containsExactly(new FakeMemberOrderHistory.Request(MEMBER_ID, 3));
         assertThat(toolResults(chatModel.lastPrompt().getInstructions())).singleElement().asString()
-            .contains("\"orderId\":31", "\"orderedAt\":\"2026-11-11 09:05\"", "\"status\":\"결제 완료\"",
-                "여아 꽃무늬 원피스", "110 / 핑크", "\"quantity\":2", "\"status\":\"배송 중\"", "CJ대한통운",
+            .contains("\"orderedAt\":\"2026-11-11 09:05\"", "\"status\":\"결제 완료\"",
+                "여아 꽃무늬 원피스", "110 / 핑크", "\"status\":\"배송 중\"", "CJ대한통운",
                 "\"shippedAt\":\"2026-11-11 15:20\"", "\"today\":")
-            .doesNotContain("남의 상품", String.valueOf(MEMBER_ID), "memberId");
+            .doesNotContain("남의 상품", String.valueOf(MEMBER_ID), "memberId", "orderId", "quantity");
     }
 
     @Test
