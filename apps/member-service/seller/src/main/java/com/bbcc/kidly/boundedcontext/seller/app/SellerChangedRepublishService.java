@@ -24,7 +24,6 @@ public class SellerChangedRepublishService {
     private final ApplicationEventPublisher eventPublisher;
 
     // 활성 · 정지 판매자 모두 보낸다. 받는 쪽 복사본이 정지 상태까지 맞아야 한다
-    // Kafka로는 이 트랜잭션이 커밋된 뒤 나간다(SellerEventRelay)
     @Transactional
     public int republishAll() {
         int publishedCount = 0;

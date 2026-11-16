@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.chatbot.out.ai;
 
 import com.bbcc.kidly.boundedcontext.chatbot.app.port.ChatbotAi;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -61,7 +62,7 @@ public class OpenAiChatbotAi implements ChatbotAi {
     }
 
     @Override
-    public String answer(String instruction, List<Turn> conversation, List<Tool<?>> tools) {
+    public String answer(String instruction, List<Turn> conversation, List<Tool<?>> tools, Instant deadline) {
         ChatModel model = chatModel.getIfAvailable();
         if (model == null) {
             throw new UnavailableException("chat 모델이 없습니다(OpenAI 키 없음)");
@@ -71,6 +72,9 @@ public class OpenAiChatbotAi implements ChatbotAi {
         for (int round = 0; ; round++) {
             boolean toolsOffered = withTools != null && round < MAX_TOOL_ROUNDS;
             Prompt prompt = toolsOffered ? new Prompt(messages, withTools) : new Prompt(messages);
+            if (!Instant.now().isBefore(deadline)) {
+                throw new UnavailableException("질문 시간 상한을 넘겨 모델을 더 부르지 않습니다: round=" + round);
+            }
             ChatResponse response = call(model, prompt);
             if (!toolsOffered || !response.hasToolCalls()) {
                 return text(response);

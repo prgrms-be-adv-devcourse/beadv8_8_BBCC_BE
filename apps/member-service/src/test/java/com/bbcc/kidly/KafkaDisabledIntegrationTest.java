@@ -2,10 +2,14 @@ package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.auth.in.outbox.AuthOutboxScheduler;
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.childprofile.in.outbox.ChildProfileOutboxScheduler;
 import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.member.in.outbox.MemberOutboxScheduler;
+import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.seller.in.outbox.SellerOutboxScheduler;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,11 +34,10 @@ class KafkaDisabledIntegrationTest {
     }
 
     @Test
-    @DisplayName("일반 통합 테스트에서는 커밋 뒤 Kafka로 보내는 회원 · 인증 · 판매자 빈을 만들지 않는다")
-    void noKafkaRelay() {
-        assertThat(context.containsBean("memberEventRelay")).isFalse();
-        assertThat(context.containsBean("authEventRelay")).isFalse();
-        assertThat(context.containsBean("sellerEventRelay")).isFalse();
+    @DisplayName("일반 통합 테스트에서는 인증 아웃박스 릴레이와 스케줄러를 만들지 않는다")
+    void noAuthOutboxRelay() {
+        assertThat(context.getBeanNamesForType(AuthOutboxRelayService.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(AuthOutboxScheduler.class)).isEmpty();
     }
 
     @Test
@@ -42,6 +45,13 @@ class KafkaDisabledIntegrationTest {
     void noMemberOutboxRelay() {
         assertThat(context.getBeanNamesForType(MemberOutboxRelayService.class)).isEmpty();
         assertThat(context.getBeanNamesForType(MemberOutboxScheduler.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("일반 통합 테스트에서는 판매자 아웃박스 릴레이와 스케줄러를 만들지 않는다")
+    void noSellerOutboxRelay() {
+        assertThat(context.getBeanNamesForType(SellerOutboxRelayService.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(SellerOutboxScheduler.class)).isEmpty();
     }
     @Test
     @DisplayName("일반 통합 테스트에서는 자녀 아웃박스 릴레이와 스케줄러를 만들지 않는다")

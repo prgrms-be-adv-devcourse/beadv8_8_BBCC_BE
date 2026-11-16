@@ -26,7 +26,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 확인은 `auth/GatewayJwtConfig`가 디코더를 감싸 요청마다 Redis를 한 번 읽는다. 무효화면 `BadJwtException`이라 `auth/AccessTokenFilter`가 401을 낸다
 - Redis 장애(연결 실패 · 명령 제한 시간 300ms 초과 등)면 확인 없이 통과시키고 ERROR 로그를 남긴다(토큰 · 주체 없이). 거절하면 Redis 장애가 로그인한 모든 요청의 장애가 된다. 놓친 토큰도 최대 30분 뒤 만료된다. 그래서 Redis 헬스는 전체 health에서 뺀다(`management.health.redis.enabled: false`)
 - Redis는 추천 AI 답 캐시와 같이 쓴다(64MB, `volatile-lru`). TTL 있는 추천 답만 지워지고 TTL 없는 무효화 목록 · 표식은 남는다
-- `kidly.auth.events`의 `auth.tokens-revoked`를 받아 채운다(발행은 회원 서비스의 인증 모듈, `apps/member-service/auth`). 구독 그룹 `kidly.gateway`, 다른 종류는 건너뛴다
+- `kidly.auth.events`의 `auth.tokens-revoked`를 받아 채운다(발행은 회원 서비스의 인증 모듈, `apps/member-service/auth`). 인증은 업무 트랜잭션에 아웃박스를 저장하고 200ms 주기 릴레이로 보낸다. 구독 그룹 `kidly.gateway`, 다른 종류는 건너뛴다
 - 파티션마다 TTL 없는 표식 `kidly:gateway:revocations:loaded:{파티션}`: '이 파티션의 최근 31분 무효화가 Redis에 들어 있다'. 표식이 있으면 구독 그룹 책갈피대로 읽고, 없으면(처음 배포, Redis 재시작) 그 파티션만 31분 전으로 되감아 다시 읽고 표식을 쓴다(`revocation/AuthTokensRevokedListener`)
   - 파티션을 받을 때와 컨테이너 idle 이벤트(1초 간격, 첫 메시지 전에는 5초)마다 확인한다. 돌던 중 Redis가 다시 떠 비면 다음 idle 확인이 되감는다. 그 사이(최대 약 1초 + 다시 읽는 시간) 무효화된 토큰이 통과할 수 있다
   - 파티션을 받을 때 표식을 읽지 못하면 받은 파티션을 모두 되감는다(표식은 쓰지 못하므로 Redis가 돌아오면 idle 확인이 다시 되감는다). idle 확인에서 읽지 못하면 아무것도 하지 않는다
