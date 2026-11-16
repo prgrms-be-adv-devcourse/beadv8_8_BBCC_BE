@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.auth.app.port.TokenSubject;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.SellerState;
+import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
@@ -65,6 +66,9 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class MemberSellerEventKafkaIntegrationTest {
+
+    @Autowired
+    private SellerOutboxRelayService sellerOutboxRelayService;
 
     private static final String TOPIC = "kidly.seller.events";
     private static final String AUTH_TOPIC = "kidly.auth.events";
@@ -332,6 +336,7 @@ class MemberSellerEventKafkaIntegrationTest {
 
     private void publishInTransaction(SellerChangedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(event));
+        sellerOutboxRelayService.relay();
     }
 
     private SellerChangedEvent sellerChanged(SellerStatus status, LocalDateTime occurredAt) {

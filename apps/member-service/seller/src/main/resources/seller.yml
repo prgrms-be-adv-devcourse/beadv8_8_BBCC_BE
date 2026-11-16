@@ -1,0 +1,6 @@
+# 판매자 아웃박스 설정
+kidly:
+  seller:
+    outbox:
+      relay-interval: PT1S
+      cleanup-cron: "0 0 4 * * *"

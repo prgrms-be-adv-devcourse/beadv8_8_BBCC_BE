@@ -5,9 +5,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import com.bbcc.kidly.boundedcontext.seller.app.port.SellerEventSender;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +16,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 판매자 이벤트를 kidly.seller.events로 보낸다. 같은 키(판매자 ID)의 이벤트는 한 파티션에 들어가 순서가 지켜진다.
+ * 판매자 신청 거절 이벤트를 kidly.seller.events로 보낸다. 키는 신청 ID다.
  * 본문은 공통 칸 7개 + data다. record를 그대로 바꾸면 record 필드가 아닌 칸(eventType · producer 등)이 빠진다.
  * 전송은 판매자 전용 스레드 하나에서 한다. 브로커가 죽어 send가 max.block.ms만큼 멈춰도 커밋 뒤 요청 스레드
  * (같은 커밋 뒤에 도는 다른 도메인 리스너, API 응답)는 기다리지 않는다. 스레드가 하나라 받은 순서대로 보낸다.
@@ -26,7 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Slf4j
 public class KafkaSellerEventSender implements SellerEventSender, DisposableBean {
 
-    static final String TOPIC = "kidly.seller.events";
+    public static final String TOPIC = "kidly.seller.events";
 
     // 앱이 내려갈 때 남은 전송을 기다리는 시간. 브로커가 죽어 있으면 하나에 max.block.ms가 걸리므로 다 못 보낼 수 있다
     private static final Duration DRAIN_TIMEOUT = Duration.ofSeconds(10);
@@ -75,16 +73,7 @@ public class KafkaSellerEventSender implements SellerEventSender, DisposableBean
     }
 
     private String toBody(DomainEvent event) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        return jsonMapper.writeValueAsString(body);
+        return jsonMapper.writeValueAsString(SellerEventEnvelope.from(event));
     }
 
     // 본문(상호명 등)은 남기지 않는다

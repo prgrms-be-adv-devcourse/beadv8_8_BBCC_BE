@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.seller.app.port.SellerEventSender;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
+import com.bbcc.kidly.shared.seller.event.SellerApplicationRejectedEvent;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,10 +30,10 @@ class SellerEventRelayTest {
     private SellerEventRelay sellerEventRelay;
 
     @Test
-    @DisplayName("판매자가 발행한 이벤트는 Kafka로 넘긴다")
+    @DisplayName("신청 거절 이벤트는 Kafka로 넘긴다")
     void relaySellerEvent() {
-        var event = new SellerChangedEvent(UUID.randomUUID(), NOW,
-            new SellerChangedEvent.Data(1L, BUSINESS_NAME, SellerStatus.ACTIVE));
+        var event = new SellerApplicationRejectedEvent(UUID.randomUUID(), NOW,
+            new SellerApplicationRejectedEvent.Data(1L, 1L, "사유", NOW));
 
         sellerEventRelay.relay(event);
 
@@ -48,4 +49,13 @@ class SellerEventRelayTest {
 
         then(sellerEventSender).should(never()).send(any());
     }
+    @Test
+    @DisplayName("판매자 변경은 아웃박스가 보내므로 바로 넘기지 않는다")
+    void skipChanged() {
+        var event = new SellerChangedEvent(UUID.randomUUID(), NOW,
+            new SellerChangedEvent.Data(1L, BUSINESS_NAME, SellerStatus.ACTIVE));
+        sellerEventRelay.relay(event);
+        then(sellerEventSender).should(never()).send(any());
+    }
+
 }

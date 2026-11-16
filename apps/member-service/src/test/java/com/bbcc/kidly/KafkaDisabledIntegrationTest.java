@@ -6,6 +6,8 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxR
 import com.bbcc.kidly.boundedcontext.childprofile.in.outbox.ChildProfileOutboxScheduler;
 import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.member.in.outbox.MemberOutboxScheduler;
+import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.seller.in.outbox.SellerOutboxScheduler;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,13 @@ class KafkaDisabledIntegrationTest {
     void noMemberOutboxRelay() {
         assertThat(context.getBeanNamesForType(MemberOutboxRelayService.class)).isEmpty();
         assertThat(context.getBeanNamesForType(MemberOutboxScheduler.class)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("일반 통합 테스트에서는 판매자 아웃박스 릴레이와 스케줄러를 만들지 않는다")
+    void noSellerOutboxRelay() {
+        assertThat(context.getBeanNamesForType(SellerOutboxRelayService.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(SellerOutboxScheduler.class)).isEmpty();
     }
     @Test
     @DisplayName("일반 통합 테스트에서는 자녀 아웃박스 릴레이와 스케줄러를 만들지 않는다")
