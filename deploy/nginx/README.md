@@ -7,7 +7,7 @@
 | --- | --- |
 | `https://api.<도메인>` | Gateway (k3s NodePort 30200). `/actuator/health` 도 Gateway가 받음. `dev-api` 에서 옮겼다(#1335) |
 | `https://grafana.<도메인>` | Grafana (t3.medium k3s, `deploy/monitoring`) |
-| `https://dev-api.<도메인>`, IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음. `dev-api` 는 인증서 갱신 확인용으로 80 에만 남는다 |
+| IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음 |
 
 ## 구성 (`nginx.yaml`)
 
@@ -63,13 +63,13 @@ cd ~/kidly-nginx/deploy/nginx && MONITORING_HOST=<모니터링 서버 사설 IP>
 
 ## 새 서버 (인증서가 없을 때)
 
-DNS 에 `api` · `dev-api` · `grafana` A 레코드(탄력적 IP)를 만들고, 보안 그룹에서 80 · 443 을 엽니다.
+DNS 에 `api` · `grafana` A 레코드(탄력적 IP)를 만들고, 보안 그룹에서 80 · 443 을 엽니다.
 인증서가 없으면 nginx 설정 검사가 통과하지 않으므로, 먼저 인증서를 받습니다. 80 이 비어 있어야 합니다(certbot 이 직접 받는 standalone 방식).
 ZeroSSL 계정이 없으므로 EAB 키가 필요합니다. ZeroSSL 대시보드 > Developer 에서 만듭니다.
 
 ```bash
 sudo k3s kubectl -n edge run certbot-issue --rm -i --restart=Never --image certbot/certbot:v5.8.0 \
-  --overrides='{"spec":{"hostNetwork":true,"volumes":[{"name":"le","hostPath":{"path":"/etc/letsencrypt"}}],"containers":[{"name":"certbot-issue","image":"certbot/certbot:v5.8.0","stdin":true,"volumeMounts":[{"name":"le","mountPath":"/etc/letsencrypt"}],"args":["certonly","--standalone","--server","https://acme.zerossl.com/v2/DV90","--eab-kid","<kid>","--eab-hmac-key","<hmac>","-d","api.<도메인>","-d","dev-api.<도메인>","-d","grafana.<도메인>","--cert-name","kidly","--email","<이메일>","--agree-tos","--no-eff-email","--non-interactive"]}]}}'
+  --overrides='{"spec":{"hostNetwork":true,"volumes":[{"name":"le","hostPath":{"path":"/etc/letsencrypt"}}],"containers":[{"name":"certbot-issue","image":"certbot/certbot:v5.8.0","stdin":true,"volumeMounts":[{"name":"le","mountPath":"/etc/letsencrypt"}],"args":["certonly","--standalone","--server","https://acme.zerossl.com/v2/DV90","--eab-kid","<kid>","--eab-hmac-key","<hmac>","-d","api.<도메인>","-d","grafana.<도메인>","--cert-name","kidly","--email","<이메일>","--agree-tos","--no-eff-email","--non-interactive"]}]}}'
 ```
 
 받은 뒤 갱신이 webroot 로 돌도록 `/etc/letsencrypt/renewal/kidly.conf` 의 `authenticator` 를 `webroot`, `webroot_path` 를 `/var/www/certbot,` 으로 바꾸고 `deploy.sh` 를 실행합니다.
