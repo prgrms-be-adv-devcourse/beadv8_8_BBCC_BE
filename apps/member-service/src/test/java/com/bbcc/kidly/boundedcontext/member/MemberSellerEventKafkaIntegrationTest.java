@@ -3,14 +3,12 @@ package com.bbcc.kidly.boundedcontext.member;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.app.port.AccessTokenIssuer;
 import com.bbcc.kidly.boundedcontext.auth.app.port.TokenSubject;
 import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.SellerState;
-import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
@@ -68,12 +66,6 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class MemberSellerEventKafkaIntegrationTest {
-
-    @Autowired
-    private SellerOutboxRelayService sellerOutboxRelayService;
-
-    @Autowired
-    private AuthOutboxRelayService authOutboxRelayService;
 
     @Autowired
     private AuthEventOutbox authEventOutbox;
@@ -307,7 +299,6 @@ class MemberSellerEventKafkaIntegrationTest {
 
     // 지금까지 받은 인증 이벤트 중 이 테스트 회원 키의 auth.tokens-revoked 수
     private long tokensRevokedCount() {
-        authOutboxRelayService.relay();
         authEventConsumer.poll(Duration.ofMillis(200)).forEach(authEvents::add);
         return authEvents.stream()
             .filter(record -> String.valueOf(memberId).equals(record.key()))
@@ -324,7 +315,6 @@ class MemberSellerEventKafkaIntegrationTest {
             new AuthTokensRevokedEvent.Data(PrincipalType.MEMBER, memberId, now));
         markerIds.add(marker.eventId().toString());
         transactionTemplate.executeWithoutResult(status -> authEventOutbox.append(marker));
-        authOutboxRelayService.relay();
         AsyncWait.until(TIMEOUT, () -> {
             authEventConsumer.poll(Duration.ofMillis(200)).forEach(authEvents::add);
             return authEvents.stream()
@@ -346,7 +336,6 @@ class MemberSellerEventKafkaIntegrationTest {
 
     private void publishInTransaction(SellerChangedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(event));
-        sellerOutboxRelayService.relay();
     }
 
     private SellerChangedEvent sellerChanged(SellerStatus status, LocalDateTime occurredAt) {

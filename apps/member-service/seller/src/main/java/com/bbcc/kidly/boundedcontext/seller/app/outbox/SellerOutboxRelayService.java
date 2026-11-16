@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.seller.app.port.outbox.SellerOutboxSendExce
 import com.bbcc.kidly.boundedcontext.seller.app.port.outbox.SellerOutboxSender;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxRepository;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,8 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 한 트랜잭션에서 릴레이 잠금을 먼저 얻는다. 서버가 여러 대여도 한 번에 하나의 릴레이만 돌아 메시지를 id 순서로 보낸다
- * (팀 Kafka 규칙). 잠금은 트랜잭션 잠금이라 보내기와 결과 기록을 같은 트랜잭션에서 하고, 커밋 한 번에 기록과 잠금 해제가 함께 된다.
+ * 한 트랜잭션에서 릴레이 잠금을 얻고 오래된 미전송 메시지를 보낸다.
+ * 잠금은 트랜잭션 잠금이라 보내기와 결과 기록을 같은 트랜잭션에서 한다.
  * 그래서 브로커가 멈추면 실패한 메시지 하나를 기다리는 동안(최대 약 15초) DB 연결 하나를 쥔다.
  * 보낸 뒤 커밋 전에 앱이 멈추거나 커밋이 실패하면, 이번 실행에서 보낸 메시지(최대 BATCH_SIZE건)를 다음 실행이 모두 다시 보낸다.
  * id는 커밋 직전에 저장한 순서라 동시에 도는 트랜잭션의 커밋 순서와 다를 수 있다. 받는 쪽은 중복과 역순을 처리해야 한다.
@@ -25,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class SellerOutboxRelayService {
 
     private static final int BATCH_SIZE = 100;
+    // 바로 전송이 끝날 시간을 주어 두 경로가 같은 행을 함께 보지 않게 한다.
+    private static final Duration IMMEDIATE_SEND_GRACE = Duration.ofMinutes(5);
 
     private final SellerOutboxRepository outboxRepository;
     private final SellerOutboxSender sender;
@@ -34,7 +37,8 @@ public class SellerOutboxRelayService {
         if (!outboxRepository.tryLockRelay()) {
             return;
         }
-        var messages = outboxRepository.findUnsent(BATCH_SIZE);
+        var messages = outboxRepository.findUnsentCreatedBefore(
+            LocalDateTime.now().minus(IMMEDIATE_SEND_GRACE), BATCH_SIZE);
         for (var message : messages) {
             if (!send(message)) {
                 return;
@@ -43,8 +47,7 @@ public class SellerOutboxRelayService {
         }
     }
 
-    // 보내지 못하면 실패를 기록하고 그 자리에서 멈춘다. 순서가 뒤집히지 않게 뒤 메시지는 보내지 않는다.
-    // sent_at이 비어 있으므로 다음 실행의 findUnsent가 같은 메시지부터 다시 가져온다.
+    // 보내지 못하면 실패를 기록하고 그 자리에서 멈춘다.
     // 예외 메시지에 eventType · eventId · 키 · 원인이 이미 있으므로 따로 반복하지 않고, 같은 장애가 반복되므로 스택 트레이스는 남기지 않는다.
     private boolean send(SellerOutboxMessage message) {
         try {

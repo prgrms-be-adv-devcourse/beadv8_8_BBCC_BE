@@ -15,14 +15,14 @@
 
 | 이벤트 | 보내는 길 |
 |---|---|
-| `member.registered` · `member.changed` · `member.suspended` · `member.withdrawn` | 아웃박스(`app/outbox/MemberOutboxRecorder` → `member.member_outbox` → 200ms 릴레이) |
+| `member.registered` · `member.changed` · `member.suspended` · `member.withdrawn` | 아웃박스 저장 → 커밋 뒤 전송 |
 
 - 아웃박스
   - 커밋 직전(`BEFORE_COMMIT`)에 회원 이벤트를 저장한다. 업무가 롤백되면 메시지도 없고, 저장이 실패하면 업무도 커밋되지 않는다. 트랜잭션 밖에서 발행하면 저장되지 않는다. Kafka 보내기를 꺼도 저장은 한다
-  - 릴레이(`in/outbox/MemberOutboxScheduler` → `app/outbox/MemberOutboxRelayService`): 200ms마다 보내지 않은 메시지를 `id` 순서로 최대 100건, 브로커 응답을 기다리며 보낸다. 실패하면 `attempt_count` · `last_error`를 남기고 그 자리에서 멈춘 뒤 다음 주기에 같은 메시지부터 다시 보낸다
+  - 커밋 뒤 대기열에서 바로 전송한다. 릴레이는 1분마다 5분 지난 미전송 행을 최대 100건 보낸다. 릴레이 실패 시 시도와 오류를 기록하고 멈춘다
   - 한 트랜잭션에서 PostgreSQL 트랜잭션 advisory lock을 먼저 얻는다. 못 얻으면 아무것도 하지 않는다(서버가 여러 대여도 릴레이는 한 번에 하나). 브로커가 멈추면 실패한 메시지 하나를 기다리는 동안(최대 약 15초) DB 연결 하나를 쥔다
   - 커밋 전에 앱이 멈추거나 커밋이 실패하면 그 실행에서 보낸 메시지(최대 100건)가 다시 간다. 받는 쪽은 두 번 받아도 결과가 같다(알림은 `eventId`로 메일을 한 통만 만들고, 결제는 지갑이 있으면 만들지 않고, 자녀 프로필 · 인증 · 회원 배송지는 이미 지운 행을 다시 찾지 않는다)
-  - 모든 회원 이벤트는 아웃박스 id 순으로 보내 같은 회원 키의 순서를 지킨다. id는 커밋 직전 저장 순서라 동시 트랜잭션의 커밋 순서와 다를 수 있다. 판매자는 탈퇴 뒤 변경을 무시하고 변경은 occurredAt으로 늦은 것만 반영한다
+  - 바로 전송과 릴레이 사이 순서는 보장하지 않는다. 판매자는 탈퇴 뒤 변경을 무시하고 변경은 occurredAt으로 늦은 것만 반영한다
   - 정리: 보낸 지 7일(브로커 보존 기간) 지난 행을 매일 04:00에 지운다. 릴레이와 같은 스케줄러라 Kafka 보내기를 끄면 정리도 돌지 않는다
   - `kidly.kafka.producer.enabled`가 false면 릴레이 서비스와 스케줄러를 만들지 않는다
   - 설정: `out/outbox/MemberOutboxKafkaConfig`(토픽 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초 · `delivery.timeout.ms` 10초), `member.yml`(`kidly.member.outbox.*`)
@@ -30,7 +30,7 @@
 
 ## Access Token 무효화 (#686)
 - 회원은 Access Token을 직접 발급 · 무효화하지 않는다. 탈퇴 · 관리자 정지 · 판매자 정지에서 `shared.auth.out.MemberTokenRevoker.revoke(memberId, revokedAt)`만 부른다(호출자 트랜잭션 안에서만, `MemberService` · `AdminMemberService` · `SellerStateService`)
-- 구현은 인증 도메인(`AccessTokenRevocationService`)이다. `auth.tokens-revoked`를 업무 트랜잭션에서 아웃박스에 저장해 `kidly.auth.events`로 보내고, Gateway가 받아 그 시각까지 발급된 토큰을 거절한다. 평소 지연은 릴레이 주기 200ms와 전송 응답 대기다
+- 구현은 인증 도메인(`AccessTokenRevocationService`)이다. `auth.tokens-revoked`를 업무 트랜잭션에서 아웃박스에 저장해 커밋 뒤 `kidly.auth.events`로 보내고, Gateway가 받아 그 시각까지 발급된 토큰을 거절한다
 
 ## Kafka 수신 (`in/SellerEventListener`, #608)
 - 구독 그룹 `kidly.member`로 `kidly.seller.events`의 `seller.changed`만 받는다. 그 밖의 종류는 읽지 않고 건너뛴다. 종류는 헤더 `eventType`으로 고른다

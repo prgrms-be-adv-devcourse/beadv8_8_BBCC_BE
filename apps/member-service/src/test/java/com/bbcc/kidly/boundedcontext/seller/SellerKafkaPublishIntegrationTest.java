@@ -7,7 +7,6 @@ import com.bbcc.kidly.boundedcontext.member.MemberFixture;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerService;
-import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerSuspendRequest;
@@ -34,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -75,7 +75,7 @@ class SellerKafkaPublishIntegrationTest {
     private KafkaContainer kafka;
 
     @Autowired
-    private SellerOutboxRelayService relayService;
+    private JdbcTemplate jdbcTemplate;
 
     private KafkaConsumer<String, String> consumer;
     private final List<ConsumerRecord<String, String>> received = new ArrayList<>();
@@ -102,8 +102,10 @@ class SellerKafkaPublishIntegrationTest {
         var sellerId = approveSeller();
 
         var changed = events.stream(SellerChangedEvent.class).findFirst().orElseThrow();
-        relayService.relay();
         var record = awaitRecord(changed);
+        AsyncWait.until(TIMEOUT, () -> jdbcTemplate.queryForObject(
+            "select count(*) from seller.seller_outbox where event_id = ? and sent_at is not null",
+            Integer.class, changed.eventId()) == 1);
         assertThat(record.key()).isEqualTo(String.valueOf(sellerId));
         assertThat(header(record, "eventType")).isEqualTo("seller.changed");
         assertThat(record.headers().lastHeader("__TypeId__")).isNull();
@@ -121,7 +123,6 @@ class SellerKafkaPublishIntegrationTest {
         var suspended = events.stream(SellerChangedEvent.class)
             .filter(event -> event.data().status() == SellerStatus.SUSPENDED)
             .findFirst().orElseThrow();
-        relayService.relay();
         assertSent(suspended, "seller.changed", sellerId);
         assertThat(JSON_MAPPER.readTree(awaitRecord(suspended).value()).get("data").get("status").asString())
             .isEqualTo("SUSPENDED");
@@ -139,12 +140,10 @@ class SellerKafkaPublishIntegrationTest {
         });
         sellerService.suspend(sellerId, SellerFixture.ADMIN_ID, new SellerSuspendRequest("허위 상품 등록 신고"));
 
-        // 키(판매자 ID)가 같아 같은 파티션이므로, 뒤에 보낸 것을 받았으면 앞에서 보낸 것은 이미 왔어야 한다
         var committed = events.stream(SellerChangedEvent.class)
             .filter(event -> event.data().status() == SellerStatus.SUSPENDED)
             .filter(event -> !event.eventId().equals(rolledBack.eventId()))
             .findFirst().orElseThrow();
-        relayService.relay();
         awaitRecord(committed);
         assertThat(findRecord(rolledBack)).isEmpty();
     }
@@ -177,7 +176,6 @@ class SellerKafkaPublishIntegrationTest {
             new SellerApplicationRejectRequest("서류 미비"));
         var committed = events.stream(SellerApplicationRejectedEvent.class)
             .filter(event -> !event.eventId().equals(rolledBack.eventId())).findFirst().orElseThrow();
-        relayService.relay();
         assertSent(committed, "seller.application-rejected", application.id());
         var body = JSON_MAPPER.readTree(awaitRecord(committed).value());
         assertThat(body.get("producer").asString()).isEqualTo("seller");
