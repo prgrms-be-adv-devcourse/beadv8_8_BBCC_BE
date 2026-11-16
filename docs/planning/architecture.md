@@ -54,8 +54,8 @@
 |---|---|---|
 | 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.suspended` → 자녀 프로필 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 인증 · 자녀 프로필 · 커뮤니티 · 회원(배송지) · 알림 · 주문 · 결제 · 추천 · 판매자 |
 | 인증 | `kidly.auth.events` | `auth.tokens-revoked` → Gateway · `child-account.changed` → 자녀 프로필 · 알림 · 주문 |
-| 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 |
-| 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 인증 · 주문 · 추천 · `child.growth-recorded` → 추천 |
+| 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 · 알림 |
+| 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 인증 · 주문 · 추천 · `child.growth-recorded` · `child.growth-record-deleted` → 추천 |
 | 상품 | `kidly.product.events` | `product.changed` → 주문 · 추천 · 검색 · 커뮤니티 · `stock.deducted` · `stock.deduction-failed` → 주문 |
 | 주문 | `kidly.order.events` | `order.created` → 상품 · `order.payment-requested` → 결제 · `order.paid` → 알림 · `order.cancelled` → 상품 · 결제 · 알림 · `order-item.purchase-confirmed` → 정산 · 추천 · 커뮤니티 · 알림 · `order-item.cancelled` → 결제 · 상품 · 알림 · `delivery.shipped` · `delivery.delivered` → 알림 · `cart.item-added` · `cart.item-removed` → 추천 · `cart.item-purchased` → 주문(조르기) · `wish.sent` → 알림 · 추천 · `wish.paid` · `wish.rejected` · `wish.expired` → 알림 · `wish.cancelled` → 추천 |
 | 결제 | `kidly.payment.events` | `payment.completed` · `payment.failed` → 주문 · `payment.payout-completed` · `payment.payout-failed` → 정산 |
