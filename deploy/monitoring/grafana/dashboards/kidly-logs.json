@@ -189,6 +189,91 @@
       ]
     },
     {
+      "id": 8,
+      "type": "table",
+      "title": "자주 난 예외 · 선택 기간",
+      "description": "선택한 기간의 ERROR 로그를 서비스 · 예외 타입별로 센 상위 10개입니다.\n건수가 갑자기 많은 예외부터 아래 'ERROR 로그'에서 같은 타입의 메시지와 스택 트레이스를 확인합니다.\n예외 타입이 없는 ERROR 로그(메시지만 남긴 경우)는 세지 않습니다. 전체 건수는 운영 홈 상태판의 ERROR 로그 열에서 봅니다.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "instant",
+          "expr": "topk(10, sum by (service_name, error_type) (count_over_time({env=\"$env\", service_name=~\"${service:regex}\", level=\"ERROR\"} | json error_type=\"error.type\" | __error__=\"\" | error_type != \"\" [$__range])))"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "service_name": 0,
+              "error_type": 1,
+              "Value #A": 2
+            },
+            "renameByName": {
+              "service_name": "서비스",
+              "error_type": "예외 타입",
+              "Value #A": "건수"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "건수"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "건수",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
       "id": 3,
       "type": "logs",
       "title": "ERROR 로그",
@@ -201,7 +286,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 28
       },
       "options": {
         "showTime": true,
@@ -238,7 +323,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 28
       },
       "options": {
         "showTime": true,
@@ -275,7 +360,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 38
       },
       "options": {
         "showHeader": true,
@@ -340,7 +425,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 48
       },
       "panels": [
         {
@@ -356,7 +441,7 @@
             "h": 10,
             "w": 24,
             "x": 0,
-            "y": 41
+            "y": 49
           },
           "fieldConfig": {
             "defaults": {
