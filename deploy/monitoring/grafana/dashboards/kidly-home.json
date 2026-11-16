@@ -47,13 +47,348 @@
   "refresh": "1m",
   "panels": [
     {
+      "id": 9,
+      "type": "table",
+      "title": "서비스 상태판 · 운영(dev) · 최근 5분",
+      "description": "줄을 누르면 그 서비스가 선택된 서비스 상태 화면이 열립니다.\n수집 상태: 정상이 아니면 서비스 상태의 '서비스 수집 상태'와 Pod 재시작 여부 확인\n5xx 비율: 오르면 같은 서비스의 오류 로그 확인 (Gateway는 하위 서비스 오류를 포함)\n초당 요청: 갑자기 0이 되면 Gateway 라우팅 · 앞단 서비스 확인, 급증하면 오류율 · 응답시간 함께 확인\n평균 응답시간: 오르면 서비스 상태의 DB 연결 대기 · GC 확인 (p95 아님)\n마지막 재시작: 예상하지 못한 최근 시각이면 배포 이력 · 수동 패치(#1349) 덮어쓰기 · 메모리 부족 확인",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (job) (((max by (env, job) (last_over_time(up{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}[1m])) + 1) and on(env,job) (label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1)) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1) * 0) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 0) * 0 - 1))",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "{{job}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "(sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) or sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) * 0) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "{{job}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m]))",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "{{job}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "D",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "{{job}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "E",
+          "expr": "max by (job) (process_start_time_seconds{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}) * 1000",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "job": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5
+            },
+            "renameByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "job",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "noValue": "요청 없음",
+          "links": [
+            {
+              "title": "서비스 상태 열기",
+              "url": "/d/kidly-http?var-env=dev&var-service=${__data.fields.job}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "job"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "서비스"
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "수집 상태"
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "noValue",
+                "value": "목록 없음"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "-1": {
+                        "text": "운영 중지",
+                        "color": "gray"
+                      },
+                      "0": {
+                        "text": "데이터 끊김",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "수집 실패",
+                        "color": "orange"
+                      },
+                      "2": {
+                        "text": "수집 정상",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "5xx 비율"
+              },
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.01
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.05
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #C"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "초당 요청"
+              },
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #D"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "평균 응답시간"
+              },
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #E"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "마지막 재시작"
+              },
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
       "id": 6,
       "type": "alertlist",
       "title": "지금 확인할 알림",
       "description": "발화 중인 알림과 평가 오류·데이터 누락을 최대 6개 표시합니다.",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 12,
         "w": 12,
         "h": 9
       },
@@ -87,7 +422,7 @@
       "title": "최근 AI 분석 · 24시간",
       "gridPos": {
         "x": 12,
-        "y": 0,
+        "y": 12,
         "w": 12,
         "h": 9
       },
@@ -131,7 +466,7 @@
       "title": "증상별로 확인하기",
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 21,
         "w": 17,
         "h": 7
       },
@@ -147,7 +482,7 @@
       "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
       "gridPos": {
         "x": 17,
-        "y": 9,
+        "y": 21,
         "w": 7,
         "h": 7
       },
@@ -221,7 +556,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 28,
         "w": 24,
         "h": 1
       },
@@ -233,7 +568,7 @@
           "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
           "gridPos": {
             "x": 0,
-            "y": 17,
+            "y": 29,
             "w": 8,
             "h": 4
           },
@@ -306,7 +641,7 @@
           "title": "상세 화면",
           "gridPos": {
             "x": 8,
-            "y": 17,
+            "y": 29,
             "w": 16,
             "h": 4
           },
