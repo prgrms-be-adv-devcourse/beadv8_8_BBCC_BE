@@ -40,8 +40,8 @@
 - 호출자 트랜잭션 안에서만 부른다(`@Transactional(propagation = MANDATORY)`). 호출자가 커밋해야 효력이 생기고 롤백되면 아무 일도 없다
 - 회원은 `MemberTokenRevoker.revoke(memberId, revokedAt)`로 부른다(탈퇴 · 관리자 정지 · 판매자 정지). 인증 안(Refresh Token 재사용 감지)은 `revoke(PrincipalId, revokedAt)`를 바로 부른다
 - `PrincipalType`은 `MEMBER` · `ADMIN` · `CHILD`다
-- `AuthTokensRevokedEvent`(`auth.tokens-revoked`)를 커밋 뒤 바로 Kafka로 보낸다(`AuthEventRelay` → `kidly.auth.events`). 아웃박스가 아니다: 잃으면 Gateway가 그 주체의 Access Token을 만료(최대 30분)까지 통과시키지만 그 뒤로는 피해가 없다
-- Relay는 `HIGHEST_PRECEDENCE`로 다른 커밋 뒤 리스너보다 먼저 전송 대기열(`auth-kafka-sender` 스레드 하나)에 넣는다. 설정은 `out/kafka/AuthKafkaConfig`(토픽 파티션 3 · 복제 1, 전용 템플릿 `max.block.ms` 3초)
+- `AuthTokensRevokedEvent`(`auth.tokens-revoked`)를 업무 트랜잭션에서 아웃박스에 저장하고 릴레이가 `kidly.auth.events`로 보낸다. 평소 지연은 릴레이 주기 200ms와 전송 응답 대기다
+- 토픽과 전용 템플릿 설정은 `out/outbox/AuthOutboxKafkaConfig`에 둔다(파티션 3 · 복제 1, `max.block.ms` 3초)
 - Gateway가 받아 (주체 종류, 주체 ID)별 무효화 목록을 채운다. 자세한 수신 쪽 규칙은 `apps/gateway/CLAUDE.md`
 
 ## 다른 도메인과의 계약

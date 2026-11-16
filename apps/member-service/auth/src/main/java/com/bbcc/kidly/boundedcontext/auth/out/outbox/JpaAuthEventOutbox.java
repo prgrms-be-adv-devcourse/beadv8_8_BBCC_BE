@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.auth.out.outbox;
 import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxMessage;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxRepository;
-import com.bbcc.kidly.boundedcontext.auth.out.kafka.AuthEventEnvelope;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.auth.out.kafka;
+package com.bbcc.kidly.boundedcontext.auth.out.outbox;
 
 import com.bbcc.kidly.shared.event.DomainEvent;
 import java.util.LinkedHashMap;

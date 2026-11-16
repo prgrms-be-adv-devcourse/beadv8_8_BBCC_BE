@@ -30,7 +30,8 @@ class ChildAccountOutboxIntegrationTest {
         var account = accounts.create(11L, new ChildAccountCreateRequest(101L, "child1", "password"));
         accounts.delete(11L, account.id());
 
-        var rows = jdbc.queryForList("SELECT message_key, payload FROM auth.auth_outbox ORDER BY id");
+        var rows = jdbc.queryForList("SELECT message_key, payload FROM auth.auth_outbox "
+            + "WHERE event_type = 'child-account.changed' ORDER BY id");
         assertThat(rows).hasSize(2);
         assertThat(rows).allSatisfy(row -> assertThat(row.get("message_key")).isEqualTo(account.id().toString()));
         assertThat(rows.getFirst().get("payload").toString()).contains("\"deleted\":false");
@@ -45,7 +46,8 @@ class ChildAccountOutboxIntegrationTest {
         assertThatThrownBy(() -> accounts.create(11L, new ChildAccountCreateRequest(103L, "child2", "password")))
             .isInstanceOf(RuntimeException.class);
         replicaService.apply(102L, 11L, true);
-        var rows = jdbc.queryForList("SELECT message_key, payload FROM auth.auth_outbox ORDER BY id");
+        var rows = jdbc.queryForList("SELECT message_key, payload FROM auth.auth_outbox "
+            + "WHERE event_type = 'child-account.changed' ORDER BY id");
         assertThat(rows).hasSize(2);
         assertThat(rows.getLast().get("message_key")).isEqualTo(account.id().toString());
         assertThat(rows.getLast().get("payload").toString()).contains("\"deleted\":true");

@@ -30,7 +30,7 @@
 
 ## Access Token 무효화 (#686)
 - 회원은 Access Token을 직접 발급 · 무효화하지 않는다. 탈퇴 · 관리자 정지 · 판매자 정지에서 `shared.auth.out.MemberTokenRevoker.revoke(memberId, revokedAt)`만 부른다(호출자 트랜잭션 안에서만, `MemberService` · `AdminMemberService` · `SellerStateService`)
-- 구현은 인증 도메인(`AccessTokenRevocationService`)이다. `auth.tokens-revoked`를 `kidly.auth.events`로 커밋 뒤 바로 보내고, Gateway가 받아 그 시각까지 발급된 토큰을 거절한다. 잃으면 Gateway가 그 회원의 Access Token을 만료(최대 30분)까지 통과시키지만 그 뒤로는 피해가 없어 아웃박스를 쓰지 않는다(인증 도메인 CLAUDE.md)
+- 구현은 인증 도메인(`AccessTokenRevocationService`)이다. `auth.tokens-revoked`를 업무 트랜잭션에서 아웃박스에 저장해 `kidly.auth.events`로 보내고, Gateway가 받아 그 시각까지 발급된 토큰을 거절한다. 평소 지연은 릴레이 주기 200ms와 전송 응답 대기다
 
 ## Kafka 수신 (`in/SellerEventListener`, #608)
 - 구독 그룹 `kidly.member`로 `kidly.seller.events`의 `seller.changed`만 받는다. 그 밖의 종류는 읽지 않고 건너뛴다. 종류는 헤더 `eventType`으로 고른다
