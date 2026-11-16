@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
@@ -34,6 +35,17 @@ class ChatRateLimitIntegrationTest extends GatewayTestSupport {
     @Autowired
     @Qualifier(RecordingBackendConfiguration.CHATBOT)
     private RecordingBackend chatbotBackend;
+
+    @Autowired
+    private ReactiveStringRedisTemplate redis;
+
+    @Test
+    @DisplayName("챗봇 질문은 Redis의 챗봇 버킷에 기록된다")
+    void storesChatInRedis() {
+        var id = uniqueId();
+        ask(token(id)).expectStatus().isOk();
+        assertThat(redis.hasKey("kidly:gateway:rate-limit:chat:MEMBER:" + id).block()).isTrue();
+    }
 
     @Test
     @DisplayName("같은 회원의 질문은 10번까지 넘기고, 넘으면 429 ProblemDetail과 Retry-After로 막고 넘기지 않는다")
