@@ -288,336 +288,6 @@
       }
     },
     {
-      "id": 35,
-      "type": "table",
-      "title": "5xx가 난 API · 최근 5분",
-      "description": "서버 오류가 난 경로 상위 10개입니다. 줄을 누르면 그 서비스의 오류 로그가 열립니다.\n건수가 오르면 같은 시각의 ERROR 로그에서 예외 타입을 확인합니다. Gateway 줄은 하위 서비스 오류가 넘어온 것일 수 있습니다.\n비어 있으면 선택 기간 끝 5분에 5xx가 없었다는 뜻입니다(수집 끊김은 위 '서비스 수집 상태'로 판단).",
-      "gridPos": {
-        "x": 0,
-        "y": 16,
-        "w": 12,
-        "h": 9
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A",
-          "instant": true,
-          "range": false,
-          "format": "table",
-          "expr": "topk(10, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) > 0)"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "indexByName": {
-              "job": 0,
-              "method": 1,
-              "uri": 2,
-              "status": 3,
-              "Value": 4
-            },
-            "renameByName": {}
-          }
-        },
-        {
-          "id": "sortBy",
-          "options": {
-            "sort": [
-              {
-                "field": "Value",
-                "desc": true
-              }
-            ]
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
-          },
-          "links": [
-            {
-              "title": "이 서비스 오류 로그 열기",
-              "url": "/d/kidly-logs?var-env=${env}&var-service=${__data.fields.job}&${__url_time_range}"
-            }
-          ]
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "job"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "서비스"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "method"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "메서드"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "status"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "상태"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "건수 · 5분"
-              },
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "uri"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "경로"
-              },
-              {
-                "id": "custom.width",
-                "value": 320
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "footer": {
-          "show": false
-        }
-      }
-    },
-    {
-      "id": 36,
-      "type": "table",
-      "title": "4xx가 많은 API · 최근 5분",
-      "description": "요청 오류(400 · 401 · 403 · 404 · 409 등) 경로 상위 10개입니다. 줄을 누르면 그 서비스의 오류 로그가 열립니다.\n특정 경로에서 갑자기 오르면 화면 요청 형식 · 인증 만료 · 배포 직후 API 변경을 확인합니다. 정상 흐름(로그인 만료 401 등)도 섞여 있습니다.",
-      "gridPos": {
-        "x": 12,
-        "y": 16,
-        "w": 12,
-        "h": 9
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A",
-          "instant": true,
-          "range": false,
-          "format": "table",
-          "expr": "topk(10, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"4..\"}[5m])) > 0)"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "indexByName": {
-              "job": 0,
-              "method": 1,
-              "uri": 2,
-              "status": 3,
-              "Value": 4
-            },
-            "renameByName": {}
-          }
-        },
-        {
-          "id": "sortBy",
-          "options": {
-            "sort": [
-              {
-                "field": "Value",
-                "desc": true
-              }
-            ]
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
-          },
-          "links": [
-            {
-              "title": "이 서비스 오류 로그 열기",
-              "url": "/d/kidly-logs?var-env=${env}&var-service=${__data.fields.job}&${__url_time_range}"
-            }
-          ]
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "job"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "서비스"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "method"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "메서드"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "status"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "상태"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "건수 · 5분"
-              },
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "orange"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "uri"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "경로"
-              },
-              {
-                "id": "custom.width",
-                "value": 320
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "footer": {
-          "show": false
-        }
-      }
-    },
-    {
       "id": 3,
       "type": "timeseries",
       "title": "최근 5분 서버 오류 비율",
@@ -628,7 +298,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -666,7 +336,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 25,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -704,7 +374,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -733,7 +403,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 33,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -758,7 +428,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 32,
         "w": 24,
         "h": 1
       },
@@ -774,7 +444,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 42,
+            "y": 33,
             "w": 12,
             "h": 8
           },
@@ -803,7 +473,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 42,
+            "y": 33,
             "w": 12,
             "h": 8
           },
@@ -830,7 +500,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 50,
+        "y": 41,
         "w": 24,
         "h": 1
       },
@@ -846,7 +516,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 51,
+            "y": 42,
             "w": 12,
             "h": 8
           },
@@ -884,7 +554,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 51,
+            "y": 42,
             "w": 12,
             "h": 8
           },
@@ -922,7 +592,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 59,
+            "y": 50,
             "w": 12,
             "h": 8
           },
@@ -960,7 +630,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 59,
+            "y": 50,
             "w": 12,
             "h": 8
           },
