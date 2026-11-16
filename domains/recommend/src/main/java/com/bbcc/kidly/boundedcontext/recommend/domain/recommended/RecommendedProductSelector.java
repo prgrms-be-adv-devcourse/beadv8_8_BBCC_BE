@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.recommend.domain.recommended;
 
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaProductSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommendation;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
@@ -19,37 +19,37 @@ import lombok.RequiredArgsConstructor;
 public class RecommendedProductSelector {
 
     // 상품 등록 시각이 늦은 상품이 먼저이고, 등록 시각이 같으면 상품 ID가 큰 상품이 먼저다
-    private static final Comparator<RecommendReplicaProduct> NEWEST_FIRST =
-            Comparator.comparing(RecommendReplicaProduct::getProductRegisteredAt)
-                    .thenComparing(RecommendReplicaProduct::getProductId)
+    private static final Comparator<ReplicaProductSnapshot> NEWEST_FIRST =
+            Comparator.comparing(ReplicaProductSnapshot::productRegisteredAt)
+                    .thenComparing(ReplicaProductSnapshot::productId)
                     .reversed();
 
     private final SizeRecommender sizeRecommender;
 
     public List<RecommendedProduct> select(
             ChildSizeInput childSizeInput,
-            List<RecommendReplicaProduct> products,
+            List<ReplicaProductSnapshot> products,
             LocalDate today
     ) {
-        List<RecommendReplicaProduct> newestFirst = new ArrayList<>(products);
+        List<ReplicaProductSnapshot> newestFirst = new ArrayList<>(products);
         newestFirst.sort(NEWEST_FIRST);
         List<RecommendedProduct> selected = new ArrayList<>();
-        for (RecommendReplicaProduct product : newestFirst) {
-            if (product.getStatus() != ProductStatus.ON_SALE) {
+        for (ReplicaProductSnapshot product : newestFirst) {
+            if (product.status() != ProductStatus.ON_SALE) {
                 continue;
             }
             // 남아 자녀에게는 원피스 · 치마처럼 여아에게만 보여 줄 카테고리의 상품을 추천하지 않는다
             if (!product.isVisibleTo(childSizeInput.gender())) {
                 continue;
             }
-            if (product.isSizeFree()) {
+            if (product.sizes().isSizeFree()) {
                 if (product.hasSellableOption()) {
                     selected.add(toRecommendedProduct(product, null));
                 }
                 continue;
             }
             SizeRecommendation recommendation =
-                    sizeRecommender.recommend(childSizeInput, product.toProductSizes(), today);
+                    sizeRecommender.recommend(childSizeInput, product.sizes(), today);
             String recommendedSize = recommendation.getRecommendedSize();
             if (recommendedSize == null || !product.isSellable(recommendedSize)) {
                 continue;
@@ -59,22 +59,22 @@ public class RecommendedProductSelector {
         return selected;
     }
 
-    private RecommendedProduct toRecommendedProduct(RecommendReplicaProduct product, String recommendedSize) {
+    private RecommendedProduct toRecommendedProduct(ReplicaProductSnapshot product, String recommendedSize) {
         // 판매 시작 시각이 없는 예전 메시지로 만든 복사본은 등록 시각을 판매 시작 시각으로 본다
-        LocalDateTime saleStartedAt = product.getSaleStartedAt();
+        LocalDateTime saleStartedAt = product.saleStartedAt();
         if (saleStartedAt == null) {
-            saleStartedAt = product.getProductRegisteredAt();
+            saleStartedAt = product.productRegisteredAt();
         }
         return new RecommendedProduct(
-                product.getProductId(),
-                product.getSellerId(),
-                product.getName(),
-                product.getThumbnailUrl(),
-                product.getMinPrice(),
+                product.productId(),
+                product.sellerId(),
+                product.name(),
+                product.thumbnailUrl(),
+                product.minPrice(),
                 recommendedSize,
-                product.getCategoryId(),
-                product.getBrand(),
-                product.getProductRegisteredAt(),
+                product.categoryId(),
+                product.brand(),
+                product.productRegisteredAt(),
                 saleStartedAt
         );
     }

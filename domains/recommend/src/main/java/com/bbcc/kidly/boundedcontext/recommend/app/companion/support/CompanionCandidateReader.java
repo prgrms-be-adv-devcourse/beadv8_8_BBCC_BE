@@ -17,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaProductSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -78,7 +79,11 @@ public class CompanionCandidateReader {
         List<String> viewedPathNames = categoryPathNames(viewed);
 
         List<RecommendReplicaProduct> onSale = replicaProductRepository.findAllOnSale(null);
-        List<RecommendedProduct> selected = selector.select(child.toChildSizeInput(), onSale,
+        List<ReplicaProductSnapshot> snapshots = new ArrayList<>();
+        for (RecommendReplicaProduct product : onSale) {
+            snapshots.add(ReplicaProductSnapshot.from(product));
+        }
+        List<RecommendedProduct> selected = selector.select(child.toChildSizeInput(), snapshots,
             LocalDate.now(SERVICE_ZONE));
         List<RecommendedProduct> candidates = withoutExcluded(selected, memberId, child);
         List<CompanionCandidate> ranked = ranker.rank(viewedPathNames,

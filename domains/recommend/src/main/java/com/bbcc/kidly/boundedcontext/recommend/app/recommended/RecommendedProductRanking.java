@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedPro
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaProductSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import java.time.LocalDate;
@@ -55,8 +56,12 @@ public class RecommendedProductRanking {
     public List<RecommendedProduct> rank(Long memberId, RecommendReplicaChild child, Long categoryId,
         LocalDateTime asOf) {
         List<RecommendReplicaProduct> products = replicaProductRepository.findAllOnSale(categoryId);
+        List<ReplicaProductSnapshot> snapshots = new ArrayList<>();
+        for (RecommendReplicaProduct product : products) {
+            snapshots.add(ReplicaProductSnapshot.from(product));
+        }
         List<RecommendedProduct> selected =
-            selector.select(child.toChildSizeInput(), products, LocalDate.now(SERVICE_ZONE));
+            selector.select(child.toChildSizeInput(), snapshots, LocalDate.now(SERVICE_ZONE));
         PreferenceSnapshot combined = PreferenceSnapshot.combine(
             snapshotStore.findChild(child.getChildProfileId()), snapshotStore.findMember(memberId));
         // 추천은 결제로 장바구니가 비워지는 이벤트를 받지 않으므로, 30일 안에 담고 빼지 않은 상품을 장바구니에 있는 상품으로 본다.
