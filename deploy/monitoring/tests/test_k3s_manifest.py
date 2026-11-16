@@ -159,6 +159,25 @@ class K3sManifestTests(unittest.TestCase):
         container = self.items()['Deployment/member']['spec']['template']['spec']['containers'][0]
         self.assertEqual(container['readinessProbe']['httpGet']['path'], '/actuator/health/readiness')
 
+    def test_separate_management_port_is_used_for_probes_and_metrics(self):
+        service = self.service(healthcheck={'test': ['CMD', 'curl', '-f',
+                                                     'http://localhost:8085/actuator/health']})
+        items = self.items('gateway', service)
+        template = items['Deployment/gateway']['spec']['template']
+        container = template['spec']['containers'][0]
+        self.assertEqual(container['ports'], [{'name': 'http', 'containerPort': 8080},
+                                               {'name': 'management', 'containerPort': 8085}])
+        for probe, group in (('startupProbe', 'liveness'), ('readinessProbe', 'readiness'),
+                             ('livenessProbe', 'liveness')):
+            self.assertEqual(container[probe]['httpGet'], {'path': '/actuator/health/' + group,
+                                                           'port': 'management'})
+        self.assertEqual(template['metadata']['annotations']['prometheus.io/port'], '8085')
+        self.assertEqual(items['Service/gateway']['spec']['ports'],
+                         [{'name': 'http', 'port': 8080, 'targetPort': 'http', 'nodePort': 30204}])
+        ordinary = self.items()['Deployment/member']['spec']['template']
+        self.assertEqual(ordinary['spec']['containers'][0]['ports'], [{'name': 'http', 'containerPort': 8080}])
+        self.assertNotIn('prometheus.io/port', ordinary['metadata']['annotations'])
+
     def test_kafka_exporter_keeps_compose_command_port_and_lockdown(self):
         exporter = {
             'image': 'danielqsj/kafka-exporter:v1.11.0@sha256:abc', 'mem_limit': str(128 * 1024 * 1024),

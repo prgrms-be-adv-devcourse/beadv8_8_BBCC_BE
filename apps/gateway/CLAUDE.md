@@ -62,9 +62,10 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - 챗봇은 `KIDLY_CHATBOT_URI`로 넘긴다. 기본값은 `http://chatbot-service:8080`이다. profile `chatbot`이 꺼진 환경에서는 챗봇 API가 실패한다(#1191)
 - dev · prod 모두 서비스(search-service · recommend-service · settlement-service · member-service · payment-service · product-service · order-service · community-service · notification-service · chatbot-service)는 JWT를 보지 않고 Gateway가 붙인 `X-Member-*`로 로그인 회원을 만든다. 서비스는 Gateway 뒤에서만 열려야 한다
 - nginx(t3.large k3s 의 Pod, #1309) dev 블록의 `location /`와 `/actuator/health`는 Gateway로 간다. nginx 설정은 앱 배포로 바뀌지 않는다(`deploy/nginx/README.md`)
+- actuator(health · prometheus)는 management 포트 8085에만 연다(#1404). 공개 포트의 `/actuator/**`는 not-found 라우트가 404다. k3s probe와 Alloy 지표 수집은 Pod의 8085를 본다(`deploy/k3s/k3s.py`가 compose healthcheck 포트로 probe · `prometheus.io/port` annotation을 만든다)
 
 ## 로컬 실행
-- `docker compose up -d` 뒤 Gateway(`:apps:gateway:bootRun`, 8083)와 필요한 서비스를 띄운다. Swagger는 각 서비스에서 확인한다.
+- `docker compose up -d` 뒤 Gateway(`:apps:gateway:bootRun`, 8083)와 필요한 서비스를 띄운다. Swagger는 각 서비스에서 확인한다. Gateway actuator는 `localhost:8085`다
 - 무효화 목록은 `docker compose up -d`가 띄우는 Redis(localhost:6379)에 둔다
 - 추천 API(`/api/v1/recommendations/**`)는 추천 서비스(`:apps:recommend-service:bootRun`, 8086)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_RECOMMEND_URI`를 준다
 - 상품 목록(`GET /api/v1/products`)은 검색 서비스(`:apps:search-service:bootRun`, 8082, Elasticsearch 필요)를 띄워야 한다. 다른 곳으로 보낼 때만 `KIDLY_SEARCH_URI`를 준다

@@ -207,11 +207,13 @@ server:
   forward-headers-strategy: native
 
 management:
+  server:
+    port: 8085
   endpoints:
     web:
       exposure:
         include: health,prometheus
-  # Redis가 죽어도 요청은 통과시키므로, nginx · 외부 확인이 보는 전체 health가 DOWN이 되지 않게 뺀다
+  # Redis가 죽어도 요청은 통과시키므로, k3s probe가 보는 health가 DOWN이 되지 않게 뺀다
   health:
     redis:
       enabled: false

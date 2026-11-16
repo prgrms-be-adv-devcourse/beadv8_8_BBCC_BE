@@ -58,8 +58,7 @@ def main():
     parser.add_argument('--environment', choices=('dev', 'prod'), default='dev')
     args = parser.parse_args()
     host = 'api.kidly.kro.kr'
-    rows = [observe(args.environment + '-app-health', 'https://' + host + '/actuator/health', 'status', 'UP'),
-            observe(args.environment + '-gateway-product-read', 'https://' + host + '/api/v1/products?page=0&size=1'),
+    rows = [observe(args.environment + '-gateway-product-read', 'https://' + host + '/api/v1/products?page=0&size=1'),
             observe('grafana-health', 'https://grafana.kidly.kro.kr/api/health', 'database', 'ok')]
     print(json.dumps({'environment': args.environment, 'observations': rows}, ensure_ascii=False))
     return 0 if all(row['ok'] for row in rows) else 1
