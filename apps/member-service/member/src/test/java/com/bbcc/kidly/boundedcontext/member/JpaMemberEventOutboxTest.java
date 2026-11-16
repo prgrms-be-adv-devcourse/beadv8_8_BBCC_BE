@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -28,6 +29,9 @@ class JpaMemberEventOutboxTest {
 
     @Mock
     private JpaMemberOutboxRepository outboxRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @Test
     @DisplayName("이벤트를 kidly.member.events로 보낼 메시지로 저장한다. 키는 correlationId(회원 ID), 종류와 ID는 이벤트 값이다")
@@ -62,7 +66,7 @@ class JpaMemberEventOutboxTest {
     }
 
     private MemberOutboxMessage appendAndCapture() {
-        new JpaMemberEventOutbox(outboxRepository, JSON_MAPPER).append(WITHDRAWN);
+        new JpaMemberEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(WITHDRAWN);
         var captor = ArgumentCaptor.forClass(MemberOutboxMessage.class);
         verify(outboxRepository).save(captor.capture());
         return captor.getValue();
