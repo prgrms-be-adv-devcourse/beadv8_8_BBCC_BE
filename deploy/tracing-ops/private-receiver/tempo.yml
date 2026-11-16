@@ -1,0 +1,25 @@
+server:
+  http_listen_port: 3200
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+          tls:
+            cert_file: /etc/tracing-tls/tls.crt
+            key_file: /etc/tracing-tls/tls.key
+            client_ca_file: /etc/tracing-tls/ca.crt
+compactor:
+  compaction:
+    block_retention: 2h
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/blocks
+    wal:
+      path: /var/tempo/wal
+
+usage_report:
+  reporting_enabled: false

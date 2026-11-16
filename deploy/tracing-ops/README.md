@@ -23,4 +23,5 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 
 - 앱 클러스터의 `kidly-dev`에서 Gateway·주문 Pod만 Alloy OTLP ClusterIP에 접근하도록 구성합니다. 수신된 span은 두 서비스의 HTTP·DB로 제한하고 허용된 속성만 남깁니다.
 - 모니터링 쪽 수신기에 상호 TLS를 구성한 뒤, 사설 HTTPS 주소를 `tracing-tempo-endpoint` ConfigMap의 `url`에 지정합니다. `tracing-alloy-client-tls` Secret에는 해당 CA와 클라이언트 인증서·키를 준비합니다. 수신기는 HTTPS와 클라이언트 인증을 모두 검증해야 합니다.
-- 현재 Tempo 조회 구성의 OTLP는 루프백에 있습니다. 모니터링 쪽 사설 수신기가 준비되기 전에 이 Alloy를 적용하면 전송할 수 없습니다. 기존 Prometheus·Loki 수집과 분리해 검증합니다.
+- 모니터링 클러스터에는 `kubectl kustomize deploy/tracing-ops/private-receiver`로 상호 TLS 수신 설정을 렌더링합니다. `tracing-tempo-server-tls`에는 서버 인증서·키와 클라이언트 검증 CA를 준비합니다. 이 오버레이는 4318을 컨테이너 포트로만 두고 Service와 NetworkPolicy에 수신 접근을 추가하지 않습니다. 배포 전에 앱 클러스터에서만 접근할 수 있는 사설 주소와 실제 송신 원본에 맞는 정책을 설정해야 합니다.
+- 기본 Tempo 조회 구성의 OTLP는 루프백에 있습니다. 수신 오버레이와 사설 경로가 준비된 뒤 Alloy를 적용하고 기존 Prometheus·Loki 수집과 분리해 검증합니다.
