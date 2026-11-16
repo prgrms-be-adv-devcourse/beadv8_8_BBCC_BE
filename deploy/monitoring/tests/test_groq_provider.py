@@ -71,6 +71,21 @@ class GroqProviderTest(unittest.TestCase):
         self.assertNotIn('test-not-a-real-api-key', request.data.decode())
         client.open.assert_called_once()
 
+    def test_mcp_only_service_metrics_stay_out_of_groq_input(self):
+        extra = (Evidence('f1', 'error_logs_30m', 3, 'estimated_count', 'dev', 'kidly-order'),
+                 Evidence('f2', 'restarts_30m', 1, 'count', 'dev', 'kidly-order'),
+                 Evidence('f3', 'kafka_lag_by_service', 12, 'count', 'dev', 'kidly-order'))
+        client = transport()
+        self.provider(client).analyze(replace(context(), evidence=context().evidence+extra), 2300)
+        payload = json.loads(client.open.call_args.args[0].data)
+        sent = json.loads(payload['messages'][1]['content'])
+        self.assertEqual([item['evidence_id'] for item in sent['evidence']], ['f0'])
+        fields = payload['response_format']['json_schema']['schema']['properties']['finding']['properties']
+        self.assertEqual(fields['evidence_id']['enum'], ['f0'])
+        only_extra = replace(context(), evidence=extra)
+        with self.assertRaisesRegex(ProviderError, '^insufficient_evidence$'):
+            self.provider(transport()).analyze(only_extra, 2300)
+
     def test_rejects_actual_trial_health_claim(self):
         sample = json.loads(json.loads(body())['choices'][0]['message']['content'])
         data = replace(context(), evidence=(Evidence('f0', 'up', 1, 'boolean', 'dev', 'kidly-gateway'),))

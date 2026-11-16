@@ -11,6 +11,7 @@ import signal
 import time
 import tempfile
 import unittest
+import urllib.parse
 from unittest.mock import MagicMock, patch
 
 SOURCE = Path(__file__).parents[1]/'ai-notes'
@@ -290,6 +291,50 @@ class NotesPublishingTest(unittest.TestCase):
         invalid = replace(context(), evidence=(replace(context().evidence[0],value=10**400),))
         with self.assertRaises(ValueError):
             c.validate_context(invalid,2000)
+
+
+class NoteGuideTest(unittest.TestCase):
+    def test_render_names_affected_services_from_issued_evidence(self):
+        ctx = replace(context(), evidence=(
+            c.Evidence('f0', 'errors_30m', 12, 'estimated_count', 'dev', 'kidly-order'),
+            c.Evidence('f1', 'restarts_30m', 1, 'count', 'dev', 'kidly-order'),
+            c.Evidence('f2', 'kafka_lag_by_service', 40, 'count', 'dev', 'kidly-payment'),
+            c.Evidence('f3', 'host_cpu_used', 91.3, 'percent', 'global'),
+        ))
+        rep = replace(report(), findings=(
+            c.Finding('order 5xx', 'restart may explain errors', ('상태판 확인',), '로그 확인', ('f0', 'f1', 'f2')),
+            c.Finding('host CPU', 'load', ('서버 자원 확인',), '확인', ('f3',)),
+        ))
+        note = render(c.Publication(ctx, rep, 'mcp-client', 'test', 2002, False, 'test'))['report']
+        self.assertEqual(note.count('영향 서비스: kidly-order, kidly-payment → '), 1)
+        # 호스트 근거만 있는 항목에는 서비스 줄을 만들지 않는다
+        self.assertEqual(note.count('영향 서비스:'), 1)
+        self.assertLess(note.index('대응 제안: 로그 확인'), note.index('영향 서비스:'))
+        self.assertLess(note.index('영향 서비스:'), note.index('근거 f0'))
+
+    def test_snapshot_maps_service_scoped_evidence_and_bounds_limitations(self):
+        def answer(url, timeout):
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)['query'][0]
+            rows = []
+            if 'logback_events_total' in query:
+                rows = [{'metric': {'job': 'kidly-order'}, 'value': [2000, '3']}]
+            elif 'kafka_consumergroup_lag' in query and 'label_replace' in query:
+                rows = [{'metric': {'job': 'kidly-order'}, 'value': [2000, '12']},
+                        {'metric': {'job': 'kidly-unknown'}, 'value': [2000, '5']}]
+            return response(raw=json.dumps({'status': 'success', 'data': {'resultType': 'vector', 'result': rows}}).encode())
+        opener = MagicMock()
+        opener.open.side_effect = answer
+        with patch('snapshot.opener', return_value=opener):
+            ctx = snapshot.collect('dev', 2000)
+        c.validate_context(ctx, 2000)
+        found = {(e.metric, e.service, e.value) for e in ctx.evidence}
+        self.assertIn(('error_logs_30m', 'kidly-order', 3.0), found)
+        self.assertIn(('kafka_lag_by_service', 'kidly-order', 12.0), found)
+        self.assertNotIn('kidly-unknown', json.dumps(asdict(ctx)))
+        missing = [line for line in ctx.limitations if line.startswith('No finite fresh/available result for:')]
+        self.assertEqual(len(missing), 1)
+        self.assertIn('restarts_30m', missing[0])
+        self.assertNotIn('error_logs_30m', missing[0])
 
 
 if __name__ == '__main__':
