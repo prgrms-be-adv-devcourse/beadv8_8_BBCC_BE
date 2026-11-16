@@ -100,7 +100,8 @@ public record SizeRecommendationResult(
     /**
      * @param size 사이즈 이름이다
      * @param lengthMonths 권장 키 상한까지 크는 데 걸리는 개월 수이고, 계산할 수 없으면 null이다
-     * @param widthMonths 기준 옷보다 큰 너비를 몸이 채우는 데 걸리는 개월 수이고, 계산할 수 없으면 null이다
+     * @param widthMonths 너비로 입을 수 있는 개월 수다. 지금 잘 맞는 기준 옷과 같은 너비여도 한동안은 입는다고 보고 계산하며,
+     *                    계산할 수 없으면 null이다
      * @param months 길이 기준과 너비 기준 중 짧은 개월 수이고, 계산할 수 없으면 null이다
      */
     public record WearablePeriod(String size, Integer lengthMonths, Integer widthMonths, Integer months) {
