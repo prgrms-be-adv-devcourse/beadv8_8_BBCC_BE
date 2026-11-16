@@ -6,7 +6,8 @@ import java.util.UUID;
 
 /**
  * 찜이 지워졌다(회원 · 자녀 계정이 해제했거나, 회원 탈퇴 · 자녀 계정 삭제로 지웠다. 없는 찜 해제는 보내지 않는다).
- * {@code aggregateId}는 찜 ID, {@code correlationId}(Kafka 키)는 {@code memberId}(보호자 회원 ID)다. {@code eventType}은 {@code favorite.removed}.
+ * {@code aggregateId}는 찜 ID, {@code correlationId}(Kafka 키)는 {@code memberId}(보호자 회원 ID)다.
+ * {@code eventType}은 {@code favorite.removed}.
  */
 public record FavoriteRemovedEvent(UUID eventId, LocalDateTime occurredAt, Data data) implements DomainEvent {
 
