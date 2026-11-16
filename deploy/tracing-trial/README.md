@@ -16,3 +16,13 @@ Gateway·주문을 운영하는 kidly-dev와 별도의 폐기 가능한 시험 �
 3. agent-patch.py에 gateway 또는 order를 넘겨 패치를 생성하고, 명시한 시험 컨텍스트와 kidly-tracing-trial 네임스페이스의 해당 Deployment에 strategic merge patch를 적용한다. 기능 확인 동안만 --full-sampling을 사용한다.
 4. 정상과 404 주문 상세에서 Gateway·주문 HTTP와 JDBC가 한 트레이스에 나타나는지 확인한다. 합성 URL·SQL 값과 민감 속성이 저장되지 않는지 확인한 뒤 기본 샘플링 5%로 같은 부하를 다시 실행한다. Tempo 자원·저장량·OTLP 전송량도 기록한다.
 5. Agent를 붙이기 전의 시험 Deployment 명세를 다시 적용하거나 시험 클러스터를 폐기한다. 트레이스는 Tempo Pod 임시 저장소에 남으며 Pod 삭제 시 제거된다.
+
+## API 처리 시간에서 트레이스 열기
+
+시험 Grafana에 Tempo 데이터소스가 준비되면 `python3 deploy/tracing-trial/order-trace-link.py`의 출력에서 URL을 복사해 시험 API 처리 시간 패널의 **Panel links**에 **관련 트레이스 보기**로 추가한다.
+
+- 패널의 시간 범위를 좁힌 뒤 링크를 열어 같은 시간 범위로 주문 서비스의 서버 span을 검색하는지 확인한다. 링크는 주문 서비스로 고정하며 경로별 분리는 후속 검증 범위다.
+- 검색 결과에서 가장 느린 요청 또는 확인하고 싶은 상태의 요청을 열어 Gateway → 주문 HTTP → JDBC의 시간과 상태를 비교한다.
+- 표에는 여러 요청의 p95가 표시된다. Tempo 결과는 그 시간대에 샘플링해 저장한 개별 요청이다. 일치하는 트레이스가 없으면 시간 범위와 수집 상태를 확인하고, 기존 X-Request-Id로 로그를 찾는다.
+
+이 링크는 `tempo-dev-trial` 데이터소스를 사용하는 시험용이다. 운영 구성은 운영 Tempo가 준비되고 조회가 확인된 뒤 배포한다.
