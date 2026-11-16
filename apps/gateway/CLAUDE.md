@@ -9,7 +9,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 3. 경로 방화벽(`web/RequestFirewallFilter`): 정규화되지 않거나 위험한 경로 · 메서드를 400으로 막는다
 4. 토큰 검사(`auth/AccessTokenFilter`): 밖에서 온 `X-Member-*` · `X-Admin-*` · `X-Child-*`를 지우고, Bearer 토큰을 검증 · 무효화 확인(Redis, 아래 '무효화 목록')해 주체별 헤더를 붙인다. 실패하면 401
 5. 역할 검사(`auth/RoleFilter`): `/api/v1/admin/**`는 관리자 주체, `/api/v1/seller/**`는 SELLER 회원 주체, `/api/v1/child/**`는 자녀 주체. 없으면 401 · 403
-6. 요청 수 제한: `ratelimit/GlobalRateLimitFilter`는 모든 요청을 주체 ID 또는 비로그인 IP마다 Redis에 센다(#1417, 아래 '전체 요청 수 제한'). 검색어가 있는 `GET /api/v1/products`는 `SearchRateLimitFilter`가 따로 센다(#816, 분당 30번). 챗봇 질문 `POST /api/v1/chatbot/messages`는 `ChatRateLimitFilter`가 따로 센다(#1191, 분당 10번). 검색 · 챗봇 제한은 OpenAI 비용을 막으려는 것이며 Redis에 두어 Gateway 여러 대가 한도를 공유한다. IP는 nginx가 덮어쓰는 `X-Real-IP`, 없으면 연결 주소다. `X-Forwarded-For` 첫 값은 클라이언트가 지어낼 수 있어 쓰지 않는다
+6. 요청 수 제한: `ratelimit/GlobalRateLimitFilter`는 모든 요청을 주체 ID 또는 비로그인 IP마다 Redis에 센다(#1417, 아래 '전체 요청 수 제한'). 검색어가 있는 `GET /api/v1/products`는 `SearchRateLimitFilter`가 따로 센다(#816, 분당 30번). 챗봇 질문 `POST /api/v1/chatbot/messages`는 `ChatRateLimitFilter`가 따로 센다(#1191, 분당 10번). 검색 · 챗봇 제한은 OpenAI 비용을 막으려는 것이며 Redis에 두어 Gateway 여러 대가 한도를 공유한다. 키별 · 전체 한도는 관리자 API로 런타임에 바꾸고 검색 · 챗봇 한도는 배포로만 바꾼다(#1421). IP는 nginx가 덮어쓰는 `X-Real-IP`, 없으면 연결 주소다. `X-Forwarded-For` 첫 값은 클라이언트가 지어낼 수 있어 쓰지 않는다
 7. CORS(`application.yml`의 `globalcors`) · 라우팅. 서비스는 CORS를 하지 않는다
 - 1 · 2 · 3은 WebFilter(`web/WebFilterConfig`에 순서대로 등록), 4 · 5 · 6은 GlobalFilter(`RoleFilter` 순서 = `AccessTokenFilter.ORDER + 1`, 전체 · 검색 · 챗봇 제한 필터 = `+ 2`)
 - 400 · 401 · 403 · 404 · 429 · 500 · 503 · 504 본문은 `web/ProblemResponse`가 쓴다(#668)
@@ -22,15 +22,15 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 
 ## 전체 요청 수 제한
 - Redis 해시 `kidly:gateway:rate-limit:client:{RateLimitKeys.keyOf 결과}`에 남은 토큰과 갱신 시각을 저장한다. 키는 `MEMBER:123`, `ADMIN:123`, `CHILD:123`, `IP:주소`처럼 주체 종류와 ID 또는 IP를 포함한다. Lua가 Redis 시각으로 토큰을 채우고 차감하므로 Gateway 여러 대가 같은 한도를 쓴다. 기본 한도는 키마다 분당 200개이며 한꺼번에 200개까지 보낼 수 있다. 넘으면 429와 `Retry-After`(초)를 낸다. 전체 버킷 키 `kidly:gateway:rate-limit:total`로 모든 Gateway를 합쳐 초당 500개까지 받으며 전체 한도를 넘으면 503과 `Retry-After`를 낸다. 두 버킷은 Lua 하나로 확인하고 둘 다 남았을 때만 차감한다. 해시 TTL은 한도가 다 차는 시간이다
-- 관리자 `GET /api/v1/admin/gateway/rate-limit`으로 현재 상태를 읽고 `PUT` 본문 `{"enabled":false}` 또는 `{"enabled":true}`로 바꾼다. 이 경로는 전체 한도에서 제외한다. 다른 Gateway는 기본 2초마다 Redis를 읽어 상태를 갱신한다. 스위치는 키별 · 전체 한도를 끄며 검색 · 챗봇 제한에는 영향이 없다
-- 스위치 키 `kidly:gateway:rate-limit:enabled`는 TTL이 없다. 키가 없으면 켜진다. Redis 읽기 실패 시 마지막 스위치 값을 유지한다. 검색 · 챗봇도 각각 search · chat 이름의 Redis 버킷을 쓴다. 버킷 확인 실패 시 검색 · 챗봇을 포함해 요청을 통과시키고 ERROR 로그를 남긴다. 스위치 쓰기 실패 시 503이다
+- 관리자 `GET /api/v1/admin/gateway/rate-limit`으로 지금 적용 중인 설정(`{"enabled":true,"client":{"capacity":200,"period":"PT1M"},"total":{"capacity":500,"period":"PT1S"}}`)을 읽고, `PUT`으로 보낸 칸만 바꾼다(#1421). 예: `{"enabled":false}`, `{"total":{"capacity":800,"period":"PT1S"}}`. period는 ISO-8601이다. 본문이 없거나 바꿀 칸이 없거나 capacity 1 미만 · period 1ms 미만이면 400이다. 이 경로는 전체 한도에서 제외한다. 다른 Gateway는 기본 2초마다 Redis를 읽어 설정을 갱신한다. 끄면 키별 · 전체 한도가 꺼지며 검색 · 챗봇 제한에는 영향이 없다. 검색 · 챗봇 한도는 OpenAI 비용과 묶여 있어 배포로만 바꾼다
+- 설정 해시 `kidly:gateway:rate-limit:settings`(필드 `enabled`, `client-capacity`, `client-period-ms`, `total-capacity`, `total-period-ms`)는 TTL이 없다. `enabled`는 정확히 "false"일 때만 꺼지고 없으면 켜진다. 한도는 두 필드가 모두 맞는 값일 때만 쓰고 아니면 yml 기본값이다. 해시 값이 yml보다 우선하므로 yml 기본값을 바꿔 배포해도 해시에 값이 남아 있으면 해시가 이긴다. 되돌리려면 그 필드를 지우거나 PUT으로 다시 쓴다. Redis 읽기 실패 시 마지막 설정을 유지한다. 검색 · 챗봇도 각각 search · chat 이름의 Redis 버킷을 쓴다. 버킷 확인 실패 시 검색 · 챗봇을 포함해 요청을 통과시키고 ERROR 로그를 남긴다. 설정 쓰기 실패 시 503이다
 
 ## 무효화 목록
 - `revocation/AccessTokenRevocations`: Redis 해시 `kidly:gateway:revocations`(필드 = 토큰 주체 `PrincipalId.toSubject()`, 값 = 무효화 시각 epoch 초, 키 TTL 없음, #1327). 그 시각까지(초 단위, 같은 초 포함) 발급된 토큰은 401. Gateway가 여러 대여도, 다시 떠도 같은 목록을 본다
 - 쓰기는 Lua 하나로 더 늦은 시각만 남기고 보존 기간(31분 = Access Token 유효 기간 30분 + 시계 오차 60초)이 지난 필드를 지운다. 같은 메시지를 여러 번 · 여러 대가 처리해도 결과가 같다
 - 확인은 `auth/GatewayJwtConfig`가 디코더를 감싸 요청마다 Redis를 한 번 읽는다. 무효화면 `BadJwtException`이라 `auth/AccessTokenFilter`가 401을 낸다
 - Redis 장애(연결 실패 · 명령 제한 시간 300ms 초과 등)면 확인 없이 통과시키고 ERROR 로그를 남긴다(토큰 · 주체 없이). 거절하면 Redis 장애가 로그인한 모든 요청의 장애가 된다. 놓친 토큰도 최대 30분 뒤 만료된다. 그래서 Redis 헬스는 전체 health에서 뺀다(`management.health.redis.enabled: false`)
-- Redis는 추천 AI 답 캐시와 같이 쓴다(64MB, `volatile-lru`). TTL 있는 추천 답과 전체 요청 수 버킷은 지워질 수 있고 TTL 없는 무효화 목록 · 표식 · 스위치는 남는다
+- Redis는 추천 AI 답 캐시와 같이 쓴다(64MB, `volatile-lru`). TTL 있는 추천 답과 전체 요청 수 버킷은 지워질 수 있고 TTL 없는 무효화 목록 · 표식 · 요청 수 제한 설정은 남는다
 - `kidly.auth.events`의 `auth.tokens-revoked`를 받아 채운다(발행은 회원 서비스의 인증 모듈, `apps/member-service/auth`). 인증은 업무 트랜잭션에 아웃박스를 저장하고 200ms 주기 릴레이로 보낸다. 구독 그룹 `kidly.gateway`, 다른 종류는 건너뛴다
 - 파티션마다 TTL 없는 표식 `kidly:gateway:revocations:loaded:{파티션}`: '이 파티션의 최근 31분 무효화가 Redis에 들어 있다'. 표식이 있으면 구독 그룹 책갈피대로 읽고, 없으면(처음 배포, Redis 재시작) 그 파티션만 31분 전으로 되감아 다시 읽고 표식을 쓴다(`revocation/AuthTokensRevokedListener`)
   - 파티션을 받을 때와 컨테이너 idle 이벤트(1초 간격, 첫 메시지 전에는 5초)마다 확인한다. 돌던 중 Redis가 다시 떠 비면 다음 idle 확인이 되감는다. 그 사이(최대 약 1초 + 다시 읽는 시간) 무효화된 토큰이 통과할 수 있다

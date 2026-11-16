@@ -2,7 +2,6 @@ package com.bbcc.kidly.gateway.ratelimit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -18,20 +17,21 @@ import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-class RateLimitSwitchGatewayFilterFactoryTest {
+class RateLimitSettingsGatewayFilterFactoryTest {
 
     @Test
-    @DisplayName("Redis에 스위치를 쓰지 못하면 503을 돌려준다")
+    @DisplayName("Redis에 설정을 쓰지 못하면 503을 돌려준다")
     void unavailableWhenWriteFails() {
-        var rateLimitSwitch = mock(RateLimitSwitch.class);
-        when(rateLimitSwitch.set(anyBoolean())).thenReturn(Mono.error(new DataAccessResourceFailureException("실패")));
+        var rateLimitSettings = mock(RateLimitSettings.class);
+        when(rateLimitSettings.set(any())).thenReturn(Mono.error(new DataAccessResourceFailureException("실패")));
         var problem = mock(ProblemResponse.class);
         when(problem.serviceUnavailable(any())).thenAnswer(invocation -> {
             var exchange = invocation.<ServerWebExchange>getArgument(0);
             exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
             return Mono.empty();
         });
-        var factory = new RateLimitSwitchGatewayFilterFactory(rateLimitSwitch, problem, ServerCodecConfigurer.create());
+        var factory = new RateLimitSettingsGatewayFilterFactory(rateLimitSettings, problem,
+            ServerCodecConfigurer.create());
         var request = MockServerHttpRequest.put("/api/v1/admin/gateway/rate-limit")
             .contentType(MediaType.APPLICATION_JSON).body("{\"enabled\":false}");
         var exchange = MockServerWebExchange.from(request);

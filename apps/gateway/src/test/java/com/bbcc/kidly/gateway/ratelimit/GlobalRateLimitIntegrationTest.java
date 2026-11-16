@@ -28,7 +28,7 @@ class GlobalRateLimitIntegrationTest extends GatewayTestSupport {
     private RateLimitProperties properties;
 
     @Autowired
-    private RateLimitSwitch rateLimitSwitch;
+    private RateLimitSettings rateLimitSettings;
 
     @Autowired
     private ReactiveStringRedisTemplate redis;
@@ -49,17 +49,17 @@ class GlobalRateLimitIntegrationTest extends GatewayTestSupport {
     @DisplayName("스위치를 끄면 전체 버킷이 비어도 통과한다")
     void disabledBypassesTotal() {
         emptyTotal();
-        rateLimitSwitch.set(false).block();
+        rateLimitSettings.set(new RateLimitSettings.Change(false, null, null)).block();
         client.get().uri("/api/v1/products/1").exchange().expectStatus().isOk();
     }
 
     @Test
-    @DisplayName("관리자 스위치 경로는 전체 버킷이 비어도 통과한다")
-    void switchPathBypassesTotal() {
+    @DisplayName("관리자 설정 경로는 전체 버킷이 비어도 통과한다")
+    void settingsPathBypassesTotal() {
         emptyTotal();
         var now = Instant.now();
         var admin = TestTokens.issueAdmin(12, now, now.plusSeconds(1800));
-        client.get().uri(GlobalRateLimitFilter.SWITCH_PATH).headers(h -> h.setBearerAuth(admin)).exchange()
+        client.get().uri(GlobalRateLimitFilter.SETTINGS_PATH).headers(h -> h.setBearerAuth(admin)).exchange()
             .expectStatus().isOk();
     }
 
@@ -75,8 +75,8 @@ class GlobalRateLimitIntegrationTest extends GatewayTestSupport {
 
     @AfterEach
     void restore() {
-        redis.opsForValue().set(RateLimitSwitch.KEY, "true").block();
-        AsyncWait.until(rateLimitSwitch::isEnabled);
+        redis.<String, String>opsForHash().put(RateLimitSettings.KEY, "enabled", "true").block();
+        AsyncWait.until(() -> rateLimitSettings.snapshot().enabled());
     }
 
     @Test
@@ -96,8 +96,8 @@ class GlobalRateLimitIntegrationTest extends GatewayTestSupport {
     @DisplayName("전체 제한을 끄면 한도를 넘은 요청도 넘긴다")
     void disabledPasses() {
         exhaust("203.0.113.203");
-        redis.opsForValue().set(RateLimitSwitch.KEY, "false").block();
-        AsyncWait.until(() -> !rateLimitSwitch.isEnabled());
+        redis.<String, String>opsForHash().put(RateLimitSettings.KEY, "enabled", "false").block();
+        AsyncWait.until(() -> !rateLimitSettings.snapshot().enabled());
         client.get().uri("/api/v1/products/1").header("X-Real-IP", "203.0.113.203").exchange()
             .expectStatus().isOk();
     }
