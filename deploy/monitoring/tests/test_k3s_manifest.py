@@ -87,6 +87,9 @@ class K3sManifestTests(unittest.TestCase):
             (markers / 'order.enabled').unlink()
             self.assertNotIn('env', self.items(name='order', service=service)['Deployment/order']
                              ['spec']['template']['spec']['containers'][0])
+            jar.write_bytes(b'')
+            with self.assertRaisesRegex(ValueError, 'Agent JAR'):
+                self.items(name='gateway', service=service)
             jar.unlink()
             with self.assertRaisesRegex(ValueError, 'Agent JAR'):
                 self.items(name='gateway', service=service)
