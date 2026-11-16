@@ -7,6 +7,11 @@ require 'tmpdir'
 require 'fileutils'
 
 sources = Dir[File.expand_path('../grafana/provisioning/alerting/*.yml', __dir__)]
+# configMapGenerator files takes no glob or directory, so every rule file must be listed to reach Grafana
+deployed = YAML.load_file(File.expand_path('../kustomization.yaml', __dir__)).fetch('configMapGenerator')
+               .find { |map| map.fetch('name') == 'grafana-alerting' }.fetch('files').map { |file| File.basename(file) }
+missing = sources.map { |path| File.basename(path) } - deployed
+abort "Not in kustomization.yaml grafana-alerting files: #{missing.join(', ')}" unless missing.empty?
 rules = sources.flat_map { |path| (YAML.load_file(path)['groups'] || []) }.flat_map { |group| group.fetch('rules') }.map do |rule|
   query = rule.fetch('data').find { |data| data.fetch('refId') == 'A' }.fetch('model').fetch('expr')
   threshold = rule.fetch('data').find { |data| data.fetch('refId') == 'B' }

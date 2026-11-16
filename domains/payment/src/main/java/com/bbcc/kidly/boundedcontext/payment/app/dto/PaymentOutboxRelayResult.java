@@ -3,10 +3,11 @@ package com.bbcc.kidly.boundedcontext.payment.app.dto;
 /**
  * 릴레이 한 번 실행의 결과.
  *
- * @param targets 읽은 안 보낸 메시지 수
+ * @param targets 읽은 보낼 메시지 수
  * @param sent 이번에 보낸 수
+ * @param parked 이번에 격리한 수
  */
-public record PaymentOutboxRelayResult(Outcome outcome, int targets, int sent) {
+public record PaymentOutboxRelayResult(Outcome outcome, int targets, int sent, int parked) {
 
     public enum Outcome {
         /**
@@ -14,7 +15,7 @@ public record PaymentOutboxRelayResult(Outcome outcome, int targets, int sent) {
          */
         LOCKED,
         /**
-         * 읽은 메시지를 모두 보냈다(0건 포함).
+         * 읽은 메시지를 끝까지 처리했다(0건 포함). 시도 상한에 닿은 메시지와 그 키의 뒤 메시지는 남았을 수 있다.
          */
         COMPLETED,
         /**

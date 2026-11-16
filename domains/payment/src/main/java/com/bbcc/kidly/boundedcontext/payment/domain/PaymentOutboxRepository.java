@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface PaymentOutboxRepository {
 
@@ -24,9 +26,17 @@ public interface PaymentOutboxRepository {
     boolean tryLockRelay();
 
     /**
-     * 아직 보내지 않은 메시지를 id 순서로 최대 limit건.
+     * 보낼 메시지를 id 순서로 최대 limit건. 안 보냈고 격리되지 않았으며, 같은 키의 앞선 안 보낸 메시지가 격리됐거나 시도 상한에 닿지 않은 것만 준다.
+     * 상한에 닿은 메시지 자신은 주고 그 키의 뒤 메시지는 빼서, 뒤 메시지가 한 번에 읽는 건수를 다 채워 다른 키를 막지 않게 한다(같은 키 순서 유지).
      */
-    List<PaymentOutboxMessage> findUnsent(int limit);
+    List<PaymentOutboxMessage> findUnsent(int limit, int maxAttempts);
+
+    Optional<PaymentOutboxMessage> findById(Long id);
+
+    // 격리된 메시지(아직 안 보냄) 최신순
+    Page<PaymentOutboxMessage> findParked(Pageable pageable);
+
+    long countParked();
 
     long countUnsent();
 

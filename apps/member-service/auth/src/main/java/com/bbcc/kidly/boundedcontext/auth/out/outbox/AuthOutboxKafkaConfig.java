@@ -1,17 +1,27 @@
 package com.bbcc.kidly.boundedcontext.auth.out.outbox;
 
 import java.util.Map;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.ProducerListener;
 
 @Configuration
 class AuthOutboxKafkaConfig {
+    static final String TOPIC = "kidly.auth.events";
+
+    // 파티션 수는 만든 뒤 바꾸지 않는다(늘리면 키가 들어가는 파티션이 바뀌어 순서가 깨진다)
+    @Bean
+    NewTopic authEventsTopic() {
+        return TopicBuilder.name(TOPIC).partitions(3).replicas(1).build();
+    }
+
     @Bean
     @ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)
     KafkaAuthOutboxSender authOutboxSender(ProducerFactory<String, String> producerFactory) {

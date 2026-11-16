@@ -30,6 +30,7 @@ public class PaymentMetrics {
 
     private static final String OUTBOX_UNSENT = "kidly.payment.outbox.unsent.messages";
     private static final String OUTBOX_OLDEST_UNSENT_AGE = "kidly.payment.outbox.oldest.unsent.age.seconds";
+    private static final String OUTBOX_PARKED = "kidly.payment.outbox.parked.messages";
     private static final String OUTBOX_SEND_FAILURES = "kidly.payment.outbox.send.failures";
     private static final String DLT_MESSAGES = "kidly.payment.dlt.messages";
     private static final String ORDER_PAYMENTS = "kidly.payment.order.payments";
@@ -64,6 +65,9 @@ public class PaymentMetrics {
             .register(registry);
         Gauge.builder(OUTBOX_OLDEST_UNSENT_AGE, () -> ageSeconds(outboxRepository::findOldestUnsentCreatedAt))
             .description("가장 오래된 미전송 결제 아웃박스 메시지의 나이(초). 없으면 0")
+            .register(registry);
+        Gauge.builder(OUTBOX_PARKED, outboxRepository::countParked)
+            .description("보내지 못해 격리한 결제 아웃박스 메시지 수. 같은 키의 뒤 메시지도 함께 멈춰 있다")
             .register(registry);
         for (ChargeStatus status : new ChargeStatus[] {ChargeStatus.CONFIRMING, ChargeStatus.CANCELLING}) {
             Gauge.builder(CHARGES_STUCK, () -> chargeRepository.countByStatusAndUpdatedAtBefore(status,

@@ -31,6 +31,8 @@ public enum PaymentErrorCode implements ErrorCode {
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제를 찾을 수 없습니다", "해당 결제가 없습니다."),
     PAYMENT_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 항목을 찾을 수 없습니다", "결제에 해당 주문상품이 없습니다."),
     REFUND_AMOUNT_EXCEEDED(HttpStatus.CONFLICT, "환불 가능 금액을 넘었습니다", "결제한 금액보다 많이 환불할 수 없습니다."),
+    OUTBOX_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 이벤트 메시지를 찾을 수 없습니다", "해당 아웃박스 메시지가 없습니다."),
+    OUTBOX_MESSAGE_NOT_PARKED(HttpStatus.CONFLICT, "격리된 메시지가 아닙니다", "이미 보냈거나 다시 보내기로 바꾼 메시지입니다."),
     REFUND_RETRY_NOT_FOUND(HttpStatus.NOT_FOUND, "환불 재처리 기록을 찾을 수 없습니다", "이미 환불됐거나 닫힌 기록입니다.");
 
     private final HttpStatus status;

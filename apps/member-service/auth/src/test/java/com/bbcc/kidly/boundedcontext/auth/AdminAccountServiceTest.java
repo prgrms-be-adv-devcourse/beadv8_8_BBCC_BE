@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AccessTokenRevocationService;
+import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.app.AdminAccountService;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminStatus;
@@ -114,7 +115,7 @@ class AdminAccountServiceTest {
     void disablePublishesOneAdminRevocation() {
         var publisher = mock(ApplicationEventPublisher.class);
         var actualService = new AdminAccountService(accounts, passwordEncoder, refreshTokens,
-            new AccessTokenRevocationService(publisher));
+            new AccessTokenRevocationService(publisher, mock(AuthEventOutbox.class)));
         givenAdmins(1L, 2L);
         TransactionSynchronizationManager.initSynchronization();
         try {
