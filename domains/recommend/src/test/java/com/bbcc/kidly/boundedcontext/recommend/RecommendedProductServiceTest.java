@@ -27,13 +27,14 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.recommended.RecommendExc
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductRanking;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.RecommendedProductService;
 import com.bbcc.kidly.boundedcontext.recommend.app.recommended.dto.RecommendedProductResult;
+import com.bbcc.kidly.boundedcontext.recommend.app.recommended.support.OnSaleProductCatalog;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendErrorCode;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChildRepository;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSeller;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaSellerRepository;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaProductSnapshot;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -72,7 +73,7 @@ class RecommendedProductServiceTest {
     private static final Long OTHER_SELLER_ID = 61L;
 
     @Mock
-    private RecommendReplicaProductRepository replicaProductRepository;
+    private OnSaleProductCatalog onSaleProductCatalog;
 
     @Mock
     private RecommendReplicaChildRepository replicaChildRepository;
@@ -100,7 +101,7 @@ class RecommendedProductServiceTest {
     void setUp() {
         lenient().when(snapshotStore.findChild(any())).thenReturn(PreferenceSnapshot.empty());
         lenient().when(snapshotStore.findMember(any())).thenReturn(PreferenceSnapshot.empty());
-        RecommendedProductRanking ranking = new RecommendedProductRanking(replicaProductRepository, snapshotStore,
+        RecommendedProductRanking ranking = new RecommendedProductRanking(onSaleProductCatalog, snapshotStore,
             tasteSimilarityReader, RecommendFixture.growthChart(), excludedProducts);
         service = new RecommendedProductService(replicaChildRepository, replicaSellerRepository, ranking);
     }
@@ -114,7 +115,7 @@ class RecommendedProductServiceTest {
         assertThatThrownBy(() -> service.list(memberId, CHILD_1_ID, PRODUCT_A_CATEGORY_ID, FIRST_PAGE, PAGE_SIZE, null))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(RecommendErrorCode.CHILD_NOT_FOUND);
-        verifyNoInteractions(replicaProductRepository, replicaSellerRepository);
+        verifyNoInteractions(onSaleProductCatalog, replicaSellerRepository);
     }
 
     @Test
@@ -212,10 +213,12 @@ class RecommendedProductServiceTest {
         LocalDateTime oldest = PRODUCT_A_REGISTERED_AT;
         given(replicaChildRepository.findById(CHILD_1_ID))
             .willReturn(Optional.of(RecommendReplicaChild.create(RecommendFixture.childChange())));
-        given(replicaProductRepository.findAllOnSale(PRODUCT_A_CATEGORY_ID)).willReturn(List.of(
-            productReplicaRegisteredAt(OLDEST_PRODUCT_ID, oldestSellerId, oldest),
-            productReplicaRegisteredAt(NEWEST_PRODUCT_ID, newestSellerId, oldest.plusDays(2)),
-            productReplicaRegisteredAt(MIDDLE_PRODUCT_ID, middleSellerId, oldest.plusDays(1))));
+        given(onSaleProductCatalog.onSale(PRODUCT_A_CATEGORY_ID)).willReturn(List.of(
+            ReplicaProductSnapshot.from(productReplicaRegisteredAt(OLDEST_PRODUCT_ID, oldestSellerId, oldest)),
+            ReplicaProductSnapshot.from(
+                productReplicaRegisteredAt(NEWEST_PRODUCT_ID, newestSellerId, oldest.plusDays(2))),
+            ReplicaProductSnapshot.from(
+                productReplicaRegisteredAt(MIDDLE_PRODUCT_ID, middleSellerId, oldest.plusDays(1)))));
     }
 
     static Stream<Arguments> unavailableChildren() {

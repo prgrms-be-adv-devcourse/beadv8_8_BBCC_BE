@@ -73,7 +73,8 @@ class OnSaleProductCatalogTest {
     @DisplayName("카테고리를 주면 그 카테고리의 상품만 돌려준다")
     void filterByCategory() {
         given(loader.loadAllOnSale()).willReturn(List.of(
-            onSale(1L, UPDATED_AT), snapshot(2L, OTHER_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE, UPDATED_AT)));
+            onSale(1L, UPDATED_AT),
+            snapshot(2L, OTHER_CATEGORY_ID, PRODUCT_A_NAME, ProductStatus.ON_SALE, UPDATED_AT)));
 
         assertThat(catalog.onSale(OTHER_CATEGORY_ID))
             .extracting(ReplicaProductSnapshot::productId)
@@ -181,6 +182,29 @@ class OnSaleProductCatalogTest {
 
         assertThat(catalog.onSale(null)).extracting(ReplicaProductSnapshot::productId).containsExactly(1L);
         verify(loader, never()).loadChangedAfter(any());
+    }
+
+    @Test
+    @DisplayName("앱이 뜰 때 미리 채워 두면 첫 요청은 DB를 읽지 않는다")
+    void warmUpLoadsBeforeFirstRequest() {
+        given(loader.loadAllOnSale()).willReturn(List.of(onSale(1L, UPDATED_AT)));
+
+        catalog.warmUp();
+
+        assertThat(catalog.onSale(null)).extracting(ReplicaProductSnapshot::productId).containsExactly(1L);
+        verify(loader, times(1)).loadAllOnSale();
+    }
+
+    @Test
+    @DisplayName("앱이 뜰 때 미리 채우다 실패해도 예외를 올리지 않고, 첫 요청이 다시 읽는다")
+    void warmUpFailureIsRetriedByFirstRequest() {
+        given(loader.loadAllOnSale())
+            .willThrow(new IllegalStateException("DB에 연결할 수 없습니다"))
+            .willReturn(List.of(onSale(1L, UPDATED_AT)));
+
+        catalog.warmUp();
+
+        assertThat(catalog.onSale(null)).extracting(ReplicaProductSnapshot::productId).containsExactly(1L);
     }
 
     @Test

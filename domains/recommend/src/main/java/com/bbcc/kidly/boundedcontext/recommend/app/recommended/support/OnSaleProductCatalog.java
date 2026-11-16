@@ -11,8 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,6 +25,7 @@ import org.springframework.stereotype.Component;
  * 보관은 Pod마다 따로 하므로 Pod끼리 반영 시점이 조금 다를 수 있다.
  * 맞출 때는 지난번에 본 수정 시각보다 겹치는 구간만큼 앞에서부터 고쳐진 상품만 읽고, 판매중인 상품 수가 다르면 모두 다시 읽는다.
  */
+@Slf4j
 @Component
 public class OnSaleProductCatalog {
 
@@ -67,17 +71,22 @@ public class OnSaleProductCatalog {
         return result;
     }
 
+    /**
+     * 앱이 뜬 뒤 보관한 값을 미리 채워 첫 요청이 전체 읽기 시간을 떠안지 않게 한다.
+     * 채우다 실패해도 앱이 뜨는 것을 막지 않는다. 채우지 못한 채로 남으므로 첫 요청이 다시 읽는다.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void warmUp() {
+        try {
+            fillIfNeverFilled();
+        } catch (RuntimeException e) {
+            log.warn("판매중인 상품을 미리 채우지 못했습니다. 첫 요청이 다시 읽습니다.", e);
+        }
+    }
+
     private void refreshIfNeeded() {
         if (lastCheckedAt == null) {
-            // 돌려줄 값이 아직 없으므로 다른 요청이 채우는 중이면 끝날 때까지 기다린다
-            refreshLock.lock();
-            try {
-                if (lastCheckedAt == null) {
-                    refresh();
-                }
-            } finally {
-                refreshLock.unlock();
-            }
+            fillIfNeverFilled();
             return;
         }
         if (!isIntervalElapsed()) {
@@ -89,6 +98,18 @@ public class OnSaleProductCatalog {
         }
         try {
             if (isIntervalElapsed()) {
+                refresh();
+            }
+        } finally {
+            refreshLock.unlock();
+        }
+    }
+
+    // 돌려줄 값이 아직 없으므로 다른 요청이 채우는 중이면 끝날 때까지 기다린다
+    private void fillIfNeverFilled() {
+        refreshLock.lock();
+        try {
+            if (lastCheckedAt == null) {
                 refresh();
             }
         } finally {

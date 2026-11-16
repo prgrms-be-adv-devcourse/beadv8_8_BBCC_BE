@@ -3,15 +3,13 @@ package com.bbcc.kidly.boundedcontext.recommend.app.recommended;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.PreferenceSnapshotStore;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.TasteSimilarityReader;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.recommended.RecommendExcludedProducts;
+import com.bbcc.kidly.boundedcontext.recommend.app.recommended.support.OnSaleProductCatalog;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.preference.PreferenceWeights;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductRanker;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductSelector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaChild;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
-import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaProductSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.GrowthChart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.SizeRecommender;
 import java.time.LocalDate;
@@ -32,7 +30,7 @@ public class RecommendedProductRanking {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
-    private final RecommendReplicaProductRepository replicaProductRepository;
+    private final OnSaleProductCatalog onSaleProductCatalog;
     private final PreferenceSnapshotStore snapshotStore;
     private final TasteSimilarityReader tasteSimilarityReader;
     private final RecommendExcludedProducts excludedProducts;
@@ -40,28 +38,23 @@ public class RecommendedProductRanking {
     private final RecommendedProductRanker ranker = new RecommendedProductRanker();
 
     public RecommendedProductRanking(
-        RecommendReplicaProductRepository replicaProductRepository,
+        OnSaleProductCatalog onSaleProductCatalog,
         PreferenceSnapshotStore snapshotStore,
         TasteSimilarityReader tasteSimilarityReader,
         GrowthChart growthChart,
         RecommendExcludedProducts excludedProducts) {
-        this.replicaProductRepository = replicaProductRepository;
+        this.onSaleProductCatalog = onSaleProductCatalog;
         this.snapshotStore = snapshotStore;
         this.tasteSimilarityReader = tasteSimilarityReader;
         this.excludedProducts = excludedProducts;
         this.selector = new RecommendedProductSelector(new SizeRecommender(growthChart));
     }
 
-    // 상품의 사이즈 줄은 지연 로딩이므로 호출하는 쪽의 트랜잭션 안에서 읽어 계산한다
+    // 판매중인 상품은 메모리에 보관한 스냅숏으로 읽으므로 상품 복사본을 DB에서 읽지 않는다
     public List<RecommendedProduct> rank(Long memberId, RecommendReplicaChild child, Long categoryId,
         LocalDateTime asOf) {
-        List<RecommendReplicaProduct> products = replicaProductRepository.findAllOnSale(categoryId);
-        List<ReplicaProductSnapshot> snapshots = new ArrayList<>();
-        for (RecommendReplicaProduct product : products) {
-            snapshots.add(ReplicaProductSnapshot.from(product));
-        }
-        List<RecommendedProduct> selected =
-            selector.select(child.toChildSizeInput(), snapshots, LocalDate.now(SERVICE_ZONE));
+        List<RecommendedProduct> selected = selector.select(child.toChildSizeInput(),
+            onSaleProductCatalog.onSale(categoryId), LocalDate.now(SERVICE_ZONE));
         PreferenceSnapshot combined = PreferenceSnapshot.combine(
             snapshotStore.findChild(child.getChildProfileId()), snapshotStore.findMember(memberId));
         // 추천은 결제로 장바구니가 비워지는 이벤트를 받지 않으므로, 30일 안에 담고 빼지 않은 상품을 장바구니에 있는 상품으로 본다.
