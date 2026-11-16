@@ -1,3 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge
+---
+# 모든 요청이 Traefik을 지나므로 자리가 없으면 우선순위가 낮은 Pod를 밀어낸다
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: kidly-edge
+value: 1000000
+globalDefault: false
+description: t3.large 의 Traefik(namespace edge). 자리가 없으면 다른 Pod 를 밀어내고 뜬다(#1423)
+---
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:

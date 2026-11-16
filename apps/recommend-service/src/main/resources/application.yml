@@ -91,7 +91,7 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
 
-# 노출할 actuator. 외부(nginx)에는 health 만 열리고 prometheus 는 서버 안 Prometheus 만 부른다
+# actuator는 management 포트에 둔다. k3s probe와 Alloy가 Pod에서 수집하고 공개 경로는 Gateway가 404로 막는다
 management:
   endpoints:
     web:

@@ -33,5 +33,5 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 1. 모니터링 노드 TCP 30438이 비어 있고, 클라우드 보안 그룹에서 앱 노드의 승인된 사설 경로만 허용하는지 확인합니다. NodePort 자체는 인터페이스를 사설 주소로 제한하지 않습니다. 공개 네트워크에서 열려 있으면 적용을 중단합니다.
 2. Tempo 서버 인증서의 IP SAN에 목적지 사설 IPv4를 넣고 상호 TLS 수신 오버레이를 준비합니다. 모니터링 리소스와 앱 ConfigMap을 각각 맞는 클러스터에 적용합니다. `externalTrafficPolicy: Local`이므로 Tempo가 실행되는 노드로 연결합니다.
 3. 실제 Alloy Pod 출발점에서 전송 성공, 인증서 없는 연결 거부, 허용하지 않은 송신점에서 접근 차단을 확인합니다. CNI에 따라 NetworkPolicy에 보이는 원본이 다를 수 있으므로 한 주소의 /32 정책이 확인되기 전에는 앱 Agent를 연결하지 않습니다.
-4. nginx의 공개 추적 헤더 제거를 확인한 뒤 Gateway·주문 Agent를 적용합니다. 운영 Grafana에서 실제 주문 조회 트레이스와 기존 Loki 요청 ID 검색을 확인합니다.
+4. Traefik의 공개 추적 헤더 제거를 확인한 뒤 Gateway·주문 Agent를 적용합니다. 운영 Grafana에서 실제 주문 조회 트레이스와 기존 Loki 요청 ID 검색을 확인합니다.
 5. 원복할 때 앱 Agent와 전용 Alloy를 내리고, 별도로 만든 `tempo-otlp-private` Service·NetworkPolicy와 외부 방화벽 허용을 제거합니다. 이후 기본 Tempo 조회 구성을 다시 적용합니다.

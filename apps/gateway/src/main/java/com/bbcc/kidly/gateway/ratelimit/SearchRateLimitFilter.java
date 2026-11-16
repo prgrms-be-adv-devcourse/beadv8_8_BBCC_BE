@@ -17,8 +17,8 @@ import reactor.core.publisher.Mono;
  * 검색 서비스가 검색어마다 임베딩 API(OpenAI)를 불러, 공개 API인데 호출량 · 비용을 부르는 쪽이 정하게 되기 때문이다.
  * 검색어 없는 둘러보기는 임베딩을 부르지 않으므로 세지 않는다.
  * 로그인했으면 주체(회원 · 관리자 · 자녀) ID로, 아니면 클라이언트 IP로 센다. 넘으면 429 ProblemDetail과 Retry-After(초)다.
- * IP는 nginx가 덮어쓰는 X-Real-IP다. X-Forwarded-For는 nginx가 클라이언트가 보낸 값 뒤에 덧붙여 첫 값을 지어낼 수 있어 쓰지 않는다.
- * X-Real-IP가 없으면(로컬 · nginx 없이) 연결 주소를 쓴다.
+ * IP는 Traefik이 덮어쓰는 X-Real-IP다.
+ * X-Real-IP가 없으면(로컬 · Traefik 없이) 연결 주소를 쓴다.
  * 주체 헤더는 AccessTokenFilter가 밖에서 온 값을 지우고 토큰으로 붙인 것이라, 이 필터는 그 뒤에 돈다.
  * IP · 회원 ID는 로그에 남기지 않는다. 막은 수는 메트릭 kidly.gateway.rate.limited(target=search)로 센다.
  */

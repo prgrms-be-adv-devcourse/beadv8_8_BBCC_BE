@@ -7,7 +7,6 @@ import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthChild;
 import com.bbcc.kidly.global.security.LoginChild;
 import com.bbcc.kidly.shared.auth.PrincipalId;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -51,8 +50,8 @@ public class ChildInboxNotificationController {
      * 30초마다 주석(:ping)을 보내고 30분 뒤 닫는다. 화면은 끊기면 다시 연결한다.
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamUnreadCount(@LoginChild AuthChild child, HttpServletResponse response) {
-        return unreadCountStream.open(principal(child), response);
+    public SseEmitter streamUnreadCount(@LoginChild AuthChild child) {
+        return unreadCountStream.open(principal(child));
     }
 
     @GetMapping("/unread-count")

@@ -1,6 +1,6 @@
 # Traefik 엣지
 
-t3.large 의 k3s(namespace `edge`)에서 Traefik 이 80 · 443 을 받아 Gateway 와 Grafana 로 넘깁니다(#1423). 예전에는 Nginx Pod(`deploy/nginx`)와 certbot CronJob 이었습니다.
+t3.large 의 k3s(namespace `edge`)에서 Traefik 이 80 · 443 을 받아 Gateway 와 Grafana 로 넘깁니다(#1423).
 
 | 역할 | 설정 |
 | --- | --- |
@@ -57,9 +57,10 @@ sudo k3s kubectl -n edge rollout restart deploy/kidly-traefik                   
      | sudo python3 -c 'import json,os,sys; d=json.load(sys.stdin); assert d.get("success"), {k:v for k,v in d.items() if not k.startswith("eab_")}; fd=os.open("/etc/kidly/zerossl-eab.env", os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0o600); os.write(fd, ("ZEROSSL_EAB_KID=%s\nZEROSSL_EAB_HMAC_KEY=%s\n" % (d["eab_kid"], d["eab_hmac_key"])).encode())'
    ```
 
-3. `acme.json` 디렉터리와 EAB Secret 을 만듭니다(ec2-user). namespace `edge` 와 PriorityClass `kidly-edge` 는 `deploy/nginx/nginx.yaml` 이 만든 것을 씁니다.
+3. `acme.json` 디렉터리와 EAB Secret 을 만듭니다(ec2-user). Secret 전에 namespace `edge` 를 만듭니다. PriorityClass `kidly-edge` 는 배포할 때 만듭니다.
 
    ```bash
+   sudo k3s kubectl create namespace edge --dry-run=client -o yaml | sudo k3s kubectl apply -f -
    sudo install -d -m 755 /var/lib/kidly && sudo install -d -m 700 -o 65532 -g 65532 /var/lib/kidly/traefik
    sudo k3s kubectl -n edge create secret generic zerossl-eab --from-env-file=/etc/kidly/zerossl-eab.env
    ```
@@ -139,23 +140,11 @@ kubectl -n edge delete ingressroute,service,deployment whoami
 
 ## 되돌리기
 
-정리 PR(NodePort 30200 · `deploy/nginx` 삭제) 전까지만 쓸 수 있습니다.
-
-인증서만 certbot 것으로: certbot 이 받은 인증서(2027-02-14 만료)를 Secret `edge/kidly-tls` 로 남겨 두었습니다. `routes.yaml` 의 `certResolver: zerossl` 을 `secretName: kidly-tls` 로 바꿔 배포합니다.
-
-```bash
-sed -i 's/certResolver: zerossl/secretName: kidly-tls/' routes.yaml && MONITORING_HOST=<모니터링 서버 사설 IP> ./deploy.sh <도메인>
-```
-
-Nginx 로: Traefik 을 테스트 포트로 옮긴 뒤 Nginx 를 다시 배포합니다. Nginx Pod 는 호스트 네트워크로 80 · 443 을 선언해, Traefik 이 hostPort 를 놓기 전에는 스케줄되지 않습니다. `deploy/nginx/deploy.sh` 가 certbot CronJob 도 다시 만듭니다. 인증서 · ZeroSSL 계정은 호스트 `/etc/letsencrypt` 에 그대로 있습니다.
-
-```bash
-MONITORING_HOST=<모니터링 서버 사설 IP> WEB_PORT=18080 WEBSECURE_PORT=18443 ./deploy.sh <도메인>
-cd ~/kidly-nginx/deploy/nginx && MONITORING_HOST=<모니터링 서버 사설 IP> ./deploy.sh <도메인>   # deploy/nginx/README.md 「배포 · 설정 바꾸기」
-```
+이전 커밋의 `deploy/traefik`을 같은 방법으로 다시 배포합니다. `acme.json`은 그대로 씁니다.
 
 ## Nginx 에서 옮긴 기록 (2026-11-16)
 
 1. Traefik 을 테스트 포트(hostPort 18080 · 18443)로 띄워 Nginx 와 함께 검증했습니다. 인증서는 certbot 것을 `kidly-tls` 로 썼습니다.
 2. 07:37 UTC 에 Nginx 를 0개로 줄이고 Traefik 을 80 · 443 으로 배포했습니다. 바깥에서 1초마다 호출해 약 17초 끊겼습니다. 전환 시각에는 #1349 Agent 패치가 아직 적용되지 않았습니다.
-3. ACME 로 바꾼 배포(07:54 UTC)에서 Pod 교체로 약 11초 끊겼습니다. 발급 전까지 `sniStrict` 가 핸드셰이크를 거부하지 않게 기본 TLSStore 에 `kidly-tls` 를 넣어 두었지만, Traefik ACME 는 저장소에 이미 인증서가 있는 도메인은 받지 않아 발급이 시작되지 않았습니다. TLSStore 를 지우자 22초 만에 두 인증서를 받았고 그동안 약 20초 끊겼습니다. 그 뒤 certbot CronJob 을 지웠습니다. `/etc/letsencrypt` 와 Secret `kidly-tls` 는 되돌리기용으로 남겼습니다.
+3. ACME 로 바꾼 배포(07:54 UTC)에서 Pod 교체로 약 11초 끊겼습니다. 발급 전까지 `sniStrict` 가 핸드셰이크를 거부하지 않게 기본 TLSStore 에 `kidly-tls` 를 넣어 두었지만, Traefik ACME 는 저장소에 이미 인증서가 있는 도메인은 받지 않아 발급이 시작되지 않았습니다. TLSStore 를 지우자 22초 만에 두 인증서를 받았고 그동안 약 20초 끊겼습니다. 그 뒤 certbot CronJob 을 지웠습니다. 당시 `/etc/letsencrypt` 와 Secret `kidly-tls` 는 되돌리기용으로 남겼습니다.
+4. 2026-11-16 정리에서 NodePort 30200, `deploy/nginx`, Secret `kidly-tls`, `/etc/letsencrypt`, 호스트 nginx 패키지를 삭제했습니다.

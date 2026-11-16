@@ -210,7 +210,7 @@ if [[ -n "$services" ]] && ! compose up -d --wait --remove-orphans; then
   exit 1
 fi
 # k3s 로 옮겨 간 서비스의 옛 compose 컨테이너를 지운다. --remove-orphans 는 꺼진 profile 의 컨테이너를 남긴다
-# 위에서 k3s 의 새 Pod 가 준비됐고 Gateway 도 새 주소로 다시 떴으므로 끊기지 않는다. Gateway 를 옮길 때는 nginx 가 새 NodePort 를 먼저 찾는다(deploy/nginx). 없으면 아무것도 하지 않는다
+# 위에서 k3s 의 새 Pod 가 준비됐고 Gateway 도 새 주소로 다시 떴으므로 끊기지 않는다. 없으면 아무것도 하지 않는다
 if docker_on; then
   for line in "${k3s_services[@]}"; do
     read -r service profile _ <<< "$line"
