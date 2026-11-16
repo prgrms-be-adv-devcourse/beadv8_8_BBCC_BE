@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class WearablePeriodCalculatorTest {
@@ -103,6 +104,22 @@ class WearablePeriodCalculatorTest {
 
         assertThat(periods).extracting(WearablePeriod::size, WearablePeriod::widthMonths)
             .containsExactly(tuple("120", 10), tuple("130", null));
+    }
+
+    @ParameterizedTest(name = "기준 옷 30.0cm, 상품 {0}cm → {1}개월")
+    @CsvSource({"30.0, 10", "29.7, 6", "29.25, 0"})
+    @DisplayName("WEAR-02 지금 잘 맞는 기준 옷과 단면이 같거나 좁아도 키가 5cm 더 클 때까지는 입는 것으로 센다")
+    void widthMonthsCountsFiveMoreCmOfGrowth(String productCm, int expectedMonths) {
+        // 만 6세 여 가슴 비율 0.30이라 가슴단면은 키 1cm에 0.15cm 는다
+        // 같은 단면: 5 ÷ 0.5 = 10 / −0.3cm: (−2 + 5) ÷ 0.5 = 6 / −0.75cm: (−5 + 5) ÷ 0.5 = 0
+        ReferenceFit fit = new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(
+            item("CHEST_WIDTH", "30.0", productCm)));
+
+        List<WearablePeriod> periods = calculator.calculate(
+            new WearInfo(LONG_SIZES, TOP_PATH, child(HEIGHT_CM), TODAY, velocity(CM_PER_MONTH), fit));
+
+        assertThat(periods).extracting(WearablePeriod::size, WearablePeriod::widthMonths)
+            .containsExactly(tuple("120", expectedMonths), tuple("130", null));
     }
 
     @Test
