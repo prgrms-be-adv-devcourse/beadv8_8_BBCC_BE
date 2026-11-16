@@ -55,7 +55,7 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 12
+        "h": 13
       },
       "datasource": {
         "type": "prometheus",
@@ -68,7 +68,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "max by (job) (((max by (env, job) (last_over_time(up{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}[1m])) + 1) and on(env,job) (label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1)) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1) * 0) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 0) * 0 - 1))",
+          "expr": "max by (job) (((max by (env, job) (last_over_time(up{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\"}[1m])) + 1) and on(env,job) (label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1)) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1) * 0) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"dev\",app_job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 0) * 0 - 1))",
           "instant": true,
           "range": false,
           "format": "table",
@@ -80,7 +80,7 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "(sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) or sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) * 0) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "expr": "(sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) or sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*\"}[5m])) * 0) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*\"}[5m])) > 0)",
           "instant": true,
           "range": false,
           "format": "table",
@@ -92,7 +92,7 @@
             "uid": "prometheus"
           },
           "refId": "C",
-          "expr": "sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m]))",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*\"}[5m]))",
           "instant": true,
           "range": false,
           "format": "table",
@@ -104,7 +104,7 @@
             "uid": "prometheus"
           },
           "refId": "D",
-          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*\"}[5m])) > 0)",
           "instant": true,
           "range": false,
           "format": "table",
@@ -116,7 +116,7 @@
             "uid": "prometheus"
           },
           "refId": "E",
-          "expr": "max by (job) (process_start_time_seconds{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\"}) * 1000",
+          "expr": "max by (job) (process_start_time_seconds{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\"}) * 1000",
           "instant": true,
           "range": false,
           "format": "table",
@@ -132,7 +132,7 @@
           "range": false,
           "format": "table",
           "legendFormat": "{{job}}",
-          "expr": "sum by (job) (increase(logback_events_total{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",level=\"error\"}[5m]))"
+          "expr": "sum by (job) (increase(logback_events_total{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",level=\"error\"}[5m]))"
         },
         {
           "datasource": {
@@ -492,7 +492,7 @@
       "description": "발화 중인 알림과 평가 오류·데이터 누락을 최대 6개 표시합니다.",
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 13,
         "w": 12,
         "h": 9
       },
@@ -526,7 +526,7 @@
       "title": "최근 AI 분석 · 24시간",
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 13,
         "w": 12,
         "h": 9
       },
@@ -570,7 +570,7 @@
       "title": "증상별로 확인하기",
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 22,
         "w": 17,
         "h": 7
       },
@@ -586,7 +586,7 @@
       "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
       "gridPos": {
         "x": 17,
-        "y": 21,
+        "y": 22,
         "w": 7,
         "h": 7
       },
@@ -660,7 +660,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 29,
         "w": 24,
         "h": 1
       },
@@ -672,7 +672,7 @@
           "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
           "gridPos": {
             "x": 0,
-            "y": 29,
+            "y": 30,
             "w": 8,
             "h": 4
           },
@@ -745,7 +745,7 @@
           "title": "상세 화면",
           "gridPos": {
             "x": 8,
-            "y": 29,
+            "y": 30,
             "w": 16,
             "h": 4
           },
