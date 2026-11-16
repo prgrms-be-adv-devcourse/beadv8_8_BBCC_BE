@@ -76,7 +76,7 @@ spec:
           namespace: kidly-dev
           port: http
   tls:
-    secretName: kidly-tls
+    certResolver: zerossl
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -94,7 +94,7 @@ spec:
         - name: grafana
           port: 80
   tls:
-    secretName: kidly-tls
+    certResolver: zerossl
 ---
 apiVersion: v1
 kind: Service

@@ -22,6 +22,40 @@ spec:
       tag: "3.7.13"
     deployment:
       replicas: 1
+      # acme.json(계정 키 · 인증서)을 Pod 가 다시 떠도 남긴다. StorageClass 가 없어 hostPath 이고, 디렉터리는 README 대로 uid 65532 로 미리 만든다
+      additionalVolumes:
+        - name: acme
+          hostPath:
+            path: /var/lib/kidly/traefik
+            type: Directory
+    additionalVolumeMounts:
+      - name: acme
+        mountPath: /acme
+    # EAB 키는 Secret 에서 환경 변수로 넣고 인자에는 $(이름)만 적는다. kubelet 이 펼치므로 Deployment 명세에는 값이 남지 않는다
+    env:
+      - name: ZEROSSL_EAB_KID
+        valueFrom:
+          secretKeyRef:
+            name: zerossl-eab
+            key: ZEROSSL_EAB_KID
+      - name: ZEROSSL_EAB_HMAC_KEY
+        valueFrom:
+          secretKeyRef:
+            name: zerossl-eab
+            key: ZEROSSL_EAB_HMAC_KEY
+    # kro.kr 은 공용 접미사 목록에 없어 Let's Encrypt 한도를 모든 kro.kr 사용자와 나눠 쓴다. 그래서 ZeroSSL 이다
+    certificatesResolvers:
+      zerossl:
+        acme:
+          caServer: https://acme.zerossl.com/v2/DV90
+          email: programmers.bbcc.official@gmail.com
+          storage: /acme/acme.json
+          keyType: EC256
+          eab:
+            kid: $(ZEROSSL_EAB_KID)
+            hmacEncoded: $(ZEROSSL_EAB_HMAC_KEY)
+          httpChallenge:
+            entryPoint: web
     updateStrategy:
       type: Recreate
       rollingUpdate: null

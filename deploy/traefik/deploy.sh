@@ -23,8 +23,8 @@ if ! kubectl get --raw /readyz > /dev/null 2>&1; then
     echo "k3s API 에 붙지 못했습니다. KUBECONFIG 를 확인하세요" >&2
     exit 1
 fi
-if ! kubectl -n edge get secret kidly-tls > /dev/null 2>&1; then
-    echo "edge/kidly-tls 가 없습니다. README의 인증서 Secret 생성 sudo 명령을 실행하세요" >&2
+if ! kubectl -n edge get secret zerossl-eab > /dev/null 2>&1; then
+    echo "edge/zerossl-eab 가 없습니다. README 「처음 설치」의 sudo 명령으로 EAB 키 Secret 과 acme.json 디렉터리를 만드세요" >&2
     exit 1
 fi
 
