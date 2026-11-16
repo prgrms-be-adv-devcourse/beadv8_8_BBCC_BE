@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.activity.app;
 
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -138,11 +139,11 @@ class ActivityRecordingIntegrationTest {
         double added = counter("kidly.community.favorites", "action", "added", "cause", "none");
         double removed = counter("kidly.community.favorites", "action", "removed", "cause", "user");
 
-        favoriteService.add(ME, String.valueOf(PRODUCT));
-        favoriteService.add(ME, String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         Long favoriteId = jdbcTemplate.queryForObject("select id from community.favorite", Long.class);
-        favoriteService.remove(ME, String.valueOf(PRODUCT));
-        favoriteService.remove(ME, String.valueOf(PRODUCT));
+        favoriteService.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
+        favoriteService.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
 
         assertThat(rows("FAVORITE_ADDED")).singleElement().satisfies(row -> {
             assertThat(row).containsEntry("aggregate_id", favoriteId).containsEntry("product_id", PRODUCT);
@@ -163,9 +164,9 @@ class ActivityRecordingIntegrationTest {
             jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, "
                 + "display_status, source_occurred_at, created_at, updated_at) values (?, '상품', null, 'ON_SALE', "
                 + "now(), now(), now())", product);
-            favoriteService.add(ME, String.valueOf(product));
+            favoriteService.add(FavoriteOwner.member(ME), String.valueOf(product));
         }
-        favoriteService.add(ME + 1, "21");
+        favoriteService.add(FavoriteOwner.member(ME + 1), "21");
         List<Long> mine = jdbcTemplate.queryForList("select id from community.favorite where member_id = ?",
             Long.class, ME);
         Long others = jdbcTemplate.queryForObject("select id from community.favorite where member_id = ?",
@@ -263,11 +264,11 @@ class ActivityRecordingIntegrationTest {
     @Test
     @DisplayName("원래 트랜잭션이 롤백되면 활동 행도 카운터도 남지 않는다(찜 수 행이 없어 취소가 실패)")
     void rollbackLeavesNothing() {
-        favoriteService.add(ME, String.valueOf(PRODUCT));
+        favoriteService.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         jdbcTemplate.update("delete from community.favorite_stats");
         double removed = counter("kidly.community.favorites", "action", "removed", "cause", "user");
 
-        assertThatThrownBy(() -> favoriteService.remove(ME, String.valueOf(PRODUCT)))
+        assertThatThrownBy(() -> favoriteService.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT)))
             .isInstanceOf(IllegalStateException.class);
 
         assertThat(rows("FAVORITE_REMOVED")).isEmpty();
@@ -281,21 +282,22 @@ class ActivityRecordingIntegrationTest {
         double added = counter("kidly.community.favorites", "action", "added", "cause", "none");
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
-            activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT));
+            activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT, "MEMBER", ME));
             throw new IllegalStateException("기록 뒤 실패");
         })).isInstanceOf(IllegalStateException.class);
         assertThat(jdbcTemplate.queryForObject("select count(*) from community.activity", Long.class)).isZero();
         assertThat(counter("kidly.community.favorites", "action", "added", "cause", "none")).isEqualTo(added);
 
         transactionTemplate.executeWithoutResult(status ->
-            activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT)));
+            activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT, "MEMBER", ME)));
         assertThat(counter("kidly.community.favorites", "action", "added", "cause", "none")).isEqualTo(added + 1);
     }
 
     @Test
     @DisplayName("트랜잭션 밖에서 기록을 부르면 실패한다(MANDATORY)")
     void mandatoryTransaction() {
-        assertThatThrownBy(() -> activityRecorder.record(new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT)))
+        assertThatThrownBy(() -> activityRecorder.record(
+            new ActivityRecorder.FavoriteAdded(1L, ME, PRODUCT, "MEMBER", ME)))
             .isInstanceOf(IllegalTransactionStateException.class);
         assertThat(jdbcTemplate.queryForObject("select count(*) from community.activity", Long.class)).isZero();
     }

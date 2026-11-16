@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.activity.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.activity.app.CommunityEventMetrics;
@@ -74,7 +75,7 @@ class CommunityEventRelayKafkaIntegrationTest {
             LocalDateTime.of(2026, 11, 12, 10, 0)));
         long reviewId = reviewService.write(member, "닉", String.valueOf(orderItem), 5, "좋아요",
             ReviewService.FitInput.absent(), ImageUrlsInput.absent()).reviewId();
-        favoriteService.add(member, String.valueOf(product));
+        favoriteService.add(FavoriteOwner.member(member), String.valueOf(product));
 
         List<ConsumerRecord<String, String>> review = awaitRecords(String.valueOf(reviewId), "review.changed");
         List<ConsumerRecord<String, String>> favorite = awaitRecords(String.valueOf(member), "favorite.added");

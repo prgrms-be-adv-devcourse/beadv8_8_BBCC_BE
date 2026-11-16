@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.favorite.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteStatsCounter;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.MemberFavoriteRows;
 import java.time.LocalDateTime;
@@ -14,13 +15,24 @@ import org.junit.jupiter.api.Test;
 class MemberFavoritesRemovalServiceTest {
 
     private final List<String> stats = new ArrayList<>();
+    private final List<Long> guardians = new ArrayList<>();
     private int decreasedRows = 1;
     private List<Long> deletedProductIds = List.of();
 
     private final MemberFavoritesRemovalService service = new MemberFavoritesRemovalService(
-        (MemberFavoriteRows) memberId -> deletedProductIds.stream().map(MemberFavoritesRemovalServiceTest::deleted)
-            .toList(),
-        new FavoriteStatsCounter() {
+        new MemberFavoriteRows() {
+            @Override
+            public List<DeletedFavorite> deleteAllByGuardian(Long guardianId) {
+                guardians.add(guardianId);
+                return deletedProductIds.stream().map(MemberFavoritesRemovalServiceTest::deleted).toList();
+            }
+
+            @Override
+            public List<DeletedFavorite> deleteAllByChild(Long accountId) {
+                throw new UnsupportedOperationException();
+            }
+        },
+        new FavoriteBulkRemoval(new FavoriteStatsCounter() {
             @Override
             public void increase(Long productId, LocalDateTime now) {
                 throw new UnsupportedOperationException();
@@ -31,7 +43,7 @@ class MemberFavoritesRemovalServiceTest {
                 stats.add(productId + "-" + count);
                 return decreasedRows;
             }
-        }, org.mockito.Mockito.mock(com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog.class));
+        }, org.mockito.Mockito.mock(FavoriteActivityLog.class)));
 
     private static MemberFavoriteRows.DeletedFavorite deleted(Long productId) {
         return new MemberFavoriteRows.DeletedFavorite() {
@@ -44,17 +56,33 @@ class MemberFavoritesRemovalServiceTest {
             public Long getProductId() {
                 return productId;
             }
+
+            @Override
+            public String getOwnerType() {
+                return "MEMBER";
+            }
+
+            @Override
+            public Long getOwnerId() {
+                return 7L;
+            }
+
+            @Override
+            public Long getGuardianId() {
+                return 7L;
+            }
         };
     }
 
     @Test
-    @DisplayName("회원 찜을 모두 지우고 실제로 지운 행 기준으로 상품별 지운 수만큼 찜 수를 줄인다")
+    @DisplayName("보호자 기준으로 찜을 모두 지우고 실제로 지운 행 기준으로 상품별 지운 수만큼 찜 수를 줄인다")
     void removeAll() {
         deletedProductIds = List.of(14L, 15L, 14L);
 
         int removed = service.removeAll(7L);
 
         assertThat(removed).isEqualTo(3);
+        assertThat(guardians).containsExactly(7L);
         assertThat(stats).containsExactlyInAnyOrder("14-2", "15-1");
     }
 

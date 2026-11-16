@@ -45,6 +45,25 @@ class CommunityEventsTest {
     }
 
     @Test
+    @DisplayName("찜 소유자: ownerType(MEMBER · CHILD) · ownerId를 담고 memberId(키)는 보호자 회원 ID다. 옛 생성자는 소유자 칸이 null")
+    void favoriteOwner() {
+        var added = new FavoriteAddedEvent(ID, AT, new FavoriteAddedEvent.Data(3L, 70L, 14L,
+            FavoriteOwnerTypes.CHILD, 7L));
+        var removed = new FavoriteRemovedEvent(ID, AT, new FavoriteRemovedEvent.Data(3L, 70L, 14L,
+            FavoriteRemovalCause.MEMBER_WITHDRAWN, FavoriteOwnerTypes.CHILD, 7L));
+
+        assertThat(added.data().ownerType()).isEqualTo("CHILD");
+        assertThat(added.data().ownerId()).isEqualTo(7L);
+        assertThat(added.correlationId()).isEqualTo("70");
+        assertThat(removed.data().ownerType()).isEqualTo("CHILD");
+        assertThat(removed.data().ownerId()).isEqualTo(7L);
+        assertThat(removed.correlationId()).isEqualTo("70");
+        assertThat(FavoriteOwnerTypes.MEMBER).isEqualTo("MEMBER");
+        assertThat(new FavoriteAddedEvent.Data(3L, 13L, 14L).ownerType()).isNull();
+        assertThat(new FavoriteRemovedEvent.Data(3L, 13L, 14L, FavoriteRemovalCause.USER).ownerId()).isNull();
+    }
+
+    @Test
     @DisplayName("data에 닉네임 · 본문 · 사진 주소 칸이 없고, 찜 까닭은 USER · MEMBER_WITHDRAWN 두 값이다")
     void noPersonalContent() {
         for (Class<?> data : new Class<?>[] {ReviewChangedEvent.Data.class, FavoriteAddedEvent.Data.class,

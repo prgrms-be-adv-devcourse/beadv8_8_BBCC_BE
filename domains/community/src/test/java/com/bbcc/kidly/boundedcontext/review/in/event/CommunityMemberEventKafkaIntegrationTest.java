@@ -156,8 +156,9 @@ class CommunityMemberEventKafkaIntegrationTest {
     }
 
     private void favorite(long memberId, long productId) {
-        jdbcTemplate.update("insert into community.favorite (member_id, product_id, created_at, updated_at) "
-            + "values (?, ?, now(), now())", memberId, productId);
+        jdbcTemplate.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
+            + "created_at, updated_at) values (?, 'MEMBER', ?, ?, ?, now(), now())", memberId, memberId, memberId,
+            productId);
         jdbcTemplate.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
             + "values (?, 1, now(), now()) on conflict (product_id) do update "
             + "set favorite_count = community.favorite_stats.favorite_count + 1", productId);

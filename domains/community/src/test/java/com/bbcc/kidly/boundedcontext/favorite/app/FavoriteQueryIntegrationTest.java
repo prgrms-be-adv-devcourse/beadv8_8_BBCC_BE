@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.favorite.app;
 
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 
@@ -52,7 +53,7 @@ class FavoriteQueryIntegrationTest {
         List<Long> read = new ArrayList<>();
         String cursor = null;
         do {
-            FavoritePage page = queryService.findMine(ME, null, cursor, "2");
+            FavoritePage page = queryService.findMine(FavoriteOwner.member(ME), null, cursor, "2");
             page.items().forEach(item -> read.add(item.productId()));
             cursor = page.nextCursor();
         } while (cursor != null);
@@ -68,7 +69,7 @@ class FavoriteQueryIntegrationTest {
         favorite(ME, 10, BASE);
         favorite(ME, 11, BASE.minusMinutes(1));
 
-        assertThat(queryService.findMine(ME, null, null, null).items())
+        assertThat(queryService.findMine(FavoriteOwner.member(ME), null, null, null).items())
             .extracting(FavoriteItem::productId, FavoriteItem::productName, FavoriteItem::displayStatus)
             .containsExactly(tuple(10L, "판매 끝난 상품", "SALE_ENDED"), tuple(11L, null, null));
     }
@@ -80,7 +81,7 @@ class FavoriteQueryIntegrationTest {
         favorite(ME, 22, BASE.minusMinutes(1));
         favorite(OTHER, 23, BASE);
 
-        FavoritePage page = queryService.findMine(ME, "21,23,24", null, null);
+        FavoritePage page = queryService.findMine(FavoriteOwner.member(ME), "21,23,24", null, null);
 
         assertThat(page.items()).extracting(FavoriteItem::productId).containsExactly(21L);
         assertThat(page.nextCursor()).isNull();
@@ -95,17 +96,21 @@ class FavoriteQueryIntegrationTest {
         }
         AtomicReference<FavoritePage> first = new AtomicReference<>();
 
-        long firstPage = queryCounter.count(() -> first.set(queryService.findMine(ME, null, null, "3")));
-        long nextPage = queryCounter.count(() -> queryService.findMine(ME, null, first.get().nextCursor(), "3"));
-        long filtered = queryCounter.count(() -> queryService.findMine(ME, "100,101,102,103", null, null));
+        long firstPage = queryCounter.count(() -> first.set(queryService.findMine(FavoriteOwner.member(ME), null, null,
+            "3")));
+        long nextPage = queryCounter.count(() -> queryService.findMine(FavoriteOwner.member(ME), null,
+            first.get().nextCursor(), "3"));
+        long filtered = queryCounter.count(() -> queryService.findMine(FavoriteOwner.member(ME), "100,101,102,103",
+            null, null));
 
         assertThat(first.get().items()).hasSize(3).allSatisfy(item -> assertThat(item.productName()).isNotNull());
         assertThat(List.of(firstPage, nextPage, filtered)).containsOnly(2L);
     }
 
     private void favorite(long memberId, long productId, LocalDateTime createdAt) {
-        jdbcTemplate.update("insert into community.favorite (member_id, product_id, created_at, updated_at) "
-            + "values (?, ?, ?, ?)", memberId, productId, createdAt, createdAt);
+        jdbcTemplate.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
+            + "created_at, updated_at) values (?, 'MEMBER', ?, ?, ?, ?, ?)", memberId, memberId, memberId, productId,
+            createdAt, createdAt);
     }
 
     private void replica(long productId, String name, String status) {

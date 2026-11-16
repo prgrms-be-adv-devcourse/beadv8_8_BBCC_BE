@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.favorite.app;
 
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwnerType;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -41,7 +43,7 @@ class FavoriteServiceTest {
     void add() {
         products.put(PRODUCT, false);
 
-        service.add(ME, String.valueOf(PRODUCT));
+        service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
 
         assertThat(favorites.rows).containsKey(PRODUCT);
         assertThat(stats.changes).containsExactly("+" + PRODUCT);
@@ -51,10 +53,10 @@ class FavoriteServiceTest {
     @DisplayName("이미 찜했으면 상품이 판매 종료됐어도 그대로 끝낸다(저장 · 찜 수 변화 없음)")
     void alreadyFavoritedIsIdempotent() {
         products.put(PRODUCT, false);
-        service.add(ME, String.valueOf(PRODUCT));
+        service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         products.put(PRODUCT, true);
 
-        service.add(ME, String.valueOf(PRODUCT));
+        service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
 
         assertThat(favorites.saves).isEqualTo(1);
         assertThat(stats.changes).containsExactly("+" + PRODUCT);
@@ -63,37 +65,38 @@ class FavoriteServiceTest {
     @Test
     @DisplayName("상품 복사본에 없으면 FAVORITE_PRODUCT_NOT_FOUND, 판매 종료면 FAVORITE_PRODUCT_SALE_ENDED")
     void notFoundAndSaleEnded() {
-        assertError(() -> service.add(ME, "999"), FavoriteErrorCode.FAVORITE_PRODUCT_NOT_FOUND);
+        assertError(() -> service.add(FavoriteOwner.member(ME), "999"), FavoriteErrorCode.FAVORITE_PRODUCT_NOT_FOUND);
         products.put(PRODUCT, true);
-        assertError(() -> service.add(ME, String.valueOf(PRODUCT)), FavoriteErrorCode.FAVORITE_PRODUCT_SALE_ENDED);
+        assertError(() -> service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT)),
+            FavoriteErrorCode.FAVORITE_PRODUCT_SALE_ENDED);
         assertThat(favorites.saves).isZero();
         assertThat(stats.changes).isEmpty();
     }
 
     @Test
-    @DisplayName("확인 뒤 저장이 (회원, 상품) 유일 제약에 막히면(동시 찜) 이미 찜으로 끝내고 다른 위반은 던진다")
+    @DisplayName("확인 뒤 저장이 (소유자, 상품) 유일 제약에 막히면(동시 찜) 이미 찜으로 끝내고 다른 위반은 던진다")
     void concurrentDuplicate() {
         products.put(PRODUCT, false);
-        favorites.violation = violation("23505", FavoriteService.MEMBER_PRODUCT_UNIQUE);
+        favorites.violation = violation("23505", FavoriteService.OWNER_PRODUCT_UNIQUE);
         favorites.insertedByOther = true;
 
-        service.add(ME, String.valueOf(PRODUCT));
+        service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         assertThat(stats.changes).isEmpty();
 
         favorites.rows.clear();
         favorites.violation = violation("23502", null);
-        assertThatThrownBy(() -> service.add(ME, String.valueOf(PRODUCT)))
+        assertThatThrownBy(() -> service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT)))
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    @DisplayName("저장이 (회원, 상품) 유일 제약에 막힌 뒤 다시 보면 행이 없어도(그 사이 해제) 예외 없이 이미 찜으로 끝낸다")
+    @DisplayName("저장이 (소유자, 상품) 유일 제약에 막힌 뒤 다시 보면 행이 없어도(그 사이 해제) 예외 없이 이미 찜으로 끝낸다")
     void duplicateThenRemovedByOther() {
         products.put(PRODUCT, false);
-        favorites.violation = violation("23505", FavoriteService.MEMBER_PRODUCT_UNIQUE);
+        favorites.violation = violation("23505", FavoriteService.OWNER_PRODUCT_UNIQUE);
         favorites.insertedByOther = false;
 
-        service.add(ME, String.valueOf(PRODUCT));
+        service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
 
         assertThat(favorites.rows).isEmpty();
         assertThat(stats.changes).isEmpty();
@@ -103,11 +106,11 @@ class FavoriteServiceTest {
     @DisplayName("해제: 찜이 있으면 지우고 찜 수 −1, 없으면 그대로(찜 수 변화 없음)")
     void remove() {
         products.put(PRODUCT, false);
-        service.add(ME, String.valueOf(PRODUCT));
+        service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         stats.changes.clear();
 
-        service.remove(ME, String.valueOf(PRODUCT));
-        service.remove(ME, String.valueOf(PRODUCT));
+        service.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
+        service.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
 
         assertThat(favorites.rows).isEmpty();
         assertThat(stats.changes).containsExactly("-" + PRODUCT);
@@ -117,10 +120,10 @@ class FavoriteServiceTest {
     @DisplayName("해제할 때 찜 수 행이 없으면(바뀐 행 0) 조용히 넘기지 않고 예외로 실패한다")
     void missingStatsRowFails() {
         products.put(PRODUCT, false);
-        service.add(ME, String.valueOf(PRODUCT));
+        service.add(FavoriteOwner.member(ME), String.valueOf(PRODUCT));
         stats.decreasedRows = 0;
 
-        assertThatThrownBy(() -> service.remove(ME, String.valueOf(PRODUCT)))
+        assertThatThrownBy(() -> service.remove(FavoriteOwner.member(ME), String.valueOf(PRODUCT)))
             .isInstanceOf(IllegalStateException.class).hasMessageContaining("productId=" + PRODUCT);
     }
 
@@ -129,8 +132,8 @@ class FavoriteServiceTest {
     @NullSource
     @DisplayName("상품 ID가 양의 정수가 아니면 INVALID_PRODUCT_ID(찜 · 해제)")
     void invalidProductId(String productId) {
-        assertError(() -> service.add(ME, productId), FavoriteErrorCode.INVALID_PRODUCT_ID);
-        assertError(() -> service.remove(ME, productId), FavoriteErrorCode.INVALID_PRODUCT_ID);
+        assertError(() -> service.add(FavoriteOwner.member(ME), productId), FavoriteErrorCode.INVALID_PRODUCT_ID);
+        assertError(() -> service.remove(FavoriteOwner.member(ME), productId), FavoriteErrorCode.INVALID_PRODUCT_ID);
     }
 
     private static void assertError(Runnable call, FavoriteErrorCode code) {
@@ -186,7 +189,8 @@ class FavoriteServiceTest {
         private boolean insertedByOther;
 
         @Override
-        public boolean existsByMemberIdAndProductId(Long memberId, Long productId) {
+        public boolean existsByOwnerTypeAndOwnerIdAndProductId(FavoriteOwnerType ownerType, Long ownerId,
+            Long productId) {
             return rows.containsKey(productId);
         }
 
@@ -204,22 +208,24 @@ class FavoriteServiceTest {
         }
 
         @Override
-        public List<Long> deleteByMember(Long memberId, Long productId) {
+        public List<Long> deleteByOwner(String ownerType, Long ownerId, Long productId) {
             return rows.remove(productId) == null ? List.of() : java.util.Arrays.asList((Long) null);
         }
 
         @Override
-        public List<FavoriteRow> findMine(Long memberId, Limit limit) {
+        public List<FavoriteRow> findMine(FavoriteOwnerType ownerType, Long ownerId, Limit limit) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public List<FavoriteRow> findMineAfter(Long memberId, LocalDateTime createdAt, Long id, Limit limit) {
+        public List<FavoriteRow> findMineAfter(FavoriteOwnerType ownerType, Long ownerId, LocalDateTime createdAt,
+            Long id, Limit limit) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public List<FavoriteRow> findMineIn(Long memberId, Collection<Long> productIds) {
+        public List<FavoriteRow> findMineIn(FavoriteOwnerType ownerType, Long ownerId,
+            Collection<Long> productIds) {
             throw new UnsupportedOperationException();
         }
     }
