@@ -1,11 +1,11 @@
 # nginx + HTTPS 설정
 
 앱 서버(t3.large)의 단독 k3s(namespace `edge`)에서 nginx Pod 가 80 · 443 을 받아 Gateway(같은 서버 k3s 의 NodePort `127.0.0.1:30200`, deploy/k3s)와 Grafana(모니터링 서버 t3.medium 의 Traefik `<사설 IP>:80`)로 넘깁니다(#1309). 예전에는 호스트에 직접 설치한 nginx 였고, 설정(`kidly.conf.template`)은 그대로 옮겼습니다.
-`/actuator` 와 그 아래 경로는 `/actuator/health` 만 밖으로 열고 나머지는 404 입니다. 밖에서 온 `X-Member-*` · `X-Admin-*` · `X-Child-*` 헤더는 지웁니다.
+nginx 는 TLS · Host 라우팅 · 클라이언트 IP 전달 · HTTP→HTTPS 와 공개 요청의 `traceparent` · `tracestate` · `baggage` 제거를 맡습니다. actuator 접근 차단과 주체 헤더 제거는 Gateway 가 맡습니다(`apps/gateway/CLAUDE.md`, #1404).
 
 | 주소 | 연결되는 곳 |
 | --- | --- |
-| `https://api.<도메인>` | Gateway (k3s NodePort 30200). `/actuator/health` 도 Gateway가 받음. `dev-api` 에서 옮겼다(#1335) |
+| `https://api.<도메인>` | Gateway (k3s NodePort 30200). `dev-api` 에서 옮겼다(#1335) |
 | `https://grafana.<도메인>` | Grafana (t3.medium k3s, `deploy/monitoring`) |
 | IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음 |
 
@@ -36,6 +36,12 @@ cd ~/kidly-nginx/deploy/nginx && MONITORING_HOST=<모니터링 서버 사설 IP>
 통과하면 Pod 를 바꿉니다. 호스트 포트를 쓰므로 옛 Pod 를 내린 뒤 새 Pod 가 떠서 몇 초 끊깁니다.
 `MONITORING_HOST` 는 Grafana 가 도는 t3.medium 의 사설 IP 입니다. 그 서버의 보안 그룹이 이 서버에서 오는 80 을 받아야 합니다.
 
+## 배포 순서 (#1404)
+
+Gateway 를 management 포트가 분리된 앱으로 먼저 배포한 뒤 nginx 를 바꿉니다. nginx 를 먼저 바꾸면 옛 Gateway 의 `/actuator/prometheus` 가 밖에 열립니다. Gateway 배포 후 nginx 배포 전에는 밖의 `/actuator/health` 를 nginx 가 Gateway 로 넘기고 Gateway 가 404 를 냅니다. 이 경로를 자동으로 확인하는 곳은 없습니다(외부 확인 일정 실행은 #1407).
+
+Gateway 를 #1404 이전으로 되돌려야 하면 nginx 를 먼저 옛 설정으로 되돌립니다. `git archive <#1404 이전 커밋> deploy/nginx` 로 서버에 올려 `deploy.sh` 를 실행합니다. 배포 뒤에는 아래 「확인」의 명령으로 상품 목록 200, `/actuator/prometheus` 404 를 봅니다.
+
 ## 호스트 nginx 에서 옮기기 (처음 한 번)
 
 1. 위처럼 `deploy.sh` 를 실행합니다. 호스트 nginx 가 80 · 443 을 쥐고 있으면 Pod 는 놓을 때까지 기다리고, 스크립트는 다음 명령을 알려 주고 끝납니다.
@@ -44,7 +50,8 @@ cd ~/kidly-nginx/deploy/nginx && MONITORING_HOST=<모니터링 서버 사설 IP>
    ```bash
    sudo systemctl disable --now nginx kidly-certbot-renew.timer
    kubectl -n edge wait --for=condition=Ready pod -l app=nginx --timeout 60s
-   curl -I https://api.kidly.kro.kr/actuator/health
+   curl -s -o /dev/null -w '%{http_code}\n' "https://api.kidly.kro.kr/api/v1/products?page=0&size=1"  # 200: 엣지 → Gateway → 서비스
+   curl -s -o /dev/null -w '%{http_code}\n' "https://api.kidly.kro.kr/actuator/prometheus"  # 404: Gateway 가 차단
    ```
 3. 갱신을 한 번 시험합니다(실제 인증서는 바뀌지 않음).
    ```bash
@@ -78,7 +85,8 @@ sudo k3s kubectl -n edge run certbot-issue --rm -i --restart=Never --image certb
 ## 확인
 
 ```bash
-curl -I https://api.<도메인>/actuator/health
+curl -s -o /dev/null -w '%{http_code}\n' "https://api.<도메인>/api/v1/products?page=0&size=1"  # 200: 엣지 → Gateway → 서비스
+curl -s -o /dev/null -w '%{http_code}\n' "https://api.<도메인>/actuator/prometheus"  # 404: Gateway 가 차단
 curl -I https://grafana.<도메인>/api/health
 kubectl -n edge get pods,cronjob                  # nginx Running, certbot-renew 의 마지막 실행 시각
 kubectl -n edge logs job/<certbot-renew-…>        # 갱신 기록

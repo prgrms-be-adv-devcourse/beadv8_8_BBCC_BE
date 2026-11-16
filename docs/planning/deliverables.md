@@ -129,7 +129,7 @@ v2.0: 이벤트는 모두 Kafka로 갑니다. 토픽은 `kidly.{보내는 도메
 
 | 단계 | API | 설명 |
 |---|---|---|
-| 운영 | `/actuator/health` · `/actuator/prometheus` | 상태 확인 · 메트릭 수집 (밖에서는 Nginx가 막음) |
+| 운영 | `/actuator/health` · `/actuator/prometheus` | 상태 확인 · 메트릭 수집 (밖에서는 Gateway가 막음, management 포트) |
 | 최종 | `apps/gateway` | 서비스 API가 아님. 경로별 라우팅 · 토큰 검증 · 역할 검사 · CORS · 보안 응답 헤더, 정규화되지 않은 경로는 400 |
 
 ## 커뮤니티 · L2J92

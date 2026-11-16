@@ -17,16 +17,8 @@ proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
 proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header X-Forwarded-Host  $host;
 proxy_set_header X-Forwarded-Port  $server_port;
-# 밖에서 온 회원 · 관리자 · 자녀 헤더를 지운다. 값이 빈 문자열이면 nginx 는 그 헤더를 넘기지 않는다.
-# 서비스는 이 헤더를 그대로 믿는다(#638). Gateway 는 받은 것을 어차피 지우고 검증한 값으로 다시 붙이므로 받을 필요가 없다.
-proxy_set_header X-Member-Id       "";
-proxy_set_header X-Member-Roles    "";
-proxy_set_header X-Member-Nickname "";
-proxy_set_header X-Admin-Id        "";
-proxy_set_header X-Child-Account-Id  "";
-proxy_set_header X-Child-Guardian-Id "";
-
 # 공개 요청이 내부 트레이스와 샘플링 결정을 지정하지 못하게 한다.
+# OTel Java Agent 는 Netty 서버 단계에서 이 헤더를 먼저 읽으므로 Gateway 필터에서 지우면 늦다(deploy/tracing-trial).
 proxy_set_header traceparent "";
 proxy_set_header tracestate  "";
 proxy_set_header baggage     "";
@@ -59,15 +51,6 @@ server {
     listen 443 ssl;
     http2 on;
     server_name api.__DOMAIN__;
-
-    # actuator 는 서버 안(Alloy)에서만 쓴다. 외부에는 헬스체크만 연다
-    location /actuator {
-        return 404;
-    }
-
-    location = /actuator/health {
-        proxy_pass http://127.0.0.1:30200;
-    }
 
     location / {
         proxy_pass http://127.0.0.1:30200;

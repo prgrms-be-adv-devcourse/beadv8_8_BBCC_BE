@@ -7,16 +7,12 @@ import java.util.Optional;
 
 /**
  * Gateway가 토큰에서 만들어 서비스로 넘기는 주체 헤더. 서비스는 이 헤더를 그대로 믿는다.
- * nginx 템플릿은 접두어로 지울 수 없어 {@link #ALL}을 이름으로 적는다(NginxPrincipalHeadersTest가 맞춘다).
  */
 public final class PrincipalHeaders {
 
     public static final String CHILD_ACCOUNT_ID = "X-Child-Account-Id";
     public static final String CHILD_GUARDIAN_ID = "X-Child-Guardian-Id";
     public static final String ADMIN_ID = "X-Admin-Id";
-    public static final List<String> ALL = Arrays.stream(PrincipalType.values())
-        .flatMap(type -> namesOf(type).stream())
-        .toList();
 
     private PrincipalHeaders() {
     }
