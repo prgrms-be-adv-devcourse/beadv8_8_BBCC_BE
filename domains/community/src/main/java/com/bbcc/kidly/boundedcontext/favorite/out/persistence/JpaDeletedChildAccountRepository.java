@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.favorite.out.persistence;
 
 import com.bbcc.kidly.boundedcontext.favorite.app.port.DeletedChildAccounts;
 import com.bbcc.kidly.boundedcontext.favorite.domain.DeletedChildAccount;
+import com.bbcc.kidly.boundedcontext.favorite.out.store.ChildAccountLock;
 import java.time.LocalDateTime;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -9,10 +10,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * 지운 자녀 계정 저장소.
+ * 지운 자녀 계정 저장소 + 자녀 계정별 잠금 조각({@link ChildAccountLock}).
  */
 public interface JpaDeletedChildAccountRepository extends JpaRepository<DeletedChildAccount, Long>,
-    DeletedChildAccounts {
+    DeletedChildAccounts, ChildAccountLock {
 
     @Override
     @Modifying

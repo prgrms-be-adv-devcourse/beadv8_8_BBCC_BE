@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 자녀 계정 삭제 때 찜 정리: 계정을 지운 자녀 계정으로 먼저 남기고(그 뒤 찜 요청 403), 그 계정의 찜을 한 문장으로 지운 뒤
+ * 자녀 계정 삭제 때 찜 정리: 그 계정의 잠금(배타)을 잡고 지운 자녀 계정으로 먼저 남긴 뒤(그 뒤 찜 요청 403), 그 계정의 찜을 한 문장으로 지운 뒤
  * 상품별 찜 수를 줄인다. 활동 기록 · 이벤트의 까닭은 withdrawn(MEMBER_WITHDRAWN) + 소유자 종류 CHILD다.
  */
 @Service
@@ -24,6 +24,8 @@ public class ChildFavoritesRemovalService implements ChildFavoritesRemover {
     @Override
     @Transactional
     public int removeAll(Long accountId, Long guardianId, LocalDateTime deletedAt) {
+        // 겹친 찜 추가 저장이 끝나기를 기다리고, 이 트랜잭션이 끝날 때까지 새 추가를 막는다
+        deletedChildAccounts.lockChildAccountExclusive(accountId);
         deletedChildAccounts.markDeleted(accountId, guardianId, FavoriteTimes.toStoredPrecision(deletedAt),
             FavoriteTimes.now());
         return bulkRemoval.settle(memberFavoriteRows.deleteAllByChild(accountId));

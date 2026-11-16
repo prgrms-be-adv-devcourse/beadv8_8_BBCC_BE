@@ -11,6 +11,8 @@ public interface MemberFavoriteRows {
 
     /**
      * 그 보호자 회원의 찜(회원 본인 찜 + 그 회원이 보호자인 자녀 계정 찜)을 모두 지운다.
+     * 보호자 탈퇴 뒤에는 자녀 프로필 삭제(child.changed) → 인증이 자녀 계정 삭제 · 토큰 무효화 · child-account.changed(deleted=true)
+     * → 커뮤니티가 그 자녀 계정 찜 정리로도 이어지지만, 탈퇴 때 이미 여기서 지우므로 그쪽은 지울 찜이 없다(1회분).
      *
      * @return 지운 찜(지운 행마다 하나)
      */

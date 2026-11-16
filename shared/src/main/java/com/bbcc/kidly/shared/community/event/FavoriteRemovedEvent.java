@@ -14,7 +14,9 @@ public record FavoriteRemovedEvent(UUID eventId, LocalDateTime occurredAt, Data 
     /**
      * @param memberId 회원 본인 찜이면 그 회원 ID, 자녀 계정 찜이면 보호자 회원 ID
      * @param cause 지운 까닭. 회원 탈퇴 · 자녀 계정 삭제로 지웠으면 MEMBER_WITHDRAWN(자녀 계정 삭제는 ownerType CHILD)
-     * @param ownerType 찜 소유자 종류({@link FavoriteOwnerTypes}). 없으면(옛 메시지) 회원 본인 찜
+     * @param ownerType 찜 소유자 종류. 값은 {@link FavoriteOwnerTypes#MEMBER} · {@link FavoriteOwnerTypes#CHILD}뿐이고,
+     *     칸이 없으면(옛 메시지) MEMBER다. 받는 쪽은 이 값으로 자녀 계정 찜을 구분한다
+     *     (자녀 계정 찜의 memberId는 보호자 회원 ID라 memberId만으로는 구분할 수 없다)
      * @param ownerId 찜 소유자 ID(MEMBER는 회원 ID, CHILD는 자녀 계정 ID). 없으면(옛 메시지) memberId
      */
     public record Data(
