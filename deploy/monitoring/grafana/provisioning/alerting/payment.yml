@@ -1,0 +1,241 @@
+---
+# 결제 업무 알림(#1391). 앱이 수집 때마다 DB 상태로 계산한 지표(PaymentMetrics)와 카운터를 본다
+# 서비스 다운 · 5xx · ERROR 로그 · 컨슈머 지연은 alerting.yml · kafka.yml이 본다. 라벨에는 env만 둔다(회원 · 주문 ID를 넣지 않는다)
+apiVersion: 1
+groups:
+- orgId: 1
+  name: kidly-payment
+  folder: Kidly
+  interval: 1m
+  rules:
+  - uid: kidly-payment-outbox-delayed
+    title: 결제 이벤트 전송 지연
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: 'max by(env) (kidly_payment_outbox_oldest_unsent_age_seconds{job="kidly-payment"})'
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 600
+    labels:
+      severity: critical
+    annotations:
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 결제 이벤트가 {{ with $values.A }}{{ humanizeDuration .Value }}{{ end }} 동안 Kafka로 나가지 못했습니다'
+      description: 릴레이는 1초마다 보내므로 10분 넘게 남은 메시지는 막혀 있습니다. 결제 완료 · 환불 이벤트를 받지 못해 주문 · 정산 · 알림이 멈춥니다. 결제 서비스 WARN 로그(결제 아웃박스 전송 실패)의 reason과 Kafka 상태를 확인하세요. 격리된 메시지의 같은 키 뒤 메시지도 여기 잡힙니다(격리 알림 함께 확인). 모두 보내면 해제됩니다.
+    isPaused: false
+  - uid: kidly-payment-outbox-parked
+    title: 결제 이벤트 격리
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: 'max by(env) (kidly_payment_outbox_parked_messages{job="kidly-payment"})'
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: critical
+    annotations:
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 보내지 못해 격리한 결제 이벤트가 {{ with $values.A }}{{ .Value }}{{ end }}건 있습니다'
+      description: 다른 이벤트는 보내지는데 이 메시지만 시도 상한(max-attempts)까지 보내지 못했습니다. 같은 키(주문 · 정산서)의 뒤 이벤트도 함께 멈춰 있습니다. GET /api/v1/admin/payments/parked-events의 lastError로 원인을 고친 뒤 POST .../{outboxId}/release로 다시 보냅니다. 모두 풀거나 보내면 해제됩니다.
+    isPaused: false
+  - uid: kidly-payment-outbox-send-failing
+    title: 결제 이벤트 전송 실패 반복
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: 'sum by(env) (increase(kidly_payment_outbox_send_failures_total{job="kidly-payment"}[10m]))'
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 10
+    labels:
+      severity: warning
+    annotations:
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 최근 10분 결제 이벤트 전송이 {{ with $values.A }}{{ printf "%.0f" .Value }}{{ end }}번 실패했습니다'
+      description: 브로커가 잠깐 흔들려도 다음 주기에 다시 보내므로 바로 사람이 할 일은 아닙니다. 계속되면 전송 지연 · 격리 알림이 뒤따릅니다. 결제 서비스 WARN 로그의 reason(eventType · 키)과 Kafka 상태를 보세요. 10분 동안 새 실패가 10번 이하면 해제됩니다.
+    isPaused: false
+  - uid: kidly-payment-dead-letter
+    title: 결제 수신 메시지 DLT
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: 'sum by(env) (increase(kidly_payment_dlt_messages_total{job="kidly-payment"}[10m]))'
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: critical
+    annotations:
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 결제가 처리하지 못한 수신 메시지를 DLT로 보냈습니다'
+      description: 결제에는 DLT 재처리 장치가 없어 그 메시지(주문 결제 요청 · 취소 · 정산 지급 요청 · 회원 탈퇴)는 다시 처리되지 않습니다. 결제 서비스 ERROR 로그(처리하지 못한 이벤트를 DLT로 보냅니다)의 topic · eventType · eventId · key · exception으로 대상을 찾아 담당 도메인과 함께 처리하세요. 10분 동안 새 DLT가 없으면 해제됩니다.
+    isPaused: false
+  - uid: kidly-payment-charge-stuck
+    title: 멈춘 충전
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: 'max by(env) (sum by(env, instance) (kidly_payment_charges_stuck{job="kidly-payment"}))'
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: critical
+    annotations:
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 30분 넘게 승인 중 · 취소 중인 충전이 {{ with $values.A }}{{ .Value }}{{ end }}건 있습니다'
+      description: 회원 돈이 토스에서 빠져나갔는데 예치금에 반영되지 않았을 수 있습니다. 정리 스케줄러가 토스 조회로 맞추는데도 남은 것은 금액 불일치 · 부분 취소(ERROR 로그) 또는 토스 조회 실패입니다. 토스 상점관리자에서 그 충전을 확인해 처리하세요. 정리되면 해제됩니다.
+    isPaused: false
+  - uid: kidly-payment-order-refund-retry-stuck
+    title: 주문 취소 환불 재처리 지연
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: 'max by(env) (kidly_payment_refund_retry_oldest_age_seconds{job="kidly-payment"})'
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 3600
+    labels:
+      severity: critical
+    annotations:
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 주문 취소 환불이 {{ with $values.A }}{{ humanizeDuration .Value }}{{ end }} 동안 처리되지 않았습니다'
+      description: 실패한 주문 취소(order.cancelled) 환불은 스케줄러가 주기마다 다시 처리하는데 1시간 넘게 성공하지 못했습니다. 구매자에게 돈이 돌아가지 않았습니다. payment.order_cancellation_retry의 last_error와 결제 서비스 로그를 확인하세요. 처리되면 해제됩니다.
+    isPaused: false
+  - uid: kidly-payment-item-refund-unresolved
+    title: 환불 못 한 주문상품 취소
+    condition: B
+    for: 0m
+    noDataState: OK
+    execErrState: Error
+    data:
+    - refId: A
+      datasourceUid: prometheus
+      relativeTimeRange:
+        from: 600
+        to: 0
+      model:
+        refId: A
+        expr: 'max by(env) (kidly_payment_item_refund_retry_pending{job="kidly-payment"})'
+        instant: true
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        refId: B
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    labels:
+      severity: critical
+    annotations:
+      summary: '{{ if eq $labels.env "dev" }}운영{{ else }}{{ $labels.env }}{{ end }} 환불하지 못한 주문상품 취소가 {{ with $values.A }}{{ .Value }}{{ end }}건 있습니다'
+      description: 판매자가 취소한 주문상품을 구매자에게 환불하지 못했습니다(자동 재처리 없음). GET /api/v1/admin/payments/refund-retries의 lastError(환불 불가 코드 · PAYMENT_NOT_FOUND · MEMBER_MISMATCH)로 원인을 확인하고, 고친 뒤 POST .../{retryId}/retry로 다시 처리하거나 시스템 밖에서 처리했으면 DELETE로 닫습니다. 모두 처리하면 해제됩니다.
+    isPaused: false
