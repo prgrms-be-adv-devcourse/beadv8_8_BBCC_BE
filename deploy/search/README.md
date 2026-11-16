@@ -103,7 +103,7 @@ Elasticsearch 응답 시간은 따로 재지 않습니다. 검색 API 지연(`ht
 
 ### Elasticsearch 내려감 · 느림
 
-검색은 연결 1초 · 응답 3초(`search.yml` `spring.elasticsearch.*`)를 넘으면 503 으로 답합니다. 그동안 받은 상품 · 판매자 변경은 1초 간격 3번 더 시도한 뒤 DLT 로 갑니다.
+검색은 연결 1초 · 응답 3초(`search.yml` `spring.elasticsearch.*`)를 넘으면 503 으로 답합니다. 상호명을 붙이는 판매자 색인 조회만 실패하면 503 이 아니라 상호명을 비운 목록으로 답하고, `kidly_search_seller_lookup_failures_total` 이 늘어납니다. 그동안 받은 상품 · 판매자 변경은 1초 간격 3번 더 시도한 뒤 DLT 로 갑니다.
 
 1. medium 에서 상태를 봅니다(위 "확인"): `kubectl -n search get pods`, `_cluster/health`, `kubectl -n search logs deploy/elasticsearch --tail 200`
 2. Pod 가 다시 뜨는 중이면(배포 · OOM) 준비될 때까지 기다립니다. `Pending` 이면 노드 라벨 · 메모리, `ImagePullBackOff` 면 위 절차입니다

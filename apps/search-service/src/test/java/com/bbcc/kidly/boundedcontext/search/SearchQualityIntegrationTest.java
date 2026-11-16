@@ -17,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.search.out.SearchSynonyms;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import com.bbcc.kidly.support.SearchIndexes;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -77,7 +78,8 @@ class SearchQualityIntegrationTest {
 
         Report current = measure(productSearch, queries);
         Report withoutSynonyms = measure(
-            new ElasticsearchProductSearch(client, indexProperties, embeddingProperties, SearchSynonyms.empty()),
+            new ElasticsearchProductSearch(client, indexProperties, embeddingProperties, SearchSynonyms.empty(),
+                new SimpleMeterRegistry()),
             queries);
 
         String summary = current.summary("지금 검색") + "\n" + withoutSynonyms.summary("동의어 사전 없음(비교)");
