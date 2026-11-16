@@ -204,6 +204,26 @@ class OpenAiSizeChooserTest {
     }
 
     @Test
+    @DisplayName("WEAR-02 · WEAR-05 3개월 미만이면 곧 작아지는 사이즈로 보고, 오래 입는 사이즈가 여럿이면 선호 핏으로 고르라고 지시한다")
+    void instructToChooseByPreferredFitAmongLastingSizes() {
+        List<Prompt> prompts = new ArrayList<>();
+        ChatModel model = prompt -> {
+            prompts.add(prompt);
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[],"itemJudgements":[]}
+                """))));
+        };
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
+
+        String system = prompts.getFirst().getSystemMessage().getText();
+        assertThat(system)
+            .contains("기준 옷과 같은 너비여도 한동안은 입는다고 보고", "months가 3개월 미만인 사이즈는 곧 작아집니다",
+                "LOOSE이면 한 치수 큰 쪽", "기간이 길다는 이유만으로 큰 쪽을 고르지 마세요")
+            .doesNotContain("0 ~ 2개월", "기준 옷보다 넉넉한 너비를 몸이 채울 때까지");
+    }
+
+    @Test
     @DisplayName("사이즈 AI는 빠른 처리 등급(Fast mode, service_tier priority)으로 부르고, 모델 · 추론 강도 · 최대 토큰 설정은 그대로 둔다")
     void callWithFastServiceTier() {
         List<Prompt> prompts = new ArrayList<>();
