@@ -10,6 +10,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
@@ -121,11 +122,22 @@ public class PaymentMetrics {
     }
 
     public void countDeadLetter(String topic) {
-        Counter.builder(DLT_MESSAGES)
+        deadLetters(topic).increment();
+    }
+
+    /**
+     * 받는 토픽의 DLT 카운터를 0으로 미리 만든다(#1391). 첫 DLT 때 카운터가 1로 처음 생기면 increase()가 비교할 앞 값이 없어
+     * 알림이 그 한 건을 놓친다. 결제에는 DLT 재처리 장치가 없어 한 건도 놓치면 안 된다.
+     */
+    public void registerDeadLetterTopics(Collection<String> topics) {
+        topics.forEach(this::deadLetters);
+    }
+
+    private Counter deadLetters(String topic) {
+        return Counter.builder(DLT_MESSAGES)
             .description("처리하지 못해 DLT로 보낸 결제 수신 메시지 수")
             .tag("topic", topic)
-            .register(registry)
-            .increment();
+            .register(registry);
     }
 
     public void markSchedulerSuccess(SchedulerTask task) {

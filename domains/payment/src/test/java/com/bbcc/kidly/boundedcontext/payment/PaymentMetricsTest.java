@@ -165,4 +165,16 @@ class PaymentMetricsTest {
         assertThat(registry.get("kidly.payment.dlt.messages").tag("topic", "kidly.order.events")
             .counter().count()).isEqualTo(2.0);
     }
+
+    @Test
+    @DisplayName("받는 토픽의 DLT 카운터를 0으로 미리 만들어, 첫 DLT도 0에서 1로 늘어난 것으로 보인다")
+    void registerDeadLetterTopics() {
+        metrics.registerDeadLetterTopics(List.of("kidly.member.events", "kidly.order.events"));
+
+        assertThat(registry.get("kidly.payment.dlt.messages").tag("topic", "kidly.member.events")
+            .counter().count()).isZero();
+        metrics.countDeadLetter("kidly.order.events");
+        assertThat(registry.get("kidly.payment.dlt.messages").tag("topic", "kidly.order.events")
+            .counter().count()).isEqualTo(1.0);
+    }
 }
