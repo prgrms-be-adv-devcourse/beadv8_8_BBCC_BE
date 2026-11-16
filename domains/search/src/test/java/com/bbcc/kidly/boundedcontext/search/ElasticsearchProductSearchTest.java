@@ -40,16 +40,22 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
@@ -57,7 +63,7 @@ import org.springframework.data.domain.PageRequest;
  * 상품 목록 조건을 Elasticsearch 검색 요청으로 바꾸고, 결과에 판매자 상호명을 붙이는지 확인한다.
  * 계약(판매중만 · 거르기 · 정렬 · 페이지)은 상품의 PostgresProductSearch와 같다. 실제 형태소 검색은 search-service 통합 테스트가 본다.
  */
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class ElasticsearchProductSearchTest {
 
     @Mock
@@ -71,11 +77,13 @@ class ElasticsearchProductSearchTest {
 
     private ElasticsearchProductSearch productSearch;
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     @BeforeEach
     void setUp() {
         productSearch = new ElasticsearchProductSearch(client, new SearchIndexProperties("local"),
             new SearchEmbeddingProperties("", "https://api.openai.test/v1", "text-embedding-3-small", 3, 0.3f),
-            SearchSynonyms.of("바지, 팬츠", "아우터 => 점퍼, 자켓"));
+            SearchSynonyms.of("바지, 팬츠", "아우터 => 점퍼, 자켓"), meterRegistry);
     }
 
     @Test
@@ -462,17 +470,31 @@ class ElasticsearchProductSearchTest {
             .isInstanceOf(ElasticsearchException.class);
     }
 
-    @Test
-    @DisplayName("판매자 색인을 쓸 수 없어도 검색 색인을 쓸 수 없다고 알린다")
-    void sellerLookupFailure() throws IOException {
-        givenProducts(1, product(10L, 7L));
-        when(client.mget(any(MgetRequest.class), eq(SellerDocument.class)))
-            .thenThrow(new IOException("connection refused"));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("sellerIndexUnavailable")
+    @DisplayName("판매자 색인을 쓸 수 없으면(연결 실패 · 5xx · 429 · 색인 없음) 상호명만 비우고 목록을 돌려준다. 횟수를 지표로 남긴다")
+    void sellerLookupFailure(String name, Exception failure, CapturedOutput output) throws IOException {
+        givenProducts(2, product(10L, 7L), product(11L, 8L));
+        when(client.mget(any(MgetRequest.class), eq(SellerDocument.class))).thenThrow(failure);
 
-        assertThatThrownBy(() -> productSearch.search(
-            condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20)))
-            .isInstanceOf(SearchUnavailableException.class)
-            .hasMessageContaining("local-sellers");
+        Page<ProductSearchItem> page = productSearch.search(
+            condition(null, null, Map.of(), ProductSearchSort.NEWEST), PageRequest.of(0, 20));
+
+        assertThat(page.getTotalElements()).isEqualTo(2);
+        assertThat(page.getContent()).containsExactly(
+            new ProductSearchItem(10L, "상품 10", "https://cdn.kidly.test/10.jpg", null, 15_000L, false, true),
+            new ProductSearchItem(11L, "상품 11", "https://cdn.kidly.test/11.jpg", null, 15_000L, false, true));
+        assertThat(meterRegistry.counter("kidly.search.seller.lookup.failures").count()).isEqualTo(1);
+        assertThat(output).contains("상호명 없이 목록을 돌려줍니다. index=local-sellers")
+            .doesNotContain("원피스 여아용");
+    }
+
+    static Stream<Arguments> sellerIndexUnavailable() {
+        return Stream.of(
+            Arguments.of("연결 실패", new IOException("connection refused")),
+            Arguments.of("5xx", error(503, "unavailable_shards_exception")),
+            Arguments.of("429", error(429, "es_rejected_execution_exception")),
+            Arguments.of("색인 없음", error(404, "index_not_found_exception")));
     }
 
     private static ElasticsearchException error(int status, String type) {

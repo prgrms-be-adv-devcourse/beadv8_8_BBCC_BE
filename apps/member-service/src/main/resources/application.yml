@@ -1,11 +1,11 @@
 spring:
   application:
     name: kidly-member
-  # 인증(JWT 개인키 · 카카오 · 관리자 초기 계정) · 회원(아웃박스 릴레이 주기) 설정. 판매자는 도메인 설정이 없다
   config:
     import:
       - classpath:auth.yml
       - classpath:member.yml
+      - classpath:seller.yml
       - classpath:childprofile.yml
   profiles:
     default: local

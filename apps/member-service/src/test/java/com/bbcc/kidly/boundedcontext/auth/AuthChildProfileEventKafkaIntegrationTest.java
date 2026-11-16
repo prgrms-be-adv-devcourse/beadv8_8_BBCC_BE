@@ -19,6 +19,7 @@ import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.auth.PrincipalId;
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import com.bbcc.kidly.support.KafkaMessages;
@@ -49,6 +50,7 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 class AuthChildProfileEventKafkaIntegrationTest {
     @Autowired private GuardianVerificationRepository verifications;
+    @Autowired private AuthOutboxRelayService authOutboxRelayService;
 
     private static final String TOPIC = "kidly.childprofile.events";
     private static final String DLT = TOPIC + ".auth.dlt";
@@ -143,6 +145,7 @@ class AuthChildProfileEventKafkaIntegrationTest {
             assertThat(repository.findById(childId)).isEmpty();
             assertThat(accounts.existsByChildProfileId(childId)).isFalse();
             assertThat(tokens.findByTokenHash(RefreshToken.hashOf(token))).isEmpty();
+            authOutboxRelayService.relay();
             var found = new java.util.ArrayList<String>();
             AsyncWait.until(TIMEOUT, () -> {
                 consumer.poll(Duration.ofMillis(200)).forEach(record -> {

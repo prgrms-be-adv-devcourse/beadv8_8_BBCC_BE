@@ -16,7 +16,10 @@ public enum ChatbotErrorCode implements ErrorCode {
 
     INVALID_CATEGORY(HttpStatus.BAD_REQUEST, "잘못된 문서 분류입니다", "category는 FAQ · POLICY · SIZE_GUIDE 중 하나로 보내 주세요."),
     DOCUMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "문서를 찾을 수 없습니다", "없거나 이미 지운 문서입니다. 목록에서 다시 골라 주세요."),
-    AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI를 쓸 수 없습니다", "AI 서비스가 응답하지 않습니다. 잠시 뒤 다시 시도해 주세요.");
+    AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI를 쓸 수 없습니다", "AI 서비스가 응답하지 않습니다. 잠시 뒤 다시 시도해 주세요."),
+    AI_TIMEOUT(HttpStatus.SERVICE_UNAVAILABLE, "답이 너무 오래 걸립니다", "답을 만드는 데 시간이 너무 오래 걸려 멈췄습니다. 질문을 짧게 나눠 다시 물어봐 주세요."),
+    AI_DAILY_LIMIT_REACHED(HttpStatus.SERVICE_UNAVAILABLE, "오늘 챗봇 질문이 모두 찼습니다",
+        "오늘 받을 수 있는 챗봇 질문이 모두 찼습니다. 내일 다시 물어봐 주세요. 급한 문의는 고객센터를 이용해 주세요.");
 
     private final HttpStatus status;
     private final String title;

@@ -4,6 +4,7 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.NOW;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentOutboxMessage;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -63,5 +64,25 @@ class PaymentOutboxMessageTest {
         message.recordFailure("가".repeat(501));
 
         assertThat(message.getLastError()).hasSize(500);
+    }
+
+    @Test
+    @DisplayName("격리를 풀면 시도를 0으로 돌리고 마지막 오류는 남긴다. 격리되지 않았거나 보낸 메시지는 풀지 않는다")
+    void release() {
+        PaymentOutboxMessage parked = PaymentFixture.outboxMessage();
+        parked.recordFailure("너무 큼");
+        parked.park(LocalDateTime.now());
+        PaymentOutboxMessage notParked = PaymentFixture.outboxMessage();
+        PaymentOutboxMessage sent = PaymentFixture.outboxMessage();
+        sent.markSent(LocalDateTime.now());
+        sent.park(LocalDateTime.now());
+
+        assertThat(parked.release()).isTrue();
+        assertThat(parked.getParkedAt()).isNull();
+        assertThat(parked.getAttemptCount()).isZero();
+        assertThat(parked.getLastError()).isEqualTo("너무 큼");
+        assertThat(notParked.release()).isFalse();
+        assertThat(sent.getParkedAt()).isNull();
+        assertThat(sent.release()).isFalse();
     }
 }

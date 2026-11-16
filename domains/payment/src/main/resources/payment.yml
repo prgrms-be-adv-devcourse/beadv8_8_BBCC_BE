@@ -23,6 +23,10 @@ kidly:
       batch-size: ${PAYMENT_OUTBOX_BATCH_SIZE:100}
       # 보낸 메시지를 남겨 두는 기간(1초 이상). Kafka 보존 기간(7일)과 같다. 안 보낸 메시지는 지우지 않는다
       retention: ${PAYMENT_OUTBOX_RETENTION:P7D}
+      # 이 횟수(1 이상)만큼 보내지 못한 메시지는 같은 키의 뒤 메시지만 막고 다른 메시지를 계속 보낸다(#1389).
+      # 그 뒤 다른 메시지가 보내지면 그 메시지만의 문제로 보고 격리한다. 격리된 키는 관리자가 다시 보내기 전까지 멈춘다.
+      # 브로커 전체 장애는 다른 메시지도 보내지지 않으므로 격리하지 않는다. 한 파티션만 잠깐 멈춰도 격리되지 않게 넉넉히 둔다
+      max-attempts: ${PAYMENT_OUTBOX_MAX_ATTEMPTS:30}
       # 정리 실행 시각(cron, 초 분 시 일 월 요일, KST). "-"면 정리하지 않는다
       cleanup-cron: ${PAYMENT_OUTBOX_CLEANUP_CRON:0 0 4 * * *}
     # 결제가 받는 회원 · 주문 이벤트(#593). true면 Kafka로만 받고, false면 Kafka 리스너를 시작하지 않고 Spring 이벤트로 받는다

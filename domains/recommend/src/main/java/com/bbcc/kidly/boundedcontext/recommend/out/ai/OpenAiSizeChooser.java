@@ -35,9 +35,15 @@ public class OpenAiSizeChooser implements AiSizeChooser {
           recordMonths와 childSharePercent의 나머지 값(100 − 비중)은 문장에 쓰지 마세요.
           childSharePercent가 0이면 아이 기록 없이 또래 표 값만 쓴 것이니 아이가 실제로 그만큼 자랐다고 쓰지 말고
           또래 기준으로 설명하세요.
-        - wearablePeriods는 사이즈마다 앞으로 입을 수 있는 개월 수입니다. lengthMonths는 권장 키 상한까지, widthMonths는
-          기준 옷보다 넉넉한 너비를 몸이 채울 때까지, months는 둘 중 짧은 값이고 24가 상한입니다. 계산할 수 없으면 null입니다.
-          너무 짧은 사이즈(예: 0 ~ 2개월)는 곧 작아진다는 점을 판단에 쓰세요.
+        - wearablePeriods는 사이즈마다 앞으로 입을 수 있는 개월 수입니다. lengthMonths는 권장 키 상한까지 크는 기간이고,
+          widthMonths는 너비로 입을 수 있는 기간입니다. 지금 잘 맞는 기준 옷과 같은 너비여도 한동안은 입는다고 보고,
+          더 넉넉하면 길게, 더 좁으면 짧게 계산한 값입니다. months는 둘 중 짧은 값이고 24가 상한입니다.
+          계산할 수 없으면 null입니다. months가 3개월 미만인 사이즈는 곧 작아집니다.
+          3개월 이상인 사이즈가 있으면 그 가운데에서 고르세요.
+        - months가 3개월 이상이고 실측으로도 맞는 사이즈가 둘 이상이면 어느 쪽을 골라도 틀리지 않습니다.
+          이때는 child의 preferredFit으로 고르세요. LOOSE이면 한 치수 큰 쪽, SLIM이나 REGULAR이거나 null이면 그 가운데
+          가장 작은 쪽입니다. 기간이 길다는 이유만으로 큰 쪽을 고르지 마세요.
+          기준 옷, 지난 구매, 최근 성장 속도, 상품 핏 성향이 한쪽을 가리키면 그쪽을 먼저 따르세요.
         - purchases는 같은 종류 옷 칸에서 최근 12개월 안에 산 옷입니다(최근 순, 최대 3개). size는 산 사이즈 이름,
           monthsAgo는 산 뒤 지난 개월 수, sameBrand는 지금 상품과 브랜드가 같은지, expectedGrowthCm는 산 뒤 그동안 클 것으로 보는 키(cm)입니다.
           items는 referenceFit과 같은 모양이고, garmentCm가 산 옷 실측, sizes[].diffCm가 「지금 상품 사이즈 실측 - 산 옷 실측」입니다.

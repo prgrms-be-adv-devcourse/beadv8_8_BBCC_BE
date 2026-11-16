@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.IllegalTransactionStateException;
 
@@ -27,6 +28,21 @@ class AccessTokenRevocationServiceIntegrationTest {
 
     @Autowired
     private TransactionTemplate transactions;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @DisplayName("무효화 이벤트는 업무 트랜잭션과 함께 저장 또는 롤백된다")
+    void recordsAndRollsBack() {
+        transactions.executeWithoutResult(status -> revocationService.revoke(101L, LocalDateTime.now()));
+        transactions.executeWithoutResult(status -> {
+            revocationService.revoke(202L, LocalDateTime.now());
+            status.setRollbackOnly();
+        });
+        assertThat(jdbcTemplate.queryForList("select event_type from auth.auth_outbox", String.class))
+            .containsExactly("auth.tokens-revoked");
+    }
 
     @Test
     @DisplayName("트랜잭션 밖에서 부르면 예외가 난다")
