@@ -30,7 +30,9 @@ class AuthOutboxKafkaConfig {
             ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
             ProducerConfig.MAX_BLOCK_MS_CONFIG, 3000,
             ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, 5000,
-            ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 10000));
+            ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 10000,
+            // 메시지 하나씩 보내고 응답을 기다리므로 배치로 모을 일이 없다. 기본값(5ms)만큼 메시지마다 늦어지지 않게 0으로 둔다
+            ProducerConfig.LINGER_MS_CONFIG, 0));
         template.setProducerListener(new ProducerListener<>() { });
         return new KafkaAuthOutboxSender(template);
     }
