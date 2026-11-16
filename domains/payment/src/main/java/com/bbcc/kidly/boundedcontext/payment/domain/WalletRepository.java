@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.payment.domain;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +17,10 @@ public interface WalletRepository {
     void createIfAbsent(Long memberId, LocalDateTime now);
 
     Optional<Wallet> findByMemberId(Long memberId);
+
+    Optional<Wallet> findById(Long id);
+
+    List<Wallet> findAllByIdIn(Collection<Long> ids);
 
     // 잔액을 바꿀 때 쓴다. 같은 지갑을 바꾸는 다른 트랜잭션은 커밋될 때까지 기다린다
     Optional<Wallet> findWithLockByMemberId(Long memberId);

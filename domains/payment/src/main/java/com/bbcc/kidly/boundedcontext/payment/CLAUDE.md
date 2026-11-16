@@ -48,6 +48,7 @@
     - 그사이 토스에서 부분 취소됐으면(`PARTIAL_CANCELED`) 반영하지 않고 승인 중으로 둔 채 ERROR를 남긴다(#485). 실패로 바꾸면 남은 결제액이 입금되지 않는다. 부분 취소는 운영자가 처리한다(웹훅과 같다)
   - 취소 중으로 `cancelling-stale-after`(기본 5분) 넘게 남은 충전: 같은 멱등 키로 토스 취소를 다시 불러 아래 취소 표대로 반영 / 모름 → 다음 실행
   - 만료 시각이 지난 PENDING 충전: EXPIRED
+  - 승인 금액이 다르거나 부분 취소돼 승인 중으로 남은 충전은 관리자가 끝낸다(아래 「멈춘 충전 종료」)
   - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료 · 취소)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
 
 ### 주문 취소 환불 (`app/OrderCancellationService`, #269)
@@ -121,6 +122,14 @@
 - 잔액은 0 밑으로 내려가지 않는다(`ck_wallet_balance`). 미수금은 따로 기록하지 않는다
 - 아직 없음: 부분 취소 반영, 웹훅 유실 대비 주기 조회
 
+## 멈춘 충전 종료 (`app/StuckChargeService`, #1392)
+- `GET /api/v1/admin/wallets/charges/stuck`: 승인 중으로 `confirming-stale-after`(스케줄러와 같은 기준)보다 오래 남은 충전, 오래된 순(`updated_at`). 한 줄은 `chargeId` · `walletId` · `memberId` · `tossOrderId` · `amount` · `status` · `createdAt` · `updatedAt`. paymentKey는 주지 않는다
+- `POST /api/v1/admin/wallets/charges/{chargeId}/fail` → 200(같은 모양, `status` FAILED). 운영자가 토스 상점관리자에서 돈을 먼저 정리(남은 결제 취소 등)한 뒤 부른다
+  - 멈춘 충전이 아니면(승인 중이 아니거나 기준 시간 안) 토스를 부르지 않고 409 `CHARGE_NOT_STUCK`. 기준 시간이 진행 중인 사용자 승인과 겹치지 않게 한다. 없는 충전은 404
+  - 트랜잭션 밖에서 토스를 조회한다. 충전 금액대로 승인됐으면 스케줄러가 입금할 충전이라 409 `CHARGE_APPROVED_AT_PG`, 모르면 돈이 들어올 수 있어 503 `PG_RESULT_UNKNOWN`. 승인 금액이 다르거나 거절(부분 취소 포함)이면 끝낸다
+  - 충전 락을 잡고 다시 멈춘 충전인지 본 뒤 FAILED(`failure_code` `ADMIN_CLOSED`)로 바꾼다. 그사이 스케줄러가 끝냈으면 409
+  - 입금하지 않으므로 지갑 락 · 원장은 없다. 고객에게 입금하려면 종료하지 말고 토스 승인을 충전 금액대로 두면 스케줄러가 입금한다(입금하는 관리자 API는 두지 않는다)
+
 ## 입출금 내역 (`app/WalletService`, #200)
 - `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 · 잔액 환급 · 개발용 충전 ID
 - 지갑이 없으면 빈 목록이다(잔액 조회는 0). 종류 · 기간 필터는 없다
@@ -190,6 +199,7 @@
 | `CHARGE_CANCELLED` | `ChargeService.completeCancel` | memberId, walletId, chargeId, amount, balance |
 | `CHARGE_CANCEL_FAILED` | `ChargeService.failCancel` (다시 입금) | memberId, walletId, chargeId, cancellationId, failureCode, amount, balance |
 | `CHARGE_CANCELLED_EXTERNALLY` | `ChargeService.applyExternalCancel` | memberId, walletId, chargeId, amount, recoveredAmount, shortfallAmount, balance |
+| `CHARGE_CLOSED_BY_ADMIN` | `ChargeService.closeStuck` (관리자 멈춘 충전 종료) | memberId, walletId, chargeId, amount, pgResult(토스 거절 코드 또는 `APPROVED_AMOUNT=다른 금액`), closedBy |
 | `ORDER_PAID` | `OrderPaymentService` | memberId, walletId, orderId, paymentId, amount, balance |
 | `ORDER_PAYMENT_FAILED` | `OrderPaymentService` (잔액 부족 · 금액 불일치) | memberId, orderId, paymentId(불일치면 null), amount, reasonCode |
 | `ORDER_CANCEL_RECORDED` | `OrderCancellationService` (결제 전 취소, `cancelled_order` 저장) | memberId, orderId, reason |
