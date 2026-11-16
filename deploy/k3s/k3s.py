@@ -166,6 +166,17 @@ def manifest(env, name, node_port, job, service, project_dir):
         container['args'] = [str(part) for part in service['command']]
     if security_context(service):
         container['securityContext'] = security_context(service)
+    if env == 'dev' and name in ('gateway', 'order') and (
+            project_dir / 'operations' / 'tracing-agent' / (name + '.enabled')).is_file():
+        from tracing_agent import HOST_AGENT_JAR, agent_settings
+
+        agent_jar = Path(HOST_AGENT_JAR)
+        if not agent_jar.is_file() or agent_jar.stat().st_size == 0:
+            raise ValueError('트레이싱 Agent JAR 이 준비되지 않았습니다: ' + name)
+        agent_env, agent_mount, agent_volume = agent_settings(name, variables.get('JAVA_TOOL_OPTIONS', ''))
+        container['env'] = agent_env
+        container['volumeMounts'].append(agent_mount)
+        volumes.append(agent_volume)
     items = [
         {'apiVersion': 'v1', 'kind': 'Secret', 'metadata': {'name': name + '-env', 'namespace': ns},
          'type': 'Opaque', 'stringData': variables},

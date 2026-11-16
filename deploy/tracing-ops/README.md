@@ -17,6 +17,12 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 - 공개 추적 헤더 제거가 운영에 반영된 뒤 5% 샘플링으로 시작합니다. 로그·메트릭 exporter와 Kafka 자동 계측은 끕니다.
 - 적용 전 명세를 보관하고 운영 배포와 실행 시간이 겹치지 않게 조율합니다. 원복할 때는 현재 Deployment JSON에 같은 JVM 옵션과 `--rollback`을 전달합니다. 계측 당시 추가한 필드만 지우고 다른 배포 필드는 유지합니다. 값이 달라 원복 도구가 중단되면 적용 전 명세와 현재 명세를 비교합니다. 이 수동 패치는 이후 일반 배포가 덮어쓸 수 있습니다.
 
+## 일반 앱 배포에서 유지
+
+운영 시범에서 서비스별 실제 트레이스와 자원 사용량을 확인한 뒤에만 앱 서버의 `/opt/app/dev/operations/tracing-agent/`에 `gateway.enabled` 또는 `order.enabled`를 둡니다. 일반 배포는 선택 파일이 있는 서비스에 현재 Compose JVM 옵션과 같은 Agent 설정을 붙입니다. 배포 파일 업로드는 이 경로를 보존합니다. Agent JAR이 없거나 비어 있으면 해당 서비스 명세를 적용하기 전에 실패합니다.
+
+원복은 선택 파일을 먼저 지운 뒤 일반 배포로 진행합니다. 수동 시범 패치가 이미 필드를 소유하고 있으면 일반 배포 뒤에도 해당 필드가 남을 수 있으므로, 현재 명세를 읽고 위의 `--rollback` 도구로 제거합니다. Pod가 준비된 뒤 Agent 환경 변수와 마운트가 사라졌는지 확인합니다.
+
 ## 앱 클러스터 수집기
 
 `kubectl kustomize deploy/tracing-ops/app-alloy`로 Agent와 사설 수신점 사이의 Alloy 구성을 확인합니다. 기존 로그·메트릭 Alloy와 별도입니다.
