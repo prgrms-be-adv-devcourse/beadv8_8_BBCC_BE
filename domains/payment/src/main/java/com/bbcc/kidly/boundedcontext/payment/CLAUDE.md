@@ -59,7 +59,7 @@
 | COMPLETED · PARTIALLY_REFUNDED | 남은 금액을 모두 지갑에 입금, 원장 `REFUND`(ref_id = 환불 ID), 환불 기록(`cancellation_id` null), 결제 REFUNDED |
 | 없음 | 취소된 주문 기록(`cancelled_order`, `order_id` UK). 그 뒤 온 `order.payment-requested`는 차감 · 발행 없이 건너뜀(WARN) |
 | FAILED · REFUNDED | 아무것도 안 함 (같은 취소가 다시 와도 한 번만 환불) |
-| 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
+| 회원 · 지갑이 결제와 다름 | 환불 안 함, 재처리 기록(`MEMBER_MISMATCH`), ERROR 로그 |
 
 - 처리 실패 대비(#350): 받은 이벤트를 다시 받지 못할 수 있어서 결제 안에서 메운다
   - `handle`은 받는 처리와 다른 트랜잭션(`REQUIRES_NEW`)이다. 실패하면 처리한 것만 롤백되고, `app/PaymentEventHandler`가 `order_cancellation_retry`(`order_id` UK)에 남긴다(ERROR 로그). 남기면 처리 완료이고, 남기기까지 실패하면 예외가 나가 Kafka가 재시도 뒤 DLT로 보낸다
@@ -69,19 +69,23 @@
 ### 판매자 부분 취소 환불 (`app/OrderItemCancellationService`, #711)
 - `order-item.cancelled`(#655)를 Kafka로만 받는다(Spring 리스너 없음). 판매자가 발송 전에 자기 몫을 취소한 것이고, 마지막 몫이 취소돼 주문이 취소돼도 `order.cancelled`는 오지 않는다
 - 이벤트의 주문상품별 `amount`만큼 결제 항목을 환불한다. 환불하면 `payment.refunded`를 발행한다(실패한 환불은 보내지 않는다)
-- 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(`cancellationId`)마다 환불 기록을 하나만 남긴다. 기록이 있으면 건너뛴다(`refund.cancellation_id` UK가 마지막으로 막는다)
+- 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(`cancellationId`)마다 환불 기록을 하나만 남긴다. 완료된 기록이 있으면 건너뛴다(`refund.cancellation_id` UK가 마지막으로 막는다)
+- 환불하지 못하면 받은 내용 그대로 `order_item_cancellation_retry`(`cancellation_id` UK, 품목은 `order_item_cancellation_retry_item`)에 남긴다(#1390). 같은 취소가 또 실패하면 시도 · `last_error`만 바꾸고, 환불되면 지운다. 자동 재처리는 없다
 
 | 경우 | 처리 |
 |---|---|
 | 모두 환불 가능 | 지갑에 입금, 원장 `REFUND`(ref_id = 환불 ID), 환불 기록 COMPLETED(`cancellation_id`), 결제 PARTIALLY_REFUNDED(다 돌려주면 REFUNDED) |
-| 결제 상태가 COMPLETED · PARTIALLY_REFUNDED 아님 / 결제에 없는 주문상품 / 남은 금액 초과 | 입금 · 결제 변경 없이 환불 기록 FAILED(`INVALID_PAYMENT_STATUS` · `PAYMENT_ITEM_NOT_FOUND` · `REFUND_AMOUNT_EXCEEDED`), ERROR 로그. 하나라도 안 되면 그 취소 전체를 환불하지 않는다(`Payment.checkRefundable`로 먼저 본다) |
-| 같은 취소의 환불 기록 있음 | 아무것도 안 함 |
+| 결제 상태가 COMPLETED · PARTIALLY_REFUNDED 아님 / 결제에 없는 주문상품 / 남은 금액 초과 | 입금 · 결제 변경 없이 환불 기록 FAILED(`INVALID_PAYMENT_STATUS` · `PAYMENT_ITEM_NOT_FOUND` · `REFUND_AMOUNT_EXCEEDED`), 재처리 기록(`last_error` = 그 코드), ERROR 로그. 하나라도 안 되면 그 취소 전체를 환불하지 않는다(`Payment.checkRefundable`로 먼저 본다) |
+| 같은 취소의 완료된 환불 있음 | 아무것도 안 함(재처리 기록이 남아 있으면 지운다) |
+| 같은 취소의 실패한 환불 있음(관리자 다시 처리) | 위 경우대로 다시 본다. 환불되면 그 기록을 COMPLETED로 바꾸고(새 기록 없음) 재처리 기록을 지운다. 또 실패하면 실패 코드만 바꾼다 |
 | 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
-| 그 주문의 결제 없음 | `IllegalStateException` → 재시도 없이 DLT. 주문은 결제완료 주문만 판매자 취소를 받고 같은 키라 결제 뒤에 온다 |
+| 그 주문의 결제 없음 | 재처리 기록(`PAYMENT_NOT_FOUND`), ERROR 로그. 예외를 내지 않아 DLT로 가지 않는다. 주문은 결제완료 주문만 판매자 취소를 받고 같은 키라 결제 뒤에 온다 |
 
 - 부분 취소 뒤 같은 주문의 `order.cancelled`가 오면 남은 금액만 환불한다(위 주문 취소 환불)
 - 동결된 지갑에도 환불은 들어온다(#670)
-- 주문 취소처럼 결제 안의 재처리 기록은 없다. DB 오류 같은 실패는 Kafka가 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다
+- 관리자 API(`in/AdminRefundRetryController`, `app/OrderItemRefundRetryService`): `GET /api/v1/admin/payments/refund-retries`(처음 실패한 순), `POST .../{retryId}/retry`(받은 내용 그대로 `handle`을 다시 부름. 환불되면 `resolved: true`, 또 실패하면 `false`와 바뀐 기록), `DELETE .../{retryId}`(시스템 밖에서 처리했다고 닫음. 실패한 환불 기록은 남는다). 없는 기록은 404 `REFUND_RETRY_NOT_FOUND`
+- 이 배포 전에 남은 실패한 환불(FAILED)은 품목이 없어 재처리 기록으로 옮기지 않았다
+- DB 오류 같은 예외는 기록 없이 Kafka가 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다
 - 주문 쪽 스위치(`ORDER_PARTIAL_CANCEL_ENABLED`)는 결제 · 상품(#693)이 배포된 뒤 켠다
 
 ## 충전 취소 (#192)
@@ -190,7 +194,7 @@
 | `ORDER_PAYMENT_FAILED` | `OrderPaymentService` (잔액 부족 · 금액 불일치) | memberId, orderId, paymentId(불일치면 null), amount, reasonCode |
 | `ORDER_CANCEL_RECORDED` | `OrderCancellationService` (결제 전 취소, `cancelled_order` 저장) | memberId, orderId, reason |
 | `ORDER_REFUNDED` | `OrderCancellationService` | memberId, walletId, orderId, paymentId, refundId, amount, balance, reason |
-| `ORDER_ITEM_REFUNDED` | `OrderItemCancellationService` (부분 취소 환불, 실패한 환불은 남기지 않음) | memberId, walletId, orderId, cancellationId, paymentId, refundId, amount, balance, reason |
+| `ORDER_ITEM_REFUNDED` | `OrderItemCancellationService` (부분 취소 환불, 관리자 다시 처리로 환불한 것 포함. 실패한 환불은 남기지 않음) | memberId, walletId, orderId, cancellationId, paymentId, refundId, amount, balance, reason |
 | `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
 | `WALLET_FROZEN` | `WalletService.freeze` (처음 동결할 때만) | memberId, walletId, balance |
 | `BALANCE_RETURNED` | `WalletService.returnBalance` (탈퇴 회원 잔액 환급 기록) | memberId, walletId, balanceReturnId, amount, balance, ledgerId, returnedBy |
@@ -260,6 +264,8 @@
 | `kidly_payment_charges_stuck` | gauge | `status`(`confirming` · `cancelling`) | 30분 넘게 상태가 바뀌지 않은 승인 중 · 취소 중 충전 수 |
 | `kidly_payment_refund_retry_pending` | gauge | - | 다시 처리를 기다리는 주문 취소 환불(`order_cancellation_retry`) 수 |
 | `kidly_payment_refund_retry_oldest_age_seconds` | gauge | - | 그중 가장 오래된 기록의 나이(`created_at` = 처음 실패). 없으면 0 |
+| `kidly_payment_item_refund_retry_pending` | gauge | - | 관리자 처리를 기다리는 환불 못 한 주문상품 취소(`order_item_cancellation_retry`) 수 |
+| `kidly_payment_item_refund_retry_oldest_age_seconds` | gauge | - | 그중 가장 오래된 기록의 나이(`created_at` = 처음 실패). 없으면 0 |
 | `kidly_payment_payouts_total` | counter | `result`(`completed`) | 처음 처리한 정산서의 지급 입금(`SettlementPayoutService`, 0원 포함). 같은 정산서의 다시 받은 요청은 세지 않는다. 정산서 기준 관측은 정산 지표(#730) 몫이다 |
 | `kidly_payment_scheduler_last_success_seconds` | gauge | `task`(`charge_reconcile_confirming` · `charge_reconcile_cancelling` · `charge_expire` · `outbox_relay` · `order_cancellation_retry`) | 스케줄러가 마지막으로 성공한 시각(epoch 초). 기동 뒤 처음 성공하기 전에는 NaN |
 
