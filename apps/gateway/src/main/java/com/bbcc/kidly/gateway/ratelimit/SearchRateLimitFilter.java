@@ -43,7 +43,7 @@ class SearchRateLimitFilter implements GlobalFilter, Ordered {
         this.properties = properties;
         this.problem = problem;
         this.rejected = Counter.builder("kidly.gateway.rate.limited")
-            .description("요청 수 제한으로 429를 낸 요청 수")
+            .description("요청 수 제한으로 막은 요청 수(키별 429, 전체 503)")
             .tag("target", "search")
             .register(meterRegistry);
     }

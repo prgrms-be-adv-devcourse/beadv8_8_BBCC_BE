@@ -21,10 +21,9 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
 ## 전체 요청 수 제한
-- Redis 해시 `kidly:gateway:rate-limit:client:{RateLimitKeys.keyOf 결과}`에 남은 토큰과 갱신 시각을 저장한다. 키는 `MEMBER:123`, `ADMIN:123`, `CHILD:123`, `IP:주소`처럼 주체 종류와 ID 또는 IP를 포함한다. Lua가 Redis 시각으로 토큰을 채우고 차감하므로 Gateway 여러 대가 같은 한도를 쓴다. 기본 한도는 키마다 분당 200개이며 한꺼번에 200개까지 보낼 수 있다. 넘으면 429와 `Retry-After`(초)를 낸다. 해시 TTL은 한도가 다 차는 시간이다
-- 관리자 `GET /api/v1/admin/gateway/rate-limit`으로 현재 상태를 읽고 `PUT` 본문 `{"enabled":false}` 또는 `{"enabled":true}`로 바꾼다. 이 경로는 전체 한도에서 제외한다. 다른 Gateway는 기본 2초마다 Redis를 읽어 상태를 갱신한다. 스위치는 검색 · 챗봇 제한에 영향이 없다
+- Redis 해시 `kidly:gateway:rate-limit:client:{RateLimitKeys.keyOf 결과}`에 남은 토큰과 갱신 시각을 저장한다. 키는 `MEMBER:123`, `ADMIN:123`, `CHILD:123`, `IP:주소`처럼 주체 종류와 ID 또는 IP를 포함한다. Lua가 Redis 시각으로 토큰을 채우고 차감하므로 Gateway 여러 대가 같은 한도를 쓴다. 기본 한도는 키마다 분당 200개이며 한꺼번에 200개까지 보낼 수 있다. 넘으면 429와 `Retry-After`(초)를 낸다. 전체 버킷 키 `kidly:gateway:rate-limit:total`로 모든 Gateway를 합쳐 초당 500개까지 받으며 전체 한도를 넘으면 503과 `Retry-After`를 낸다. 두 버킷은 Lua 하나로 확인하고 둘 다 남았을 때만 차감한다. 해시 TTL은 한도가 다 차는 시간이다
+- 관리자 `GET /api/v1/admin/gateway/rate-limit`으로 현재 상태를 읽고 `PUT` 본문 `{"enabled":false}` 또는 `{"enabled":true}`로 바꾼다. 이 경로는 전체 한도에서 제외한다. 다른 Gateway는 기본 2초마다 Redis를 읽어 상태를 갱신한다. 스위치는 키별 · 전체 한도를 끄며 검색 · 챗봇 제한에는 영향이 없다
 - 스위치 키 `kidly:gateway:rate-limit:enabled`는 TTL이 없다. 키가 없으면 켜진다. Redis 읽기 실패 시 마지막 스위치 값을 유지한다. 검색 · 챗봇도 각각 search · chat 이름의 Redis 버킷을 쓴다. 버킷 확인 실패 시 검색 · 챗봇을 포함해 요청을 통과시키고 ERROR 로그를 남긴다. 스위치 쓰기 실패 시 503이다
-- 키별 제한은 한 클라이언트의 폭주를 막는다. 여러 클라이언트의 총부하는 제한하지 않는다
 
 ## 무효화 목록
 - `revocation/AccessTokenRevocations`: Redis 해시 `kidly:gateway:revocations`(필드 = 토큰 주체 `PrincipalId.toSubject()`, 값 = 무효화 시각 epoch 초, 키 TTL 없음, #1327). 그 시각까지(초 단위, 같은 초 포함) 발급된 토큰은 401. Gateway가 여러 대여도, 다시 떠도 같은 목록을 본다

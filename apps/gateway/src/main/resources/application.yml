@@ -234,6 +234,10 @@ kidly:
       client:
         capacity: 200
         period: 1m
+      # 모든 Gateway가 공유하는 전체 처리량 한도. 값은 부하테스트 뒤 고친다.
+      total:
+        capacity: 500
+        period: 1s
       # 검색어가 있는 상품 목록 요청 수 제한(#816, ratelimit/SearchRateLimitFilter). 회원(로그인) · IP(비로그인)마다 센다.
       # 검색어마다 검색 서비스가 임베딩 API(OpenAI)를 부른다. Redis에 세어 한도를 공유한다
       search:
