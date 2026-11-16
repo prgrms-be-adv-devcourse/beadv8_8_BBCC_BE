@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
  * 검색 요청이 API를 기다리므로, 장애 동안 요청마다 시간 초과(최대 약 3초)를 기다리지 않고 바로 키워드로만 찾게 한다.
  * 연속 {@value #FAILURE_THRESHOLD}번 실패하면 열고, {@link #OPEN_DURATION}이 지나면 호출 하나만 시험으로 보낸다.
  * 시험이 성공하면 닫고, 실패하면 다시 그만큼 연다. 상태 전환 때만 로그를 남긴다.
+ * 입력 거절(문장 하나의 문제)은 성공도 실패도 아니어서 세지 않는다(OpenAiTextEmbedder).
  * 바꿀 일이 드물어 설정으로 빼지 않는다.
  */
 @Slf4j
@@ -60,6 +61,13 @@ final class EmbeddingCircuitBreaker {
         if (openedAt != null) {
             openedAt = null;
             log.info("임베딩 API가 다시 응답해 의미 검색을 다시 씁니다");
+        }
+    }
+
+    // 연속 실패 수를 그대로 둔다. 시험 호출이었으면 열린 채로 자리만 돌려줘 다음 호출이 다시 시험한다
+    synchronized void onInputRejected(Permit permit) {
+        if (permit == Permit.PROBE) {
+            probing = false;
         }
     }
 
