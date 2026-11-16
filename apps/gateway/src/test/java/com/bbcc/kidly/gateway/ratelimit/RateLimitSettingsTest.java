@@ -5,38 +5,40 @@ import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.gateway.support.AsyncWait;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.ReactiveHashOperations;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
-import org.springframework.data.redis.core.ReactiveValueOperations;
 import reactor.core.publisher.Mono;
 
-class RateLimitSwitchTest {
+class RateLimitSettingsTest {
 
     @Test
-    @DisplayName("Redis 읽기가 읽는 주기보다 오래 걸려도 바뀐 스위치를 계속 읽는다")
+    @DisplayName("Redis 읽기가 읽는 주기보다 오래 걸려도 바뀐 설정을 계속 읽는다")
     void keepsRefreshingWhenReadIsSlowerThanPeriod() {
         var stored = new AtomicReference<>("true");
-        var rateLimitSwitch = new RateLimitSwitch(slowRedis(stored, Duration.ofMillis(100)),
+        var rateLimitSettings = new RateLimitSettings(slowRedis(stored, Duration.ofMillis(100)),
             new RateLimitProperties(Duration.ofMillis(20), null, null, null, null));
-        rateLimitSwitch.start();
+        rateLimitSettings.start();
         try {
             stored.set("false");
-            AsyncWait.until(() -> !rateLimitSwitch.isEnabled());
+            AsyncWait.until(() -> !rateLimitSettings.snapshot().enabled());
             stored.set("true");
-            AsyncWait.until(rateLimitSwitch::isEnabled);
+            AsyncWait.until(() -> rateLimitSettings.snapshot().enabled());
         } finally {
-            rateLimitSwitch.stop();
+            rateLimitSettings.stop();
         }
     }
 
     @SuppressWarnings("unchecked")
     private static ReactiveStringRedisTemplate slowRedis(AtomicReference<String> stored, Duration delay) {
         var redis = mock(ReactiveStringRedisTemplate.class);
-        var values = (ReactiveValueOperations<String, String>) mock(ReactiveValueOperations.class);
-        when(redis.opsForValue()).thenReturn(values);
-        when(values.get(RateLimitSwitch.KEY)).thenAnswer(ignored -> Mono.fromSupplier(stored::get).delayElement(delay));
+        var values = (ReactiveHashOperations<String, String, String>) mock(ReactiveHashOperations.class);
+        when(redis.<String, String>opsForHash()).thenReturn(values);
+        when(values.entries(RateLimitSettings.KEY)).thenAnswer(ignored ->
+            Mono.fromSupplier(() -> Map.entry("enabled", stored.get())).delayElement(delay).flux());
         return redis;
     }
 }

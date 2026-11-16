@@ -13,24 +13,22 @@ import reactor.core.publisher.Mono;
 
 /**
  * 클라이언트별 요청과 전체 요청을 함께 제한해 한 클라이언트의 폭주와 다수 클라이언트의 총부하에서 백엔드를 보호한다(#1417).
- * 검색 · 챗봇 필터와 같은 키 · 429 응답 · 순서다(주체 헤더가 붙은 뒤). 스위치 경로는 세지 않아 과부하 중에도 관리자가 끌 수 있다.
+ * 검색 · 챗봇 필터와 같은 키 · 429 응답 · 순서다(주체 헤더가 붙은 뒤). 설정 경로는 세지 않아 과부하 중에도 관리자가 끌 수 있다.
  */
 @Component
 class GlobalRateLimitFilter implements GlobalFilter, Ordered {
 
-    static final String SWITCH_PATH = "/api/v1/admin/gateway/rate-limit";
+    static final String SETTINGS_PATH = "/api/v1/admin/gateway/rate-limit";
     private final SharedRequestRateLimiter limiter;
-    private final RateLimitSwitch rateLimitSwitch;
-    private final RateLimitProperties properties;
+    private final RateLimitSettings settings;
     private final ProblemResponse problem;
     private final Counter clientRejected;
     private final Counter totalRejected;
 
-    GlobalRateLimitFilter(SharedRequestRateLimiter limiter, RateLimitSwitch rateLimitSwitch,
-        RateLimitProperties properties, ProblemResponse problem, MeterRegistry registry) {
+    GlobalRateLimitFilter(SharedRequestRateLimiter limiter, RateLimitSettings settings,
+        ProblemResponse problem, MeterRegistry registry) {
         this.limiter = limiter;
-        this.rateLimitSwitch = rateLimitSwitch;
-        this.properties = properties;
+        this.settings = settings;
         this.problem = problem;
         this.clientRejected = Counter.builder("kidly.gateway.rate.limited").tag("target", "client").register(registry);
         this.totalRejected = Counter.builder("kidly.gateway.rate.limited").tag("target", "total").register(registry);
@@ -39,11 +37,12 @@ class GlobalRateLimitFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         var request = exchange.getRequest();
-        if (!rateLimitSwitch.isEnabled() || SWITCH_PATH.equals(request.getPath().value())) {
+        var snapshot = settings.snapshot();
+        if (!snapshot.enabled() || SETTINGS_PATH.equals(request.getPath().value())) {
             return chain.filter(exchange);
         }
-        var client = new SharedRequestRateLimiter.Bucket("client", RateLimitKeys.keyOf(request), properties.client());
-        var total = new SharedRequestRateLimiter.Bucket("total", null, properties.total());
+        var client = new SharedRequestRateLimiter.Bucket("client", RateLimitKeys.keyOf(request), snapshot.client());
+        var total = new SharedRequestRateLimiter.Bucket("total", null, snapshot.total());
         return limiter.tryAcquire(List.of(client, total)).flatMap(result -> {
             if (result instanceof SharedRequestRateLimiter.Result.Rejected denied) {
                 if (denied.bucket().equals(total)) {
