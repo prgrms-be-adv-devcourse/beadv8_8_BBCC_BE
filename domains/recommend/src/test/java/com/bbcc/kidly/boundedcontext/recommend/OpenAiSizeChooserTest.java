@@ -36,8 +36,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 class OpenAiSizeChooserTest {
 
-    private static final String PROMPT_VERSION_6_SHA_256 =
-        "8df7e24e1174603975fd328bea3acc33f6975ff69f8d4266a96e6774b5918a70";
+    private static final String PROMPT_VERSION_7_SHA_256 =
+        "da1e48bcc9613167589c98b394b50dc0064c39db7ed20c5bdc306ee8d7115717";
 
     // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
     private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
@@ -168,7 +168,7 @@ class OpenAiSizeChooserTest {
 
     // 프롬프트 판 번호(SizeRecommendationReader.PROMPT_VERSION)는 AI 답 저장 키에 들어가, 판을 올려야 바뀐 프롬프트의 답이 예전 답과 섞이지 않는다
     @Test
-    @DisplayName("FIT-11 시스템 지시 글은 프롬프트 판 6의 글과 같다. 지시를 고치면 판 번호를 올리고 이 해시를 바꾼다")
+    @DisplayName("FIT-11 시스템 지시 글은 프롬프트 판 7의 글과 같다. 지시를 고치면 판 번호를 올리고 이 해시를 바꾼다")
     void systemInstructionIsPinnedToPromptVersion() throws Exception {
         List<Prompt> prompts = new ArrayList<>();
         ChatModel model = prompt -> {
@@ -182,7 +182,7 @@ class OpenAiSizeChooserTest {
 
         byte[] digest = MessageDigest.getInstance("SHA-256")
             .digest(prompts.getFirst().getSystemMessage().getText().getBytes(StandardCharsets.UTF_8));
-        assertThat(HexFormat.of().formatHex(digest)).isEqualTo(PROMPT_VERSION_6_SHA_256);
+        assertThat(HexFormat.of().formatHex(digest)).isEqualTo(PROMPT_VERSION_7_SHA_256);
     }
 
     @Test
