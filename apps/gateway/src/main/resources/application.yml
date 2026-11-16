@@ -176,6 +176,14 @@ spring:
               uri: ${kidly.gateway.chatbot-uri}
               predicates:
                 - Path=/api/v1/chatbot/**,/api/v1/admin/chatbot/**
+            # 전체 요청 수 제한 스위치 관리자 API(#1417). 백엔드로 넘기지 않고 Gateway가 답한다(ratelimit/RateLimitSwitchGatewayFilterFactory)
+            - id: gateway-rate-limit-switch
+              uri: no://op
+              predicates:
+                - Path=/api/v1/admin/gateway/rate-limit
+                - Method=GET,PUT
+              filters:
+                - RateLimitSwitch
             # 나머지는 어느 서비스에도 넘기지 않고 404 ProblemDetail로 답한다. 인증 · 역할 검사(GlobalFilter)는 라우트가 있어야 돌므로 모든 경로를 받아 둔다.
             # 새 서비스 경로는 이 위에 더한다
             - id: not-found
