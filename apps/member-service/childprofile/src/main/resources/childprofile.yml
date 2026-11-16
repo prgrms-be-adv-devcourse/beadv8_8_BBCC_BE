@@ -1,7 +1,7 @@
 kidly:
   childprofile:
     outbox:
-      relay-interval: PT1S
+      relay-interval: PT1M
       cleanup-cron: "0 0 4 * * *"
 
 ---

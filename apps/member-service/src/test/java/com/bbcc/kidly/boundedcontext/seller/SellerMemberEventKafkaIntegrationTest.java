@@ -4,8 +4,6 @@ import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.NOW;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
-import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
@@ -56,9 +54,6 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class SellerMemberEventKafkaIntegrationTest {
-
-    @Autowired
-    private SellerOutboxRelayService sellerOutboxRelayService;
 
     private static final String TOPIC = "kidly.member.events";
     private static final String GROUP = "kidly.seller";
@@ -202,7 +197,6 @@ class SellerMemberEventKafkaIntegrationTest {
         assertThat(sellerRepository.getById(memberId).getStatus()).isEqualTo(SellerStatus.CLOSED);
         assertThat(sellerApplicationRepository.getById(application).getApplicantWithdrawnAt()).isEqualTo(NOW);
         assertThat(deadLetters()).isEmpty();
-        sellerOutboxRelayService.relay();
         AsyncWait.until(TIMEOUT, () -> !sellerChanged().isEmpty());
         assertThat(sellerChanged()).singleElement().satisfies(record ->
             assertThat(jsonMapper.readTree(record.value()).get("data").get("status").asString()).isEqualTo("CLOSED"));
@@ -269,12 +263,8 @@ class SellerMemberEventKafkaIntegrationTest {
         return sellerApplicationRepository.getById(applicationId).getApplicantNickname();
     }
 
-    @Autowired
-    private MemberOutboxRelayService memberOutboxRelayService;
-
     private void publishInTransaction(MemberChangedEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(event));
-        memberOutboxRelayService.relay();
     }
 
     private MemberChangedEvent memberChanged(String nickname, LocalDateTime occurredAt) {

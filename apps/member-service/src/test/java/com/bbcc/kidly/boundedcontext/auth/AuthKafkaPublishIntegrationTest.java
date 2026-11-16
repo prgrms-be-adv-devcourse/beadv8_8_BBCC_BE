@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
-import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.member.MemberFixture;
 import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
@@ -81,9 +80,6 @@ class AuthKafkaPublishIntegrationTest {
 
     @Autowired
     private KafkaContainer kafka;
-
-    @Autowired
-    private AuthOutboxRelayService relayService;
 
     private KafkaConsumer<String, String> consumer;
     private final List<ConsumerRecord<String, String>> received = new ArrayList<>();
@@ -190,7 +186,6 @@ class AuthKafkaPublishIntegrationTest {
 
     // 전송은 비동기라 메시지가 올 때까지 읽는다. 받은 뒤 끝내므로 다음 테스트에 끼어들지 않는다
     private ConsumerRecord<String, String> awaitRecord(DomainEvent event) {
-        relayService.relay();
         AsyncWait.until(TIMEOUT, () -> {
             consumer.poll(Duration.ofMillis(200)).forEach(received::add);
             return findRecord(event).isPresent();

@@ -12,14 +12,12 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.GuardianVerificationFixture;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
-import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.auth.PrincipalId;
-import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import com.bbcc.kidly.support.KafkaMessages;
@@ -50,7 +48,6 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 class AuthChildProfileEventKafkaIntegrationTest {
     @Autowired private GuardianVerificationRepository verifications;
-    @Autowired private AuthOutboxRelayService authOutboxRelayService;
 
     private static final String TOPIC = "kidly.childprofile.events";
     private static final String DLT = TOPIC + ".auth.dlt";
@@ -74,8 +71,6 @@ class AuthChildProfileEventKafkaIntegrationTest {
     private ChildProfileService childProfiles;
     @Autowired
     private ChildProfileRepository profiles;
-    @Autowired
-    private ChildProfileOutboxRelayService relay;
 
     private final Long childId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     private KafkaMessages messages;
@@ -145,7 +140,6 @@ class AuthChildProfileEventKafkaIntegrationTest {
             assertThat(repository.findById(childId)).isEmpty();
             assertThat(accounts.existsByChildProfileId(childId)).isFalse();
             assertThat(tokens.findByTokenHash(RefreshToken.hashOf(token))).isEmpty();
-            authOutboxRelayService.relay();
             var found = new java.util.ArrayList<String>();
             AsyncWait.until(TIMEOUT, () -> {
                 consumer.poll(Duration.ofMillis(200)).forEach(record -> {
@@ -173,7 +167,6 @@ class AuthChildProfileEventKafkaIntegrationTest {
             var profile = childProfiles.register(memberId, new ChildProfileRequest("첫째", LocalDate.of(2019, 1, 15),
                 Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"), BodyType.NORMAL,
                     PreferredFit.LOOSE, true, true));
-            relay.relay();
             AsyncWait.until(TIMEOUT, () -> repository.findById(profile.id()).isPresent());
             var account = accounts.saveAccount(ChildAccount.create(UUID.randomUUID().toString().substring(0, 16),
                 "hash", memberId, profile.id()));
@@ -192,7 +185,6 @@ class AuthChildProfileEventKafkaIntegrationTest {
             messages.sendRaw("kidly.member.events", Long.toString(memberId), event.eventType(), event.eventId(),
                 jsonMapper.writeValueAsString(body));
             AsyncWait.until(TIMEOUT, () -> profiles.findAllByMemberId(memberId).isEmpty());
-            relay.relay();
             AsyncWait.until(TIMEOUT, () -> !accounts.existsByChildProfileId(profile.id())
                 && tokens.findByTokenHash(RefreshToken.hashOf(token)).isEmpty());
         } finally {

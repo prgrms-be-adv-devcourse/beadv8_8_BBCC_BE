@@ -1,6 +1,6 @@
 kidly:
   seller:
     outbox:
-      # 지연을 줄이려 200ms로 둔다. 빈 실행도 초당 5번 트랜잭션과 잠금 · 미전송 조회를 한다
-      relay-interval: PT0.2S
+      # 바로 전송하지 못한 오래된 메시지를 분마다 확인한다
+      relay-interval: PT1M
       cleanup-cron: "0 0 4 * * *"
