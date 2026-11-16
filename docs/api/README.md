@@ -416,4 +416,4 @@
 - `INVALID_CATEGORY`(400), `DOCUMENT_NOT_FOUND`(404)
 - `AI_UNAVAILABLE`(503): OpenAI 키가 없거나 호출이 실패 · 시간 초과했다. 문서 저장 · 수정은 반영되지 않는다
 - `AI_TIMEOUT`(503): 질문 하나가 시간 상한(`kidly.chatbot.answer.time-budget`, 기본 40초, Gateway 응답 제한 55초보다 짧다)을 넘었다. 넘는 즉시 답하고, 이미 보낸 OpenAI 호출 하나만 끝낸 뒤 그 질문의 남은 호출(도구 · 답 만들기)은 하지 않는다(#1388)
-- `AI_DAILY_LIMIT_REACHED`(503): 서비스 전체 하루(한국 시간) 질문 수 상한(`kidly.chatbot.quota.daily-questions`, 기본 1,000)에 닿았다. OpenAI를 부르지 않는다. 질문은 임베딩 · 답 만들기 전에 세고, 실패한 질문도 센다(챗봇 DB `question_usage`, #1388)
+- `AI_DAILY_LIMIT_REACHED`(503): 서비스 전체 하루(한국 시간) 질문 수 상한(`kidly.chatbot.quota.daily-questions`, 기본 2,000)에 닿았다. OpenAI를 부르지 않는다. 질문은 임베딩 · 답 만들기 전에 세고, 실패한 질문도 센다(챗봇 DB `question_usage`, #1388)

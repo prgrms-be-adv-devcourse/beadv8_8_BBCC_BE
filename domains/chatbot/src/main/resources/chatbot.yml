@@ -16,7 +16,7 @@ kidly:
     # 넘으면 OpenAI를 부르지 않고 503 AI_DAILY_LIMIT_REACHED. 질문 하나가 OpenAI를 임베딩 1번 + chat 최대 4번 부른다
     # 이전 대화는 최근 것부터 history-chars자까지만 AI에 넘긴다(요청은 10턴 × 1,000자까지 받는다)
     quota:
-      daily-questions: 1000
+      daily-questions: 2000
       history-chars: 3000
     # 상품 검색 도구가 부르는 검색 서비스(#1191). 내부 경로 GET /internal/products/search를 부른다
     search:
