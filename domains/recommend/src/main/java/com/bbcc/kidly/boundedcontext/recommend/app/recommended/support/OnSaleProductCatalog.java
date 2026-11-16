@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
  * 요청마다 판매중인 상품 복사본을 모두 읽으면 요청 수만큼 힙에 엔티티가 올라가 전체 GC가 계속 돌기 때문이다.
  * 보관한 값은 확인 간격마다 한 요청이 DB와 맞추므로, 상품이 바뀐 뒤 목록에 반영되기까지 최대 확인 간격만큼 늦다.
  * 보관은 Pod마다 따로 하므로 Pod끼리 반영 시점이 조금 다를 수 있다.
- * 맞출 때는 지난번에 본 수정 시각보다 겹치는 구간만큼 앞에서부터 고쳐진 상품만 읽고, 판매중인 상품 수가 다르면 모두 다시 읽는다.
+ * 맞출 때는 지난번 확인 시각보다 겹치는 구간만큼 앞에서부터 고쳐진 상품만 읽고, 판매중인 상품 수가 다르면 모두 다시 읽는다.
  */
 @Slf4j
 @Component
@@ -38,15 +38,14 @@ public class OnSaleProductCatalog {
     private volatile Map<Long, ReplicaProductSnapshot> products = new ConcurrentHashMap<>();
     // 한 번도 채우지 않았으면 null이다
     private volatile Instant lastCheckedAt;
-    // 지금까지 읽은 스냅숏 중 가장 늦은 수정 시각이다. 읽은 것이 없으면 null이다
-    private volatile LocalDateTime latestUpdatedAt;
 
     @Autowired
     public OnSaleProductCatalog(
         OnSaleProductLoader loader,
         @Value("${kidly.recommend.on-sale-products.refresh-interval:PT5S}") Duration refreshInterval,
         @Value("${kidly.recommend.on-sale-products.overlap:PT10S}") Duration overlap) {
-        this(loader, refreshInterval, overlap, Clock.systemUTC());
+        // 상품 복사본의 수정 시각은 JPA Auditing이 JVM 기본 시간대의 LocalDateTime.now()로 찍으므로 같은 시간대로 견준다
+        this(loader, refreshInterval, overlap, Clock.systemDefaultZone());
     }
 
     public OnSaleProductCatalog(OnSaleProductLoader loader, Duration refreshInterval, Duration overlap,
@@ -123,18 +122,19 @@ public class OnSaleProductCatalog {
 
     // 로더가 예외를 던지면 마지막 확인 시각을 바꾸지 않으므로 다음 요청이 다시 확인한다
     private void refresh() {
-        if (latestUpdatedAt == null) {
+        // DB를 읽는 동안 커밋된 변경이 다음 확인의 구간에 들어오도록, 끝난 시각이 아니라 시작한 시각을 남긴다
+        Instant startedAt = clock.instant();
+        if (lastCheckedAt == null) {
             reloadAll();
         } else {
             applyChanged();
         }
-        lastCheckedAt = clock.instant();
+        lastCheckedAt = startedAt;
     }
 
     private void applyChanged() {
-        List<ReplicaProductSnapshot> changed = loader.loadChangedAfter(latestUpdatedAt.minus(overlap));
-        for (ReplicaProductSnapshot snapshot : changed) {
-            raiseLatestUpdatedAt(snapshot);
+        LocalDateTime since = LocalDateTime.ofInstant(lastCheckedAt, clock.getZone()).minus(overlap);
+        for (ReplicaProductSnapshot snapshot : loader.loadChangedAfter(since)) {
             if (snapshot.status() == ProductStatus.ON_SALE) {
                 products.put(snapshot.productId(), snapshot);
             } else {
@@ -151,19 +151,8 @@ public class OnSaleProductCatalog {
     private void reloadAll() {
         Map<Long, ReplicaProductSnapshot> loaded = new ConcurrentHashMap<>();
         for (ReplicaProductSnapshot snapshot : loader.loadAllOnSale()) {
-            raiseLatestUpdatedAt(snapshot);
             loaded.put(snapshot.productId(), snapshot);
         }
         products = loaded;
-    }
-
-    private void raiseLatestUpdatedAt(ReplicaProductSnapshot snapshot) {
-        LocalDateTime updatedAt = snapshot.updatedAt();
-        if (updatedAt == null) {
-            return;
-        }
-        if (latestUpdatedAt == null || updatedAt.isAfter(latestUpdatedAt)) {
-            latestUpdatedAt = updatedAt;
-        }
     }
 }

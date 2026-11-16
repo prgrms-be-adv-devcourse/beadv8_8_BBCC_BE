@@ -18,8 +18,7 @@ import java.util.Set;
 public record ReplicaProductSnapshot(Long productId, Long sellerId, Long categoryId, String name,
     String thumbnailUrl, Long minPrice, ProductStatus status, String brand,
     LocalDateTime productRegisteredAt, LocalDateTime saleStartedAt, ProductSizes sizes,
-    Set<String> sellableSizes, List<String> categoryPathNames, boolean girlOnly,
-    LocalDateTime updatedAt) {
+    Set<String> sellableSizes, List<String> categoryPathNames, boolean girlOnly) {
 
     public ReplicaProductSnapshot {
         requireNonNull(productId, "productId는 필수입니다");
@@ -39,7 +38,7 @@ public record ReplicaProductSnapshot(Long productId, Long sellerId, Long categor
             product.getCategoryId(), product.getName(), product.getThumbnailUrl(), product.getMinPrice(),
             product.getStatus(), product.getBrand(), product.getProductRegisteredAt(),
             product.getSaleStartedAt(), product.toProductSizes(), product.getSellableSizes(), pathNames,
-            !product.isVisibleTo(Gender.MALE), product.getUpdatedAt());
+            !product.isVisibleTo(Gender.MALE));
     }
 
     /**

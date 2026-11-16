@@ -17,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.recommended.support.OnSalePro
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProductRepository;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaProductSnapshot;
+import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
@@ -60,7 +61,6 @@ class OnSaleProductCatalogIntegrationTest {
         ReplicaProductSnapshot product = products.get(0);
         assertThat(product.sizes()).isEqualTo(RecommendFixture.productA());
         assertThat(product.isSellable("110")).isTrue();
-        assertThat(product.updatedAt()).isNotNull();
     }
 
     @Test
@@ -77,6 +77,36 @@ class OnSaleProductCatalogIntegrationTest {
 
         assertThat(catalog.onSale(null)).extracting(ReplicaProductSnapshot::productId)
             .containsExactly(FIRST_PRODUCT_ID);
+    }
+
+    @Test
+    @DisplayName("판매중인 상품 복사본의 이름과 품절 사이즈가 바뀌면 판매중 상품 수가 그대로여도 다음에 읽을 때 반영된다")
+    void applyChangeThatKeepsOnSaleCount() {
+        replicaProductRepository.save(RecommendFixture.replicaProduct(FIRST_PRODUCT_ID, ProductStatus.ON_SALE));
+        replicaProductRepository.save(RecommendFixture.replicaProduct(SECOND_PRODUCT_ID, ProductStatus.ON_SALE));
+        assertThat(catalog.onSale(null)).hasSize(2);
+
+        // 두 번째 상품은 계속 판매중이지만 이름이 바뀌고 110이 품절이 됐다
+        transactionTemplate.executeWithoutResult(status -> replicaProductRepository.findById(SECOND_PRODUCT_ID)
+            .orElseThrow()
+            .applyIfNewer(new RecommendReplicaProduct.ChangeInfo(SECOND_PRODUCT_ID, PRODUCT_A_SELLER_ID,
+                PRODUCT_A_CATEGORY_ID, "바뀐 이름", ProductStatus.ON_SALE, PRODUCT_A_THUMBNAIL_URL,
+                PRODUCT_A_REGISTERED_AT, false,
+                List.of(productOptionInfo("110", true, OptionSaleStatus.ON_SALE),
+                    productOptionInfo("120", 115, 125)),
+                PRODUCT_A_BRAND, PRODUCT_A_DESCRIPTION, productASizeSpecInfos(), productAInfoValues(),
+                PRODUCT_CHANGED_AT.plusMinutes(1))));
+
+        ReplicaProductSnapshot changed = null;
+        for (ReplicaProductSnapshot product : catalog.onSale(null)) {
+            if (product.productId().equals(SECOND_PRODUCT_ID)) {
+                changed = product;
+            }
+        }
+        assertThat(changed).isNotNull();
+        assertThat(changed.name()).isEqualTo("바뀐 이름");
+        assertThat(changed.isSellable("110")).isFalse();
+        assertThat(changed.isSellable("120")).isTrue();
     }
 
     @Test

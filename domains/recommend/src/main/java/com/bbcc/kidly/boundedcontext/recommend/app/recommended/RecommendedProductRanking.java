@@ -50,7 +50,7 @@ public class RecommendedProductRanking {
         this.selector = new RecommendedProductSelector(new SizeRecommender(growthChart));
     }
 
-    // 판매중인 상품은 메모리에 보관한 스냅숏으로 읽으므로 상품 복사본을 DB에서 읽지 않는다
+    // 판매중인 상품은 메모리에 보관한 스냅숏으로 읽는다. 확인 간격이 지난 요청에서는 이 호출 안에서 고쳐진 상품 복사본을 DB에서 읽는다
     public List<RecommendedProduct> rank(Long memberId, RecommendReplicaChild child, Long categoryId,
         LocalDateTime asOf) {
         List<RecommendedProduct> selected = selector.select(child.toChildSizeInput(),
