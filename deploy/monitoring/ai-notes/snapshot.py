@@ -45,7 +45,8 @@ def queries(env):
         # 서비스별로 볼 수 있게 한다: ERROR 로그 수, 30분 안에 새로 뜬 프로세스 수(배포 · 장애 · 수동 패치), 구독 그룹 kidly.<도메인>의 미처리
         'error_logs_30m': ('estimated_count', f'sum by (job) (increase(logback_events_total{{{app},level="error"}}[30m]))'),
         'restarts_30m': ('count', f'count by (job) ((time() - process_start_time_seconds{{{app}}}) < 1800) or (0 * max by (job) (process_start_time_seconds{{{app}}}))'),
-        'kafka_lag_by_service': ('count', f'sum by (job) (label_replace((kafka_consumergroup_lag{{{lag}}} >= 0) and (time()-timestamp(kafka_consumergroup_lag{{{lag}}})<60), "job", "kidly-$1", "consumergroup", "kidly[.]([a-z]+)"))'),
+        # member 서비스는 auth · childprofile · member · seller 그룹을 함께 쓴다(대시보드 상태판과 같은 규칙)
+        'kafka_lag_by_service': ('count', f'sum by (job) (label_replace(label_replace((kafka_consumergroup_lag{{{lag}}} >= 0) and (time()-timestamp(kafka_consumergroup_lag{{{lag}}})<60), "job", "kidly-$1", "consumergroup", "kidly[.]([a-z]+)"), "job", "kidly-member", "consumergroup", "kidly[.](auth|childprofile|member|seller)"))'),
         'host_memory_available': ('percent', 'min(100*node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes and (time()-timestamp(node_memory_MemAvailable_bytes)<60))'),
         'host_disk_used': ('percent', 'max(100*(1-node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}/node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) and (time()-timestamp(node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"})<60))'),
     }
@@ -97,7 +98,7 @@ def collect(environment, now=None):
         'Host metrics are worst observed across available hosts, not a specific service host; absent hosts can be omitted.',
         'Kafka lag is one snapshot; it does not establish increasing lag.',
         # 아래 두 줄은 MCP 전용 지표 설명이다. Groq 경로는 지표와 함께 이 줄도 뺀다(groq_provider.MCP_ONLY_METRICS)
-        'kafka_lag_by_service maps consumer group kidly.<domain> to kidly-<domain>, excluding DLT groups and unknown offsets.',
+        'kafka_lag_by_service maps consumer group kidly.<name> to kidly-<name>; kidly-member sums auth, childprofile, member and seller groups. DLT groups and unknown offsets are excluded.',
         'error_logs_30m counts ERROR log events, not distinct incidents. restarts_30m counts process instances started within 30 minutes (deploy, crash or manual patch); it does not say which, and several instances count separately.',
     ))
     return AnalysisContext(1, str(uuid.uuid4()), now-1800, now, (environment,), tuple(facts), tuple(limitations))
