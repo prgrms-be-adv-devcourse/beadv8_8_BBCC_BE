@@ -8,6 +8,8 @@ import static org.mockito.Mockito.never;
 import com.bbcc.kidly.boundedcontext.member.app.MemberEventRelay;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberEventSender;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
+import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
@@ -27,6 +29,17 @@ class MemberEventRelayTest {
 
     @InjectMocks
     private MemberEventRelay memberEventRelay;
+
+    @Test
+    @DisplayName("가입과 정지는 아웃박스가 보내므로 바로 넘기지 않는다")
+    void skipRegisteredAndSuspended() {
+        memberEventRelay.relay(new MemberRegisteredEvent(UUID.randomUUID(), NOW,
+            new MemberRegisteredEvent.Data(1L, "test@example.com")));
+        memberEventRelay.relay(new MemberSuspendedEvent(UUID.randomUUID(), NOW,
+            new MemberSuspendedEvent.Data(1L, "사유", NOW)));
+
+        then(memberEventSender).should(never()).send(any());
+    }
 
     @Test
     @DisplayName("회원이 발행한 이벤트는 Kafka로 넘긴다")

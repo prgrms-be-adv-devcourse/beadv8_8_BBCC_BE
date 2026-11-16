@@ -49,7 +49,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 회원 이벤트가 커밋 뒤 kidly.member.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#548).
  * 받는 쪽이 받는 것은 그 도메인의 테스트가 본다.
- * 탈퇴는 아웃박스 릴레이로 보낸다(#562). 테스트 설정에서 릴레이 주기를 길게 두었으므로 릴레이는 테스트가 직접 부른다.
+ * 가입 · 정지 · 탈퇴는 아웃박스 릴레이로 보낸다. 테스트 설정에서 릴레이 주기를 길게 두었으므로 테스트가 직접 부른다.
  * 다른 테스트의 회원 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
  */
 @KafkaIntegrationTest
@@ -119,6 +119,7 @@ class MemberKafkaPublishIntegrationTest {
             new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), MemberFixture.EMAIL));
 
         var registered = events.stream(MemberRegisteredEvent.class).findFirst().orElseThrow();
+        relayService.relay();
         var record = awaitRecord(registered);
         assertThat(record.key()).isEqualTo(String.valueOf(member.getId()));
         assertThat(header(record, "eventType")).isEqualTo("member.registered");
@@ -216,6 +217,7 @@ class MemberKafkaPublishIntegrationTest {
         adminMemberService.suspend(member.getId(), 100L, new MemberSuspendRequest("정지 사유"));
         var committed = events.stream(MemberSuspendedEvent.class)
             .filter(event -> !event.eventId().equals(rolledBack.eventId())).findFirst().orElseThrow();
+        relayService.relay();
         assertSent(committed, "member.suspended", member.getId());
         var body = JSON_MAPPER.readTree(awaitRecord(committed).value());
         assertThat(body.get("producer").asString()).isEqualTo("member");

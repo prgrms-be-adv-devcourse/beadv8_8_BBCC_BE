@@ -10,9 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 회원 탈퇴 이벤트를 kidly.member.events로 보낼 메시지로 저장한다.
+ * 회원 가입 · 정지 · 탈퇴 이벤트를 kidly.member.events로 보낼 메시지로 저장한다.
  * 키는 correlationId(회원 ID)라 같은 회원의 이벤트가 같은 파티션에 쌓이고, 본문은 {@link MemberEventEnvelope} JSON이다.
- * 커밋 뒤 바로 보내는 가입 · 변경과 본문 모양이 같다.
+ * 커밋 뒤 바로 보내는 변경과 본문 모양이 같다.
  */
 @Component
 public class JpaMemberEventOutbox implements MemberEventOutbox {

@@ -24,7 +24,6 @@ public class MemberRegisteredRepublishService {
     private final MemberRepository memberRepository;
     private final ApplicationEventPublisher eventPublisher;
 
-    // Kafka로는 이 트랜잭션이 커밋된 뒤 나간다(MemberEventRelay)
     @Transactional
     public int republishAll() {
         int publishedCount = 0;

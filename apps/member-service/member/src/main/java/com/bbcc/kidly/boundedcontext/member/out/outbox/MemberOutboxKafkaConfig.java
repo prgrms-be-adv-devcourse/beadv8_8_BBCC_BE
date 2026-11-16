@@ -12,7 +12,7 @@ import org.springframework.kafka.support.ProducerListener;
 
 /**
  * 회원 아웃박스 릴레이가 쓰는 동기 전송기를 회원 전용 KafkaTemplate으로 만든다.
- * 커밋 뒤 바로 보내는 가입 · 변경의 전송기(out/kafka/MemberKafkaConfig)와 템플릿을 따로 둔다. 각자 앱이 내려갈 때 자기 것을 닫는다.
+ * 커밋 뒤 바로 보내는 변경의 전송기(out/kafka/MemberKafkaConfig)와 템플릿을 따로 둔다. 각자 앱이 내려갈 때 자기 것을 닫는다.
  * 템플릿은 Boot 프로듀서 설정(주소 · 직렬화 등)을 그대로 쓰고 대기 시간만 덮어쓴다.
  * 빈으로 등록하지 않으므로 Boot 기본 KafkaTemplate과 앱 spring.kafka 설정은 그대로다.
  */
