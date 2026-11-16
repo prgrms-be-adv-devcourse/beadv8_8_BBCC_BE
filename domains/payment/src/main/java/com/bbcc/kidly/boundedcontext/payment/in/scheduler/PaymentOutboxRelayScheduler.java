@@ -51,6 +51,7 @@ public class PaymentOutboxRelayScheduler {
                 properties.relayInterval());
             return;
         }
-        log.info("결제 아웃박스 릴레이: outcome={} targets={} sent={}", result.outcome(), result.targets(), result.sent());
+        log.info("결제 아웃박스 릴레이: outcome={} targets={} sent={} parked={}", result.outcome(), result.targets(),
+            result.sent(), result.parked());
     }
 }
