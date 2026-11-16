@@ -20,13 +20,6 @@ jobs:
       SSH_HOST: ${{ vars.SSH_HOST }}
     steps:
       - uses: actions/checkout@v7
-      - name: 작업 시간 확인
-        run: |
-          hour=$(TZ=Asia/Seoul date +%H)
-          if (( 10#$hour < 9 || 10#$hour >= 18 )); then
-            echo "::error::Agent 파일 준비는 09:00~18:00 KST에 실행합니다."
-            exit 1
-          fi
       - name: 서버 접속 확인 · SSH 키 준비
         uses: ./.github/actions/server-ssh
         with:
