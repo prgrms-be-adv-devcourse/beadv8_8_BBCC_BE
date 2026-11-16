@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.seller.out.kafka;
+package com.bbcc.kidly.boundedcontext.seller.out.outbox;
 
 import com.bbcc.kidly.shared.event.DomainEvent;
 import java.time.LocalDateTime;

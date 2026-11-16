@@ -18,7 +18,7 @@
 
 ## 보내는 쪽
 
-커밋 뒤 바로 보내는 실제 코드는 판매자의 `SellerEventRelay`와 `out.kafka`를, 아웃박스로 보내는 코드는 회원과 결제 · 상품을 참고합니다. 요지는 아래와 같습니다.
+아웃박스로 보내는 실제 코드는 회원과 판매자 · 결제 · 상품을 참고합니다. 요지는 아래와 같습니다.
 
 ```java
 // domains/order/.../out/OrderEventSender.java (요지)

@@ -2,19 +2,12 @@ package com.bbcc.kidly.boundedcontext.seller.out.outbox;
 
 import com.bbcc.kidly.boundedcontext.seller.app.port.outbox.SellerEventOutbox;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
-import com.bbcc.kidly.boundedcontext.seller.out.kafka.KafkaSellerEventSender;
-import com.bbcc.kidly.boundedcontext.seller.out.kafka.SellerEventEnvelope;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 판매자 변경 이벤트를 kidly.seller.events로 보낼 메시지로 저장한다.
- * 키는 correlationId(판매자 ID)라 같은 판매자의 이벤트가 같은 파티션에 쌓이고, 본문은 {@link SellerEventEnvelope} JSON이다.
- * 커밋 뒤 바로 보내는 신청 거절과 본문 모양이 같다.
- */
 @Component
 public class JpaSellerEventOutbox implements SellerEventOutbox {
 
@@ -33,6 +26,6 @@ public class JpaSellerEventOutbox implements SellerEventOutbox {
     public void append(DomainEvent event) {
         var payload = jsonMapper.writeValueAsString(SellerEventEnvelope.from(event));
         outboxRepository.save(SellerOutboxMessage.create(new SellerOutboxMessage.CreateInfo(
-            event.eventId(), event.eventType(), KafkaSellerEventSender.TOPIC, event.correlationId(), payload)));
+            event.eventId(), event.eventType(), SellerOutboxKafkaConfig.TOPIC, event.correlationId(), payload)));
     }
 }

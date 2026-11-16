@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxRepository;
+import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerApplicationRejectedEvent;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
@@ -39,17 +40,19 @@ class SellerOutboxRecorderIntegrationTest {
     private SellerOutboxRepository outboxRepository;
 
     @Test
-    @DisplayName("판매자 변경만 업무 트랜잭션에 저장한다")
+    @DisplayName("판매자 이벤트만 업무 트랜잭션에 저장한다")
     void recordsChanged() {
         var now = LocalDateTime.now();
         transactionTemplate.executeWithoutResult(status -> {
+            publisher.publishEvent(new MemberChangedEvent(UUID.randomUUID(), now,
+                new MemberChangedEvent.Data(1L, "회원")));
             publisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), now,
                 new SellerChangedEvent.Data(1L, "상호", SellerStatus.ACTIVE)));
             publisher.publishEvent(new SellerApplicationRejectedEvent(UUID.randomUUID(), now,
                 new SellerApplicationRejectedEvent.Data(1L, 1L, "사유", now)));
         });
         assertThat(jdbcTemplate.queryForList("select event_type from seller.seller_outbox", String.class))
-            .containsExactly("seller.changed");
+            .containsExactlyInAnyOrder("seller.changed", "seller.application-rejected");
     }
 
     @Test

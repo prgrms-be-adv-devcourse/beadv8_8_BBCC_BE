@@ -3,26 +3,32 @@ package com.bbcc.kidly.boundedcontext.seller.out.outbox;
 import com.bbcc.kidly.boundedcontext.seller.app.port.outbox.SellerOutboxSender;
 import java.time.Duration;
 import java.util.Map;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.ProducerListener;
 
 /**
- * 판매자 아웃박스 릴레이가 쓰는 동기 전송기를 판매자 전용 KafkaTemplate으로 만든다.
- * 커밋 뒤 바로 보내는 신청 거절 전송기와 템플릿을 따로 둔다. 각자 앱이 내려갈 때 자기 것을 닫는다.
- * 템플릿은 Boot 프로듀서 설정(주소 · 직렬화 등)을 그대로 쓰고 대기 시간만 덮어쓴다.
  * 빈으로 등록하지 않으므로 Boot 기본 KafkaTemplate과 앱 spring.kafka 설정은 그대로다.
  */
 @Configuration
 class SellerOutboxKafkaConfig {
 
+    static final String TOPIC = "kidly.seller.events";
+
+    // 파티션 수는 만든 뒤 바꾸지 않는다(늘리면 키가 들어가는 파티션이 바뀌어 순서가 깨진다)
+    @Bean
+    NewTopic sellerEventsTopic() {
+        return TopicBuilder.name(TOPIC).partitions(3).replicas(1).build();
+    }
+
     // 브로커가 응답하지 않거나 토픽 정보가 없을 때 send가 기다리는 시간이다. 기본 60초는 메시지 하나에 너무 길다
     static final int MAX_BLOCK_MS = 3000;
 
-    // 브로커의 요청 응답을 기다리는 시간이다.
     // delivery.timeout.ms가 linger.ms + request.timeout.ms보다 작으면 첫 send에서 프로듀서를 만들 때 설정 오류가 나므로 함께 줄인다
     static final int REQUEST_TIMEOUT_MS = 5000;
 
@@ -39,7 +45,6 @@ class SellerOutboxKafkaConfig {
             ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, REQUEST_TIMEOUT_MS,
             ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, DELIVERY_TIMEOUT_MS));
         // 기본 LoggingProducerListener는 실패 로그에 본문을 찍는다.
-        // 실패는 KafkaSellerOutboxSender가 본문 없는 예외로 알린다
         kafkaTemplate.setProducerListener(new ProducerListener<>() {
         });
         return new KafkaSellerOutboxSender(kafkaTemplate, SEND_TIMEOUT);
