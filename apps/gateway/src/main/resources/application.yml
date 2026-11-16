@@ -194,7 +194,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
-# Gateway도 자기 요청을 nginx가 받은 주소(https://dev-api...)로 본다. 같은 출처 요청(dev Swagger)을 CORS가 다른 출처로 막지 않게 한다.
+# Gateway도 자기 요청을 nginx가 받은 주소(https://api...)로 본다. 같은 출처 요청(dev Swagger)을 CORS가 다른 출처로 막지 않게 한다.
 # native(Reactor Netty)는 헤더를 지우지 않아 앱에도 간다. framework(ForwardedHeaderTransformer)는 지우므로 쓰지 않는다
 server:
   forward-headers-strategy: native

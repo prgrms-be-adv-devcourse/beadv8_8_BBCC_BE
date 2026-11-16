@@ -5,9 +5,9 @@
 
 | 주소 | 연결되는 곳 |
 | --- | --- |
-| `https://dev-api.<도메인>` | Gateway (k3s NodePort 30200). `/actuator/health` 도 Gateway가 받음 |
+| `https://api.<도메인>` | Gateway (k3s NodePort 30200). `/actuator/health` 도 Gateway가 받음. `dev-api` 에서 옮겼다(#1335) |
 | `https://grafana.<도메인>` | Grafana (t3.medium k3s, `deploy/monitoring`) |
-| `https://api.<도메인>`, IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음. prod 는 걷어냈다(#1213). `api` 는 인증서 갱신 확인용으로 80 에만 남는다 |
+| `https://dev-api.<도메인>`, IP 로 직접 접속, 모르는 호스트 | 응답 없이 끊음. `dev-api` 는 인증서 갱신 확인용으로 80 에만 남는다 |
 
 ## 구성 (`nginx.yaml`)
 
@@ -44,7 +44,7 @@ cd ~/kidly-nginx/deploy/nginx && MONITORING_HOST=<모니터링 서버 사설 IP>
    ```bash
    sudo systemctl disable --now nginx kidly-certbot-renew.timer
    kubectl -n edge wait --for=condition=Ready pod -l app=nginx --timeout 60s
-   curl -I https://dev-api.kidly.kro.kr/actuator/health
+   curl -I https://api.kidly.kro.kr/actuator/health
    ```
 3. 갱신을 한 번 시험합니다(실제 인증서는 바뀌지 않음).
    ```bash
@@ -78,7 +78,7 @@ sudo k3s kubectl -n edge run certbot-issue --rm -i --restart=Never --image certb
 ## 확인
 
 ```bash
-curl -I https://dev-api.<도메인>/actuator/health
+curl -I https://api.<도메인>/actuator/health
 curl -I https://grafana.<도메인>/api/health
 kubectl -n edge get pods,cronjob                  # nginx Running, certbot-renew 의 마지막 실행 시각
 kubectl -n edge logs job/<certbot-renew-…>        # 갱신 기록

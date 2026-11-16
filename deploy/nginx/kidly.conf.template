@@ -41,7 +41,7 @@ server {
 }
 
 # HTTP: 인증서 발급·갱신용 경로만 열고 나머지는 https 로 보낸다
-# 인증서에 api 이름이 들어 있어 갱신할 때 api 로도 확인 요청이 온다. prod(api 의 443)는 걷어냈지만(#1213) 여기 이름은 남긴다
+# 인증서에 dev-api 이름이 들어 있어 갱신할 때 dev-api 로도 확인 요청이 온다. 앱은 api 로 옮겼지만(#1335) 여기 이름은 남긴다
 server {
     listen 80;
     server_name api.__DOMAIN__ dev-api.__DOMAIN__ grafana.__DOMAIN__;
@@ -55,11 +55,11 @@ server {
     }
 }
 
-# 개발 앱(운영 서버로 쓴다). Gateway 는 이 서버의 단독 k3s 에 뜨고 NodePort 30200 으로 닿는다(deploy/k3s, #1142)
+# 앱. dev-api 에서 api 로 옮겼다(#1335). Gateway 는 이 서버의 단독 k3s 에 뜨고 NodePort 30200 으로 닿는다(deploy/k3s, #1142)
 server {
     listen 443 ssl;
     http2 on;
-    server_name dev-api.__DOMAIN__;
+    server_name api.__DOMAIN__;
 
     # actuator 는 서버 안(Alloy)에서만 쓴다. 외부에는 헬스체크만 연다
     location /actuator {
