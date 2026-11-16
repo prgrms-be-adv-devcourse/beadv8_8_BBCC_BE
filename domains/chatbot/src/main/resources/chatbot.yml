@@ -7,6 +7,11 @@ kidly:
     retrieval:
       top-k: 4
       min-score: 0.3
+    # 질문 하나에 쓰는 시간 상한(#1388). 넘으면 남은 OpenAI 호출을 멈추고 503 AI_TIMEOUT으로 답한다.
+    # OpenAI chat 한 번이 15초 + 재시도 한 번이고 도구까지 부르면 몇 번을 부르므로, 이 상한이 없으면 Gateway 응답 제한(55초)을 넘겨
+    # 회원은 504를 받는데 서비스는 계속 OpenAI를 부른다. Gateway보다 짧게 둔다
+    answer:
+      time-budget: 40s
     # 상품 검색 도구가 부르는 검색 서비스(#1191). 내부 경로 GET /internal/products/search를 부른다
     search:
       uri: ${KIDLY_SEARCH_URI:http://localhost:8082}

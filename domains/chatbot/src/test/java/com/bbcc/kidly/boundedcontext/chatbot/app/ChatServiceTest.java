@@ -19,6 +19,7 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.shared.order.dto.MemberOrderSummary;
 import com.bbcc.kidly.shared.search.dto.ProductHit;
 import com.bbcc.kidly.shared.search.dto.ProductSearchQuery;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +54,7 @@ class ChatServiceTest {
     void setUp() {
         chatService = new ChatService(indexCache, new OpenAiChatbotAi(provider(ChatModel.class, chatModel),
             provider(EmbeddingModel.class, embeddingModel)), new ChatbotRetrievalProperties(4, 0.3), productSearcher,
-            orderHistory);
+            orderHistory, new ChatbotAnswerProperties(Duration.ofSeconds(5)));
         given(indexCache.current()).willReturn(KnowledgeIndex.of(List.of(
             entry(1, 10, "교환 · 반품 정책", RETURN_POLICY),
             entry(2, 20, "사이즈 가이드", SIZE_GUIDE))));
@@ -316,6 +317,29 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("질문 시간 상한을 넘기면 기다리지 않고 503 AI_TIMEOUT이고, 이미 보낸 호출이 끝난 뒤에는 모델을 더 부르지 않는다")
+    void stopsAtTimeBudget() throws InterruptedException {
+        ChatService budgeted = new ChatService(indexCache, new OpenAiChatbotAi(provider(ChatModel.class, chatModel),
+            provider(EmbeddingModel.class, embeddingModel)), new ChatbotRetrievalProperties(4, 0.3), productSearcher,
+            orderHistory, new ChatbotAnswerProperties(Duration.ofMillis(700)));
+        productSearcher.willReturn(List.of(hit(1)));
+        for (int i = 0; i < 3; i++) {
+            chatModel.callToolNext("searchProducts", "{\"keyword\":\"원피스\"}");
+        }
+        chatModel.delayEachCall(Duration.ofMillis(500));
+
+        long started = System.nanoTime();
+        assertThatThrownBy(() -> budgeted.answer(MEMBER_ID, PRODUCT_QUESTION, List.of()))
+            .isInstanceOfSatisfying(BusinessException.class,
+                e -> assertThat(e.getErrorCode()).isEqualTo(ChatbotErrorCode.AI_TIMEOUT));
+        assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofMillis(950));
+
+        // 두 번째 호출(500 ~ 1000ms)은 끝까지 가지만, 마감(700ms)이 지나 세 번째 호출은 하지 않는다
+        Thread.sleep(1_000);
+        assertThat(chatModel.prompts()).hasSize(2);
+    }
+
+    @Test
     @DisplayName("모델이 없는 도구를 부르면 503 AI_UNAVAILABLE이다")
     void unknownToolIsUnavailable() {
         chatModel.callToolNext("deleteAllOrders", "{}");
@@ -351,7 +375,8 @@ class ChatServiceTest {
         ChatService withoutModels = new ChatService(indexCache, new OpenAiChatbotAi(
             new StaticListableBeanFactory().getBeanProvider(ChatModel.class),
             new StaticListableBeanFactory().getBeanProvider(EmbeddingModel.class)),
-            new ChatbotRetrievalProperties(4, 0.3), productSearcher, orderHistory);
+            new ChatbotRetrievalProperties(4, 0.3), productSearcher, orderHistory,
+            new ChatbotAnswerProperties(Duration.ofSeconds(5)));
 
         assertThatThrownBy(() -> withoutModels.answer(MEMBER_ID, "반품은 며칠 안에 신청하나요?", List.of()))
             .isInstanceOfSatisfying(BusinessException.class,
