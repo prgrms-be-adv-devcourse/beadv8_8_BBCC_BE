@@ -36,7 +36,8 @@ class FavoriteServiceTest {
     private final FakeProducts products = new FakeProducts();
     private final FavoriteService service =
         new FavoriteService(favorites, stats, products, new FavoriteSeparateTransaction(),
-            org.mockito.Mockito.mock(com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog.class));
+            org.mockito.Mockito.mock(com.bbcc.kidly.boundedcontext.favorite.app.port.FavoriteActivityLog.class),
+            org.mockito.Mockito.mock(com.bbcc.kidly.boundedcontext.favorite.app.port.DeletedChildAccounts.class));
 
     @Test
     @DisplayName("판매 중 상품을 찜하면 저장하고 찜 수 +1")
