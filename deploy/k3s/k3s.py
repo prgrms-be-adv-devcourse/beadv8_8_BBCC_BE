@@ -191,7 +191,7 @@ def manifest(env, name, node_port, job, service, project_dir):
                      'enableServiceLinks': False,
                      'volumes': volumes,
                  }}}},
-        # NodePort 가 있으면 이 서버(compose 의 Gateway · nginx)가 host 주소로 붙는다. 보안 그룹에서 밖으로 열지 않는다(X-Member-* 위조 방지)
+        # NodePort 가 있으면 이 서버의 compose Gateway 가 host 주소로 붙는다. 보안 그룹에서 밖으로 열지 않는다(X-Member-* 위조 방지)
         # 없으면 클러스터 안에서만 <이름>:8080 으로 닿는다
         {'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': name, 'namespace': ns, 'labels': labels},
          'spec': dict({'type': 'NodePort', 'ports': [dict(port, nodePort=node_port)]} if node_port else
