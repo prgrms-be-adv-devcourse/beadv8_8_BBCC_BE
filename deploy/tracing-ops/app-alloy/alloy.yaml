@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracing-alloy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracing-alloy
+  template:
+    metadata:
+      labels:
+        app: tracing-alloy
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.10.1@sha256:582f5a5169cd67a2bdbf98777c1a6f596203f573cdef5c021749fd3279605768
+          args: ["run", "/etc/alloy/otlp.alloy"]
+          env:
+            - name: TRACING_OTLP_LISTEN
+              value: "0.0.0.0:4318"
+            - name: TRACING_TEMPO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: tracing-tempo-endpoint
+                  key: url
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+              readOnly: true
+            - name: client-tls
+              mountPath: /etc/tracing-tls
+              readOnly: true
+      volumes:
+        - name: client-tls
+          secret:
+            secretName: tracing-alloy-client-tls
+        - name: config
+          configMap:
+            name: tracing-alloy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracing-alloy
+spec:
+  selector:
+    app: tracing-alloy
+  ports:
+    - name: otlp
+      port: 4318
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tracing-alloy
+spec:
+  podSelector:
+    matchLabels:
+      app: tracing-alloy
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, order]
+      ports:
+        - protocol: TCP
+          port: 4318
