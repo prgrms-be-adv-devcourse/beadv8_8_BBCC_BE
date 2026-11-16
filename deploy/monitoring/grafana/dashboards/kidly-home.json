@@ -50,7 +50,7 @@
       "id": 9,
       "type": "table",
       "title": "서비스 상태판 · 운영(dev) · 최근 5분",
-      "description": "줄을 누르면 '서비스 상태 열기' · '오류 로그 열기'를 고를 수 있습니다. 그 서비스가 선택되고 시간 범위는 유지됩니다.\n수집 상태: 정상이 아니면 서비스 상태의 '서비스 수집 상태'와 Pod 재시작 여부 확인\n5xx 비율: 오르면 오류 로그에서 같은 시각의 ERROR · 요청 로그 확인 (Gateway는 하위 서비스 오류를 포함, 5% 이상이면 알림)\nERROR 로그: 오르면 오류 로그의 'ERROR 로그'에서 예외 타입 확인 (5건 이상이면 알림)\n초당 요청: 갑자기 0이 되면 Gateway 라우팅 · 앞단 서비스 확인, 급증하면 오류율 · 응답시간 함께 확인\n평균 응답시간: 오르면 오류 로그의 'API 처리 시간(p95)'과 응답·DB 연결의 풀 대기 확인 (이 열은 평균)\nKafka 미처리: 계속 늘면 Kafka 처리 화면에서 그룹 · 토픽별 추이 확인 (구독하지 않거나 오프셋이 아직 확정되지 않으면 -)\n마지막 재시작: 예상하지 못한 최근 시각이면 배포 이력 · 수동 패치(#1349) 덮어쓰기 · 메모리 부족 확인",
+      "description": "줄을 누르면 '서비스 상세 열기'(HTTP · JVM · DB 풀 · Kafka 한 화면) · '서비스 상태 열기' · '오류 로그 열기'를 고를 수 있습니다. 그 서비스가 선택되고 시간 범위는 유지됩니다.\n수집 상태: 정상이 아니면 서비스 상태의 '서비스 수집 상태'와 Pod 재시작 여부 확인\n5xx 비율: 오르면 오류 로그에서 같은 시각의 ERROR · 요청 로그 확인 (Gateway는 하위 서비스 오류를 포함, 5% 이상이면 알림)\nERROR 로그: 오르면 오류 로그의 'ERROR 로그'에서 예외 타입 확인 (5건 이상이면 알림)\n초당 요청: 갑자기 0이 되면 Gateway 라우팅 · 앞단 서비스 확인, 급증하면 오류율 · 응답시간 함께 확인\n평균 응답시간: 오르면 오류 로그의 'API 처리 시간(p95)'과 응답·DB 연결의 풀 대기 확인 (이 열은 평균)\nKafka 미처리: 계속 늘면 Kafka 처리 화면에서 그룹 · 토픽별 추이 확인. member 줄은 auth · childprofile · member · seller 그룹 합계 (구독하지 않거나 오프셋이 아직 확정되지 않으면 -)\n마지막 재시작: 예상하지 못한 최근 시각이면 배포 이력 · 수동 패치(#1349) 덮어쓰기 · 메모리 부족 확인",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -144,7 +144,7 @@
           "range": false,
           "format": "table",
           "legendFormat": "{{job}}",
-          "expr": "sum by (job) (label_replace(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"dev\",consumergroup=~\"kidly[.][a-z]+\"} >= 0, \"job\", \"kidly-$1\", \"consumergroup\", \"kidly[.]([a-z]+)\"))"
+          "expr": "sum by (job) (label_replace(label_replace(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"dev\",consumergroup=~\"kidly[.][a-z]+\"} >= 0, \"job\", \"kidly-$1\", \"consumergroup\", \"kidly[.]([a-z]+)\"), \"job\", \"kidly-member\", \"consumergroup\", \"kidly[.](auth|childprofile|member|seller)\"))"
         }
       ],
       "transformations": [
@@ -194,6 +194,10 @@
           },
           "noValue": "요청 없음",
           "links": [
+            {
+              "title": "서비스 상세 열기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__data.fields.job}&${__url_time_range}"
+            },
             {
               "title": "서비스 상태 열기",
               "url": "/d/kidly-http?var-env=dev&var-service=${__data.fields.job}&${__url_time_range}"
