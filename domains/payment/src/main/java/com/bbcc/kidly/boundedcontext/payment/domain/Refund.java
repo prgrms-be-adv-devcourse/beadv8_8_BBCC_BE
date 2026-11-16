@@ -93,6 +93,38 @@ public class Refund extends BaseTimeEntity {
         return refund;
     }
 
+    /**
+     * 실패했던 주문상품 취소 환불을 다시 처리해 환불했다(#1390). 취소당 환불 기록은 하나라 새로 만들지 않고 이 기록을 완료로 바꾼다.
+     */
+    public void completeRetried(List<RefundItem> items, LocalDateTime refundedAt) {
+        requireFailed();
+        long refundAmount = items.stream().mapToLong(RefundItem::getAmount).sum();
+        Amounts.requirePositive(refundAmount);
+        this.amount = refundAmount;
+        this.status = RefundStatus.COMPLETED;
+        this.failureCode = null;
+        this.refundedAt = refundedAt;
+        items.forEach(this::addItem);
+    }
+
+    /**
+     * 다시 처리했는데도 환불하지 못했다. 이번 실패 사유로 바꾼다.
+     */
+    public void failAgain(RefundFailureCode failureCode) {
+        requireFailed();
+        this.failureCode = failureCode;
+    }
+
+    public boolean isFailed() {
+        return status == RefundStatus.FAILED;
+    }
+
+    private void requireFailed() {
+        if (status != RefundStatus.FAILED) {
+            throw new IllegalStateException("실패한 환불만 다시 처리할 수 있습니다. refundId=" + id);
+        }
+    }
+
     public List<RefundItem> getItems() {
         return Collections.unmodifiableList(items);
     }

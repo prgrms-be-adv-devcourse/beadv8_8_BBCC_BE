@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeDetail;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequest;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ChargeRequestResult;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.ConfirmChargeRequest;
+import com.bbcc.kidly.boundedcontext.payment.app.dto.StuckCharge;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PaymentKeyCipher;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgApproval;
 import com.bbcc.kidly.boundedcontext.payment.app.port.PgCancellation;
@@ -139,6 +140,24 @@ public class ChargeService {
         charge.fail(failureCode);
         PaymentActionLog.record(PaymentAction.CHARGE_FAILED, "walletId={} chargeId={} failureCode={}",
             charge.getWalletId(), charge.getId(), failureCode);
+    }
+
+    /**
+     * 관리자가 멈춘 충전을 실패로 끝낸다(StuckChargeService). 충전 락을 잡고 그사이 스케줄러가 끝냈는지 다시 본다.
+     * 입금하지 않으므로 지갑은 락 없이 회원 ID만 읽고, 원장도 남기지 않는다.
+     *
+     * @param pgResult 종료를 결정한 토스 조회 결과(거절 코드 또는 다른 승인 금액). 행동 로그에만 남긴다
+     */
+    @Transactional
+    public StuckCharge closeStuck(Long chargeId, LocalDateTime staleBefore, String pgResult, Long closedBy) {
+        Charge charge = chargeOf(chargeId);
+        charge.closeStuck(staleBefore);
+        chargeRepository.saveAndFlush(charge);
+        Long memberId = walletRepository.findById(charge.getWalletId()).map(Wallet::getMemberId).orElse(null);
+        PaymentActionLog.record(PaymentAction.CHARGE_CLOSED_BY_ADMIN,
+            "memberId={} walletId={} chargeId={} amount={} pgResult={} closedBy={}",
+            memberId, charge.getWalletId(), charge.getId(), charge.getAmount(), pgResult, closedBy);
+        return StuckCharge.of(charge, memberId);
     }
 
     /**

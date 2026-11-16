@@ -38,6 +38,9 @@ public class Charge extends BaseTimeEntity {
     static final int FAILURE_CODE_LENGTH = 100;
 
 
+    // 운영자가 토스에서 돈을 정리하고 관리자 API로 끝낸 충전의 실패 코드
+    public static final String ADMIN_CLOSED = "ADMIN_CLOSED";
+
     static final long MIN_AMOUNT = 1_000L;
     static final long MAX_AMOUNT = 1_000_000L;
 
@@ -115,6 +118,24 @@ public class Charge extends BaseTimeEntity {
         requireStatus(ChargeStatus.CONFIRMING);
         this.failureCode = limitFailureCode(failureCode);
         this.status = ChargeStatus.FAILED;
+    }
+
+    /**
+     * 승인 중으로 staleBefore 전부터 바뀌지 않은 충전인지 본다. 진행 중인 사용자 승인은 아직 이 시각을 넘지 않는다.
+     */
+    public boolean isStuckConfirming(LocalDateTime staleBefore) {
+        return status == ChargeStatus.CONFIRMING && getUpdatedAt().isBefore(staleBefore);
+    }
+
+    /**
+     * 토스 승인 금액이 다르거나 부분 취소돼 스케줄러가 끝내지 못하는 충전을 운영자가 실패로 끝낸다.
+     * 돈은 운영자가 토스에서 이미 정리했으므로 지갑은 건드리지 않는다.
+     */
+    public void closeStuck(LocalDateTime staleBefore) {
+        if (!isStuckConfirming(staleBefore)) {
+            throw new BusinessException(PaymentErrorCode.CHARGE_NOT_STUCK);
+        }
+        fail(ADMIN_CLOSED);
     }
 
     /**

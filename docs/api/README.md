@@ -293,8 +293,15 @@
 | POST | `/api/v1/webhooks/toss` | 토스 웹훅. 토스에서 직접 취소한 충전을 맞춤 | 🌐 |
 | GET | `/api/v1/admin/payments` | 전체 결제 · 환불 조회 | 🛠 |
 | GET | `/api/v1/admin/payments/summary` | 결제일 기준 날짜별 결제 금액 · 건수(`from` · `to`, 한국 시간, 비우면 오늘, 최대 31일)와 환불 이력이 있는 결제 전체 건수 | 🛠 |
+| GET | `/api/v1/admin/payments/parked-events` | 보내지 못해 격리한 결제 이벤트(아웃박스) 목록. 같은 키의 뒤 이벤트도 함께 멈춰 있음 | 🛠 |
+| POST | `/api/v1/admin/payments/parked-events/{outboxId}/release` | 격리를 풀어 그 이벤트부터 같은 키의 뒤 이벤트까지 순서대로 다시 보냄 | 🛠 |
+| GET | `/api/v1/admin/payments/refund-retries` | 환불하지 못한 주문상품 취소 목록(실패 사유: 환불 불가 코드 · `PAYMENT_NOT_FOUND` · `MEMBER_MISMATCH`) | 🛠 |
+| POST | `/api/v1/admin/payments/refund-retries/{retryId}/retry` | 받은 내용 그대로 다시 처리. 환불되면 `resolved: true` | 🛠 |
+| DELETE | `/api/v1/admin/payments/refund-retries/{retryId}` | 시스템 밖에서 처리했다고 닫음(실패한 환불 기록은 남음) | 🛠 |
 | GET | `/api/v1/admin/wallets` | 지갑 목록(`frozen` · `hasBalance`로 거름) | 🛠 |
 | POST | `/api/v1/admin/wallets/{walletId}/return-balance` | 동결 지갑의 잔액을 환급했다고 기록하고 0으로 만듦(송금은 하지 않음) | 🛠 |
+| GET | `/api/v1/admin/wallets/charges/stuck` | 충전 정리 기준 시간(기본 5분)보다 오래 승인 중인 충전, 오래된 순(토스 승인 금액이 다르거나 부분 취소돼 스케줄러가 끝내지 못한 충전) | 🛠 |
+| POST | `/api/v1/admin/wallets/charges/{chargeId}/fail` | 토스에서 돈을 정리한 멈춘 충전을 실패(`ADMIN_CLOSED`)로 끝냄(예치금은 그대로). 토스가 충전 금액대로 승인했거나 멈춘 충전이 아니면 409, 토스 결과를 모르면 503 | 🛠 |
 
 ## 정산
 
@@ -398,7 +405,7 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| POST | `/api/v1/chatbot/messages` | 챗봇에게 묻기. 본문 `message`(1~500자) · `history`(선택, 오래된 것부터 최대 10개, 각 `role` `USER` · `ASSISTANT`, `content` 1~1000자). 응답 `{ answer, sources: [{ documentId, title }], products: [{ productId, name, businessName, price, thumbnailUrl, soldOut }] }`. `products`는 이번 답에서 찾은 상품 카드(최대 6개, 없으면 `[]`, ID · 가격은 숫자, 없는 상호명 · 썸네일은 `null`). 대화는 저장하지 않는다. `history`는 회원이 바꿀 수 있으므로 AI에는 챗봇의 이전 답이 아니라 확인되지 않은 기록으로만 넘기고(턴마다 한 줄로 펴서 한 메시지로 묶는다), 주문 · 상품 · 가격 · 정책 사실은 도구 결과와 근거 문서로만 말하게 한다(#1388) | 🔒 |
+| POST | `/api/v1/chatbot/messages` | 챗봇에게 묻기. 본문 `message`(1~500자) · `history`(선택, 오래된 것부터 최대 10개, 각 `role` `USER` · `ASSISTANT`, `content` 1~1000자). 응답 `{ answer, sources: [{ documentId, title }], products: [{ productId, name, businessName, price, thumbnailUrl, soldOut }] }`. `products`는 이번 답에서 찾은 상품 카드(최대 6개, 없으면 `[]`, ID · 가격은 숫자, 없는 상호명 · 썸네일은 `null`). 대화는 저장하지 않는다. `history`는 최근 턴부터 모두 합쳐 `kidly.chatbot.quota.history-chars`(기본 3,000자)까지만 AI에 넘기고 그 앞은 뺀다(#1388). `history`는 회원이 바꿀 수 있으므로 AI에는 챗봇의 이전 답이 아니라 확인되지 않은 기록으로만 넘기고(턴마다 한 줄로 펴서 한 메시지로 묶는다), 주문 · 상품 · 가격 · 정책 사실은 도구 결과와 근거 문서로만 말하게 한다(#1388) | 🔒 |
 | POST | `/api/v1/admin/chatbot/documents` | 답변 근거 문서 저장(201 + `Location`). 본문 `title`(1~200자) · `category`(`FAQ` · `POLICY` · `SIZE_GUIDE`) · `content`(1~20,000자). 응답에 만든 조각 수 `chunkCount` | 🛠 |
 | GET | `/api/v1/admin/chatbot/documents` | 문서 목록(최신순, `page` · `size` 1~100, 기본 0 · 20). 본문은 넣지 않는다 | 🛠 |
 | GET | `/api/v1/admin/chatbot/documents/{id}` | 문서 상세(본문 · `chunkCount` 포함) | 🛠 |
@@ -416,3 +423,4 @@
 - `INVALID_CATEGORY`(400), `DOCUMENT_NOT_FOUND`(404)
 - `AI_UNAVAILABLE`(503): OpenAI 키가 없거나 호출이 실패 · 시간 초과했다. 문서 저장 · 수정은 반영되지 않는다
 - `AI_TIMEOUT`(503): 질문 하나가 시간 상한(`kidly.chatbot.answer.time-budget`, 기본 40초, Gateway 응답 제한 55초보다 짧다)을 넘었다. 넘는 즉시 답하고, 이미 보낸 OpenAI 호출 하나만 끝낸 뒤 그 질문의 남은 호출(도구 · 답 만들기)은 하지 않는다(#1388)
+- `AI_DAILY_LIMIT_REACHED`(503): 서비스 전체 하루(한국 시간) 질문 수 상한(`kidly.chatbot.quota.daily-questions`, 기본 2,000)에 닿았다. OpenAI를 부르지 않는다. 질문은 임베딩 · 답 만들기 전에 세고, 실패한 질문도 센다(챗봇 DB `question_usage`, #1388)

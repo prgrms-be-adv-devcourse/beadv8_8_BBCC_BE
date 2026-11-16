@@ -10,10 +10,12 @@ import com.bbcc.kidly.boundedcontext.payment.domain.ChargeCancellationStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class ChargeTest {
 
@@ -257,5 +259,38 @@ class ChargeTest {
         charge.fail("X".repeat(150));
 
         assertThat(charge.getFailureCode()).isEqualTo("X".repeat(100));
+    }
+
+    @Test
+    @DisplayName("기준 시각 전부터 승인 중인 충전은 관리자가 ADMIN_CLOSED 실패로 끝낼 수 있다")
+    void closeStuckFailsConfirmingCharge() {
+        Charge charge = confirmingSince(NOW.minusMinutes(10));
+
+        charge.closeStuck(NOW.minusMinutes(5));
+
+        assertThat(charge.getStatus()).isEqualTo(ChargeStatus.FAILED);
+        assertThat(charge.getFailureCode()).isEqualTo(Charge.ADMIN_CLOSED);
+    }
+
+    @Test
+    @DisplayName("기준 시각 뒤에 승인을 시작했거나 승인 중이 아닌 충전은 끝낼 수 없다")
+    void closeStuckRejectsRecentOrNotConfirming() {
+        Charge recent = confirmingSince(NOW.minusMinutes(1));
+        Charge approved = PaymentFixture.approvedCharge(10_000L);
+        ReflectionTestUtils.setField(approved, "updatedAt", NOW.minusMinutes(10));
+
+        assertThatThrownBy(() -> recent.closeStuck(NOW.minusMinutes(5)))
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.CHARGE_NOT_STUCK);
+        assertThatThrownBy(() -> approved.closeStuck(NOW.minusMinutes(5)))
+            .extracting("errorCode").isEqualTo(PaymentErrorCode.CHARGE_NOT_STUCK);
+        assertThat(recent.getStatus()).isEqualTo(ChargeStatus.CONFIRMING);
+        assertThat(approved.getStatus()).isEqualTo(ChargeStatus.DONE);
+    }
+
+    private static Charge confirmingSince(LocalDateTime updatedAt) {
+        Charge charge = PaymentFixture.charge(10_000L);
+        charge.startConfirming(10_000L, NOW);
+        ReflectionTestUtils.setField(charge, "updatedAt", updatedAt);
+        return charge;
     }
 }

@@ -24,13 +24,20 @@ public enum PaymentErrorCode implements ErrorCode {
     CHARGE_REJECTED(HttpStatus.BAD_REQUEST, "충전 승인이 거절됐습니다", "결제가 승인되지 않았습니다. 다시 시도해 주세요."),
     CHARGE_CANCEL_BALANCE_SHORT(HttpStatus.CONFLICT, "충전을 취소할 수 없습니다", "충전한 금액만큼 예치금이 남아 있어야 취소할 수 있습니다."),
     CHARGE_CANCEL_REJECTED(HttpStatus.BAD_REQUEST, "충전 취소가 거절됐습니다", "결제 취소가 처리되지 않았습니다. 다시 시도해 주세요."),
+    CHARGE_NOT_STUCK(HttpStatus.CONFLICT, "멈춘 충전이 아닙니다",
+        "승인 중으로 정리 기준 시간보다 오래 남은 충전만 종료할 수 있습니다. 목록을 다시 불러와 주세요."),
+    CHARGE_APPROVED_AT_PG(HttpStatus.CONFLICT, "토스에서 충전 금액대로 승인된 충전입니다",
+        "충전 정리 스케줄러가 곧 예치금에 입금하므로 종료하지 않습니다."),
     PG_RESULT_UNKNOWN(HttpStatus.SERVICE_UNAVAILABLE, "결제대행사 결과를 확인하지 못했습니다", "잠시 뒤 다시 시도해 주세요."),
     INVALID_CHARGE_STATUS(HttpStatus.CONFLICT, "처리할 수 없는 충전 상태입니다", "현재 충전 상태에서는 요청을 처리할 수 없습니다."),
     INVALID_PAYMENT_STATUS(HttpStatus.CONFLICT, "처리할 수 없는 결제 상태입니다", "현재 결제 상태에서는 요청을 처리할 수 없습니다."),
     INVALID_SUMMARY_PERIOD(HttpStatus.BAD_REQUEST, "조회할 수 없는 기간입니다", "시작일은 종료일보다 늦을 수 없고, 한 번에 31일까지 조회할 수 있습니다."),
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제를 찾을 수 없습니다", "해당 결제가 없습니다."),
     PAYMENT_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 항목을 찾을 수 없습니다", "결제에 해당 주문상품이 없습니다."),
-    REFUND_AMOUNT_EXCEEDED(HttpStatus.CONFLICT, "환불 가능 금액을 넘었습니다", "결제한 금액보다 많이 환불할 수 없습니다.");
+    REFUND_AMOUNT_EXCEEDED(HttpStatus.CONFLICT, "환불 가능 금액을 넘었습니다", "결제한 금액보다 많이 환불할 수 없습니다."),
+    OUTBOX_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 이벤트 메시지를 찾을 수 없습니다", "해당 아웃박스 메시지가 없습니다."),
+    OUTBOX_MESSAGE_NOT_PARKED(HttpStatus.CONFLICT, "격리된 메시지가 아닙니다", "이미 보냈거나 다시 보내기로 바꾼 메시지입니다."),
+    REFUND_RETRY_NOT_FOUND(HttpStatus.NOT_FOUND, "환불 재처리 기록을 찾을 수 없습니다", "이미 환불됐거나 닫힌 기록입니다.");
 
     private final HttpStatus status;
     private final String title;

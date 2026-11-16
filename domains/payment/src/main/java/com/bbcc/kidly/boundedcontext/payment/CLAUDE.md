@@ -48,6 +48,7 @@
     - 그사이 토스에서 부분 취소됐으면(`PARTIAL_CANCELED`) 반영하지 않고 승인 중으로 둔 채 ERROR를 남긴다(#485). 실패로 바꾸면 남은 결제액이 입금되지 않는다. 부분 취소는 운영자가 처리한다(웹훅과 같다)
   - 취소 중으로 `cancelling-stale-after`(기본 5분) 넘게 남은 충전: 같은 멱등 키로 토스 취소를 다시 불러 아래 취소 표대로 반영 / 모름 → 다음 실행
   - 만료 시각이 지난 PENDING 충전: EXPIRED
+  - 승인 금액이 다르거나 부분 취소돼 승인 중으로 남은 충전은 관리자가 끝낸다(아래 「멈춘 충전 종료」)
   - 충전 상태를 바꾸는 곳(승인 시작 · 승인 반영 · 실패 · 만료 · 취소)은 충전을 비관적 락으로 읽는다. 사용자 승인과 스케줄러가 겹쳐도 늦은 쪽이 바뀐 상태를 보고 멈춰 한 번만 입금한다. 원장 `(type, ref_id)` UK가 마지막으로 막는다
 
 ### 주문 취소 환불 (`app/OrderCancellationService`, #269)
@@ -59,7 +60,7 @@
 | COMPLETED · PARTIALLY_REFUNDED | 남은 금액을 모두 지갑에 입금, 원장 `REFUND`(ref_id = 환불 ID), 환불 기록(`cancellation_id` null), 결제 REFUNDED |
 | 없음 | 취소된 주문 기록(`cancelled_order`, `order_id` UK). 그 뒤 온 `order.payment-requested`는 차감 · 발행 없이 건너뜀(WARN) |
 | FAILED · REFUNDED | 아무것도 안 함 (같은 취소가 다시 와도 한 번만 환불) |
-| 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
+| 회원 · 지갑이 결제와 다름 | 환불 안 함, 재처리 기록(`MEMBER_MISMATCH`), ERROR 로그 |
 
 - 처리 실패 대비(#350): 받은 이벤트를 다시 받지 못할 수 있어서 결제 안에서 메운다
   - `handle`은 받는 처리와 다른 트랜잭션(`REQUIRES_NEW`)이다. 실패하면 처리한 것만 롤백되고, `app/PaymentEventHandler`가 `order_cancellation_retry`(`order_id` UK)에 남긴다(ERROR 로그). 남기면 처리 완료이고, 남기기까지 실패하면 예외가 나가 Kafka가 재시도 뒤 DLT로 보낸다
@@ -69,19 +70,23 @@
 ### 판매자 부분 취소 환불 (`app/OrderItemCancellationService`, #711)
 - `order-item.cancelled`(#655)를 Kafka로만 받는다(Spring 리스너 없음). 판매자가 발송 전에 자기 몫을 취소한 것이고, 마지막 몫이 취소돼 주문이 취소돼도 `order.cancelled`는 오지 않는다
 - 이벤트의 주문상품별 `amount`만큼 결제 항목을 환불한다. 환불하면 `payment.refunded`를 발행한다(실패한 환불은 보내지 않는다)
-- 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(`cancellationId`)마다 환불 기록을 하나만 남긴다. 기록이 있으면 건너뛴다(`refund.cancellation_id` UK가 마지막으로 막는다)
+- 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(`cancellationId`)마다 환불 기록을 하나만 남긴다. 완료된 기록이 있으면 건너뛴다(`refund.cancellation_id` UK가 마지막으로 막는다)
+- 환불하지 못하면 받은 내용 그대로 `order_item_cancellation_retry`(`cancellation_id` UK, 품목은 `order_item_cancellation_retry_item`)에 남긴다(#1390). 같은 취소가 또 실패하면 시도 · `last_error`만 바꾸고, 환불되면 지운다. 자동 재처리는 없다
 
 | 경우 | 처리 |
 |---|---|
 | 모두 환불 가능 | 지갑에 입금, 원장 `REFUND`(ref_id = 환불 ID), 환불 기록 COMPLETED(`cancellation_id`), 결제 PARTIALLY_REFUNDED(다 돌려주면 REFUNDED) |
-| 결제 상태가 COMPLETED · PARTIALLY_REFUNDED 아님 / 결제에 없는 주문상품 / 남은 금액 초과 | 입금 · 결제 변경 없이 환불 기록 FAILED(`INVALID_PAYMENT_STATUS` · `PAYMENT_ITEM_NOT_FOUND` · `REFUND_AMOUNT_EXCEEDED`), ERROR 로그. 하나라도 안 되면 그 취소 전체를 환불하지 않는다(`Payment.checkRefundable`로 먼저 본다) |
-| 같은 취소의 환불 기록 있음 | 아무것도 안 함 |
+| 결제 상태가 COMPLETED · PARTIALLY_REFUNDED 아님 / 결제에 없는 주문상품 / 남은 금액 초과 | 입금 · 결제 변경 없이 환불 기록 FAILED(`INVALID_PAYMENT_STATUS` · `PAYMENT_ITEM_NOT_FOUND` · `REFUND_AMOUNT_EXCEEDED`), 재처리 기록(`last_error` = 그 코드), ERROR 로그. 하나라도 안 되면 그 취소 전체를 환불하지 않는다(`Payment.checkRefundable`로 먼저 본다) |
+| 같은 취소의 완료된 환불 있음 | 아무것도 안 함(재처리 기록이 남아 있으면 지운다) |
+| 같은 취소의 실패한 환불 있음(관리자 다시 처리) | 위 경우대로 다시 본다. 환불되면 그 기록을 COMPLETED로 바꾸고(새 기록 없음) 재처리 기록을 지운다. 또 실패하면 실패 코드만 바꾼다 |
 | 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
-| 그 주문의 결제 없음 | `IllegalStateException` → 재시도 없이 DLT. 주문은 결제완료 주문만 판매자 취소를 받고 같은 키라 결제 뒤에 온다 |
+| 그 주문의 결제 없음 | 재처리 기록(`PAYMENT_NOT_FOUND`), ERROR 로그. 예외를 내지 않아 DLT로 가지 않는다. 주문은 결제완료 주문만 판매자 취소를 받고 같은 키라 결제 뒤에 온다 |
 
 - 부분 취소 뒤 같은 주문의 `order.cancelled`가 오면 남은 금액만 환불한다(위 주문 취소 환불)
 - 동결된 지갑에도 환불은 들어온다(#670)
-- 주문 취소처럼 결제 안의 재처리 기록은 없다. DB 오류 같은 실패는 Kafka가 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다
+- 관리자 API(`in/AdminRefundRetryController`, `app/OrderItemRefundRetryService`): `GET /api/v1/admin/payments/refund-retries`(처음 실패한 순), `POST .../{retryId}/retry`(받은 내용 그대로 `handle`을 다시 부름. 환불되면 `resolved: true`, 또 실패하면 `false`와 바뀐 기록), `DELETE .../{retryId}`(시스템 밖에서 처리했다고 닫음. 실패한 환불 기록은 남는다). 없는 기록은 404 `REFUND_RETRY_NOT_FOUND`
+- 이 배포 전에 남은 실패한 환불(FAILED)은 품목이 없어 재처리 기록으로 옮기지 않았다
+- DB 오류 같은 예외는 기록 없이 Kafka가 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다
 - 주문 쪽 스위치(`ORDER_PARTIAL_CANCEL_ENABLED`)는 결제 · 상품(#693)이 배포된 뒤 켠다
 
 ## 충전 취소 (#192)
@@ -116,6 +121,14 @@
 - 반영은 충전 → 지갑 순서로 락을 잡고, 그사이 완료가 아니게 된 충전은 건너뛴다. 웹훅이 두 번 와도 한 번만 뺀다
 - 잔액은 0 밑으로 내려가지 않는다(`ck_wallet_balance`). 미수금은 따로 기록하지 않는다
 - 아직 없음: 부분 취소 반영, 웹훅 유실 대비 주기 조회
+
+## 멈춘 충전 종료 (`app/StuckChargeService`, #1392)
+- `GET /api/v1/admin/wallets/charges/stuck`: 승인 중으로 `confirming-stale-after`(스케줄러와 같은 기준)보다 오래 남은 충전, 오래된 순(`updated_at`). 한 줄은 `chargeId` · `walletId` · `memberId` · `tossOrderId` · `amount` · `status` · `createdAt` · `updatedAt`. paymentKey는 주지 않는다
+- `POST /api/v1/admin/wallets/charges/{chargeId}/fail` → 200(같은 모양, `status` FAILED). 운영자가 토스 상점관리자에서 돈을 먼저 정리(남은 결제 취소 등)한 뒤 부른다
+  - 멈춘 충전이 아니면(승인 중이 아니거나 기준 시간 안) 토스를 부르지 않고 409 `CHARGE_NOT_STUCK`. 기준 시간이 진행 중인 사용자 승인과 겹치지 않게 한다. 없는 충전은 404
+  - 트랜잭션 밖에서 토스를 조회한다. 충전 금액대로 승인됐으면 스케줄러가 입금할 충전이라 409 `CHARGE_APPROVED_AT_PG`, 모르면 돈이 들어올 수 있어 503 `PG_RESULT_UNKNOWN`. 승인 금액이 다르거나 거절(부분 취소 포함)이면 끝낸다
+  - 충전 락을 잡고 다시 멈춘 충전인지 본 뒤 FAILED(`failure_code` `ADMIN_CLOSED`)로 바꾼다. 그사이 스케줄러가 끝냈으면 409
+  - 입금하지 않으므로 지갑 락 · 원장은 없다. 고객에게 입금하려면 종료하지 말고 토스 승인을 충전 금액대로 두면 스케줄러가 입금한다(입금하는 관리자 API는 두지 않는다)
 
 ## 입출금 내역 (`app/WalletService`, #200)
 - `GET /api/v1/wallets/me/ledgers`: 내 지갑의 원장을 최신순(ID 내림차순)으로 준다. `amount`는 입금 양수 · 출금 음수, `refId`는 `type`에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 · 잔액 환급 · 개발용 충전 ID
@@ -186,11 +199,12 @@
 | `CHARGE_CANCELLED` | `ChargeService.completeCancel` | memberId, walletId, chargeId, amount, balance |
 | `CHARGE_CANCEL_FAILED` | `ChargeService.failCancel` (다시 입금) | memberId, walletId, chargeId, cancellationId, failureCode, amount, balance |
 | `CHARGE_CANCELLED_EXTERNALLY` | `ChargeService.applyExternalCancel` | memberId, walletId, chargeId, amount, recoveredAmount, shortfallAmount, balance |
+| `CHARGE_CLOSED_BY_ADMIN` | `ChargeService.closeStuck` (관리자 멈춘 충전 종료) | memberId, walletId, chargeId, amount, pgResult(토스 거절 코드 또는 `APPROVED_AMOUNT=다른 금액`), closedBy |
 | `ORDER_PAID` | `OrderPaymentService` | memberId, walletId, orderId, paymentId, amount, balance |
 | `ORDER_PAYMENT_FAILED` | `OrderPaymentService` (잔액 부족 · 금액 불일치) | memberId, orderId, paymentId(불일치면 null), amount, reasonCode |
 | `ORDER_CANCEL_RECORDED` | `OrderCancellationService` (결제 전 취소, `cancelled_order` 저장) | memberId, orderId, reason |
 | `ORDER_REFUNDED` | `OrderCancellationService` | memberId, walletId, orderId, paymentId, refundId, amount, balance, reason |
-| `ORDER_ITEM_REFUNDED` | `OrderItemCancellationService` (부분 취소 환불, 실패한 환불은 남기지 않음) | memberId, walletId, orderId, cancellationId, paymentId, refundId, amount, balance, reason |
+| `ORDER_ITEM_REFUNDED` | `OrderItemCancellationService` (부분 취소 환불, 관리자 다시 처리로 환불한 것 포함. 실패한 환불은 남기지 않음) | memberId, walletId, orderId, cancellationId, paymentId, refundId, amount, balance, reason |
 | `PAYOUT_COMPLETED` | `SettlementPayoutService` (처음 처리한 정산서만, 0원 포함) | memberId(판매자), walletId, settlementId, amount, ledgerId, balance |
 | `WALLET_FROZEN` | `WalletService.freeze` (처음 동결할 때만) | memberId, walletId, balance |
 | `BALANCE_RETURNED` | `WalletService.returnBalance` (탈퇴 회원 잔액 환급 기록) | memberId, walletId, balanceReturnId, amount, balance, ledgerId, returnedBy |
@@ -231,7 +245,10 @@
   - 저장은 Kafka 보내기가 꺼져 있어도(`kidly.kafka.producer.enabled=false`) 한다
 - **릴레이** (`app/PaymentOutboxRelayService`, `in.scheduler.PaymentOutboxRelayScheduler`): 주기(`kidly.payment.outbox.relay-interval`, 기본 1초)마다 안 보낸 메시지를 `id` 순서로 `batch-size`(기본 100)건 보내고 `sent_at`을 기록한다
   - 한 트랜잭션에서 PostgreSQL advisory lock(`pg_try_advisory_xact_lock`)을 얻은 쪽만 보낸다. 서버가 여러 대여도 한 번에 하나만 돌아 순서가 지켜진다. 못 얻으면 아무것도 하지 않는다
-  - 보내다 실패하면 그 메시지에 `attempt_count` · `last_error`를 남기고 멈춘다. 다음 주기에 같은 메시지부터 다시 보낸다(순서 유지). 횟수 제한은 없다
+  - 보내다 실패하면 그 메시지에 `attempt_count` · `last_error`를 남기고 멈춘다. 다음 주기에 같은 메시지부터 다시 보낸다(순서 유지)
+  - 격리(#1389): `attempt_count`가 `max-attempts`(기본 30)에 닿은 메시지는 실패해도 멈추지 않고 같은 키(`message_key`)의 뒤 메시지만 건너뛰고 계속 보낸다. 그 뒤 다른 메시지가 보내지면 브로커는 살아 있으니 그 메시지만의 문제로 보고 `parked_at`을 남긴다(ERROR 로그). 아무것도 보내지지 않으면(브로커 장애) 격리하지 않는다
+  - 읽는 대상은 안 보냈고 격리되지 않았으며, 같은 키의 앞선 안 보낸 메시지가 격리됐거나 상한에 닿지 않은 것이다. 상한에 닿은 메시지 자신은 읽고 그 키의 뒤 메시지는 빼서, 뒤 메시지가 `batch-size`를 다 채워 다른 키를 막지 않는다. 격리된 키는 관리자가 풀 때까지 멈춰 같은 키 순서가 지켜진다
+  - 관리자 API(`in/AdminPaymentOutboxController`): `GET /api/v1/admin/payments/parked-events`(본문 없이 `outboxId` · `eventId` · `eventType` · `messageKey` · `attemptCount` · `lastError` · 시각), `POST .../{outboxId}/release`(격리를 풀고 `attempt_count`를 0으로. 다음 릴레이가 그 메시지부터 같은 키 뒤 메시지까지 순서대로 보낸다). 격리되지 않은 메시지는 409 `OUTBOX_MESSAGE_NOT_PARKED`, 없으면 404
   - 실패는 업무를 실패시키지 않고 본문 없는 WARN(`eventType` · `eventId` · `key` · 원인)만 남긴다
   - 메시지는 **한 번 이상** 갈 수 있다(보낸 뒤 커밋 전에 죽으면 다시 보낸다). 받는 쪽은 `eventId`나 업무 상태로 거른다
   - `kidly.kafka.producer.enabled`가 false면 릴레이 스케줄러를 만들지 않는다
@@ -249,6 +266,7 @@
 |---|---|---|---|
 | `kidly_payment_outbox_unsent_messages` | gauge | - | `sent_at IS NULL`인 아웃박스 메시지 수 |
 | `kidly_payment_outbox_oldest_unsent_age_seconds` | gauge | - | 가장 오래된 미전송 메시지의 나이(`created_at` 기준). 없으면 0 |
+| `kidly_payment_outbox_parked_messages` | gauge | - | 격리한 메시지(`sent_at IS NULL AND parked_at IS NOT NULL`) 수. 같은 키의 뒤 메시지도 함께 멈춰 있다 |
 | `kidly_payment_outbox_send_failures_total` | counter | `event_type`(결제가 보내는 eventType 5종) | 릴레이가 Kafka로 보내지 못한 횟수(`PaymentOutboxRelayService`). 같은 메시지가 주기마다 다시 실패하면 그때마다 센다 |
 | `kidly_payment_dlt_messages_total` | counter | `topic`(받는 토픽 3종) | DLT로 보낸 수신 메시지 수(`PaymentKafkaListenerConfig`의 recoverer) |
 | `kidly_payment_order_payments_total` | counter | `result`(`success` · `failure`), `reason`(`none` · `INSUFFICIENT_BALANCE` · `AMOUNT_MISMATCH` · `WALLET_NOT_FOUND`) | 주문 결제 결과(`OrderPaymentService`). 이미 결제한 주문 · 결제 전 취소된 주문은 세지 않는다 |
@@ -256,6 +274,8 @@
 | `kidly_payment_charges_stuck` | gauge | `status`(`confirming` · `cancelling`) | 30분 넘게 상태가 바뀌지 않은 승인 중 · 취소 중 충전 수 |
 | `kidly_payment_refund_retry_pending` | gauge | - | 다시 처리를 기다리는 주문 취소 환불(`order_cancellation_retry`) 수 |
 | `kidly_payment_refund_retry_oldest_age_seconds` | gauge | - | 그중 가장 오래된 기록의 나이(`created_at` = 처음 실패). 없으면 0 |
+| `kidly_payment_item_refund_retry_pending` | gauge | - | 관리자 처리를 기다리는 환불 못 한 주문상품 취소(`order_item_cancellation_retry`) 수 |
+| `kidly_payment_item_refund_retry_oldest_age_seconds` | gauge | - | 그중 가장 오래된 기록의 나이(`created_at` = 처음 실패). 없으면 0 |
 | `kidly_payment_payouts_total` | counter | `result`(`completed`) | 처음 처리한 정산서의 지급 입금(`SettlementPayoutService`, 0원 포함). 같은 정산서의 다시 받은 요청은 세지 않는다. 정산서 기준 관측은 정산 지표(#730) 몫이다 |
 | `kidly_payment_scheduler_last_success_seconds` | gauge | `task`(`charge_reconcile_confirming` · `charge_reconcile_cancelling` · `charge_expire` · `outbox_relay` · `order_cancellation_retry`) | 스케줄러가 마지막으로 성공한 시각(epoch 초). 기동 뒤 처음 성공하기 전에는 NaN |
 

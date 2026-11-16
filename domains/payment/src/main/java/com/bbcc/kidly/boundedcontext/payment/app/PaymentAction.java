@@ -21,6 +21,7 @@ public enum PaymentAction {
     CHARGE_CANCELLED("충전 취소 완료"),
     CHARGE_CANCEL_FAILED("충전 취소 거절"),
     CHARGE_CANCELLED_EXTERNALLY("토스 직접 취소 반영"),
+    CHARGE_CLOSED_BY_ADMIN("관리자 충전 종료"),
     ORDER_PAID("주문 결제 완료"),
     ORDER_PAYMENT_FAILED("주문 결제 실패"),
     ORDER_CANCEL_RECORDED("결제 전 주문 취소 기록"),
