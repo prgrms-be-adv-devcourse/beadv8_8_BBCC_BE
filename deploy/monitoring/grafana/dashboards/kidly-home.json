@@ -80,7 +80,7 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "expr": "(sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) or sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) * 0) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",uri!~\"/actuator.*\"}[5m])) > 0)",
           "instant": true,
           "range": false,
           "format": "table",
