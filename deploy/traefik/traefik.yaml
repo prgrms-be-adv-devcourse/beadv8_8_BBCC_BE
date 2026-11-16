@@ -1,0 +1,102 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: kidly-traefik-crd
+  namespace: kube-system
+spec:
+  targetNamespace: edge
+  chart: https://%{KUBERNETES_API}%/static/charts/traefik-crd-41.4.2+up41.4.0.tgz
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: kidly-traefik
+  namespace: kube-system
+spec:
+  targetNamespace: edge
+  chart: https://%{KUBERNETES_API}%/static/charts/traefik-41.4.2+up41.4.0.tgz
+  valuesContent: |-
+    # 차트 기본 태그(v3.7.1)는 미러에 없다. k3s 가 내장 매니페스트(manifests/traefik.yaml)에서 덮어쓰는 태그를 그대로 쓴다
+    image:
+      repository: rancher/mirrored-library-traefik
+      tag: "3.7.13"
+    deployment:
+      replicas: 1
+      # acme.json(계정 키 · 인증서)을 Pod 가 다시 떠도 남긴다. StorageClass 가 없어 hostPath 이고, 디렉터리는 README 대로 uid 65532 로 미리 만든다
+      additionalVolumes:
+        - name: acme
+          hostPath:
+            path: /var/lib/kidly/traefik
+            type: Directory
+    additionalVolumeMounts:
+      - name: acme
+        mountPath: /acme
+    # EAB 키는 Secret 에서 환경 변수로 넣고 인자에는 $(이름)만 적는다. kubelet 이 펼치므로 Deployment 명세에는 값이 남지 않는다
+    env:
+      - name: ZEROSSL_EAB_KID
+        valueFrom:
+          secretKeyRef:
+            name: zerossl-eab
+            key: ZEROSSL_EAB_KID
+      - name: ZEROSSL_EAB_HMAC_KEY
+        valueFrom:
+          secretKeyRef:
+            name: zerossl-eab
+            key: ZEROSSL_EAB_HMAC_KEY
+    # kro.kr 은 공용 접미사 목록에 없어 Let's Encrypt 한도를 모든 kro.kr 사용자와 나눠 쓴다. 그래서 ZeroSSL 이다
+    certificatesResolvers:
+      zerossl:
+        acme:
+          caServer: https://acme.zerossl.com/v2/DV90
+          email: programmers.bbcc.official@gmail.com
+          storage: /acme/acme.json
+          keyType: EC256
+          eab:
+            kid: $(ZEROSSL_EAB_KID)
+            hmacEncoded: $(ZEROSSL_EAB_HMAC_KEY)
+          httpChallenge:
+            entryPoint: web
+    updateStrategy:
+      type: Recreate
+      rollingUpdate: null
+    priorityClassName: kidly-edge
+    ports:
+      web:
+        port: 8000
+        hostPort: __WEB_PORT__
+        forwardedHeaders:
+          trustedIPs: []
+          insecure: false
+      websecure:
+        port: 8443
+        hostPort: __WEBSECURE_PORT__
+        http3:
+          enabled: false
+        forwardedHeaders:
+          trustedIPs: []
+          insecure: false
+    service:
+      enabled: false
+    providers:
+      kubernetesCRD:
+        enabled: true
+        allowCrossNamespace: true
+        allowExternalNameServices: false
+      kubernetesIngress:
+        enabled: false
+      kubernetesGateway:
+        enabled: false
+    ingressClass:
+      enabled: false
+    ingressRoute:
+      dashboard:
+        enabled: false
+    global:
+      checkNewVersion: false
+      sendAnonymousUsage: false
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
