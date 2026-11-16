@@ -39,6 +39,7 @@ configMapGenerator:
       - grafana/provisioning/alerting/resources.yml
       - grafana/provisioning/alerting/settlement.yml
       - grafana/provisioning/alerting/notification.yml
+      - grafana/provisioning/alerting/payment.yml
   - name: grafana-dashboards
     files:
       - grafana/dashboards/jvm-micrometer.json
