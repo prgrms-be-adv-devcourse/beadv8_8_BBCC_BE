@@ -23,7 +23,7 @@ cors:
 kidly:
   gateway:
     rate-limit:
-      global:
+      switch-refresh: 200ms
+      client:
         capacity: 1000
         period: 1h
-        switch-refresh: 200ms

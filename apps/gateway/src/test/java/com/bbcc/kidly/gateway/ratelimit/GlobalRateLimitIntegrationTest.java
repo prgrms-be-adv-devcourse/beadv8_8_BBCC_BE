@@ -21,6 +21,9 @@ class GlobalRateLimitIntegrationTest extends GatewayTestSupport {
     private SharedRequestRateLimiter limiter;
 
     @Autowired
+    private RateLimitProperties properties;
+
+    @Autowired
     private RateLimitSwitch rateLimitSwitch;
 
     @Autowired
@@ -56,6 +59,6 @@ class GlobalRateLimitIntegrationTest extends GatewayTestSupport {
     }
 
     private void exhaust(String ip) {
-        Flux.range(0, 1000).concatMap(i -> limiter.tryAcquire("IP:" + ip)).blockLast();
+        Flux.range(0, 1000).concatMap(i -> limiter.tryAcquire("client", "IP:" + ip, properties.client())).blockLast();
     }
 }

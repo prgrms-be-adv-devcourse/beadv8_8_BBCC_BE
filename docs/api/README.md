@@ -6,7 +6,7 @@
 - 오류 응답은 ProblemDetail 5필드(`type`, `title`, `status`, `detail`, `instance`)와 오류 코드 `code`다. `code`는 오류 enum 상수 이름(예: `IDEMPOTENCY_KEY_REUSED`)이라 문구가 바뀌어도 그대로이므로, 화면은 `title` 문장 대신 `code`로 분기한다. 도메인 오류의 상태 · `title` · `detail` · `code`는 각 도메인의 `XxxErrorCode` enum에 있다. Gateway가 직접 내는 오류도 같은 `code`를 쓴다(400 `INVALID_INPUT` · 401 `UNAUTHORIZED` · 403 `FORBIDDEN` · 404 `NOT_FOUND` · 429 `TOO_MANY_REQUESTS` · 500 `INTERNAL_ERROR` · 503 `SERVICE_UNAVAILABLE` · 504 `GATEWAY_TIMEOUT`). 스프링이 직접 만드는 오류(405 등)에는 `code`가 없다
 - API를 추가 · 변경 · 삭제하는 PR에서 이 표도 같이 고친다
 - 권한: 🌐 누구나 · 🔒 로그인 · 🏪 판매자 · 🛠 관리자 · 내부(서비스끼리만 부름. Gateway가 `/internal/**`을 밖에서 404로 막는다). 판매자 · 관리자 역할은 Gateway가 `/api/v1/seller/**` · `/api/v1/admin/**` 경로로 검사한다
-- 요청 수 제한: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 분당 30번까지 받는다. 넘으면 429 ProblemDetail(`title` "요청이 너무 많습니다")과 `Retry-After`(초)다(#816)
+- 요청 수 제한: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 분당 30번까지 받는다. Redis로 Gateway 여러 대의 한도를 공유한다. 넘으면 429 ProblemDetail(`title` "요청이 너무 많습니다")과 `Retry-After`(초)다(#816)
 - 전체 요청 수 제한: 모든 요청을 Gateway가 로그인 주체 · 비로그인 IP마다 분당 200번(한꺼번에 200번까지)까지 받는다. 넘으면 위와 같은 429다(#1417). 관리자(🛠)는 `GET /api/v1/admin/gateway/rate-limit`으로 켜져 있는지 보고(`{"enabled": true}`), `PUT` 같은 경로 본문 `{"enabled": false}`로 끄거나 `true`로 켠다. 본문이 잘못되면 400, 저장하지 못하면 503이다. 부하테스트 때 끈다. 검색 · 챗봇 제한은 끄지 않는다
 
 ## 인증

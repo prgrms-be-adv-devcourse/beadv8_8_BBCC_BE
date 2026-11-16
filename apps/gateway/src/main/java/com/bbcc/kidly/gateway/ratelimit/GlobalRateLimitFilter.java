@@ -20,13 +20,15 @@ class GlobalRateLimitFilter implements GlobalFilter, Ordered {
     static final String SWITCH_PATH = "/api/v1/admin/gateway/rate-limit";
     private final SharedRequestRateLimiter limiter;
     private final RateLimitSwitch rateLimitSwitch;
+    private final RateLimitProperties properties;
     private final ProblemResponse problem;
     private final Counter rejected;
 
     GlobalRateLimitFilter(SharedRequestRateLimiter limiter, RateLimitSwitch rateLimitSwitch,
-        ProblemResponse problem, MeterRegistry registry) {
+        RateLimitProperties properties, ProblemResponse problem, MeterRegistry registry) {
         this.limiter = limiter;
         this.rateLimitSwitch = rateLimitSwitch;
+        this.properties = properties;
         this.problem = problem;
         this.rejected = Counter.builder("kidly.gateway.rate.limited").tag("target", "global").register(registry);
     }
@@ -37,12 +39,12 @@ class GlobalRateLimitFilter implements GlobalFilter, Ordered {
         if (!rateLimitSwitch.isEnabled() || SWITCH_PATH.equals(request.getPath().value())) {
             return chain.filter(exchange);
         }
-        return limiter.tryAcquire(RateLimitKeys.keyOf(request)).flatMap(retry -> {
-            if (retry == 0) {
-                return chain.filter(exchange);
+        return limiter.tryAcquire("client", RateLimitKeys.keyOf(request), properties.client()).flatMap(result -> {
+            if (result instanceof SharedRequestRateLimiter.Result.Rejected denied) {
+                rejected.increment();
+                return problem.tooManyRequests(exchange, denied.retryAfterSeconds());
             }
-            rejected.increment();
-            return problem.tooManyRequests(exchange, retry);
+            return chain.filter(exchange);
         });
     }
 

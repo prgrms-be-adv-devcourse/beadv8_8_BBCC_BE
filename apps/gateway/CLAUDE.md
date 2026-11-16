@@ -9,7 +9,7 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 3. 경로 방화벽(`web/RequestFirewallFilter`): 정규화되지 않거나 위험한 경로 · 메서드를 400으로 막는다
 4. 토큰 검사(`auth/AccessTokenFilter`): 밖에서 온 `X-Member-*` · `X-Admin-*` · `X-Child-*`를 지우고, Bearer 토큰을 검증 · 무효화 확인(Redis, 아래 '무효화 목록')해 주체별 헤더를 붙인다. 실패하면 401
 5. 역할 검사(`auth/RoleFilter`): `/api/v1/admin/**`는 관리자 주체, `/api/v1/seller/**`는 SELLER 회원 주체, `/api/v1/child/**`는 자녀 주체. 없으면 401 · 403
-6. 요청 수 제한: `ratelimit/GlobalRateLimitFilter`는 모든 요청을 주체 ID 또는 비로그인 IP마다 Redis에 센다(#1417, 아래 '전체 요청 수 제한'). 검색어가 있는 `GET /api/v1/products`는 `SearchRateLimitFilter`가 따로 센다(#816, 분당 30번). 챗봇 질문 `POST /api/v1/chatbot/messages`는 `ChatRateLimitFilter`가 따로 센다(#1191, 분당 10번). 검색 · 챗봇 제한은 OpenAI 비용을 막으려는 것이며 Gateway 메모리에 둔다. 여러 대면 대마다 따로 세므로 전체 한도가 대수만큼 늘어난다. IP는 nginx가 덮어쓰는 `X-Real-IP`, 없으면 연결 주소다. `X-Forwarded-For` 첫 값은 클라이언트가 지어낼 수 있어 쓰지 않는다
+6. 요청 수 제한: `ratelimit/GlobalRateLimitFilter`는 모든 요청을 주체 ID 또는 비로그인 IP마다 Redis에 센다(#1417, 아래 '전체 요청 수 제한'). 검색어가 있는 `GET /api/v1/products`는 `SearchRateLimitFilter`가 따로 센다(#816, 분당 30번). 챗봇 질문 `POST /api/v1/chatbot/messages`는 `ChatRateLimitFilter`가 따로 센다(#1191, 분당 10번). 검색 · 챗봇 제한은 OpenAI 비용을 막으려는 것이며 Redis에 두어 Gateway 여러 대가 한도를 공유한다. IP는 nginx가 덮어쓰는 `X-Real-IP`, 없으면 연결 주소다. `X-Forwarded-For` 첫 값은 클라이언트가 지어낼 수 있어 쓰지 않는다
 7. CORS(`application.yml`의 `globalcors`) · 라우팅. 서비스는 CORS를 하지 않는다
 - 1 · 2 · 3은 WebFilter(`web/WebFilterConfig`에 순서대로 등록), 4 · 5 · 6은 GlobalFilter(`RoleFilter` 순서 = `AccessTokenFilter.ORDER + 1`, 전체 · 검색 · 챗봇 제한 필터 = `+ 2`)
 - 400 · 401 · 403 · 404 · 429 · 500 · 503 · 504 본문은 `web/ProblemResponse`가 쓴다(#668)
@@ -21,9 +21,9 @@ nginx 뒤에서 모든 API 요청을 먼저 받는 실행 모듈(Spring Cloud Ga
 - nginx가 넣은 `Host` · `X-Forwarded-*`는 덧붙이지 않고 그대로 넘긴다(`PreserveHostHeader`, `trusted-proxies`, `x-forwarded.*-enabled: false`). Gateway 자신은 `server.forward-headers-strategy: native`로 https · 원래 호스트로 본다(같은 출처 판단)
 
 ## 전체 요청 수 제한
-- Redis 해시 `kidly:gateway:rate-limit:{RateLimitKeys.keyOf 결과}`에 남은 토큰과 갱신 시각을 저장한다. 키는 `MEMBER:123`, `ADMIN:123`, `CHILD:123`, `IP:주소`처럼 주체 종류와 ID 또는 IP를 포함한다. Lua가 Redis 시각으로 토큰을 채우고 차감하므로 Gateway 여러 대가 같은 한도를 쓴다. 기본 한도는 키마다 분당 200개이며 한꺼번에 200개까지 보낼 수 있다. 넘으면 429와 `Retry-After`(초)를 낸다. 해시 TTL은 한도가 다 차는 시간이다
+- Redis 해시 `kidly:gateway:rate-limit:client:{RateLimitKeys.keyOf 결과}`에 남은 토큰과 갱신 시각을 저장한다. 키는 `MEMBER:123`, `ADMIN:123`, `CHILD:123`, `IP:주소`처럼 주체 종류와 ID 또는 IP를 포함한다. Lua가 Redis 시각으로 토큰을 채우고 차감하므로 Gateway 여러 대가 같은 한도를 쓴다. 기본 한도는 키마다 분당 200개이며 한꺼번에 200개까지 보낼 수 있다. 넘으면 429와 `Retry-After`(초)를 낸다. 해시 TTL은 한도가 다 차는 시간이다
 - 관리자 `GET /api/v1/admin/gateway/rate-limit`으로 현재 상태를 읽고 `PUT` 본문 `{"enabled":false}` 또는 `{"enabled":true}`로 바꾼다. 이 경로는 전체 한도에서 제외한다. 다른 Gateway는 기본 2초마다 Redis를 읽어 상태를 갱신한다. 스위치는 검색 · 챗봇 제한에 영향이 없다
-- 스위치 키 `kidly:gateway:rate-limit:enabled`는 TTL이 없다. 키가 없으면 켜진다. Redis 읽기 실패 시 마지막 스위치 값을 유지한다. 버킷 확인 실패 시 요청을 통과시키고 ERROR 로그를 남긴다. 스위치 쓰기 실패 시 503이다
+- 스위치 키 `kidly:gateway:rate-limit:enabled`는 TTL이 없다. 키가 없으면 켜진다. Redis 읽기 실패 시 마지막 스위치 값을 유지한다. 검색 · 챗봇도 각각 search · chat 이름의 Redis 버킷을 쓴다. 버킷 확인 실패 시 검색 · 챗봇을 포함해 요청을 통과시키고 ERROR 로그를 남긴다. 스위치 쓰기 실패 시 503이다
 - 키별 제한은 한 클라이언트의 폭주를 막는다. 여러 클라이언트의 총부하는 제한하지 않는다
 
 ## 무효화 목록

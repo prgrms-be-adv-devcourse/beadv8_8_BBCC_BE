@@ -20,12 +20,12 @@ class RateLimitSwitch implements SmartLifecycle {
 
     static final String KEY = "kidly:gateway:rate-limit:enabled";
     private final ReactiveStringRedisTemplate redis;
-    private final GlobalRateLimitProperties properties;
+    private final RateLimitProperties properties;
     private volatile boolean enabled = true;
     private long version;
     private Disposable refresh;
 
-    RateLimitSwitch(ReactiveStringRedisTemplate redis, GlobalRateLimitProperties properties) {
+    RateLimitSwitch(ReactiveStringRedisTemplate redis, RateLimitProperties properties) {
         this.redis = redis;
         this.properties = properties;
     }

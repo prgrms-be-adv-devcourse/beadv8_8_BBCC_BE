@@ -27,7 +27,7 @@ class RateLimitSwitchIntegrationTest extends GatewayTestSupport {
     private RateLimitSwitch rateLimitSwitch;
 
     @Autowired
-    private GlobalRateLimitProperties properties;
+    private RateLimitProperties properties;
 
     @Autowired
     private SharedRequestRateLimiter limiter;
@@ -99,7 +99,8 @@ class RateLimitSwitchIntegrationTest extends GatewayTestSupport {
     void switchPathBypassesLimit() {
         var now = Instant.now();
         var admin = TestTokens.issueAdmin(12, now, now.plusSeconds(1800));
-        Flux.range(0, properties.capacity()).concatMap(i -> limiter.tryAcquire("ADMIN:12")).blockLast();
+        Flux.range(0, properties.client().capacity())
+            .concatMap(i -> limiter.tryAcquire("client", "ADMIN:12", properties.client())).blockLast();
         client.get().uri(PATH).headers(headers -> headers.setBearerAuth(admin)).exchange()
             .expectStatus().isOk();
         client.get().uri("/api/v1/products/1").headers(headers -> headers.setBearerAuth(admin)).exchange()

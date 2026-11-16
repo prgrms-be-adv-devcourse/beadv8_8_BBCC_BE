@@ -25,10 +25,11 @@ class SharedRequestRateLimiterTest {
         var redis = mock(ReactiveStringRedisTemplate.class);
         when(redis.execute(any(), anyList(), anyList()))
             .thenReturn(Flux.error(new DataAccessResourceFailureException("실패")));
-        var properties = new GlobalRateLimitProperties(2, Duration.ofSeconds(2), Duration.ofSeconds(1));
-        var limiter = new SharedRequestRateLimiter(redis, properties);
+        var properties = new RateLimitProperties.Limit(2, Duration.ofSeconds(2));
+        var limiter = new SharedRequestRateLimiter(redis);
 
-        assertThat(limiter.tryAcquire("private-id").block()).isZero();
+        assertThat(limiter.tryAcquire("client", "private-id", properties).block())
+            .isInstanceOf(SharedRequestRateLimiter.Result.Allowed.class);
         assertThat(output.getOut()).contains("ERROR").doesNotContain("private-id");
     }
 }

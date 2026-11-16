@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
@@ -34,6 +35,17 @@ class SearchRateLimitIntegrationTest extends GatewayTestSupport {
     @Autowired
     @Qualifier(RecordingBackendConfiguration.SEARCH)
     private RecordingBackend searchBackend;
+
+    @Autowired
+    private ReactiveStringRedisTemplate redis;
+
+    @Test
+    @DisplayName("검색 요청은 Redis의 검색 버킷에 기록된다")
+    void storesSearchInRedis() {
+        var ip = uniqueIp();
+        searchFrom(ip).expectStatus().isOk();
+        assertThat(redis.hasKey("kidly:gateway:rate-limit:search:IP:" + ip).block()).isTrue();
+    }
 
     @Test
     @DisplayName("같은 IP의 검색은 30번까지 넘기고, 31번째는 429 ProblemDetail과 Retry-After로 막고 넘기지 않는다")
