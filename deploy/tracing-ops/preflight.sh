@@ -45,7 +45,7 @@ print("public trace header removal:", "configured" if ready else "check required
 }
 
 check_agent_file() {
-    local jar=/opt/kidly-tracing/opentelemetry-javaagent.jar
+    local jar=/opt/app/kidly-tracing/opentelemetry-javaagent.jar
     local expected=e43a270df53c6f423e0ab157be9c27ccc01d5dc3232e162fe54777573db2f149
     if [[ ! -r "$jar" ]]; then
         printf 'Java Agent JAR: absent or unreadable\n'

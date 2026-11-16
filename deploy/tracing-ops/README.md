@@ -39,3 +39,7 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 ## 운영 사전 점검
 
 GitHub Actions에서 `tracing-preflight`를 develop 기준으로 수동 실행합니다. 두 클러스터의 Gateway·주문·Grafana·Tempo 준비 상태와 수집 리소스 유무를 확인합니다. 앱 환경 변수, Secret, 인증서 내용과 로그 원문은 출력하지 않습니다. 수집 경로가 준비된 이후에는 실제 요청의 Tempo 조회를 별도로 확인합니다.
+
+## Java Agent 파일 준비
+
+`tracing-stage-agent`를 develop 기준으로 수동 실행하면 현재 앱 노드의 `/opt/app/kidly-tracing` 아래에 고정 버전 JAR을 준비합니다. runner와 앱 노드에서 모두 SHA-256을 확인하고, 기존 파일의 체크섬이 다르면 덮어쓰지 않고 중단합니다. 앱 Deployment를 변경하거나 Pod를 다시 띄우는 단계는 없습니다. 노드가 추가되면 배치 가능한 각 노드에 같은 파일이 있는지 확인합니다.
