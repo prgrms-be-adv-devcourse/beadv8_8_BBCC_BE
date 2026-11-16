@@ -5,19 +5,31 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 찜이 지워졌다(회원이 해제했거나 회원 탈퇴로 지웠다. 없는 찜 해제는 보내지 않는다). {@code aggregateId}는 찜 ID,
- * {@code correlationId}(Kafka 키)는 회원 ID다. {@code eventType}은 {@code favorite.removed}.
+ * 찜이 지워졌다(회원 · 자녀 계정이 해제했거나, 회원 탈퇴 · 자녀 계정 삭제로 지웠다. 없는 찜 해제는 보내지 않는다).
+ * {@code aggregateId}는 찜 ID, {@code correlationId}(Kafka 키)는 {@code memberId}(보호자 회원 ID)다. {@code eventType}은 {@code favorite.removed}.
  */
 public record FavoriteRemovedEvent(UUID eventId, LocalDateTime occurredAt, Data data) implements DomainEvent {
 
     /**
-     * @param cause 지운 까닭
+     * @param memberId 회원 본인 찜이면 그 회원 ID, 자녀 계정 찜이면 보호자 회원 ID
+     * @param cause 지운 까닭. 회원 탈퇴 · 자녀 계정 삭제로 지웠으면 MEMBER_WITHDRAWN(자녀 계정 삭제는 ownerType CHILD)
+     * @param ownerType 찜 소유자 종류({@link FavoriteOwnerTypes}). 없으면(옛 메시지) 회원 본인 찜
+     * @param ownerId 찜 소유자 ID(MEMBER는 회원 ID, CHILD는 자녀 계정 ID). 없으면(옛 메시지) memberId
      */
     public record Data(
         Long favoriteId,
         Long memberId,
         Long productId,
-        FavoriteRemovalCause cause) {
+        FavoriteRemovalCause cause,
+        String ownerType,
+        Long ownerId) {
+
+        /**
+         * 소유자 칸 없이 만든다(옛 형식).
+         */
+        public Data(Long favoriteId, Long memberId, Long productId, FavoriteRemovalCause cause) {
+            this(favoriteId, memberId, productId, cause, null, null);
+        }
     }
 
     @Override

@@ -12,7 +12,7 @@
 | | `child.growth-recorded` | 자녀 ID | | recommend |
 | | `child.growth-record-deleted` | 자녀 ID | | recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
-| | `child-account.changed` | 자녀 계정 ID | | childprofile, notification, order |
+| | `child-account.changed` | 자녀 계정 ID | | childprofile, notification, order, community(#1377: `deleted` true만 — 그 자녀 계정의 찜을 지우고 그 계정의 찜 요청을 막음) |
 | `kidly.product.events` | `product.changed`(data에 관리자 판매 중지 `stoppedByAdmin`, 판매 시작 시각 `saleStartedAt`, 카테고리 경로마다 보일 성별 `visibleGender`) | 상품 ID | product | community, notification, order, recommend, search |
 | | `stock.deducted` · `stock.deduction-failed` | 주문 ID | | order |
 | `kidly.order.events` | `order.created` | 주문 ID | order | product |
@@ -38,10 +38,10 @@
 | `kidly.search.events` | `search.performed`(#1089 추가 칸 `childId` 고른 자녀, 없는 예전 메시지는 자녀 없음) | 회원 ID | search | recommend |
 | | `search.result-clicked`(검색 결과 클릭, #1004. #1089 추가 칸 `childId`) | 회원 ID | | recommend(#1284: 누른 상품을 자녀 선호 점수의 활동으로 기록) |
 | `kidly.community.events` | `review.changed`(#1274: 작성 · 실제로 바뀐 수정 · 삭제 · 검사 결과 · 관리자 숨김 확정 · 다시 공개. data `reviewId` · `orderItemId` · `productId` · `rating` · `fit`(없으면 null) · `visible`(지금 공개인지, 삭제 · 숨김이면 false). 바뀐 것 없는 수정 · 같은 값 요청은 보내지 않는다) | 리뷰 ID | community | recommend(#1316: 리뷰 핏을 복사해 두고 사이즈 추천 AI 입력의 지난 구매 · 상품 핏 성향에 씀. 숨김 · 삭제된 리뷰의 핏은 쓰지 않음) |
-| | `favorite.added`(#1274: 새로 찜했을 때만. data `favoriteId` · `memberId` · `productId`) | 회원 ID | | recommend(#1316: 회원의 선호 점수 활동) |
-| | `favorite.removed`(#1274: 실제로 지웠을 때만. data `favoriteId` · `memberId` · `productId` · `cause` USER · MEMBER_WITHDRAWN(회원 탈퇴로 지움)) | 회원 ID | | recommend(#1316: 회원이 직접 해제(USER)하면 그 찜을 선호 점수에서 뺌, 탈퇴로 지운 것(MEMBER_WITHDRAWN)은 그 찜의 활동 기록을 지움) |
+| | `favorite.added`(#1274: 새로 찜했을 때만. data `favoriteId` · `memberId` · `productId` · `ownerType`(#1377, `MEMBER` · `CHILD`) · `ownerId`(#1377, 회원 ID 또는 자녀 계정 ID). `memberId`는 회원 본인 찜이면 그 회원, 자녀 계정 찜이면 보호자 회원) | 보호자 회원 ID(`memberId`) | | recommend(#1316: 회원의 선호 점수 활동) |
+| | `favorite.removed`(#1274: 실제로 지웠을 때만. data `favoriteId` · `memberId` · `productId` · `cause` USER · MEMBER_WITHDRAWN(회원 탈퇴로 지움 — 보호자 탈퇴면 본인 · 자녀 계정 찜 모두, 자녀 계정 삭제면 그 계정 찜만이고 `ownerType` CHILD) · `ownerType` · `ownerId`(#1377, `favorite.added`와 같음)) | 보호자 회원 ID(`memberId`) | | recommend(#1316: 회원이 직접 해제(USER)하면 그 찜을 선호 점수에서 뺌, 탈퇴로 지운 것(MEMBER_WITHDRAWN)은 그 찜의 활동 기록을 지움) |
 
-- `kidly.community.events`는 커밋된 뒤 아웃박스에서 보내는 최소 한 번 전달입니다. 같은 `eventId`가 두 번 갈 수 있고(보낸 뒤 아웃박스에서 지우기 전에 서버가 멈추면), 순서는 키 단위로 대체로 지키지만 커밋 순서와 아웃박스 id 순서가 다를 때 · 격리 뒤 수동으로 다시 보낼 때 바뀔 수 있습니다. 받는 쪽은 `eventId`로 중복을 거르고, 리뷰는 `reviewId`, 찜은 (`memberId`, `productId`)마다 `occurredAt`이 더 늦은 것만 반영합니다. 닉네임 · 리뷰 본문 · 사진 주소는 담지 않습니다
+- `kidly.community.events`는 커밋된 뒤 아웃박스에서 보내는 최소 한 번 전달입니다. 같은 `eventId`가 두 번 갈 수 있고(보낸 뒤 아웃박스에서 지우기 전에 서버가 멈추면), 순서는 키 단위로 대체로 지키지만 커밋 순서와 아웃박스 id 순서가 다를 때 · 격리 뒤 수동으로 다시 보낼 때 바뀔 수 있습니다. 받는 쪽은 `eventId`로 중복을 거르고, 리뷰는 `reviewId`, 찜은 (`ownerType`, `ownerId`, `productId`)마다 `occurredAt`이 더 늦은 것만 반영합니다(#1377: 회원 7과 자녀 계정 7은 다른 소유자이고, 자녀 계정 찜도 `memberId`는 보호자라 `memberId`만 보면 섞입니다. `ownerType` · `ownerId`가 없는 옛 메시지는 `MEMBER` · `memberId`로 봅니다). 자녀 계정 삭제로 지운 찜은 새 까닭 없이 `cause` MEMBER_WITHDRAWN + `ownerType` CHILD로 옵니다. 닉네임 · 리뷰 본문 · 사진 주소는 담지 않습니다
 - 순서는 **같은 토픽 + 같은 키** 안에서만 보장됩니다. 한 주문의 이벤트(생성 → 결제 요청 → 취소 → 구매확정)는 모두 `kidly.order.events`에 주문 ID 키로 들어가므로 순서가 지켜집니다.
 - member는 `seller.changed`를 회원 서비스에서 Kafka로 받습니다. 토큰 무효화는 auth가 `auth.tokens-revoked`를 보내고 Gateway가 받아 처리합니다.
 - 받는 도메인은 11-04 코드의 `@KafkaListener` 기준입니다. 조르기 이벤트(`wish.*`)는 받는 도메인이 없어도 표에 둡니다(받는 곳이 없으면 "(아직 없음)").

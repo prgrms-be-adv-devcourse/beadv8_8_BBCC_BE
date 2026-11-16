@@ -27,7 +27,12 @@
 
 ## 3. 저장 · 조회
 - 카운터(리뷰 수 · 평점 합 · 찜 수 등)는 집계 행을 원자적 UPDATE(`set count = count + 1`)로 바꾸고, 동시성 테스트로 1회분씩 쌓이는지 확인한다. 읽고 더해 저장하지 않는다. 첫 행은 `INSERT … ON CONFLICT DO UPDATE`(증가만)로 만들고, 감소는 있는 행의 UPDATE로 한다(감소를 upsert로 하면 넣으려던 음수 행이 CHECK(0 이상)에 먼저 걸린다). 같은 행(리뷰 등)의 수정 · 삭제가 겹치면 그 행을 select for update로 잡아 증감이 한 번씩만 일어나게 한다
-- 중복은 DB 유일 제약으로 막는다: (회원, 상품) 찜, (주문상품) 리뷰
+- 중복은 DB 유일 제약으로 막는다: (소유자 종류, 소유자 ID, 상품) 찜(`uk_favorite_owner_product`), (주문상품) 리뷰
+- 찜 소유자(#1377): 회원 본인(`MEMBER`, 소유자 ID = 회원 ID)과 자녀 계정(`CHILD`, 소유자 ID = 자녀 계정 ID, 복사본 없음)이 각자 찜을 갖는다(`favorite.domain.FavoriteOwner`). 표는 `owner_type` · `owner_id` · `guardian_id`(보호자 회원 ID, 회원 본인이면 본인)이고 `member_id`는 배포 중 옛 앱 호환으로 남겨 보호자 회원 ID를 넣는다. 찜 · 해제 · 목록 · 하트 상태는 (종류, ID)로만 찾고(회원 7과 자녀 계정 7은 섞이지 않음), 찜 수는 둘의 합계다
+  - 호출자는 찜 컨텍스트 전용 `@FavoriteCaller FavoriteActor`(`in.web` 리졸버, `in.config.CommunityFavoriteWebConfig`가 등록, 공용 웹 설정은 안 건드림): 회원 헤더가 있으면 회원(잘못되면 401), 없으면 자녀 헤더 둘(하나라도 없거나 잘못되면 401). 지운 자녀 계정(`community.deleted_child_account`)이면 403 `FAVORITE_CHILD_ACCOUNT_DELETED`. in은 domain을 못 쓰므로 app 값 `FavoriteActor`로 받아 app이 소유자로 바꾼다
+  - 정리: 보호자 탈퇴(`member.withdrawn`)는 `guardian_id`로 본인 + 자녀 계정 찜을 지운다. 자녀 계정 삭제(`kidly.auth.events`의 `child-account.changed` deleted true, review의 `CommunityAuthEventKafkaListener` 하나가 받고 `review.out.favorite` → favorite `app.port.in.ChildFavoritesRemover`)는 한 트랜잭션에서 지운 자녀 계정으로 남기고(ON CONFLICT DO NOTHING) 그 계정 찜만 지운 뒤 찜 수를 줄인다. deleted false · 다른 인증 이벤트는 건너뛰고, 필수값(계정 ID · 보호자 ID · 시각)이 없으면 다른 수신과 같이 WARN 한 줄 후 무시, 처리 실패는 재시도 → `kidly.auth.events.community.dlt` → 보관 · 관리자 재처리
+  - 이벤트: 찜 이벤트 data에 `ownerType` · `ownerId`를 더했다(필드 추가만, 옛 생성자 유지). `memberId` · 키는 보호자 회원 ID다. 자녀 계정 삭제로 지운 찜도 새 까닭을 만들지 않고 `MEMBER_WITHDRAWN` + `ownerType` CHILD로 보낸다
+  - 남은 틈: 삭제 이벤트를 처리하는 트랜잭션과 겹친 그 계정의 찜 추가(이미 403 검사를 지난 요청)는 삭제 뒤에 커밋되면 남을 수 있다(계정 잠금은 넣지 않음)
 - 리뷰 사이즈 핏(`Fit`: SMALL · TRUE_TO_SIZE · LARGE, 선택)은 구매 사이즈가 있는 주문상품만 받는다. 핏별 수는 `review_stats`의 `fit_*`를 다른 집계와 같은 문장에서 증감한다(작성 +1, 수정 이전 −1 · 새 +1, 삭제 −1). 구매 사이즈(`purchasedSize`)는 리뷰에 따로 저장하지 않고 작성 자격(`review_eligibility.size`)을 조인해 읽는다
 - 리뷰 사진: 브라우저가 업로드 주소 발급(`POST /api/v1/reviews/images/upload-urls`)으로 받은 서명 주소로 S3에 직접 올리고, 받은 공개 주소(`imageUrls`)를 리뷰 작성 · 수정에 보낸다. 서명 · 공개 주소는 `app.port.ReviewImageStorage`(구현 `out.storage`)만 알고, domain · app은 S3를 모른다
   - 주소 검사는 보안 경계다: 본인 경로(`{key-prefix}/reviews/{회원 ID}/`) 공개 주소 접두어 + 서버가 만든 이름(소문자 UUID.jpg|png|webp)만 받고, 같은 주소는 한 번만(`ReviewImageUrls`)

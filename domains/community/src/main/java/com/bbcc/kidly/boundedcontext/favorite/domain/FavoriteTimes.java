@@ -13,6 +13,10 @@ public final class FavoriteTimes {
     }
 
     public static LocalDateTime now() {
-        return LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+        return toStoredPrecision(LocalDateTime.now());
+    }
+
+    public static LocalDateTime toStoredPrecision(LocalDateTime time) {
+        return time.truncatedTo(ChronoUnit.MICROS);
     }
 }

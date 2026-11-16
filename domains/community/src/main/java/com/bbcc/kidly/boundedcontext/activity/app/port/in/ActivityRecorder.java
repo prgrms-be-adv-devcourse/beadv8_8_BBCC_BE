@@ -58,10 +58,20 @@ public interface ActivityRecorder {
     record ReviewDeleted(long reviewId, Long productId, long orderItemId, int rating, String fit, boolean wasPublic) {
     }
 
-    record FavoriteAdded(long favoriteId, long memberId, Long productId) {
+    /**
+     * @param memberId 보호자 회원 ID(회원 본인 찜이면 본인). 찜 이벤트 키
+     * @param ownerType 찜 소유자 종류 이름(MEMBER · CHILD)
+     * @param ownerId 찜 소유자 ID(MEMBER는 회원 ID, CHILD는 자녀 계정 ID)
+     */
+    record FavoriteAdded(long favoriteId, long memberId, Long productId, String ownerType, long ownerId) {
     }
 
-    record FavoriteRemoved(long favoriteId, long memberId, Long productId) {
+    /**
+     * @param memberId 보호자 회원 ID(회원 본인 찜이면 본인). 찜 이벤트 키
+     * @param ownerType 찜 소유자 종류 이름(MEMBER · CHILD)
+     * @param ownerId 찜 소유자 ID(MEMBER는 회원 ID, CHILD는 자녀 계정 ID)
+     */
+    record FavoriteRemoved(long favoriteId, long memberId, Long productId, String ownerType, long ownerId) {
     }
 
     /**
