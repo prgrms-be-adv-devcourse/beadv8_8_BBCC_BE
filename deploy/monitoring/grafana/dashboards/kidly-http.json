@@ -1022,6 +1022,14 @@
       "includeVars": false,
       "keepTime": false,
       "targetBlank": false
+    },
+    {
+      "title": "부하 테스트",
+      "type": "link",
+      "url": "/d/kidly-load-test",
+      "includeVars": false,
+      "keepTime": false,
+      "targetBlank": false
     }
   ],
   "annotations": {
