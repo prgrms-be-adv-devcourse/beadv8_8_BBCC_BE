@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]/'ai-notes'))
 from contracts import AnalysisContext, Evidence
-from groq_provider import GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect
+from groq_provider import GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect, groq_limitations
 from groq_once import run_once, read_key, PRINCIPAL
 from storage import Store, LokiPublisher, deliver_accepted
 from errors import NotesError
@@ -82,6 +82,14 @@ class GroqProviderTest(unittest.TestCase):
         self.assertEqual([item['evidence_id'] for item in sent['evidence']], ['f0'])
         fields = payload['response_format']['json_schema']['schema']['properties']['finding']['properties']
         self.assertEqual(fields['evidence_id']['enum'], ['f0'])
+        self.assertEqual(sent['limitations'], ['Host aggregate only'])
+        mixed = ('No finite fresh/available result for: kafka_lag, restarts_30m, error_logs_30m; absence is not healthy zero.',
+                 'No finite fresh/available result for: restarts_30m; absence is not healthy zero.',
+                 'Kafka lag is one snapshot; it does not establish increasing lag.',
+                 'kafka_lag_by_service maps consumer group kidly.<domain> to kidly-<domain>.')
+        self.assertEqual(groq_limitations(mixed), [
+            'No finite fresh/available result for: kafka_lag; absence is not healthy zero.',
+            'Kafka lag is one snapshot; it does not establish increasing lag.'])
         only_extra = replace(context(), evidence=extra)
         with self.assertRaisesRegex(ProviderError, '^insufficient_evidence$'):
             self.provider(transport()).analyze(only_extra, 2300)

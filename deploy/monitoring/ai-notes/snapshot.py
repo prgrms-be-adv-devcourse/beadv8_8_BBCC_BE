@@ -95,7 +95,9 @@ def collect(environment, now=None):
         'Absent 5xx series alone can mean no 5xx observed. Never add Gateway and service requests together.',
         'Check environment_enabled/environment_transition/app_expected before interpreting missing or down apps; disabled means intentional stop.',
         'Host metrics are worst observed across available hosts, not a specific service host; absent hosts can be omitted.',
-        'Kafka lag is one snapshot; it does not establish increasing lag. kafka_lag_by_service maps consumer group kidly.<domain> to kidly-<domain>, excluding DLT groups and unknown offsets.',
-        'error_logs_30m counts ERROR log events, not distinct incidents. restarts_30m counts processes started within 30 minutes (deploy, crash or manual patch); it does not say which.',
+        'Kafka lag is one snapshot; it does not establish increasing lag.',
+        # 아래 두 줄은 MCP 전용 지표 설명이다. Groq 경로는 지표와 함께 이 줄도 뺀다(groq_provider.MCP_ONLY_METRICS)
+        'kafka_lag_by_service maps consumer group kidly.<domain> to kidly-<domain>, excluding DLT groups and unknown offsets.',
+        'error_logs_30m counts ERROR log events, not distinct incidents. restarts_30m counts process instances started within 30 minutes (deploy, crash or manual patch); it does not say which, and several instances count separately.',
     ))
     return AnalysisContext(1, str(uuid.uuid4()), now-1800, now, (environment,), tuple(facts), tuple(limitations))

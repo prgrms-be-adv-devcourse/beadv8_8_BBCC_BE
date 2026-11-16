@@ -36,6 +36,21 @@ def output_schema(evidence_ids):
 
 
 MCP_ONLY_METRICS = ('error_logs_30m', 'restarts_30m', 'kafka_lag_by_service')
+MISSING_PREFIX = 'No finite fresh/available result for: '
+MISSING_SUFFIX = '; absence is not healthy zero.'
+
+
+def groq_limitations(limitations):
+    """보내지 않는 지표를 언급하는 제약도 뺀다. 빠진 지표 목록 줄은 남은 지표만 남긴다."""
+    kept = []
+    for line in limitations:
+        if line.startswith(MISSING_PREFIX) and line.endswith(MISSING_SUFFIX):
+            names = [name for name in line[len(MISSING_PREFIX):-len(MISSING_SUFFIX)].split(', ') if name not in MCP_ONLY_METRICS]
+            if names:
+                kept.append(MISSING_PREFIX + ', '.join(names) + MISSING_SUFFIX)
+        elif not any(metric in line for metric in MCP_ONLY_METRICS):
+            kept.append(line)
+    return kept
 
 
 SYSTEM = '''You are an operational analysis assistant. Write concise Korean plain text.
@@ -102,6 +117,7 @@ class GroqProvider:
         snapshot['evidence'] = [item for item in snapshot['evidence'] if item['metric'] not in MCP_ONLY_METRICS]
         if not snapshot['evidence']:
             raise ProviderError('insufficient_evidence')
+        snapshot['limitations'] = groq_limitations(snapshot['limitations'])
         payload = {'model': MODEL, 'messages': [
             {'role': 'system', 'content': SYSTEM},
             {'role': 'user', 'content': json.dumps(snapshot, ensure_ascii=False, allow_nan=False)}],

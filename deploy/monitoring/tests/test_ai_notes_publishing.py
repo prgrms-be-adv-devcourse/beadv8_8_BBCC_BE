@@ -334,6 +334,11 @@ class NoteGuideTest(unittest.TestCase):
         missing = [line for line in ctx.limitations if line.startswith('No finite fresh/available result for:')]
         self.assertEqual(len(missing), 1)
         self.assertIn('restarts_30m', missing[0])
+        import groq_provider
+        self.assertTrue(missing[0].startswith(groq_provider.MISSING_PREFIX) and missing[0].endswith(groq_provider.MISSING_SUFFIX))
+        sent = groq_provider.groq_limitations(ctx.limitations)
+        self.assertFalse(any(metric in line for line in sent for metric in groq_provider.MCP_ONLY_METRICS))
+        self.assertIn('Kafka lag is one snapshot; it does not establish increasing lag.', sent)
         self.assertNotIn('error_logs_30m', missing[0])
 
 
