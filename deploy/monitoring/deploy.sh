@@ -30,6 +30,7 @@ wait_rollout() {
 }
 wait_rollout deploy/prometheus 180s
 wait_rollout deploy/loki 180s
+wait_rollout deploy/tempo 120s
 wait_rollout deploy/grafana 180s
 wait_rollout ds/alloy 120s
 

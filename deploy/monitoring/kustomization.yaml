@@ -12,6 +12,7 @@ resources:
   - k8s/grafana.yaml
   - k8s/alloy.yaml
   - k8s/mcp-prometheus.yaml
+  - tempo
 
 configMapGenerator:
   - name: prometheus-config
@@ -26,6 +27,7 @@ configMapGenerator:
   - name: grafana-datasources
     files:
       - grafana/provisioning/datasources/datasources.yml
+      - grafana/provisioning/datasources/tempo.yml
   - name: grafana-dashboard-providers
     files:
       - grafana/provisioning/dashboards/dashboards.yml
