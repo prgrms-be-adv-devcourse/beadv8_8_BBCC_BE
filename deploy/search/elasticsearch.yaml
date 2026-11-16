@@ -51,6 +51,9 @@ spec:
               value: single-node
             - name: xpack.security.enabled
               value: "false"
+            # 색인이 없을 때 저장 요청이 매핑 없는 색인을 만들지 않게 한다(#1385). 색인은 검색 서비스가 기동할 때만 만든다
+            - name: action.auto_create_index
+              value: "false"
             - name: ES_JAVA_OPTS
               value: -Xms512m -Xmx512m
           ports:

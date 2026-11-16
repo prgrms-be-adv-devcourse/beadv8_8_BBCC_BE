@@ -117,7 +117,8 @@ Elasticsearch 를 새로 만들었거나(PVC 삭제) 색인이 지워진 경우�
 
 1. `_cat/indices?v` 에서 `<환경>-products` · `<환경>-sellers` 가 있는지 봅니다
 2. 없으면 그 환경의 검색 서비스를 다시 시작해 색인을 만듭니다(t3.large 에서 deploy 유저로 `kubectl -n kidly-<환경> rollout restart deploy/search`)
-3. 검색 서비스를 다시 시작하기 전에 이벤트가 와서 색인이 자동으로 만들어졌을 수 있습니다. `curl -s 'localhost:30920/<환경>-products/_mapping'` 에 `"dynamic":"strict"` 와 `name` 의 `"analyzer":"nori"` 가 없으면 잘못 만들어진 것이므로, 그 색인을 지우고 2 를 다시 합니다
+3. 색인이 없는 동안 온 상품 · 판매자 변경은 저장에 실패해(404 `index_not_found_exception`) DLT 로 가고, 색인이 생기면 DLT 를 다시 읽어 반영합니다.
+   ES 는 저장 요청으로 색인을 자동으로 만들지 않습니다(`action.auto_create_index=false`, #1385). 매핑(`"dynamic":"strict"`, `name` 의 nori)이 없는 색인이 생기지 않습니다
 4. 위 "색인 다시 채우기"로 판매자 → 상품을 다시 발행합니다
 
 ### DLT 가 줄지 않음
