@@ -50,7 +50,7 @@
       "id": 9,
       "type": "table",
       "title": "서비스 상태판 · 운영(dev) · 최근 5분",
-      "description": "줄을 누르면 그 서비스가 선택된 서비스 상태 화면이 열립니다.\n수집 상태: 정상이 아니면 서비스 상태의 '서비스 수집 상태'와 Pod 재시작 여부 확인\n5xx 비율: 오르면 같은 서비스의 오류 로그 확인 (Gateway는 하위 서비스 오류를 포함)\n초당 요청: 갑자기 0이 되면 Gateway 라우팅 · 앞단 서비스 확인, 급증하면 오류율 · 응답시간 함께 확인\n평균 응답시간: 오르면 서비스 상태의 DB 연결 대기 · GC 확인 (p95 아님)\n마지막 재시작: 예상하지 못한 최근 시각이면 배포 이력 · 수동 패치(#1349) 덮어쓰기 · 메모리 부족 확인",
+      "description": "줄을 누르면 '서비스 상태 열기' · '오류 로그 열기'를 고를 수 있습니다. 그 서비스가 선택되고 시간 범위는 유지됩니다.\n수집 상태: 정상이 아니면 서비스 상태의 '서비스 수집 상태'와 Pod 재시작 여부 확인\n5xx 비율: 오르면 오류 로그에서 같은 시각의 ERROR · 요청 로그 확인 (Gateway는 하위 서비스 오류를 포함, 5% 이상이면 알림)\nERROR 로그: 오르면 오류 로그의 'ERROR 로그'에서 예외 타입 확인 (5건 이상이면 알림)\n초당 요청: 갑자기 0이 되면 Gateway 라우팅 · 앞단 서비스 확인, 급증하면 오류율 · 응답시간 함께 확인\n평균 응답시간: 오르면 오류 로그의 'API 처리 시간(p95)'과 응답·DB 연결의 풀 대기 확인 (이 열은 평균)\nKafka 미처리: 계속 늘면 Kafka 처리 화면에서 그룹 · 토픽별 추이 확인 (구독하지 않거나 오프셋이 아직 확정되지 않으면 -)\n마지막 재시작: 예상하지 못한 최근 시각이면 배포 이력 · 수동 패치(#1349) 덮어쓰기 · 메모리 부족 확인",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -121,6 +121,30 @@
           "range": false,
           "format": "table",
           "legendFormat": "{{job}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "F",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "{{job}}",
+          "expr": "sum by (job) (increase(logback_events_total{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community\",level=\"error\"}[5m]))"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "G",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "legendFormat": "{{job}}",
+          "expr": "sum by (job) (label_replace(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"dev\",consumergroup=~\"kidly[.][a-z]+\"} >= 0, \"job\", \"kidly-$1\", \"consumergroup\", \"kidly[.]([a-z]+)\"))"
         }
       ],
       "transformations": [
@@ -138,9 +162,11 @@
               "job": 0,
               "Value #A": 1,
               "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5
+              "Value #C": 4,
+              "Value #D": 5,
+              "Value #E": 7,
+              "Value #F": 3,
+              "Value #G": 6
             },
             "renameByName": {}
           }
@@ -171,6 +197,10 @@
             {
               "title": "서비스 상태 열기",
               "url": "/d/kidly-http?var-env=dev&var-service=${__data.fields.job}&${__url_time_range}"
+            },
+            {
+              "title": "오류 로그 열기",
+              "url": "/d/kidly-logs?var-env=dev&var-service=${__data.fields.job}&${__url_time_range}"
             }
           ]
         },
@@ -370,6 +400,80 @@
                 "value": "-"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #F"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "ERROR 로그 · 5분"
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #G"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Kafka 미처리"
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "noValue",
+                "value": "-"
+              }
+            ]
           }
         ]
       },
@@ -434,7 +538,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"kidly-ai-notes\",env=~\"dev|prod\"} | json | __error__=\"\" | line_format \"{{.report}}\" | regexp `(?m)^AI analysis .* observed (?P<observed_at>[^\\r\\n]+)` | regexp `(?m)^1\\. (?P<next_check>[^\\r\\n]+)` | regexp `(?m)^대응 제안: (?P<advice>[^\\r\\n]+)` | regexp `(?m)^원인 후보: (?P<cause>[^\\r\\n]+)` | advice!=\"\" | label_format detected_level=\"info\",level=\"info\" | line_format `{{if eq .env \"dev\"}}운영{{else}}{{.env}}{{end}} · 관측 {{.observed_at}}{{if .next_check}}{{\"\\n\"}}먼저 확인: {{.next_check}}{{end}}{{if .cause}}{{\"\\n\"}}원인 후보: {{.cause}}{{end}}{{\"\\n\"}}대응 제안: {{.advice}}`",
+          "expr": "{job=\"kidly-ai-notes\",env=~\"dev|prod\"} | json | __error__=\"\" | line_format \"{{.report}}\" | regexp `(?m)^AI analysis .* observed (?P<observed_at>[^\\r\\n]+)` | regexp `(?m)^1\\. (?P<next_check>[^\\r\\n]+)` | regexp `(?m)^대응 제안: (?P<advice>[^\\r\\n]+)` | regexp `(?m)^원인 후보: (?P<cause>[^\\r\\n]+)` | regexp `(?m)^근거 f[0-9]+: [a-z]+/(?P<evidence_service>kidly-[a-z0-9-]+)` | advice!=\"\" | label_format detected_level=\"info\",level=\"info\" | line_format `{{if eq .env \"dev\"}}운영{{else}}{{.env}}{{end}} · 관측 {{.observed_at}}{{if .next_check}}{{\"\\n\"}}먼저 확인: {{.next_check}}{{end}}{{if .cause}}{{\"\\n\"}}원인 후보: {{.cause}}{{end}}{{\"\\n\"}}대응 제안: {{.advice}}{{if .evidence_service}}{{\"\\n\"}}근거 서비스: {{.evidence_service}} (상태판의 같은 줄부터 확인){{end}}`",
           "queryType": "range",
           "maxLines": 1
         }
@@ -448,7 +552,7 @@
         "sortOrder": "Descending",
         "dedupStrategy": "none"
       },
-      "description": "최근 게시된 메모의 첫 확인·원인 후보·대응 제안입니다. 발생 중인 알림과 관측 시각이 맞는지 확인하세요.",
+      "description": "최근 게시된 메모의 첫 확인 · 원인 후보 · 대응 제안 · 근거 서비스입니다. 원인 후보는 확인 전 가설입니다.\n관측 시각이 지금 알림과 맞는지 먼저 봅니다. 메모가 없거나 오래됐으면 AI 운영 분석 화면의 요청 문장으로 새 분석을 받습니다.",
       "links": [
         {
           "title": "운영 분석 전문",
@@ -472,7 +576,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "- **5xx·서비스 다운** → [서비스 상태](/d/kidly-http?var-env=dev)에서 영향 범위를 보고 [오류 로그](/d/kidly-logs?var-env=dev)에서 같은 시각을 확인합니다.\n- **응답 지연** → 로그의 **API 처리 시간**, [응답·DB 연결](/d/kidly-db-latency?var-env=dev)에서 p95와 풀 대기를 봅니다.\n- **Kafka 처리 지연** → [Kafka](/d/kidly-kafka?var-env=dev)에서 알림의 그룹·토픽과 오프셋 전진 여부를 확인합니다.\n- AI 메모가 비어 있거나 시각이 다르면 위 경로에서 조사를 시작합니다."
+        "content": "- **어느 서비스가 이상한지** → 위 상태판에서 빨강 · 주황 칸이 있는 줄을 눌러 서비스 상태나 오류 로그로 갑니다.\n- **5xx·서비스 다운** → [서비스 상태](/d/kidly-http?var-env=dev)에서 영향 범위를 보고 [오류 로그](/d/kidly-logs?var-env=dev)에서 같은 시각을 확인합니다.\n- **응답 지연** → [오류 로그](/d/kidly-logs?var-env=dev)의 **API 처리 시간(p95)**에서 느린 경로를 찾고, [응답·DB 연결](/d/kidly-db-latency?var-env=dev)에서 풀 대기를 봅니다.\n- **Kafka 처리 지연** → [Kafka](/d/kidly-kafka?var-env=dev)에서 알림의 그룹·토픽과 오프셋 전진 여부를 확인합니다.\n- **원인을 정리할 시간이 없으면** → [AI 운영 분석](/d/kidly-ai-notes?var-env=dev)의 요청 문장을 AI 클라이언트에 붙여 넣어 분석 메모를 받습니다."
       }
     },
     {

@@ -693,5 +693,36 @@
       "keepTime": false,
       "targetBlank": false
     }
-  ]
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "서비스 재시작",
+        "enable": true,
+        "hide": false,
+        "iconColor": "purple",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "expr": "max by (job, instance) ((time() - process_start_time_seconds{env=\"$env\",job=~\"$service\"}) < 90 >= 0)",
+        "step": "60s",
+        "titleFormat": "{{job}} 재시작",
+        "textFormat": "{{instance}} · 배포 · 수동 패치 덮어쓰기 · OOM 여부 확인",
+        "tagKeys": "job"
+      }
+    ]
+  }
 }
