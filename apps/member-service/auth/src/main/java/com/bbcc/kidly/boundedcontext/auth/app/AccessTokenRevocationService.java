@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.auth.app;
 
+import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
@@ -20,6 +21,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class AccessTokenRevocationService implements MemberTokenRevoker {
 
     private final ApplicationEventPublisher eventPublisher;
+    private final AuthEventOutbox outbox;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -29,8 +31,10 @@ public class AccessTokenRevocationService implements MemberTokenRevoker {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void revoke(PrincipalId principal, LocalDateTime revokedAt) {
-        eventPublisher.publishEvent(new AuthTokensRevokedEvent(UUID.randomUUID(), revokedAt,
-            new AuthTokensRevokedEvent.Data(principal.type(), principal.id(), revokedAt)));
+        var event = new AuthTokensRevokedEvent(UUID.randomUUID(), revokedAt,
+            new AuthTokensRevokedEvent.Data(principal.type(), principal.id(), revokedAt));
+        outbox.append(event);
+        eventPublisher.publishEvent(event);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
