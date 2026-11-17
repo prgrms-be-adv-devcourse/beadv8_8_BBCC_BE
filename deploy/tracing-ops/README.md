@@ -17,6 +17,12 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 - 공개 추적 헤더 제거가 운영에 반영된 뒤 5% 샘플링으로 시작합니다. 로그·메트릭 exporter와 Kafka 자동 계측은 끕니다.
 - 적용 전 명세를 보관하고 운영 배포와 실행 시간이 겹치지 않게 조율합니다. 원복할 때는 현재 Deployment JSON에 같은 JVM 옵션과 `--rollback`을 전달합니다. 계측 당시 추가한 필드만 지우고 다른 배포 필드는 유지합니다. 값이 달라 원복 도구가 중단되면 적용 전 명세와 현재 명세를 비교합니다. 이 수동 패치는 이후 일반 배포가 덮어쓸 수 있습니다.
 
+## 일반 앱 배포에서 유지
+
+운영 시범에서 서비스별 실제 트레이스와 자원 사용량을 확인한 뒤에만 앱 서버의 `/opt/app/dev/operations/tracing-agent/`에 `gateway.enabled` 또는 `order.enabled`를 둡니다. 일반 배포는 선택 파일이 있는 서비스에 현재 Compose JVM 옵션과 같은 Agent 설정을 붙입니다. 배포 파일 업로드는 이 경로를 보존합니다. Agent JAR이 없거나 비어 있으면 해당 서비스 명세를 적용하기 전에 실패합니다.
+
+원복은 선택 파일을 먼저 지운 뒤 일반 배포로 진행합니다. 수동 시범 패치가 이미 필드를 소유하고 있으면 일반 배포 뒤에도 해당 필드가 남을 수 있으므로, 현재 명세를 읽고 위의 `--rollback` 도구로 제거합니다. Pod가 준비된 뒤 Agent 환경 변수와 마운트가 사라졌는지 확인합니다.
+
 ## 앱 클러스터 수집기
 
 `kubectl kustomize deploy/tracing-ops/app-alloy`로 Agent와 사설 수신점 사이의 Alloy 구성을 확인합니다. 기존 로그·메트릭 Alloy와 별도입니다.
@@ -46,6 +52,19 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 ## 운영 사전 점검
 
 GitHub Actions에서 `tracing-preflight`를 develop 기준으로 수동 실행합니다. 두 클러스터의 Gateway·주문·Grafana·Tempo 준비 상태와 수집 리소스 유무를 확인합니다. 앱 환경 변수, Secret, 인증서 내용과 로그 원문은 출력하지 않습니다. 수집 경로가 준비된 이후에는 실제 요청의 Tempo 조회를 별도로 확인합니다.
+
+## 부하 시험 관측
+
+시험 시작·종료 시각(KST), 요청 경로, 요청률을 기록합니다. Agent 적용 전후 같은 요청 조건에서 비교하며 Grafana 시간 범위는 시험 앞뒤를 포함하도록 고정합니다. 환경은 실제 운영에 연결된 **운영**을 고릅니다.
+
+| 화면 | 볼 항목 |
+| --- | --- |
+| [Kidly 서비스 오류](/d/kidly-http) | 초당 요청 수, 5xx 비율, 평균 응답 시간. Gateway와 대상 앱은 각각 확인합니다. 같은 요청을 두 서비스의 처리량으로 합산하지 않습니다. |
+| [Kidly 로그](/d/kidly-logs) | **API 처리 시간**에서 로그 기반 p95를 확인합니다. 종료 시각 직전 30분에 경로별 20건 이상이 필요합니다. 시험 구간만의 p95는 부하 도구 결과에서 확인합니다. |
+| [Kidly 응답·DB 연결](/d/kidly-db-latency) | 앱 DB 풀 사용률, 연결 대기, 시간 초과. |
+| [Kidly 서버](/d/kidly-server) | 서버 CPU·가용 메모리·네트워크와 대상 Pod CPU·메모리. |
+| [Kidly Kafka 처리](/d/kidly-kafka) | 이벤트를 발생시키는 시험에서만 관련 그룹·토픽의 미처리를 확인합니다. |
+| Explore → Tempo | 같은 시간대에서 대표 요청의 서비스 간 흐름과 HTTP·DB 시간을 확인합니다. 5% 샘플을 전체 처리량 집계에 쓰지 않습니다. |
 
 ## Java Agent 파일 준비
 

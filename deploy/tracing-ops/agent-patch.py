@@ -5,18 +5,17 @@ import argparse
 import json
 import sys
 
-NAMESPACE = 'kidly-dev'
-AGENT_JAR = '/opt/kidly-tracing/opentelemetry-javaagent.jar'
-HOST_AGENT_JAR = '/opt/app/kidly-tracing/opentelemetry-javaagent.jar'
-AGENT_VOLUME = 'kidly-tracing-agent'
-OTLP_ENDPOINT = 'http://tracing-alloy.kidly-dev.svc:4318/v1/traces'
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'k3s'))
+from tracing_agent import AGENT_JAR, AGENT_VOLUME, NAMESPACE, SERVICES, agent_settings
 
 
 def render_patch(deployment, java_options, rollback=False):
     metadata = deployment['metadata']
     service = metadata['name']
     if (deployment['kind'] != 'Deployment' or metadata['namespace'] != NAMESPACE
-            or service not in ('gateway', 'order')):
+            or service not in SERVICES):
         raise ValueError('expected the gateway or order Deployment in kidly-dev')
 
     pod = deployment['spec']['template']['spec']
@@ -27,27 +26,9 @@ def render_patch(deployment, java_options, rollback=False):
     env = container.get('env', [])
     if container.get('envFrom') != [{'secretRef': {'name': f'{service}-env'}}]:
         raise ValueError('expected the existing deploy-generated environment Secret reference')
-    if not java_options.strip() or '-javaagent:' in java_options:
-        raise ValueError('provide existing JVM options without an agent')
-    settings = {
-        'JAVA_TOOL_OPTIONS': f'{java_options} -javaagent:{AGENT_JAR}',
-        'OTEL_SERVICE_NAME': f'kidly-{service}',
-        'OTEL_RESOURCE_ATTRIBUTES': 'deployment.environment.name=dev',
-        'OTEL_EXPORTER_OTLP_PROTOCOL': 'http/protobuf',
-        'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT': OTLP_ENDPOINT,
-        'OTEL_METRICS_EXPORTER': 'none',
-        'OTEL_LOGS_EXPORTER': 'none',
-        'OTEL_PROPAGATORS': 'tracecontext',
-        'OTEL_TRACES_SAMPLER': 'parentbased_traceidratio',
-        'OTEL_TRACES_SAMPLER_ARG': '0.05',
-        'OTEL_INSTRUMENTATION_KAFKA_ENABLED': 'false',
-        'OTEL_INSTRUMENTATION_LOGBACK_MDC_ENABLED': 'false',
-        'OTEL_INSTRUMENTATION_LOGBACK_APPENDER_ENABLED': 'false',
-    }
-    mount = {'name': AGENT_VOLUME, 'mountPath': AGENT_JAR, 'readOnly': True}
-    volume = {'name': AGENT_VOLUME, 'hostPath': {'path': HOST_AGENT_JAR, 'type': 'File'}}
-    patches = [{'name': name, 'value': value} for name, value in settings.items()]
-    existing_env = [entry for entry in env if entry['name'] in settings]
+    patches, mount, volume = agent_settings(service, java_options)
+    setting_names = {entry['name'] for entry in patches}
+    existing_env = [entry for entry in env if entry['name'] in setting_names]
     existing_mounts = [entry for entry in container.get('volumeMounts', [])
                        if entry['name'] == AGENT_VOLUME or entry['mountPath'] == AGENT_JAR]
     existing_volumes = [entry for entry in pod.get('volumes', []) if entry['name'] == AGENT_VOLUME]
@@ -56,7 +37,7 @@ def render_patch(deployment, java_options, rollback=False):
                 or any(entry not in existing_env for entry in patches)
                 or existing_mounts != [mount] or existing_volumes != [volume]):
             raise ValueError('live tracing settings do not match the generated deployment patch')
-        patches = [{'name': name, '$patch': 'delete'} for name in settings]
+        patches = [{'name': name, '$patch': 'delete'} for name in sorted(setting_names)]
         mount = {'mountPath': AGENT_JAR, '$patch': 'delete'}
         volume = {'name': AGENT_VOLUME, '$patch': 'delete'}
     elif existing_env or existing_mounts or existing_volumes or any(
