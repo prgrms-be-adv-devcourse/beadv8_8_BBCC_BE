@@ -68,6 +68,9 @@ class OrderCancelByBuyerIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderPlacementService orderPlacementService;
+
+    @Autowired
     private OrderQueryService orderQueries;
 
     @Autowired
@@ -389,7 +392,7 @@ class OrderCancelByBuyerIntegrationTest {
             ? List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L),
                 new PlaceOrderCommand.Item(2L, null, 1, 30_000L))
             : List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L));
-        return orderService.place(buyerId, new PlaceOrderCommand(items,
+        return orderPlacementService.place(buyerId, new PlaceOrderCommand(items,
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"))).orderId();
     }
 

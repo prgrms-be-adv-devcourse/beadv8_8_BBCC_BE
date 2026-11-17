@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
@@ -41,6 +42,9 @@ class OrderSchedulerLogContextTest {
 
     @Mock
     private OrderService orderService;
+
+    @Mock
+    private OrderConfirmationService orderConfirmationService;
 
     @Mock
     private PaymentExpiryGate paymentExpiryGate;
@@ -84,12 +88,12 @@ class OrderSchedulerLogContextTest {
     @Test
     @DisplayName("자동 구매확정: correlationId는 주문상품 ID가 아니라 주문 ID")
     void autoConfirmUsesOrderId() {
-        when(orderService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenReturn(List.of(
+        when(orderConfirmationService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenReturn(List.of(
             new AutoConfirmTarget(1L, 10L), new AutoConfirmTarget(2L, 20L)));
         doAnswer(invocation -> {
             processedWith.put(invocation.getArgument(1), new HashMap<>(MDC.getCopyOfContextMap()));
             return null;
-        }).when(orderService).confirmAutomatically(anyLong(), anyLong());
+        }).when(orderConfirmationService).confirmAutomatically(anyLong(), anyLong());
 
         scheduler().autoConfirm();
 
@@ -117,7 +121,8 @@ class OrderSchedulerLogContextTest {
     }
 
     private OrderScheduler scheduler() {
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(100, 1000), INTERVALS,
-            paymentExpiryGate, new ImmediateJobRunner(), new OrderOperationMetrics(new SimpleMeterRegistry()));
+        return new OrderScheduler(orderService, orderConfirmationService, new OrderSchedulerProperties(100, 1000),
+            INTERVALS, paymentExpiryGate, new ImmediateJobRunner(),
+            new OrderOperationMetrics(new SimpleMeterRegistry()));
     }
 }

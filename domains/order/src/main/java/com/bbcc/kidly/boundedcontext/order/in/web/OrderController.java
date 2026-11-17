@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.order.in.web;
 
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacement;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
@@ -39,6 +40,7 @@ public class OrderController {
     public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
     private final OrderService orderService;
+    private final OrderConfirmationService orderConfirmationService;
     private final OrderQueryService orderQueries;
     private final OrderPlacement orderPlacement;
 
@@ -82,7 +84,8 @@ public class OrderController {
         @LoginMember AuthMember member,
         @PathVariable Long orderId,
         @PathVariable Long orderItemId) {
-        return OrderDetailResponse.Item.from(orderService.confirmByBuyer(member.id(), orderId, orderItemId));
+        return OrderDetailResponse.Item.from(
+            orderConfirmationService.confirmByBuyer(member.id(), orderId, orderItemId));
     }
 
     @GetMapping("/{orderId}")

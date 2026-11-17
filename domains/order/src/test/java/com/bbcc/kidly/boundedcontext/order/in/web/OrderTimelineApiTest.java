@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
@@ -54,6 +55,9 @@ class OrderTimelineApiTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderConfirmationService orderConfirmationService;
 
     @Autowired
     private OrderQueryService orderQueries;
@@ -222,7 +226,7 @@ class OrderTimelineApiTest {
         // 배송 완료 시각은 처음 값을 유지하므로, 자동 확정 기간(15일)이 지난 것으로 시각만 당긴다
         jdbcTemplate.update("update orders.order_item set delivered_at = ? where id = ?",
             LocalDateTime.now().minusDays(16), items.get(1).orderItemId());
-        orderService.confirmAutomatically(orderId, items.get(1).orderItemId());
+        orderConfirmationService.confirmAutomatically(orderId, items.get(1).orderItemId());
         JsonNode confirmed = timeline(orderId);
         JsonNode confirmedStep = step(confirmed, "CONFIRMED");
         assertThat(confirmedStep.get("status").asString()).isEqualTo("DONE");

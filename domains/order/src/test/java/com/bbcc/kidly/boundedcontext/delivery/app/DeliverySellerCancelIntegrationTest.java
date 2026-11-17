@@ -12,6 +12,8 @@ import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -57,6 +59,12 @@ class DeliverySellerCancelIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderConfirmationService orderConfirmationService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private OrderQueryService orderQueries;
@@ -248,17 +256,18 @@ class DeliverySellerCancelIntegrationTest {
         jdbcTemplate.update("update orders.order_item set delivered_at = ? where id = ?", longAgo, otherItemId);
         LocalDateTime now = LocalDateTime.now();
 
-        assertThatThrownBy(() -> orderService.confirmByBuyer(buyerId, orderId, cancelledItemId))
+        assertThatThrownBy(() -> orderConfirmationService.confirmByBuyer(buyerId, orderId, cancelledItemId))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").extracting("title").isEqualTo("취소된 주문상품입니다");
-        assertThat(orderService.findAutoConfirmTargets(now, 0L, 100)).extracting(AutoConfirmTarget::orderItemId)
+        assertThat(orderConfirmationService.findAutoConfirmTargets(now, 0L, 100))
+            .extracting(AutoConfirmTarget::orderItemId)
             .containsExactly(otherItemId);
         assertThat(stuckOrderService.getSummary(now))
             .containsEntry(StuckOrderKind.AUTO_CONFIRM_MISSED, 1L)
             .containsEntry(StuckOrderKind.SHIPPING_DELAYED, 0L);
 
-        orderService.confirmAutomatically(orderId, cancelledItemId);
-        orderService.confirmAutomatically(orderId, otherItemId);
+        orderConfirmationService.confirmAutomatically(orderId, cancelledItemId);
+        orderConfirmationService.confirmAutomatically(orderId, otherItemId);
 
         assertThat(recorder.events(OrderItemPurchaseConfirmedEvent.class))
             .extracting(event -> event.data().orderItemId()).containsExactly(otherItemId);
@@ -283,7 +292,7 @@ class DeliverySellerCancelIntegrationTest {
     }
 
     private Long placeAndPay(Long buyerId) {
-        Long orderId = orderService.place(buyerId, new PlaceOrderCommand(
+        Long orderId = orderPlacementService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"))).orderId();
         orderService.markPaid(MarkPaidCommands.matching(orderQueries.getOrder(buyerId, orderId), buyerId, 500L));

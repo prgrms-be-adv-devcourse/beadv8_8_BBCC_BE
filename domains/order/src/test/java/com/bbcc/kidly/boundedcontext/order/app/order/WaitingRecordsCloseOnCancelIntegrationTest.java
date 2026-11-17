@@ -47,6 +47,9 @@ class WaitingRecordsCloseOnCancelIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderPlacementService orderPlacementService;
+
+    @Autowired
     private OrderQueryService orderQueries;
 
     @Autowired
@@ -268,7 +271,7 @@ class WaitingRecordsCloseOnCancelIntegrationTest {
     }
 
     private Long place() {
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         return order.orderId();

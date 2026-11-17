@@ -16,6 +16,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentFailures;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentRecoveryService;
@@ -91,6 +92,9 @@ class PaymentRecoveryIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private CartService cartService;
@@ -633,7 +637,7 @@ class PaymentRecoveryIntegrationTest {
     private OrderDetail placeWithCart(Long buyerId) {
         cartService.addItem(CartOwners.member(buyerId), 1L, null, 1);
         cartService.addItem(CartOwners.member(buyerId), 2L, null, 1);
-        return orderService.place(buyerId, new PlaceOrderCommand(
+        return orderPlacementService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L), new PlaceOrderCommand.Item(2L, null, 1, 30_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
     }

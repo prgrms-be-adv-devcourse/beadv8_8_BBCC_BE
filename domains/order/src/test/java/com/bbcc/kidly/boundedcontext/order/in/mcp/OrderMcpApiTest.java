@@ -12,7 +12,7 @@ import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.OrderDeadLetterService;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.ReceiveDeadLetterCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
@@ -70,7 +70,7 @@ class OrderMcpApiTest {
     private RestTestClient client;
 
     @Autowired
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private OrderQueryService orderQueries;
@@ -372,7 +372,7 @@ class OrderMcpApiTest {
     }
 
     private OrderDetail place() {
-        return orderService.place(BUYER_ID, new PlaceOrderCommand(
+        return orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress(RECIPIENT, PHONE, "12345", ADDRESS)));
     }

@@ -9,6 +9,8 @@ import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -41,6 +43,12 @@ class ConfirmConcurrencyIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderConfirmationService orderConfirmationService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
+
+    @Autowired
     private OrderQueryService orderQueries;
 
     @Autowired
@@ -71,9 +79,9 @@ class ConfirmConcurrencyIntegrationTest {
             Long orderItemId = order.items().get(0).orderItemId();
 
             ConcurrentCalls.Outcome outcome = ConcurrentCalls.run(List.of(
-                () -> orderService.confirmByBuyer(buyerId, order.orderId(), orderItemId),
-                () -> orderService.confirmByBuyer(buyerId, order.orderId(), orderItemId),
-                () -> orderService.confirmAutomatically(order.orderId(), orderItemId)));
+                () -> orderConfirmationService.confirmByBuyer(buyerId, order.orderId(), orderItemId),
+                () -> orderConfirmationService.confirmByBuyer(buyerId, order.orderId(), orderItemId),
+                () -> orderConfirmationService.confirmAutomatically(order.orderId(), orderItemId)));
 
             assertThat(outcome.unexpected()).as("낙관적 락 말고 다른 예외(%d회차)", round).isEmpty();
             OrderDetail.Item item = orderQueries.getOrder(buyerId, order.orderId()).items().stream()
@@ -98,7 +106,7 @@ class ConfirmConcurrencyIntegrationTest {
      * 주문(자녀 없음) → 결제완료 → 판매자 배송 완료(자동 확정 기간이 지난 시각). 서비스를 바로 불러 상태만 만든다.
      */
     private OrderDetail deliveredPastPeriod(Long buyerId) {
-        OrderDetail order = orderService.place(buyerId, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         orderService.markPaid(MarkPaidCommands.matching(order, buyerId, 500L));

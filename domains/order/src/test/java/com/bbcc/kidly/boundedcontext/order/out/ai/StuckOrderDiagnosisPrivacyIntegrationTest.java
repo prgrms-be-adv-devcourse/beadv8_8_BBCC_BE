@@ -5,7 +5,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.app.config.StuckOrderDiagnosisProperties;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
@@ -67,7 +67,7 @@ class StuckOrderDiagnosisPrivacyIntegrationTest {
     private StuckOrderDiagnosisProperties properties;
 
     @Autowired
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -96,7 +96,7 @@ class StuckOrderDiagnosisPrivacyIntegrationTest {
     @Test
     @DisplayName("실제 주문(배송지 · 수령인 · 연락처 · 자녀 주문상품)으로 만든 진단 요청의 프롬프트에 개인정보 값 · 칸이 없다")
     void promptFromRealOrderHasNoPersonalData() {
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress(RECIPIENT, PHONE, ZIP, ADDRESS)));
         jdbcTemplate.update("update orders.orders set created_at = ?, payment_due_at = ? where id = ?",
@@ -136,7 +136,7 @@ class StuckOrderDiagnosisPrivacyIntegrationTest {
     @DisplayName("자유 문구 칸(아웃박스 lastError · 이력 reason/source · 실패 코드)에 개인정보를 넣어도 AI 요청 글에는 없고, "
         + "실제 코드(member-mismatch · 예외 이름 · enum 사유 · 경로 틀 · 이벤트 타입)는 그대로 나간다")
     void freeTextIsFilteredFromPrompt() {
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress(RECIPIENT, PHONE, ZIP, ADDRESS)));
         Long orderId = order.orderId();

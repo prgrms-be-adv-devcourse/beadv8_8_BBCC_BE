@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -68,6 +69,9 @@ class OrderSchedulerBatchIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderConfirmationService orderConfirmationService;
+
+    @Autowired
     private OrderRepository orderRepository;
 
     @Autowired
@@ -83,8 +87,8 @@ class OrderSchedulerBatchIntegrationTest {
         OrderService failingFirst = mock(OrderService.class, delegatesTo(orderService));
         doThrow(new IllegalStateException("계속 실패")).when(failingFirst).cancelForPaymentExpiry(ids.getFirst());
 
-        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate, jobRunner,
-            new OrderOperationMetrics(new SimpleMeterRegistry()))
+        new OrderScheduler(failingFirst, orderConfirmationService, new OrderSchedulerProperties(2, 10), INTERVALS,
+            paymentExpiryGate, jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()))
             .expireOverduePayments();
 
         assertThat(statusOf(ids.getFirst())).isEqualTo("PENDING_PAYMENT");
@@ -97,8 +101,9 @@ class OrderSchedulerBatchIntegrationTest {
     @DisplayName("max-per-run(3)에 닿으면 그 실행은 앞의 3건만 처리하고 멈추며, 나머지는 다음 실행에서 처리된다")
     void stopsAtMaxPerRunAndContinuesNextRun() {
         List<Long> ids = overdueOrders(5);
-        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS,
-            paymentExpiryGate, jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
+        OrderScheduler scheduler = new OrderScheduler(orderService, orderConfirmationService,
+            new OrderSchedulerProperties(2, 3), INTERVALS, paymentExpiryGate, jobRunner,
+            new OrderOperationMetrics(new SimpleMeterRegistry()));
 
         scheduler.expireOverduePayments();
 
@@ -114,13 +119,14 @@ class OrderSchedulerBatchIntegrationTest {
     @DisplayName("자동 구매확정도 앞쪽 주문상품이 계속 실패해도 뒤쪽 주문상품을 같은 실행에서 여러 배치에 걸쳐 확정한다")
     void autoConfirmFrontFailureDoesNotBlockTheRest() {
         List<Long> orderIds = deliveredLongAgo(4);
-        OrderService failingFirst = mock(OrderService.class, delegatesTo(orderService));
+        OrderConfirmationService failingFirst = mock(OrderConfirmationService.class,
+            delegatesTo(orderConfirmationService));
         Long firstItemId = itemIdOf(orderIds.getFirst());
         doThrow(new IllegalStateException("계속 실패")).when(failingFirst)
             .confirmAutomatically(orderIds.getFirst(), firstItemId);
 
-        new OrderScheduler(failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate, jobRunner,
-            new OrderOperationMetrics(new SimpleMeterRegistry()))
+        new OrderScheduler(orderService, failingFirst, new OrderSchedulerProperties(2, 10), INTERVALS,
+            paymentExpiryGate, jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()))
             .autoConfirm();
 
         assertThat(itemStatusOf(orderIds.getFirst())).isEqualTo("ORDERED");
@@ -133,8 +139,9 @@ class OrderSchedulerBatchIntegrationTest {
     @DisplayName("자동 구매확정도 max-per-run(3)에 닿으면 주문상품 5건 중 앞의 3건만 확정하고, 다음 실행에서 나머지를 확정한다")
     void autoConfirmStopsAtMaxPerRun() {
         List<Long> orderIds = deliveredLongAgo(5);
-        OrderScheduler scheduler = new OrderScheduler(orderService, new OrderSchedulerProperties(2, 3), INTERVALS,
-            paymentExpiryGate, jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
+        OrderScheduler scheduler = new OrderScheduler(orderService, orderConfirmationService,
+            new OrderSchedulerProperties(2, 3), INTERVALS, paymentExpiryGate, jobRunner,
+            new OrderOperationMetrics(new SimpleMeterRegistry()));
 
         scheduler.autoConfirm();
 
@@ -243,8 +250,8 @@ class OrderSchedulerBatchIntegrationTest {
     }
 
     private OrderScheduler instance() {
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate,
-            jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
+        return new OrderScheduler(orderService, orderConfirmationService, new OrderSchedulerProperties(2, 10),
+            INTERVALS, paymentExpiryGate, jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
     }
 
     // 진 쪽이 남긴 건별 실패 WARN 줄의 주문 ID(한 줄 = 한 건)

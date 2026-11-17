@@ -10,7 +10,7 @@ import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
@@ -54,7 +54,7 @@ class CartItemRemovedOutboxIntegrationTest {
     private CartService cartService;
 
     @Autowired
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private OrderQueryService orderQueries;
@@ -139,7 +139,7 @@ class CartItemRemovedOutboxIntegrationTest {
     @DisplayName("결제가 끝나 장바구니가 정리되면(산 것) 줄이 지워지고 cart.item-purchased 한 행(키 = 회원 ID), cart.item-removed는 없다(#998)")
     void purchasedWhenClearedByPayment() {
         Long cartItemId = cartService.addItem(CartOwners.member(BUYER_ID), OPTION_ID, CHILD_ID, 2).line().cartItemId();
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(OPTION_ID, CHILD_ID, 2, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시")));
 

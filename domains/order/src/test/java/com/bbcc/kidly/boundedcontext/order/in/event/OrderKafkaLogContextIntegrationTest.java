@@ -4,7 +4,7 @@ import static com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture.
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -59,7 +59,7 @@ class OrderKafkaLogContextIntegrationTest {
     private OrderKafkaListenerTestGuard guard;
 
     @Autowired
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -160,7 +160,7 @@ class OrderKafkaLogContextIntegrationTest {
     }
 
     private OrderDetail place() {
-        return orderService.place(BUYER_ID, new PlaceOrderCommand(
+        return orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
     }

@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.CapturedLogs;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -49,6 +50,9 @@ class DeliveryEventsIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private DeliveryRepository deliveryRepository;
@@ -195,7 +199,7 @@ class DeliveryEventsIntegrationTest {
     }
 
     private OrderDetail paidOrder() {
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         orderService.markPaid(MarkPaidCommands.matching(order, BUYER_ID, 500L));

@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
 import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
@@ -38,6 +39,7 @@ public class OrderScheduler {
     static final String PAYMENT_EXPIRY_JOB = "payment-expiry";
 
     private final OrderService orderService;
+    private final OrderConfirmationService orderConfirmationService;
     private final OrderSchedulerProperties properties;
     // 주기 값의 바인딩 검증(1초 이상)이 @Scheduled 등록보다 먼저 돌아 키 이름이 나오는 오류로 실패하게 하려고 주입한다
     private final OrderScheduleIntervals intervals;
@@ -63,12 +65,12 @@ public class OrderScheduler {
         // 기준 시각은 실행마다 한 번만 정해 모든 배치에 같게 쓴다(실행 중 새로 기간이 지난 건은 다음 실행에서)
         LocalDateTime now = LocalDateTime.now();
         RotatingCursor.Run run = runInBatches(autoConfirmCursor,
-            (afterId, limit) -> orderService.findAutoConfirmTargets(now, afterId, limit),
+            (afterId, limit) -> orderConfirmationService.findAutoConfirmTargets(now, afterId, limit),
             AutoConfirmTarget::orderItemId,
             AutoConfirmTarget::orderId,
             target -> {
                 try {
-                    orderService.confirmAutomatically(target.orderId(), target.orderItemId());
+                    orderConfirmationService.confirmAutomatically(target.orderId(), target.orderItemId());
                     return true;
                 } catch (RuntimeException e) {
                     log.warn("자동 구매확정 실패: orderId={} orderItemId={}", target.orderId(), target.orderItemId(), e);

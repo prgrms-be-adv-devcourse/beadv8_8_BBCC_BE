@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
@@ -284,8 +285,9 @@ class OrderSettingsTest {
         @Bean
         OrderScheduler orderScheduler(OrderService orderService, OrderSchedulerProperties properties,
             OrderScheduleIntervals intervals) {
-            return new OrderScheduler(orderService, properties, intervals, mock(PaymentExpiryGate.class),
-                new ImmediateJobRunner(), new OrderOperationMetrics(new SimpleMeterRegistry()));
+            return new OrderScheduler(orderService, mock(OrderConfirmationService.class), properties, intervals,
+                mock(PaymentExpiryGate.class), new ImmediateJobRunner(),
+                new OrderOperationMetrics(new SimpleMeterRegistry()));
         }
     }
 

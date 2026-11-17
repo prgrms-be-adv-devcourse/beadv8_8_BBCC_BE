@@ -48,6 +48,9 @@ class OrderPaidEventIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderPlacementService orderPlacementService;
+
+    @Autowired
     private OrderQueryService orderQueries;
 
     @Autowired
@@ -137,7 +140,7 @@ class OrderPaidEventIntegrationTest {
     }
 
     private OrderDetail place() {
-        return orderService.place(BUYER_ID, new PlaceOrderCommand(
+        return orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 2, PRICE_A), new PlaceOrderCommand.Item(2L, null, 1, PRICE_B)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시")));
     }

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.cart.in.web;
 
+import com.bbcc.kidly.boundedcontext.cart.app.CartQueryService;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
 import com.bbcc.kidly.boundedcontext.cart.app.dto.AddCartItemResult;
 import com.bbcc.kidly.boundedcontext.cart.app.port.CartActors.Actor;
@@ -32,6 +33,7 @@ public class CartController {
     public static final String CART_ITEMS_PATH = CART_PATH + "/items";
 
     private final CartService cartService;
+    private final CartQueryService cartQueryService;
 
     /**
      * 새 줄이면 201 + Location, 같은 줄에 수량을 더했으면 200.
@@ -51,7 +53,7 @@ public class CartController {
 
     @GetMapping
     public CartResponse getCart(@CartCaller Actor owner) {
-        return CartResponse.from(cartService.getCart(owner));
+        return CartResponse.from(cartQueryService.getCart(owner));
     }
 
     @PatchMapping("/items/{cartItemId}")

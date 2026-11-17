@@ -40,7 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 장바구니 담기 · 조회 · 수량 변경 · 삭제. 장바구니는 주인(#998: 회원 또는 로그인한 자녀) 한 명의 것이고, 남의 줄은 다루지 않는다:
+ * 장바구니 담기 · 수량 변경 · 삭제(조회는 CartQueryService, #1508). 장바구니는 주인(#998: 회원 또는 로그인한 자녀) 한 명의 것이고, 남의 줄은 다루지 않는다:
  * 같은 가족(같은 보호자)의 줄이면 403(부모가 아이 장바구니를 다루는 것 포함), 그 밖이면 없는 줄(404)로 본다.
  * 아이 장바구니는 입을 아이가 그 아이로 고정이고, 그 아이 프로필 복사본이 없으면 담을 수 없다(CART-C-01).
  * 상품 · 판매자 · 자녀는 {@link CartCatalog}(주문 컨텍스트의 복사본)로 읽고, 주문은 읽지 않는다(#998).
@@ -98,7 +98,7 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
                 throw CartErrors.toBusiness(e);
             }
             publishItemAdded(sameLine.get(), product, quantity);
-            return new AddCartItemResult(toLine(sameLine.get(), product, sellerNameOf(product)), false);
+            return new AddCartItemResult(CartLines.toLine(sameLine.get(), product, sellerNameOf(product)), false);
         }
         CartItem created;
         try {
@@ -108,7 +108,7 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
             throw CartErrors.toBusiness(e);
         }
         publishItemAdded(created, product, quantity);
-        return new AddCartItemResult(toLine(created, product, sellerNameOf(product)), true);
+        return new AddCartItemResult(CartLines.toLine(created, product, sellerNameOf(product)), true);
     }
 
     /**
@@ -118,31 +118,6 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
         cartEvents.publish(new CartItemAddedEvent(UUID.randomUUID(), LocalDateTime.now(), new CartItemAddedEvent.Data(
             item.getId(), item.getMemberId(), item.getChildId(), product.productId(), item.getOptionId(), quantity,
             item.getQuantity(), item.getOwnerType().name(), item.getOwnerId())));
-    }
-
-    /**
-     * 그 주인의 줄을 최근에 담은 것부터. 합계는 구매 가능한 줄만 더한다. 상품 · 판매자 복사본은 한 번씩 읽어 합친다.
-     */
-    @Transactional(readOnly = true)
-    public CartView getCart(Actor owner) {
-        List<CartItem> items = cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(owner.type(), owner.id());
-        Map<Long, ProductOption> products = cartCatalog.findProductOptions(
-                items.stream().map(CartItem::getOptionId).toList())
-            .stream()
-            .collect(Collectors.toMap(ProductOption::optionId, Function.identity()));
-        Map<Long, String> sellerNames = sellerNamesOf(products.values());
-
-        List<CartView.Line> lines = items.stream()
-            .map(item -> {
-                ProductOption product = products.get(item.getOptionId());
-                return toLine(item, product, product == null ? null : sellerNames.get(product.sellerId()));
-            })
-            .toList();
-        long totalAmount = lines.stream()
-            .filter(CartView.Line::purchasable)
-            .mapToLong(CartView.Line::lineAmount)
-            .reduce(0L, Math::addExact);
-        return new CartView(lines, totalAmount);
     }
 
     /**
@@ -156,7 +131,7 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
             throw CartErrors.toBusiness(e);
         }
         ProductOption product = cartCatalog.findProductOption(item.getOptionId()).orElse(null);
-        return toLine(item, product, sellerNameOf(product));
+        return CartLines.toLine(item, product, sellerNameOf(product));
     }
 
     /**
@@ -459,25 +434,5 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
             return null;
         }
         return cartCatalog.findSellerName(product.sellerId()).orElse(null);
-    }
-
-    private Map<Long, String> sellerNamesOf(Collection<ProductOption> products) {
-        Set<Long> sellerIds = products.stream().map(ProductOption::sellerId).collect(Collectors.toSet());
-        if (sellerIds.isEmpty()) {
-            return Map.of();
-        }
-        return cartCatalog.findSellerNames(sellerIds);
-    }
-
-    /**
-     * 상품 복사본이 없으면 상품 필드 null, 구매 불가, 금액 0.
-     */
-    private CartView.Line toLine(CartItem item, ProductOption product, String sellerName) {
-        if (product == null) {
-            return CartView.Line.withoutProduct(item.getId(), item.getOptionId(), item.getChildId(), item.getQuantity(),
-                item.isReserved());
-        }
-        return CartView.Line.withProduct(item.getId(), item.getOptionId(), item.getChildId(), item.getQuantity(),
-            item.isReserved(), product, sellerName);
     }
 }

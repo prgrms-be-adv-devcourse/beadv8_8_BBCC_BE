@@ -86,18 +86,20 @@ class CartServiceTest {
 
     // 주문 컨텍스트는 어댑터 + 실제 들어오는 포트 구현에 위 저장소 mock을 넣어 쓴다(#617 · #641: 장바구니 동작은 그대로)
     private CartService cartService;
+    private CartQueryService cartQueryService;
 
     @Captor
     private ArgumentCaptor<CartItem> saved;
 
     @BeforeEach
     void setUp() {
-        cartService = new CartService(cartItemRepository, reservationRepository,
-            new CartCatalogAdapter(
-                // 자녀 계정 복사본(#906)은 장바구니가 쓰지 않으므로 없이(null) 둔다
-                new ProvidedReplicaService(productReplicaRepository, sellerReplicaRepository, childReplicaRepository,
-                    null)),
+        // 자녀 계정 복사본(#906)은 장바구니가 쓰지 않으므로 없이(null) 둔다
+        CartCatalogAdapter catalog = new CartCatalogAdapter(new ProvidedReplicaService(productReplicaRepository,
+            sellerReplicaRepository, childReplicaRepository, null));
+        cartService = new CartService(cartItemRepository, reservationRepository, catalog,
             new CartEventsAdapter(new ProvidedEventService(eventPublisher, outbox)));
+        // 조회는 따로 뺀 서비스(#1508)라 같은 저장소 mock · 복사본 어댑터로 함께 만든다
+        cartQueryService = new CartQueryService(cartItemRepository, catalog);
     }
 
     // ── 담기 ──
@@ -351,7 +353,7 @@ class CartServiceTest {
             product(1L, 25_000L, "ON_SALE", false),
             product(2L, 30_000L, "ON_SALE", true)));
 
-        CartView cart = cartService.getCart(member(BUYER_ID));
+        CartView cart = cartQueryService.getCart(member(BUYER_ID));
 
         assertThat(cart.items()).hasSize(2);
         CartView.Line soldOut = cart.items().get(0);
@@ -371,7 +373,7 @@ class CartServiceTest {
             BUYER_ID)).thenReturn(List.of(
             line(BUYER_ID, 9L, null, 2)));
 
-        CartView cart = cartService.getCart(member(BUYER_ID));
+        CartView cart = cartQueryService.getCart(member(BUYER_ID));
 
         assertThat(cart.items()).hasSize(1);
         CartView.Line line = cart.items().get(0);

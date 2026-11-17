@@ -9,6 +9,8 @@ import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
@@ -44,6 +46,12 @@ class DeliveryTrackingIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderConfirmationService orderConfirmationService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private OrderQueryService orderQueries;
@@ -168,9 +176,11 @@ class DeliveryTrackingIntegrationTest {
             "update orders.order_item set delivered_at = delivered_at - interval '16 days' where order_id = ?",
             order.orderId());
 
-        List<AutoConfirmTarget> targets = orderService.findAutoConfirmTargets(LocalDateTime.now(), 0L, 100);
-        targets.forEach(target -> orderService.confirmAutomatically(target.orderId(), target.orderItemId()));
-        targets.forEach(target -> orderService.confirmAutomatically(target.orderId(), target.orderItemId()));
+        List<AutoConfirmTarget> targets = orderConfirmationService.findAutoConfirmTargets(LocalDateTime.now(), 0L, 100);
+        targets.forEach(
+            target -> orderConfirmationService.confirmAutomatically(target.orderId(), target.orderItemId()));
+        targets.forEach(
+            target -> orderConfirmationService.confirmAutomatically(target.orderId(), target.orderItemId()));
 
         assertThat(targets).extracting(AutoConfirmTarget::orderId).contains(order.orderId());
         assertThat(orderQueries.getOrder(BUYER_ID, order.orderId()).items())
@@ -184,7 +194,7 @@ class DeliveryTrackingIntegrationTest {
     }
 
     private OrderDetail paidOrder() {
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         orderService.markPaid(MarkPaidCommands.matching(order, BUYER_ID, 500L));

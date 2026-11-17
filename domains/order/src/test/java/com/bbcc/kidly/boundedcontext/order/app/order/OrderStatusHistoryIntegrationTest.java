@@ -60,6 +60,12 @@ class OrderStatusHistoryIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderConfirmationService orderConfirmationService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
+
+    @Autowired
     private OrderQueryService orderQueries;
 
     @Autowired
@@ -104,9 +110,9 @@ class OrderStatusHistoryIntegrationTest {
     void place() {
         PlaceOrderCommand command = command(false);
         String hash = OrderRequestFingerprint.of(command);
-        Long orderId = orderService.placeIdempotently(BUYER_ID, command, "key-1", hash).detail().orderId();
+        Long orderId = orderPlacementService.placeIdempotently(BUYER_ID, command, "key-1", hash).detail().orderId();
 
-        orderService.placeIdempotently(BUYER_ID, command, "key-1", hash);
+        orderPlacementService.placeIdempotently(BUYER_ID, command, "key-1", hash);
 
         assertThat(rows(orderId)).containsExactly(
             "ORDER#" + orderId + " null>PENDING_PAYMENT null BUYER " + BUYER_ID + " POST /api/v1/orders");
@@ -156,10 +162,10 @@ class OrderStatusHistoryIntegrationTest {
         deliveredAtSetter.recordDelivered(orderId, SELLER_ID, LocalDateTime.now().minusDays(1));
         deliveredAtSetter.recordDelivered(orderId, OTHER_SELLER_ID, LocalDateTime.now().minusDays(30));
 
-        orderService.confirmByBuyer(BUYER_ID, orderId, direct);
-        orderService.confirmByBuyer(BUYER_ID, orderId, direct);
-        orderService.confirmAutomatically(orderId, auto);
-        orderService.confirmAutomatically(orderId, auto);
+        orderConfirmationService.confirmByBuyer(BUYER_ID, orderId, direct);
+        orderConfirmationService.confirmByBuyer(BUYER_ID, orderId, direct);
+        orderConfirmationService.confirmAutomatically(orderId, auto);
+        orderConfirmationService.confirmAutomatically(orderId, auto);
 
         assertThat(rows(orderId)).filteredOn(row -> row.startsWith("ORDER_ITEM#")).containsExactly(
             "ORDER_ITEM#" + direct + " ORDERED>CONFIRMED DIRECT BUYER " + BUYER_ID
@@ -382,7 +388,7 @@ class OrderStatusHistoryIntegrationTest {
 
     private OrderDetail place(boolean twoSellers) {
         cartService.addItem(CartOwners.member(BUYER_ID), 1L, null, 1);
-        return orderService.place(BUYER_ID, command(twoSellers));
+        return orderPlacementService.place(BUYER_ID, command(twoSellers));
     }
 
     private Long placeAndPay(boolean twoSellers) {

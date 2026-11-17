@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.cart.CartOwners;
 import com.bbcc.kidly.boundedcontext.cart.app.CartService;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaFixture;
@@ -45,7 +45,7 @@ class OrderMemberEventKafkaIntegrationTest {
     private OrderKafkaListenerTestGuard guard;
 
     @Autowired
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private CartService cartService;
@@ -79,7 +79,7 @@ class OrderMemberEventKafkaIntegrationTest {
     @DisplayName("member.withdrawn을 Kafka로 받으면 결제대기 주문이 취소되고(order.cancelled 1건) 회원 장바구니가 빈다. 다시 받아도 같고 DLT는 없다")
     void withdrawnOverKafka() {
         cartService.addItem(CartOwners.member(memberId), 1L, null, 1);
-        Long orderId = orderService.place(memberId, new PlaceOrderCommand(
+        Long orderId = orderPlacementService.place(memberId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시"))).orderId();
         var event = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.now(),
