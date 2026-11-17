@@ -38,12 +38,16 @@ def output_schema(evidence_ids):
 ANALYSIS_FOCUS = {
     'overview': ('전체 점검', ''),
     'latency': ('응답 지연', 'Focus on same-service mean latency, request volume and measured DB pool pressure.'),
-    'errors': ('오류 증가', 'Focus on measured HTTP 5xx, request volume and error_type_30m exception classes by service; note missing pairs.'),
+    'errors': ('오류 증가', 'Focus on measured HTTP 5xx, request volume, error_type_30m exception classes and error_site_30m code locations by service; note missing pairs.'),
     'resources': ('서버 자원', 'Focus on observed host CPU, memory, root disk and OOM within their stated scope.'),
 }
 
 
 MCP_ONLY_METRICS = ('error_logs_30m', 'restarts_30m', 'kafka_lag_by_service')
+# 입력 상한을 넘으면 이 순서로 보조 근거를 줄인다(코드 위치는 건수가 적은 것부터, 재시작은 오래된 것부터)
+OPTIONAL_EVIDENCE = (('error_site_30m:', 'error_site_30m:<'), ('restarted_minutes_ago', 'restarted_minutes_ago:'))
+INPUT_LIMIT = 24000
+TRIMMED = 'Some error_site_30m/restarted_minutes_ago evidence was omitted for input size.'
 MISSING_PREFIX = 'No finite fresh/available result for: '
 MISSING_SUFFIX = '; absence is not healthy zero.'
 
@@ -88,6 +92,8 @@ and name the two adjacent 30-minute windows, using the format "직전 30분 [val
 Use mean_response_current_30m and mean_response_previous_30m as average latency in milliseconds.
 error_type_30m:<Class> is the count of ERROR log events with that exception class for the service in 30 minutes.
 Use it to name what failed, together with the HTTP or DB evidence it explains. It is not a count of failed requests.
+error_site_30m:<Exception>:<Class>:<method>:<line> is where our code was in those ERROR events. Name the class, method and line in the check.
+restarted_minutes_ago means the service started that many minutes ago. If errors or latency changed after it, say the timing aligns as a hypothesis.
 If a pair is missing or traffic is too low, state that comparison is limited. Two windows are not a trend.
 Describe possible causes as hypotheses.
 For a service with 5xx or down targets, check 운영 홈 서비스 상태판 → 서비스 상태(재시작 표시선) → 오류 로그 ERROR 로그.
@@ -104,6 +110,24 @@ UNSUPPORTED_HEALTH = re.compile(
 )
 
 
+def trim_optional(snapshot):
+    """보조 근거(코드 위치 → 재시작) 하나를 뺀다. 종류가 다 빠지면 그 설명 줄도 뺀다. 뺄 것이 없으면 False."""
+    evidence = snapshot['evidence']
+    for prefix, line in OPTIONAL_EVIDENCE:
+        items = [item for item in evidence if item['metric'].startswith(prefix)]
+        if not items:
+            continue
+        # 코드 위치는 건수가 가장 적은 것, 재시작은 가장 오래된 것을 뺀다
+        evidence.remove(min(items, key=lambda item: item['value']) if prefix.startswith('error_site')
+                        else max(items, key=lambda item: item['value']))
+        if len(items) == 1:
+            snapshot['limitations'] = [text for text in snapshot['limitations'] if not text.startswith(line)]
+        if TRIMMED not in snapshot['limitations']:
+            snapshot['limitations'].append(TRIMMED)
+        return True
+    return False
+
+
 class StructuredChatProvider:
     def __init__(self, api_key, *, focus="overview", clock=time.time, transport=None):
         if not isinstance(api_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{20,256}', api_key):
@@ -115,6 +139,15 @@ class StructuredChatProvider:
         self.clock = clock
         self.transport = transport or urllib.request.build_opener(
             urllib.request.ProxyHandler({}), NoRedirect())
+
+    def _payload(self, snapshot):
+        payload = {'model': self.model, 'messages': [
+            {'role': 'system', 'content': SYSTEM + ('\n' + ANALYSIS_FOCUS[self.focus][1] if self.focus != 'overview' else '')},
+            {'role': 'user', 'content': json.dumps(snapshot, ensure_ascii=False, allow_nan=False, separators=(',', ':'))}],
+            'max_completion_tokens': self.max_tokens, **self.options,
+            'response_format': {'type': 'json_schema', 'json_schema': {
+                'name': 'operational_note', 'strict': True, 'schema': output_schema(item['evidence_id'] for item in snapshot['evidence'])}}}
+        return json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode()
 
     def analyze(self, context, deadline):
         now = self.clock()
@@ -143,14 +176,10 @@ class StructuredChatProvider:
             if item['environment'] in context.environments:
                 del item['environment']
         snapshot['limitations'] = groq_limitations(snapshot['limitations'])
-        payload = {'model': self.model, 'messages': [
-            {'role': 'system', 'content': SYSTEM + ('\n' + ANALYSIS_FOCUS[self.focus][1] if self.focus != 'overview' else '')},
-            {'role': 'user', 'content': json.dumps(snapshot, ensure_ascii=False, allow_nan=False, separators=(',', ':'))}],
-            'max_completion_tokens': self.max_tokens, **self.options,
-            'response_format': {'type': 'json_schema', 'json_schema': {
-                'name': 'operational_note', 'strict': True, 'schema': output_schema(item['evidence_id'] for item in snapshot['evidence'])}}}
-        raw = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode()
-        if len(raw) > 24000:
+        raw = self._payload(snapshot)
+        while len(raw) > INPUT_LIMIT and trim_optional(snapshot):
+            raw = self._payload(snapshot)
+        if len(raw) > INPUT_LIMIT:
             raise ProviderError('input_too_large')
         request = urllib.request.Request(self.endpoint, data=raw, headers={
             'Authorization': 'Bearer '+self._api_key, 'Content-Type': 'application/json',
