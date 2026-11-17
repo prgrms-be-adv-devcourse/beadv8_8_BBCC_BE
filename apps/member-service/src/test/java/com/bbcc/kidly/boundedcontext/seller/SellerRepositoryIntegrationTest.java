@@ -7,7 +7,6 @@ import com.bbcc.kidly.boundedcontext.seller.domain.Seller;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplication;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationSubmitInfo;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
-import com.bbcc.kidly.boundedcontext.seller.out.JpaSellerRepository;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
@@ -22,9 +21,6 @@ class SellerRepositoryIntegrationTest {
 
     @Autowired
     private SellerRepository sellerRepository;
-
-    @Autowired
-    private JpaSellerRepository jpaSellerRepository;
 
     @Test
     @DisplayName("판매자를 저장하면 회원 ID로 존재를 확인할 수 있다")
@@ -57,7 +53,7 @@ class SellerRepositoryIntegrationTest {
 
         assertThatThrownBy(() -> sellerRepository.save(Seller.from(other)))
             .isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(jpaSellerRepository.findAll()).singleElement()
+        assertThat(sellerRepository.findAll()).singleElement()
             .satisfies(seller -> assertThat(seller.getBusinessName()).isEqualTo(SellerFixture.BUSINESS_NAME));
     }
 }

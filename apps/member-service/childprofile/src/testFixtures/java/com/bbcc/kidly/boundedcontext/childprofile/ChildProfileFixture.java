@@ -29,7 +29,6 @@ public final class ChildProfileFixture {
             memberId, "첫째", BIRTH_DATE, Gender.MALE, HEIGHT, WEIGHT, BodyType.NORMAL, PreferredFit.LOOSE, true);
     }
 
-    // 픽스처와 같은 값. 바꿀 필드만 다르게 넣어 쓴다
     public static ChildProfileUpdateInfo updateInfo(String name, BigDecimal heightCm, BigDecimal weightKg,
         BodyType bodyType, PreferredFit preferredFit) {
         return new ChildProfileUpdateInfo(name, BIRTH_DATE, Gender.MALE, heightCm, weightKg, bodyType, preferredFit);

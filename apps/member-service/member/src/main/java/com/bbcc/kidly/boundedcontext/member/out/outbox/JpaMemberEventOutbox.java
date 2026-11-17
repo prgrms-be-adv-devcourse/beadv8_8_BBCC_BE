@@ -3,28 +3,20 @@ package com.bbcc.kidly.boundedcontext.member.out.outbox;
 import com.bbcc.kidly.boundedcontext.member.app.port.outbox.MemberEventOutbox;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 키는 correlationId(회원 ID)라 같은 회원의 이벤트가 같은 파티션에 쌓이고, 본문은 {@link MemberEventEnvelope} JSON이다.
- */
 @Component
+@RequiredArgsConstructor
 public class JpaMemberEventOutbox implements MemberEventOutbox {
 
     private final JpaMemberOutboxRepository outboxRepository;
     private final JsonMapper jsonMapper;
     private final ApplicationEventPublisher eventPublisher;
-
-    public JpaMemberEventOutbox(JpaMemberOutboxRepository outboxRepository, JsonMapper jsonMapper,
-                                ApplicationEventPublisher eventPublisher) {
-        this.outboxRepository = outboxRepository;
-        this.jsonMapper = jsonMapper;
-        this.eventPublisher = eventPublisher;
-    }
 
     // MANDATORY는 트랜잭션을 새로 열지 않고 이벤트를 발행한 업무 트랜잭션에 합류만 한다.
     // 그래서 업무가 롤백되면 메시지도 함께 사라지고, 트랜잭션 밖에서 부르면 바로 실패한다.

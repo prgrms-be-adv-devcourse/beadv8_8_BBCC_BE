@@ -26,11 +26,6 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * member.withdrawn을 kidly.member.events에서 받아 그 회원의 배송지를 모두 지운다.
- * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
- * 회원 ID를 테스트마다 무작위로 정하고, 결과는 이 테스트의 회원 ID · 키로 걸러 본다.
- */
 @KafkaIntegrationTest
 class MemberWithdrawnEventKafkaIntegrationTest {
 
@@ -40,7 +35,6 @@ class MemberWithdrawnEventKafkaIntegrationTest {
     private static final String LISTENER_ID = "memberMemberEventListener";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
-    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
@@ -85,7 +79,6 @@ class MemberWithdrawnEventKafkaIntegrationTest {
     @Test
     @DisplayName("탈퇴 이벤트를 Kafka로 받아 그 회원의 배송지 · 기본 배송지를 모두 지운다")
     void deleteAddressesOnWithdraw() throws Exception {
-        // 기본 배송지 행이 배송지를 참조하므로(FK) 기본 배송지가 있어야 지우는 순서까지 확인된다
         shippingAddressService.register(memberId, defaultAddressRequest());
         register(memberId);
         var other = register(otherMemberId).getId();
@@ -105,11 +98,9 @@ class MemberWithdrawnEventKafkaIntegrationTest {
         var other = register(otherMemberId).getId();
         var event = memberWithdrawn();
 
-        // 회원 릴레이가 보낸 뒤 보낸 기록을 남기기 전에 멈추면 같은 메시지를 한 번 더 보낸다
         messages.send(TOPIC, event);
         var second = messages.send(TOPIC, event);
 
-        // 두 번째에는 지울 배송지가 없어 결과가 바뀌지 않으므로, 그룹이 두 번째 메시지까지 처리 완료를 표시할 때까지 기다린다
         messages.awaitProcessed(GROUP, TOPIC, second);
         assertThat(addressesOf(memberId)).isEmpty();
         assertThat(addressesOf(otherMemberId))

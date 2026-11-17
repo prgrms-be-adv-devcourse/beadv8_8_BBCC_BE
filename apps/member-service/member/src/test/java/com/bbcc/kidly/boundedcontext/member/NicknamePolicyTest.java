@@ -62,7 +62,6 @@ class NicknamePolicyTest {
         var nickname = generate("소셜회원");
 
         assertThat(nickname).matches("소셜회원\\d{4}");
-        // 원래 값 1번 + 후보 4번 (다섯 번째 후보는 확인 없이 돌려준다)
         verify(memberRepository, times(5)).existsByNickname(anyString());
     }
 

@@ -12,7 +12,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.security.converter.RsaKeyConverters;
 
 /**
- * Access Token 서명 키(PEM 파일 위치)와 유효 기간. 발급(인증)만 쓴다. 검증은 Gateway가 공개키로 한다.
  * 공개키는 PUBLIC KEY(X.509), 개인키는 PRIVATE KEY(PKCS#8) 형식이어야 한다.
  */
 @ConfigurationProperties("jwt")
@@ -27,7 +26,7 @@ public record JwtProperties(Resource publicKey, Resource privateKey, Duration ac
     }
 
     private static <T> T read(Resource resource, Converter<InputStream, T> converter) {
-        try (InputStream inputStream = resource.getInputStream()) {
+        try (var inputStream = resource.getInputStream()) {
             return converter.convert(inputStream);
         } catch (IOException e) {
             throw new UncheckedIOException("JWT 키를 읽지 못했습니다: " + resource, e);

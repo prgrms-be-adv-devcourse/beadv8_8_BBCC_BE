@@ -20,7 +20,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -44,9 +43,9 @@ class JwtAccessTokenIssuerTest {
     @Test
     @DisplayName("회원 ID를 sub에, 닉네임을 nickname에, 역할을 roles에 담는다")
     void claims() {
-        String token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER, Role.SELLER)));
+        var token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER, Role.SELLER)));
 
-        Jwt jwt = decoderOf(KEY_PAIR).decode(token);
+        var jwt = decoderOf(KEY_PAIR).decode(token);
 
         assertThat(jwt.getSubject()).isEqualTo("1");
         assertThat(jwt.getClaimAsString("nickname")).isEqualTo("소소맘");
@@ -56,9 +55,9 @@ class JwtAccessTokenIssuerTest {
     @Test
     @DisplayName("회원 토큰의 업무 정보는 sub · nickname · roles만 담는다")
     void memberOnlyAllowedClaims() {
-        String token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
+        var token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
 
-        Jwt jwt = decoderOf(KEY_PAIR).decode(token);
+        var jwt = decoderOf(KEY_PAIR).decode(token);
 
         assertThat(jwt.getClaims()).containsOnlyKeys("sub", "nickname", "roles", "iat", "exp");
     }
@@ -66,9 +65,9 @@ class JwtAccessTokenIssuerTest {
     @Test
     @DisplayName("관리자 토큰은 sub가 admin:{id}이고 nickname · roles 없이 sub · iat · exp만 담는다")
     void adminOnlyAllowedClaims() {
-        String token = ISSUER.issue(new TokenSubject.Admin(7L));
+        var token = ISSUER.issue(new TokenSubject.Admin(7L));
 
-        Jwt jwt = decoderOf(KEY_PAIR).decode(token);
+        var jwt = decoderOf(KEY_PAIR).decode(token);
 
         assertThat(jwt.getSubject()).isEqualTo("admin:7");
         assertThat(jwt.getClaims()).containsOnlyKeys("sub", "iat", "exp");
@@ -77,9 +76,9 @@ class JwtAccessTokenIssuerTest {
     @Test
     @DisplayName("만료 시각은 발급 시각에서 유효 기간만큼 뒤다")
     void validity() {
-        String token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
+        var token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
 
-        Jwt jwt = decoderOf(KEY_PAIR).decode(token);
+        var jwt = decoderOf(KEY_PAIR).decode(token);
 
         assertThat(Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt())).isEqualTo(VALIDITY);
     }
@@ -87,9 +86,9 @@ class JwtAccessTokenIssuerTest {
     @Test
     @DisplayName("RS256으로 서명한다")
     void algorithm() {
-        String token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
+        var token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
 
-        Jwt jwt = decoderOf(KEY_PAIR).decode(token);
+        var jwt = decoderOf(KEY_PAIR).decode(token);
 
         assertThat(jwt.getHeaders()).containsEntry("alg", "RS256");
     }
@@ -97,9 +96,9 @@ class JwtAccessTokenIssuerTest {
     @Test
     @DisplayName("다른 공개키로는 검증되지 않는다")
     void otherKeyRejected() {
-        String token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
+        var token = ISSUER.issue(new TokenSubject.Member(1L, "소소맘", List.of(Role.BUYER)));
 
-        JwtDecoder otherDecoder = decoderOf(generateKeyPair());
+        var otherDecoder = decoderOf(generateKeyPair());
 
         assertThatThrownBy(() -> otherDecoder.decode(token)).isInstanceOf(JwtException.class);
     }
@@ -108,16 +107,15 @@ class JwtAccessTokenIssuerTest {
         return NimbusJwtDecoder.withPublicKey((RSAPublicKey) keyPair.getPublic()).build();
     }
 
-    // 설정 파일과 같은 PEM 형식으로 만들어 JwtProperties가 키를 읽는 과정까지 거치게 한다
     private static Resource pem(String type, Key key) {
-        String body = Base64.getMimeEncoder().encodeToString(key.getEncoded());
-        String pem = "-----BEGIN " + type + "-----\n" + body + "\n-----END " + type + "-----\n";
+        var body = Base64.getMimeEncoder().encodeToString(key.getEncoded());
+        var pem = "-----BEGIN " + type + "-----\n" + body + "\n-----END " + type + "-----\n";
         return new ByteArrayResource(pem.getBytes(StandardCharsets.US_ASCII));
     }
 
     private static KeyPair generateKeyPair() {
         try {
-            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            var generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(2048);
             return generator.generateKeyPair();
         } catch (NoSuchAlgorithmException e) {

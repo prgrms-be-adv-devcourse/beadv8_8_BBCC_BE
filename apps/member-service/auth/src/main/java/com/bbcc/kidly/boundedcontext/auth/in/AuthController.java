@@ -22,14 +22,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
-    // 토큰이 든 응답을 브라우저 · 중간 캐시가 저장하지 않게 한다
     private static final String NO_STORE = CacheControl.noStore().getHeaderValue();
 
     private final AuthService authService;
     private final RefreshTokenCookies refreshTokenCookies;
     private final RefreshTokenProperties refreshTokenProperties;
 
-    // 프론트가 소셜 제공자에서 받은 인가 코드로 로그인한다. 처음이면 가입된다
     @PostMapping("/api/v1/auth/login/{provider}")
     public LoginResponse login(
         @PathVariable String provider, @Valid @RequestBody SocialLoginRequest request, HttpServletResponse response) {
@@ -40,7 +38,6 @@ public class AuthController {
         return new LoginResponse(tokens.accessToken());
     }
 
-    // Access Token이 만료되면 쿠키의 Refresh Token으로 둘 다 새로 받는다
     @PostMapping("/api/v1/auth/reissue")
     public LoginResponse reissue(
         @CookieValue(name = RefreshTokenCookies.NAME, required = false) String refreshToken,
@@ -52,7 +49,6 @@ public class AuthController {
         return new LoginResponse(tokens.accessToken());
     }
 
-    // 쿠키가 없거나 이미 폐기된 토큰이어도 204로 응답하고 쿠키를 지운다
     @PostMapping("/api/v1/auth/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(

@@ -11,9 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 회원의 판매자 상태 복사본을 갱신한다. SELLER 역할을 얻는 것은 다음 토큰 발급부터, 잃는 것은 Access Token을 무효화해 바로 반영된다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,7 +23,6 @@ public class SellerStateService {
     public void apply(Long sellerId, SellerStatus status, LocalDateTime occurredAt) {
         var member = memberRepository.findByIdForUpdate(sellerId)
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
-        // SELLER 역할을 잃었으면 지금 토큰의 SELLER도 바로 막는다
         if (member.applySellerState(status, occurredAt)) {
             memberTokenRevoker.revoke(sellerId, LocalDateTime.now());
         }

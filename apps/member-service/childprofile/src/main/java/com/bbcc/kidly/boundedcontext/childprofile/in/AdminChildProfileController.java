@@ -11,9 +11,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 관리자 자녀 API. /api/v1/admin/** 라 관리자 주체만 호출할 수 있다.
- */
 @RestController
 @RequestMapping("/api/v1/admin/children")
 @RequiredArgsConstructor
@@ -27,7 +24,6 @@ public class AdminChildProfileController {
         return new ChildGrowthRecordedRepublishResponse(childGrowthRecordedRepublishService.republishAll());
     }
 
-    // 삭제되지 않은 자녀마다 child.changed를 지금 값으로 다시 보내고, 보낸 자녀 수를 돌려준다
     @PostMapping("/changed-events")
     public ChildChangedRepublishResponse republishChangedEvents(@LoginAdmin AuthAdmin admin) {
         return new ChildChangedRepublishResponse(childChangedRepublishService.republishAll());

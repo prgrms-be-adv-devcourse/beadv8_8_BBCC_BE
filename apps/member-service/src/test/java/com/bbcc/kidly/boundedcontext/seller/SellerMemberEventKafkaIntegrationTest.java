@@ -12,6 +12,7 @@ import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
+import com.bbcc.kidly.support.KafkaMessages;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -19,19 +20,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,10 +41,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
- * 회원 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 신청 · 키로 걸러 본다.
- */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class SellerMemberEventKafkaIntegrationTest {
@@ -62,7 +52,6 @@ class SellerMemberEventKafkaIntegrationTest {
     private static final String LISTENER_ID = "sellerMemberEventListener";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
-    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
@@ -107,7 +96,6 @@ class SellerMemberEventKafkaIntegrationTest {
     @Test
     @DisplayName("닉네임 변경 이벤트가 커밋되면 Kafka로 받아 그 회원의 신청 닉네임을 모두 바꾼다")
     void changeApplicantNickname() {
-        // 회원당 심사 중인 신청은 1건만 있을 수 있어서 거절 1건 + 심사 중 1건
         var rejected = sellerApplicationRepository.save(SellerFixture.rejectedApplication(memberId)).getId();
         var pending = sellerApplicationRepository.save(SellerFixture.application(memberId)).getId();
         var otherMemberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
@@ -151,13 +139,11 @@ class SellerMemberEventKafkaIntegrationTest {
     @Test
     @DisplayName("회원 탈퇴를 Kafka로 받아 그 회원의 모든 신청에서 개인정보만 비우고 나머지는 남긴다")
     void clearPersonalInfoOnWithdrawal() throws Exception {
-        // 회원당 심사 중인 신청은 1건만 있을 수 있어서 거절 1건 + 심사 중 1건
         var rejected = sellerApplicationRepository.save(SellerFixture.rejectedApplication(memberId)).getId();
         var pending = sellerApplicationRepository.save(SellerFixture.application(memberId)).getId();
         var otherMemberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
         var other = sellerApplicationRepository.save(SellerFixture.application(otherMemberId)).getId();
 
-        // 탈퇴는 회원 아웃박스가 보내므로 토픽에 직접 넣는다
         sendWithdrawn(memberWithdrawn(NOW));
 
         AsyncWait.until(TIMEOUT, () -> nicknameOf(pending) == null);
@@ -279,45 +265,24 @@ class SellerMemberEventKafkaIntegrationTest {
         return sendRaw("member.withdrawn", event.eventId(), jsonMapper.writeValueAsString(event));
     }
 
-    // 보낸 결과를 위치로 기다려야 하는 변경은 직접 넣는다. 리스너는 본문에서 eventId · occurredAt · data만 읽는다
     private RecordMetadata sendChanged(MemberChangedEvent event) throws Exception {
         return sendRaw("member.changed", event.eventId(), jsonMapper.writeValueAsString(event));
     }
 
-    // 회원이 보내지 않는 메시지(다른 종류 · 깨진 본문)를 이 테스트의 회원 ID 키로 직접 넣는다
     private RecordMetadata sendRaw(String eventType, UUID eventId, String body) throws Exception {
-        var record = new ProducerRecord<>(TOPIC, String.valueOf(memberId), body);
-        record.headers().add("eventId", eventId.toString().getBytes(UTF_8));
-        record.headers().add("eventType", eventType.getBytes(UTF_8));
-        try (var producer = new KafkaProducer<String, String>(Map.of(
-            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
-            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
-            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class))) {
-            return producer.send(record).get(10, TimeUnit.SECONDS);
-        }
+        return kafkaMessages().sendRaw(TOPIC, String.valueOf(memberId), eventType, eventId, body);
     }
 
-    // 결과가 바뀌지 않는 메시지는 처리했는지 결과로 알 수 없다. 한 건씩 처리 완료를 커밋하므로, 판매자 그룹의 커밋 위치가 그 메시지를 지나면 처리한 것이다
     private void awaitProcessed(RecordMetadata sent) {
-        var partition = new TopicPartition(TOPIC, sent.partition());
-        var config = Map.<String, Object>of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
-        try (var admin = Admin.create(config)) {
-            AsyncWait.until(TIMEOUT, () -> committedOffset(admin, partition) > sent.offset());
-        }
-    }
-
-    private static long committedOffset(Admin admin, TopicPartition partition) {
-        try {
-            var committed = admin.listConsumerGroupOffsets(GROUP).partitionsToOffsetAndMetadata()
-                .get(10, TimeUnit.SECONDS).get(partition);
-            return committed == null ? -1 : committed.offset();
-        } catch (Exception e) {
-            throw new IllegalStateException("판매자 그룹의 커밋 위치를 읽지 못했습니다", e);
-        }
+        kafkaMessages().awaitProcessed(GROUP, TOPIC, sent);
     }
 
     private List<ConsumerRecord<String, String>> deadLetters() {
-        return memberRecords(DLT);
+        return kafkaMessages().deadLetters(DLT, String.valueOf(memberId));
+    }
+
+    private KafkaMessages kafkaMessages() {
+        return new KafkaMessages(kafka.getBootstrapServers(), jsonMapper);
     }
 
     private List<ConsumerRecord<String, String>> sellerChanged() {

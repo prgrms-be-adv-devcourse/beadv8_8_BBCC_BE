@@ -41,10 +41,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 판매자 이벤트가 아웃박스 릴레이를 거쳐 kidly.seller.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#548).
- * 다른 테스트의 판매자 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
- */
 @KafkaIntegrationTest
 @RecordApplicationEvents
 class SellerKafkaPublishIntegrationTest {
@@ -193,7 +189,6 @@ class SellerKafkaPublishIntegrationTest {
         assertThat(header(record, "eventType")).isEqualTo(eventType);
     }
 
-    // 전송은 비동기라 메시지가 올 때까지 읽는다. 받은 뒤 끝내므로 다음 테스트에 끼어들지 않는다
     private ConsumerRecord<String, String> awaitRecord(DomainEvent event) {
         AsyncWait.until(TIMEOUT, () -> {
             consumer.poll(Duration.ofMillis(200)).forEach(received::add);

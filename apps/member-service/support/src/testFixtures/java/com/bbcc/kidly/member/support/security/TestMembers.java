@@ -19,7 +19,6 @@ public final class TestMembers {
         return "회원" + memberId;
     }
 
-    // 로그인하지 않은 요청: 회원 헤더를 붙이지 않는다
     public static Consumer<HttpHeaders> anonymous() {
         return headers -> {
         };
@@ -33,7 +32,6 @@ public final class TestMembers {
         return of(memberId, nickname(memberId), Role.BUYER, Role.SELLER);
     }
 
-    // 닉네임이 null이면(nickname 클레임이 없는 토큰) Gateway처럼 닉네임 헤더를 붙이지 않는다
     public static Consumer<HttpHeaders> of(Long memberId, String nickname, Role... roles) {
         var roleNames = MemberHeaders.encodeRoles(Arrays.stream(roles).map(Role::name).toList());
         return headers -> {

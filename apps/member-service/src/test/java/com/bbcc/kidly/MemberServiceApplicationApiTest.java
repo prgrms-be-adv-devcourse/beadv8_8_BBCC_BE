@@ -10,9 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 회원 서비스가 회원 · 인증 · 판매자 · 자녀 도메인으로 뜨고, 빈 DB에 네 스키마만 만드는지 본다.
- */
 @FunctionalTest
 class MemberServiceApplicationApiTest {
 

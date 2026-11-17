@@ -260,7 +260,6 @@ class AdminSellerApplicationApiTest {
             .exchange();
     }
 
-    // 실제 신청 API로 신청을 만들고 신청 ID를 준다
     private Long apply(Long memberId) {
         client.post().uri(APPLY_PATH)
             .headers(TestMembers.buyer(memberId))

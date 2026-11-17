@@ -25,7 +25,6 @@ public class JpaMemberSummaryQuery implements MemberSummaryQuery {
 
     private final JPAQueryFactory queryFactory;
 
-    // 정렬은 최신 가입부터(id 내림차순)로 고정한다
     @Override
     public Page<AdminMemberSummary> findAll(AdminMemberFilter filter, String keyword, Pageable pageable) {
         var content = queryFactory
@@ -45,7 +44,6 @@ public class JpaMemberSummaryQuery implements MemberSummaryQuery {
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
     }
 
-    // 탈퇴 회원은 관리 대상이 아니다
     private BooleanExpression listable() {
         return member.status.ne(MemberStatus.WITHDRAWN);
     }
@@ -59,7 +57,6 @@ public class JpaMemberSummaryQuery implements MemberSummaryQuery {
         };
     }
 
-    // 숫자만 있으면 회원 번호도 찾는다. 닉네임 · 이메일이 숫자를 담을 수 있어 OR로 묶는다
     private BooleanExpression keywordMatches(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return null;

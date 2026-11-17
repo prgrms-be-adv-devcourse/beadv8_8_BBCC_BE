@@ -40,11 +40,6 @@ import org.springframework.test.context.event.RecordApplicationEvents;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 자녀 프로필 이벤트가 커밋 직전 아웃박스에 저장된 뒤 릴레이를 거쳐 kidly.childprofile.events에 규칙대로 도착하는지
- * 실제 DB와 브로커로 본다. 테스트 설정에서 릴레이 주기를 길게 두었으므로 릴레이는 테스트가 직접 부른다.
- * 다른 테스트의 메시지도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
- */
 @KafkaIntegrationTest
 @RecordApplicationEvents
 class ChildProfileOutboxRelayKafkaIntegrationTest {
@@ -138,7 +133,6 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     @Test
     @DisplayName("보내다 실패하면 그 메시지에 실패를 남기고 뒤 메시지는 보내지 않으며, 다음 실행은 실패한 메시지부터 다시 보낸다")
     void stopAtFailureAndRetryFromSameMessage() {
-        // 브로커의 토픽 자동 생성이 꺼져 있어 선언하지 않은 토픽으로는 보내지 못한다
         var failingId = UUID.randomUUID();
         var afterId = UUID.randomUUID();
         outboxRepository.save(ChildProfileOutboxMessage.create(new ChildProfileOutboxMessage.CreateInfo(
@@ -188,7 +182,7 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     }
 
     private static String header(ConsumerRecord<String, String> record, String name) {
-        Header header = record.headers().lastHeader(name);
+        var header = record.headers().lastHeader(name);
         return header == null ? null : new String(header.value(), UTF_8);
     }
 }

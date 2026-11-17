@@ -10,10 +10,6 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseCookie.ResponseCookieBuilder;
 import org.springframework.stereotype.Component;
 
-/**
- * Refresh Token 쿠키를 응답에 싣는다. 스크립트가 읽지 못하게 HttpOnly, 그 주체의 인증 API에만 실리게 Path를 좁힌다.
- * Domain을 정하지 않아 쿠키를 발급한 API 서버에만 전송된다. SameSite=Lax라 다른 사이트의 POST에는 실리지 않는다.
- */
 @Component
 @RequiredArgsConstructor
 public class RefreshTokenCookies {

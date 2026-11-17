@@ -12,9 +12,6 @@ import org.springframework.kafka.listener.ContainerProperties.AckMode;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
 
-/**
- * 에러 처리기는 빈으로 등록하지 않으므로 Boot 기본 팩토리와 다른 도메인에 영향이 없다.
- */
 @Configuration
 class SellerDeadLetterKafkaListenerConfig {
 
@@ -35,7 +32,6 @@ class SellerDeadLetterKafkaListenerConfig {
         var backOff = new ExponentialBackOff(1000L, 2.0);
         backOff.setMaxInterval(MAX_RETRY_INTERVAL_MS);
         var errorHandler = new DefaultErrorHandler(backOff);
-        // 모든 예외를 재시도한다. 실패 로그는 리스너가 본문 · 예외 메시지 없이 남기므로 처리기 로그는 낮춘다
         errorHandler.setClassifications(Map.of(), true);
         errorHandler.setLogLevel(KafkaException.Level.TRACE);
         factory.setCommonErrorHandler(errorHandler);

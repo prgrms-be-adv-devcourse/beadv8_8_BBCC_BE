@@ -58,7 +58,7 @@ class MemberDeadLetterKafkaIntegrationTest {
 
     @BeforeEach
     void startListeners() {
-        for (String id : LISTENER_IDS) {
+        for (var id : LISTENER_IDS) {
             var listener = kafkaListenerEndpointRegistry.getListenerContainer(id);
             listener.start();
             listeners.add(listener);

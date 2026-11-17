@@ -5,9 +5,6 @@ import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 판매자 ID는 회원 ID와 같다.
- */
 public interface SellerRepository {
 
     Seller save(Seller seller);

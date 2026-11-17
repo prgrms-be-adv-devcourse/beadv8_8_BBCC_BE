@@ -17,10 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 판매자마다 판매자 변경됨을 다시 보내는 API를 HTTP 요청부터 응답까지 확인한다.
- * 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다.
- */
 @FunctionalTest
 class AdminSellerChangedEventApiTest {
 

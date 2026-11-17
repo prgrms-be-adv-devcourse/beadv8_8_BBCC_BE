@@ -10,9 +10,6 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/**
- * 회원 아웃박스 메시지를 JPA로 저장 · 조회 · 삭제한다.
- */
 public interface JpaMemberOutboxRepository
     extends JpaRepository<MemberOutboxMessage, Long>, MemberOutboxRepository {
 

@@ -8,8 +8,8 @@ import java.util.Objects;
  */
 public record AdminPassword(String value) {
 
-    public static final int MIN_LENGTH = 12;
-    public static final int MAX_BYTES = 72;
+    private static final int MIN_LENGTH = 12;
+    private static final int MAX_BYTES = 72;
 
     public AdminPassword {
         Objects.requireNonNull(value);

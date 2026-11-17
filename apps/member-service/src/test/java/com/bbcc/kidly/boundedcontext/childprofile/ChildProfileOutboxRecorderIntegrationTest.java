@@ -31,10 +31,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 자녀 프로필이 발행한 이벤트를 커밋 직전에 아웃박스에 저장하는지 실제 트랜잭션으로 확인한다.
- * 저장은 발행한 트랜잭션 안에서 일어나야 하므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
- */
 @IntegrationTest
 class ChildProfileOutboxRecorderIntegrationTest {
     @Autowired private GuardianVerificationRepository verifications;
@@ -144,14 +140,12 @@ class ChildProfileOutboxRecorderIntegrationTest {
         assertThat(outboxRows()).isEmpty();
     }
 
-    // 자녀 3의 수정으로 나간 자녀 정보 변경됨이다. 아웃박스는 이벤트 값을 그대로 옮기므로 실제 자녀가 없어도 된다
     private static ChildChangedEvent childChanged() {
         return new ChildChangedEvent(UUID.randomUUID(), OCCURRED_AT, new ChildChangedEvent.Data(
             3L, MEMBER_ID, new BigDecimal("116.0"), new BigDecimal("21.0"), Gender.MALE,
             LocalDate.of(2019, 1, 15), BodyType.NORMAL, PreferredFit.LOOSE, false));
     }
 
-    // 아웃박스 저장을 실패시키려고 만든 자녀 프로필 이벤트다. 종류가 event_type 칸 길이(60자)보다 길어 INSERT가 실패한다
     private record TooLongTypeEvent(UUID eventId, LocalDateTime occurredAt, Long data) implements DomainEvent {
 
         @Override

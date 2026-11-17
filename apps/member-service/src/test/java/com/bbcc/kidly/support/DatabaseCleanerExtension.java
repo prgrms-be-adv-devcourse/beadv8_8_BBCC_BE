@@ -8,9 +8,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-/**
- * 테스트마다 회원 · 인증 · 판매자 스키마의 테이블을 비운다. 롤백 대신 커밋하므로 AFTER_COMMIT 이벤트 리스너도 실제처럼 실행된다.
- */
 class DatabaseCleanerExtension implements AfterEachCallback {
 
     private static final String FIND_TABLES = """

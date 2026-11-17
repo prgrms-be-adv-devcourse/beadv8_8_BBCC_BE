@@ -12,13 +12,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 한 트랜잭션에서 릴레이 잠금을 얻고 오래된 미전송 메시지를 보낸다.
- * 잠금은 트랜잭션 잠금이라 보내기와 결과 기록을 같은 트랜잭션에서 한다.
- * 그래서 브로커가 멈추면 실패한 메시지 하나를 기다리는 동안(최대 약 15초) DB 연결 하나를 쥔다.
- * 보낸 뒤 커밋 전에 앱이 멈추거나 커밋이 실패하면, 이번 실행에서 보낸 메시지(최대 BATCH_SIZE건)를 다음 실행이 모두 다시 보낸다.
- * id는 커밋 직전에 저장한 순서라 동시에 도는 트랜잭션의 커밋 순서와 다를 수 있다. 받는 쪽은 중복과 역순을 처리해야 한다.
- */
 @Slf4j
 @Service
 @ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)
@@ -26,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class SellerOutboxRelayService {
 
     private static final int BATCH_SIZE = 100;
-    // 바로 전송이 끝날 시간을 주어 두 경로가 같은 행을 함께 보지 않게 한다.
     private static final Duration IMMEDIATE_SEND_GRACE = Duration.ofMinutes(5);
 
     private final SellerOutboxRepository outboxRepository;
@@ -47,8 +39,6 @@ public class SellerOutboxRelayService {
         }
     }
 
-    // 보내지 못하면 실패를 기록하고 그 자리에서 멈춘다.
-    // 예외 메시지에 eventType · eventId · 키 · 원인이 이미 있으므로 따로 반복하지 않고, 같은 장애가 반복되므로 스택 트레이스는 남기지 않는다.
     private boolean send(SellerOutboxMessage message) {
         try {
             sender.send(message);

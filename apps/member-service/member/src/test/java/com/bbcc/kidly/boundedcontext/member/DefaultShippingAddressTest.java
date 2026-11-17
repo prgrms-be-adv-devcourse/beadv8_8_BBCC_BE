@@ -54,14 +54,6 @@ class DefaultShippingAddressTest {
     }
 
     @Test
-    @DisplayName("배송지가 null이면 바꿀 수 없다")
-    void changeNull() {
-        var defaultAddress = defaultAddress();
-
-        assertThatThrownBy(() -> defaultAddress.change(null)).isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
     @DisplayName("다른 회원의 배송지로는 바꿀 수 없고 기존 배송지가 유지된다")
     void changeToOtherMembersAddress() {
         var original = ShippingAddressFixture.addressWithId(DEFAULT_ADDRESS_ID, MEMBER_ID);

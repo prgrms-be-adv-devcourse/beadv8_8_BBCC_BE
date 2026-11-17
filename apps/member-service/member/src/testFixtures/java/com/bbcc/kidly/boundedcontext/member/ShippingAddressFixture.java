@@ -23,7 +23,6 @@ public final class ShippingAddressFixture {
         return ShippingAddress.register(memberId, info());
     }
 
-    // 리포지토리 없이 id가 필요한 단위 테스트용
     public static ShippingAddress addressWithId(Long id, Long memberId) {
         var address = address(memberId);
         ReflectionTestUtils.setField(address, "id", id);

@@ -13,10 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
-/**
- * Flyway 마이그레이션 파일 이름 규칙. 버전은 파일을 만든 시각(yyyyMMddHHmm, KST)이라 PR끼리 번호가 겹치지 않는다.
- *
- */
 class MigrationNamingTest {
 
     private static final Pattern VERSIONED = Pattern.compile("^V(\\d{12})__[a-z0-9_]+\\.sql$");
@@ -48,8 +44,12 @@ class MigrationNamingTest {
     void childProfileVersionsAreUnique() throws IOException {
         var names = migrationFileNames("childprofile-migration");
         assertThat(names).isNotEmpty().allMatch(name -> VERSIONED.matcher(name).matches());
-        assertThat(names.stream().map(VERSIONED::matcher).filter(Matcher::matches)
-            .map(matcher -> matcher.group(1)).toList()).doesNotHaveDuplicates();
+        var versions = names.stream()
+            .map(VERSIONED::matcher)
+            .filter(Matcher::matches)
+            .map(matcher -> matcher.group(1))
+            .toList();
+        assertThat(versions).doesNotHaveDuplicates();
     }
 
     private static List<String> migrationFileNames(String location) throws IOException {

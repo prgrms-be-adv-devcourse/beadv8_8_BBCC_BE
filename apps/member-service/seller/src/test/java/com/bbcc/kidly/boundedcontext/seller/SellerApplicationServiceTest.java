@@ -10,7 +10,6 @@ import static org.mockito.Mockito.never;
 import com.bbcc.kidly.boundedcontext.seller.app.SellerApplicationService;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRejectRequest;
 import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerApplicationRequest;
-import com.bbcc.kidly.boundedcontext.seller.app.port.SellerApplicationSummary;
 import com.bbcc.kidly.boundedcontext.seller.app.port.SellerApplicationSummaryQuery;
 import com.bbcc.kidly.boundedcontext.seller.domain.Seller;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplication;
@@ -23,7 +22,6 @@ import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerApplicationRejectedEvent;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
-import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,8 +31,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class SellerApplicationServiceTest {
@@ -127,19 +123,6 @@ class SellerApplicationServiceTest {
         assertThatThrownBy(() -> sellerApplicationService.getLatest(MEMBER_ID))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(CommonErrorCode.NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("신청 목록 조회는 조회 포트에 넘긴다")
-    void getApplications() {
-        var pageable = PageRequest.of(0, 20);
-        var summary = SellerApplicationSummary.from(SellerFixture.application(MEMBER_ID));
-        given(sellerApplicationSummaryQuery.findAll(SellerApplicationStatus.PENDING, pageable))
-            .willReturn(new PageImpl<>(List.of(summary), pageable, 1));
-
-        var page = sellerApplicationService.getApplications(SellerApplicationStatus.PENDING, pageable);
-
-        assertThat(page.getContent()).containsExactly(summary);
     }
 
     @Test

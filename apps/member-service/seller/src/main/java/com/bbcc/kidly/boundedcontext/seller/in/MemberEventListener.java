@@ -11,11 +11,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * kidly.member.events에서 member.changed · member.withdrawn을 받아 그 회원의 판매자 신청에 반영한다.
- * member.changed는 신청이 저장된 변경 시각보다 늦은 변경만 반영하고, member.withdrawn은 같은 칸을 null로 비우고 같은 탈퇴 시각을 남기므로
- * 같은 메시지를 다시 받아도 결과는 한 번 받은 것과 같다.
- */
 @Component
 @RequiredArgsConstructor
 public class MemberEventListener {
@@ -31,7 +26,7 @@ public class MemberEventListener {
         switch (SellerKafkaListenerConfig.header(record, "eventType")) {
             case "member.changed" -> onChanged(jsonMapper.readValue(record.value(), MemberChangedEvent.class));
             case "member.withdrawn" -> onWithdrawn(jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
-            default -> { }  // 판매자가 받지 않는 종류
+            default -> { }
         }
     }
 

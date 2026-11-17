@@ -14,7 +14,6 @@ public final class MemberFixture {
 
     public static final String NICKNAME = "테스트회원";
 
-    // 기본 kakaoMember()의 이메일이다
     public static final String EMAIL = "kakao-1@example.com";
 
     private MemberFixture() {
@@ -24,17 +23,14 @@ public final class MemberFixture {
         return register("kakao-1", NICKNAME);
     }
 
-    // 닉네임은 회원끼리 겹칠 수 없어서 소셜 사용자 ID로 만든다
     public static Member kakaoMember(String providerUserId) {
         return register(providerUserId, "회원-" + providerUserId);
     }
 
-    // 닉네임을 직접 정해야 하는 검색 테스트용이다
     public static Member withNickname(String providerUserId, String nickname) {
         return register(providerUserId, nickname);
     }
 
-    // 이메일을 받기 전에 가입한 회원은 이메일이 없다
     public static Member withoutEmail(String providerUserId) {
         var member = kakaoMember(providerUserId);
         ReflectionTestUtils.setField(member, "email", null);

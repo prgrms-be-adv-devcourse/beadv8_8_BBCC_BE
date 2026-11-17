@@ -28,7 +28,6 @@ import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,9 +41,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 다른 테스트의 인증 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
- */
 @KafkaIntegrationTest
 @RecordApplicationEvents
 class AuthKafkaPublishIntegrationTest {
@@ -166,7 +162,6 @@ class AuthKafkaPublishIntegrationTest {
         var rolledBack = firstTokensRevoked();
         transactionTemplate.executeWithoutResult(status -> memberTokenRevoker.revoke(memberId, LocalDateTime.now()));
 
-        // 키(회원 ID)가 같아 같은 파티션이므로, 뒤에 커밋한 무효화를 받았으면 앞의 무효화는 이미 왔어야 한다
         var committed = events.stream(AuthTokensRevokedEvent.class)
             .filter(event -> !event.eventId().equals(rolledBack.eventId()))
             .findFirst().orElseThrow();
@@ -184,7 +179,6 @@ class AuthKafkaPublishIntegrationTest {
         assertThat(header(record, "eventType")).isEqualTo(TOKENS_REVOKED);
     }
 
-    // 전송은 비동기라 메시지가 올 때까지 읽는다. 받은 뒤 끝내므로 다음 테스트에 끼어들지 않는다
     private ConsumerRecord<String, String> awaitRecord(DomainEvent event) {
         AsyncWait.until(TIMEOUT, () -> {
             consumer.poll(Duration.ofMillis(200)).forEach(received::add);
@@ -207,7 +201,7 @@ class AuthKafkaPublishIntegrationTest {
     }
 
     private static String header(ConsumerRecord<String, String> record, String name) {
-        Header header = record.headers().lastHeader(name);
+        var header = record.headers().lastHeader(name);
         return header == null ? null : new String(header.value(), UTF_8);
     }
 }

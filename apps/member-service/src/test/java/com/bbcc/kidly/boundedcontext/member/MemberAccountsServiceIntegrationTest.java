@@ -8,7 +8,6 @@ import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
-import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
 import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.shared.member.dto.MemberLoginState;
 import com.bbcc.kidly.shared.member.dto.MemberRegistration;
@@ -50,9 +49,6 @@ class MemberAccountsServiceIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private JpaMemberRepository jpaMemberRepository;
-
-    @Autowired
     private ApplicationEvents events;
 
     @Autowired
@@ -88,7 +84,7 @@ class MemberAccountsServiceIntegrationTest {
         var second = memberAccounts.register(new MemberRegistration(KEY, "다른닉네임", "other@example.com"));
 
         assertThat(second).isEqualTo(first);
-        assertThat(jpaMemberRepository.count()).isEqualTo(1);
+        assertThat(memberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).hasSize(1);
     }
 
@@ -115,7 +111,7 @@ class MemberAccountsServiceIntegrationTest {
         }
 
         assertThat(memberIds).hasSize(threadCount).containsOnly(memberIds.getFirst());
-        assertThat(jpaMemberRepository.count()).isEqualTo(1);
+        assertThat(memberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class))
             .singleElement()
             .satisfies(event -> assertThat(event.data().memberId()).isEqualTo(memberIds.getFirst()));
@@ -141,7 +137,7 @@ class MemberAccountsServiceIntegrationTest {
 
             assertThat(loser.get().memberId()).isEqualTo(winner.get());
         }
-        assertThat(jpaMemberRepository.count()).isEqualTo(1);
+        assertThat(memberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).hasSize(1);
     }
 

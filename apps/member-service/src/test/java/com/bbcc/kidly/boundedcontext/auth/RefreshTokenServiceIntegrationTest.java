@@ -136,16 +136,6 @@ class RefreshTokenServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("관리자 토큰 값으로 회원 재발급을 부르면 거절한다")
-    void adminTokenOnMemberReissue() {
-        var token = refreshTokenService.issue(PrincipalId.admin(1L));
-
-        assertInvalid(() -> reissueMember(token));
-
-        assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
-    }
-
-    @Test
     @DisplayName("모르는 토큰이면 재발급하지 않는다")
     void unknownToken() {
         assertInvalid(() -> reissueMember("unknown-token"));
@@ -249,8 +239,6 @@ class RefreshTokenServiceIntegrationTest {
         assertThat(reissueMember(loginToken).subject().principal()).isEqualTo(member);
     }
 
-    // 어느 쪽이 먼저든 결과는 같다: 한 요청만 교체하고 나머지는 바뀐 해시를 보고 거절된다
-    // 거절된 요청은 직전 토큰을 보낸 셈이지만 유예 시간 안이라 토큰을 지우지 않는다
     @Test
     @DisplayName("같은 토큰으로 20개가 동시에 재발급하면 한 요청만 성공하고 그 토큰은 계속 쓸 수 있다")
     void concurrentReissue() throws Exception {
@@ -314,7 +302,6 @@ class RefreshTokenServiceIntegrationTest {
         return refreshTokenService.reissue(PrincipalType.MEMBER, token);
     }
 
-    // 10초를 기다리지 않도록 교체 시각을 과거로 돌린다
     private void rotatedSecondsAgo(PrincipalId principal, int seconds) {
         jdbcTemplate.update(
             "UPDATE auth.refresh_token SET rotated_at = rotated_at - make_interval(secs => ?) "

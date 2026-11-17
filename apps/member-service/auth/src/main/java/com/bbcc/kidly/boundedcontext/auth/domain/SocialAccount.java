@@ -16,9 +16,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 로그인에 쓰는 소셜 계정. 같은 (provider, providerUserId)는 한 행뿐이고 한 회원에게만 연결된다.
- */
 @Entity
 @Table(
     name = "social_account",

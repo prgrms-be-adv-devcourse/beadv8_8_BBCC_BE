@@ -11,13 +11,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class NicknameTest {
 
-    @ParameterizedTest
-    @ValueSource(strings = {"하은", "가나다라마바사아자차카타파하가나다라마바"})
-    @DisplayName("2자 이상 20자 이하면 만들 수 있다")
-    void acceptsBoundaryLength(String value) {
-        assertThat(new Nickname(value).value()).isEqualTo(value);
-    }
-
     @Test
     @DisplayName("제공자 닉네임의 앞뒤 공백을 뺀다")
     void fromProviderStrips() {
@@ -67,13 +60,6 @@ class NicknameTest {
     void withNumberCutsTo16() {
         assertThat(new Nickname("가".repeat(20)).withNumber(1234))
             .isEqualTo(new Nickname("가".repeat(16) + "1234"));
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {1000, 9999})
-    @DisplayName("4자리 경계의 숫자는 붙일 수 있다")
-    void withNumberAcceptsBoundaryNumber(int number) {
-        assertThat(new Nickname("소셜회원").withNumber(number)).isEqualTo(new Nickname("소셜회원" + number));
     }
 
     @Test

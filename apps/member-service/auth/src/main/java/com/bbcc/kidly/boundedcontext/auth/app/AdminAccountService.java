@@ -41,7 +41,6 @@ public class AdminAccountService {
         if (adminAccountRepository.existsByEmail(normalizedEmail)) {
             throw new BusinessException(AuthErrorCode.ADMIN_EMAIL_ALREADY_USED);
         }
-        // 동시 생성 경합은 이메일 유니크 제약이 공통 409로 막는다.
         AdminPassword password;
         try {
             password = new AdminPassword(rawPassword);
@@ -53,8 +52,6 @@ public class AdminAccountService {
         return AdminResponse.from(account);
     }
 
-    // 두 관리자가 서로를 동시에 비활성화하면 둘 다 성공해 활성 관리자가 0명이 된다.
-    // 두 행을 ID 순서로 잠근 뒤 호출한 관리자가 아직 활성인지 보면 늦게 온 쪽이 막힌다
     @Transactional
     public void disable(Long actorId, Long adminId) {
         var target = actorId < adminId
@@ -85,7 +82,6 @@ public class AdminAccountService {
             .orElseThrow(() -> new BusinessException(AuthErrorCode.ADMIN_NOT_FOUND));
     }
 
-    // 비활성화된 관리자의 Access Token은 무효화가 Gateway에 닿기 전까지 잠깐 통과한다. 그 사이의 요청을 막는다
     private void lockActiveActor(Long actorId) {
         adminAccountRepository.findByIdForUpdate(actorId)
             .filter(AdminAccount::isActive)

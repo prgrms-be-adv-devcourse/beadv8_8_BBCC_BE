@@ -145,7 +145,9 @@ public class ChildProfile extends BaseSoftDeleteEntity {
     }
 
     public GrowthRecordDeletion deleteGrowthRecord(Long recordId) {
-        var record = growthRecords.stream().filter(item -> Objects.equals(item.getId(), recordId)).findFirst()
+        var record = growthRecords.stream()
+            .filter(item -> Objects.equals(item.getId(), recordId))
+            .findFirst()
             .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
         if (growthRecords.size() == 1) {
             throw new BusinessException(ChildProfileErrorCode.ONLY_GROWTH_RECORD);

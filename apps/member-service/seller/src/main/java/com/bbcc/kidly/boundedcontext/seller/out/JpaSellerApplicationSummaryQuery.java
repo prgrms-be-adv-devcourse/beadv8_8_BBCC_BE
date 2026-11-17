@@ -19,7 +19,6 @@ public class JpaSellerApplicationSummaryQuery implements SellerApplicationSummar
 
     private final JPAQueryFactory queryFactory;
 
-    // 정렬은 최신 신청부터(id 내림차순)로 고정한다
     @Override
     public Page<SellerApplicationSummary> findAll(SellerApplicationStatus status, Pageable pageable) {
         var content = queryFactory
@@ -39,7 +38,6 @@ public class JpaSellerApplicationSummaryQuery implements SellerApplicationSummar
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
     }
 
-    // null이면 조건에서 빠진다
     private BooleanExpression statusEq(SellerApplicationStatus status) {
         return status == null ? null : sellerApplication.status.eq(status);
     }

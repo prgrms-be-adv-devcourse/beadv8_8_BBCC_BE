@@ -281,7 +281,6 @@ class SocialLoginServiceIntegrationTest {
         assertThat(socialLoginService.findProviders(unlinked.getId())).isEmpty();
     }
 
-    // FakeOAuthClient는 인가 코드를 그대로 providerUserId로 돌려준다
     private MemberLoginState login(String providerUserId) {
         return socialLoginService.signIn("kakao", new SocialLoginRequest(providerUserId));
     }

@@ -25,8 +25,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -47,7 +47,6 @@ import tools.jackson.databind.json.JsonMapper;
 
 @KafkaIntegrationTest
 class AuthChildProfileEventKafkaIntegrationTest {
-    @Autowired private GuardianVerificationRepository verifications;
 
     private static final String TOPIC = "kidly.childprofile.events";
     private static final String DLT = TOPIC + ".auth.dlt";
@@ -71,6 +70,8 @@ class AuthChildProfileEventKafkaIntegrationTest {
     private ChildProfileService childProfiles;
     @Autowired
     private ChildProfileRepository profiles;
+    @Autowired
+    private GuardianVerificationRepository verifications;
 
     private final Long childId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     private KafkaMessages messages;
@@ -140,7 +141,7 @@ class AuthChildProfileEventKafkaIntegrationTest {
             assertThat(repository.findById(childId)).isEmpty();
             assertThat(accounts.existsByChildProfileId(childId)).isFalse();
             assertThat(tokens.findByTokenHash(RefreshToken.hashOf(token))).isEmpty();
-            var found = new java.util.ArrayList<String>();
+            var found = new ArrayList<String>();
             AsyncWait.until(TIMEOUT, () -> {
                 consumer.poll(Duration.ofMillis(200)).forEach(record -> {
                     if (account.getId().toString().equals(record.key())
@@ -173,17 +174,7 @@ class AuthChildProfileEventKafkaIntegrationTest {
             var token = refreshTokens.issue(PrincipalId.child(account.getId()));
             var event = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.now(),
                 new MemberWithdrawnEvent.Data(memberId));
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("eventId", event.eventId());
-            body.put("eventType", event.eventType());
-            body.put("schemaVersion", event.schemaVersion());
-            body.put("occurredAt", event.occurredAt());
-            body.put("producer", event.producer());
-            body.put("aggregateId", event.aggregateId());
-            body.put("correlationId", event.correlationId());
-            body.put("data", event.data());
-            messages.sendRaw("kidly.member.events", Long.toString(memberId), event.eventType(), event.eventId(),
-                jsonMapper.writeValueAsString(body));
+            messages.send("kidly.member.events", event);
             AsyncWait.until(TIMEOUT, () -> profiles.findAllByMemberId(memberId).isEmpty());
             AsyncWait.until(TIMEOUT, () -> !accounts.existsByChildProfileId(profile.id())
                 && tokens.findByTokenHash(RefreshToken.hashOf(token)).isEmpty());

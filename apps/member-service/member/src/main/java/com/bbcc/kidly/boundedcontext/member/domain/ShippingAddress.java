@@ -13,10 +13,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.util.StringUtils;
 
-/**
- * 배송지. 회원(memberId)은 바뀌지 않는다. 기본 배송지 여부는 저장하지 않고 {@link DefaultShippingAddress}가 가리킨다.
- * 기본 배송지가 FK로 가리키므로 삭제된 배송지를 가리키지 않게 하려고 물리 삭제한다.
- */
 @Entity
 @Table(
     name = "shipping_address",
@@ -58,7 +54,6 @@ public class ShippingAddress extends BaseTimeEntity {
         return address;
     }
 
-    // 모든 값을 받는 전체 교체다
     public void update(ShippingAddressInfo info) {
         this.recipientName = info.recipientName();
         this.recipientPhone = info.recipientPhone();

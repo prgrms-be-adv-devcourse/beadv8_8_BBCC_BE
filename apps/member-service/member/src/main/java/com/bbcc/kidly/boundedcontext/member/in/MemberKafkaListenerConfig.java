@@ -23,13 +23,6 @@ import org.springframework.kafka.support.ProducerListener;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
-/**
- * 회원이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT(#608). DLT는 받은 토픽마다 하나다.
- * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고,
- * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다.
- * 다시 해도 같은 실패는 재시도 없이 보낸다: 읽지 못한 본문, 업무 규칙 위반(회원 없음 등. 회원은 판매자보다 먼저 있다).
- * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate과 다른 도메인에 영향이 없다.
- */
 @Slf4j
 @Configuration
 class MemberKafkaListenerConfig {
@@ -82,7 +75,6 @@ class MemberKafkaListenerConfig {
         return kafkaTemplate;
     }
 
-    // 본문(상호명)과 예외 메시지(읽지 못한 값이 들어 있다)는 남기지 않는다
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
         log.error("처리하지 못한 이벤트를 DLT로 보냅니다. topic={} eventType={} eventId={} key={} exception={}",

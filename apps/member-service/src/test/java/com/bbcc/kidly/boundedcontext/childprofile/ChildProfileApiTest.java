@@ -309,7 +309,6 @@ class ChildProfileApiTest {
             .returnResult().getResponseBody();
     }
 
-    // detail에 "필드명: 메시지"가 들어 있다
     private void expectInvalid(ChildProfileRequest request, String field) {
         var body = client.post().uri(CHILDREN_PATH)
             .headers(TestMembers.buyer(MEMBER_ID))

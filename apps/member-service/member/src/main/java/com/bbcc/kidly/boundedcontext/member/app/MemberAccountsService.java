@@ -15,9 +15,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 클래스에 트랜잭션을 걸지 않는다. 가입 트랜잭션이 유니크 충돌로 롤백돼도 가입 키로 다시 찾을 수 있어야 하기 때문이다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -40,8 +37,6 @@ public class MemberAccountsService implements MemberAccounts {
         return memberRepository.findById(memberId).map(Member::loginState);
     }
 
-    // 같은 키 동시 가입은 키 유니크보다 닉네임 유니크가 먼저 걸릴 수 있어 제약 이름을 가리지 않고 키로 다시 찾는다
-    // 키로 못 찾으면 다른 회원과 닉네임이 겹친 것이므로 그대로 던진다(409)
     private Member insert(MemberRegistration registration) {
         var nickname = nicknamePolicy.generate(registration.nicknameHint());
         var info = new MemberRegisterInfo(registration.registrationKey(), nickname, registration.email());

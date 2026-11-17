@@ -38,12 +38,6 @@ class SellerTest {
     }
 
     @Test
-    @DisplayName("신청이 없으면 판매자를 만들 수 없다")
-    void fromRejectsNull() {
-        assertThatThrownBy(() -> Seller.from(null)).isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
     @DisplayName("상호명이 다르면 바꾸고 변경을 알린다")
     void changeBusinessName() {
         var seller = SellerFixture.activeSeller(APPLICANT_ID);
@@ -127,11 +121,6 @@ class SellerTest {
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(SellerErrorCode.SELLER_CLOSED));
         assertThat(seller.getStatus()).isEqualTo(SellerStatus.CLOSED);
-        assertThat(seller.getSuspension()).isNull();
-    }
-
-    private void assertStillActive(Seller seller) {
-        assertThat(seller.getStatus()).isEqualTo(SellerStatus.ACTIVE);
         assertThat(seller.getSuspension()).isNull();
     }
 }

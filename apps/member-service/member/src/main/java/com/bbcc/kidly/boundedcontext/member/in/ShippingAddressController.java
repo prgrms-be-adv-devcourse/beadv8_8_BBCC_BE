@@ -21,9 +21,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 회원의 배송지 API. 본인 배송지만 다루고, 없는 · 남의 배송지는 404다.
- */
 @RestController
 @RequestMapping("/api/v1/members/me/addresses")
 @RequiredArgsConstructor
@@ -31,7 +28,6 @@ public class ShippingAddressController {
 
     private final ShippingAddressService shippingAddressService;
 
-    // 첫 배송지거나 isDefault가 true면 기본 배송지가 된다
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ShippingAddressResponse register(
@@ -42,13 +38,11 @@ public class ShippingAddressController {
         return ShippingAddressResponse.from(address);
     }
 
-    // 기본 배송지가 먼저, 나머지는 등록 순
     @GetMapping
     public List<ShippingAddressResponse> list(@LoginMember AuthMember member) {
         return shippingAddressService.getAddresses(member.id()).stream().map(ShippingAddressResponse::from).toList();
     }
 
-    // 모든 필드를 담아 보내는 전체 교체다. isDefault가 true면 기본으로도 지정하고, false는 기본 배송지를 바꾸지 않는다
     @PatchMapping("/{addressId}")
     public ShippingAddressResponse update(
         @LoginMember AuthMember member, @PathVariable Long addressId,
@@ -56,7 +50,6 @@ public class ShippingAddressController {
         return ShippingAddressResponse.from(shippingAddressService.update(member.id(), addressId, request));
     }
 
-    // 기본 배송지는 409. 단, 배송지가 1개뿐이면 지울 수 있다
     @DeleteMapping("/{addressId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@LoginMember AuthMember member, @PathVariable Long addressId) {

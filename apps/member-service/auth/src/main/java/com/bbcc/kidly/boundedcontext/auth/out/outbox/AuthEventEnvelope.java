@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.auth.out.outbox;
 
 import com.bbcc.kidly.shared.event.DomainEvent;
 import java.util.LinkedHashMap;
-import java.util.Map;
 import tools.jackson.databind.json.JsonMapper;
 
 public final class AuthEventEnvelope {
@@ -10,7 +9,7 @@ public final class AuthEventEnvelope {
     }
 
     public static String toJson(JsonMapper mapper, DomainEvent event) {
-        Map<String, Object> body = new LinkedHashMap<>();
+        var body = new LinkedHashMap<String, Object>();
         body.put("eventId", event.eventId());
         body.put("eventType", event.eventType());
         body.put("schemaVersion", event.schemaVersion());

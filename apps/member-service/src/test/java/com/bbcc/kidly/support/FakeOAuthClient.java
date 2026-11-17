@@ -8,10 +8,6 @@ import com.bbcc.kidly.member.support.error.BusinessException;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
-/**
- * 통합 · 기능 테스트에서 소셜 제공자 대신 쓴다. 인가 코드를 그대로 providerUserId로 돌려준다.
- * 실제 카카오 연동은 KakaoOAuthClientTest가 확인한다.
- */
 @Primary
 @Component
 public class FakeOAuthClient implements OAuthClient {
@@ -22,7 +18,6 @@ public class FakeOAuthClient implements OAuthClient {
     public static final String NO_NICKNAME_CODE = "no-nickname";
     public static final String NO_EMAIL_CODE = "no-email";
     public static final String SHORT_NICKNAME_CODE = "short-nickname";
-    // 이 접두어로 시작하는 코드는 21자 닉네임을 돌려준다
     public static final String LONG_NICKNAME_CODE_PREFIX = "long-nickname-";
     public static final String LONG_NICKNAME = "가".repeat(21);
 

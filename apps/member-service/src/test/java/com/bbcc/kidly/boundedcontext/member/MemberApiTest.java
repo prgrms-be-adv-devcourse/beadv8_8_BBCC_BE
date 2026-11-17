@@ -16,8 +16,8 @@ import com.bbcc.kidly.support.FunctionalTest;
 import com.bbcc.kidly.support.FakeSellerWithdrawalBlockerFinder;
 import java.util.List;
 import java.util.function.Consumer;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -276,11 +276,6 @@ class MemberApiTest {
         assertThat(withdrawalEventCount(member.getId())).isEqualTo(1);
     }
 
-    private int withdrawalEventCount(Long memberId) {
-        return jdbcTemplate.queryForObject("select count(*) from member.member_outbox "
-            + "where event_type = 'member.withdrawn' and message_key = ?", Integer.class, memberId.toString());
-    }
-
     @Test
     @DisplayName("탈퇴할 때 로그인하지 않으면 401")
     void withdrawWithoutToken() {
@@ -306,5 +301,10 @@ class MemberApiTest {
         return client.get().uri(ME_PATH)
             .headers(login)
             .exchange();
+    }
+
+    private int withdrawalEventCount(Long memberId) {
+        return jdbcTemplate.queryForObject("select count(*) from member.member_outbox "
+            + "where event_type = 'member.withdrawn' and message_key = ?", Integer.class, memberId.toString());
     }
 }

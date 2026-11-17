@@ -13,9 +13,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 업무가 롤백되면 메시지도 남지 않고, 아직 보내지 않은 메시지는 sentAt이 비어 있다.
- */
 @Entity
 @Table(schema = "seller", name = "seller_outbox")
 @Getter
@@ -70,9 +67,6 @@ public class SellerOutboxMessage extends BaseTimeEntity {
         this.sentAt = now;
     }
 
-    /**
-     * 오류가 칸 길이보다 길면 앞부분만 남긴다. 길이를 넘기면 이 기록을 저장하는 UPDATE가 실패하기 때문이다.
-     */
     public void recordFailure(String error) {
         this.attemptCount++;
         if (error.length() > LAST_ERROR_LENGTH) {

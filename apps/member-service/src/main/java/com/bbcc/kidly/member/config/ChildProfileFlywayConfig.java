@@ -19,7 +19,6 @@ public class ChildProfileFlywayConfig {
         };
     }
 
-    // 이미 자녀 테이블이 있고 자녀 이력이 없는 DB(kidly-app이 먼저 만든 DB)는 자녀 outbox 버전으로 baseline을 잡는다
     public static Flyway childProfileFlyway(DataSource dataSource) {
         return Flyway.configure()
             .dataSource(dataSource)

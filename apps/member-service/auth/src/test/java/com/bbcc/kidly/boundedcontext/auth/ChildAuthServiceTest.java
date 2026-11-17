@@ -17,61 +17,57 @@ import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 class ChildAuthServiceTest {
+    private final ChildAccountRepository accounts = mock(ChildAccountRepository.class);
+    private final PasswordEncoder encoder = mock(PasswordEncoder.class);
+    private final RefreshTokenService refreshTokens = mock(RefreshTokenService.class);
+    private ChildAuthService service;
+
+    @BeforeEach
+    void setUp() {
+        when(encoder.encode(anyString())).thenReturn("dummy");
+        service = new ChildAuthService(accounts, encoder, refreshTokens, mock(AccessTokenIssuer.class));
+    }
+
     @Test
     void unknownAndWrongPasswordBothRejectAndCompareHash() {
-        var accounts = mock(ChildAccountRepository.class);
-        var encoder = mock(PasswordEncoder.class);
-        when(encoder.encode(anyString())).thenReturn("dummy");
-        var service = new ChildAuthService(accounts, encoder, mock(RefreshTokenService.class),
-            mock(AccessTokenIssuer.class));
         var request = new ChildLoginRequest("child", "password");
-        assertThatThrownBy(() -> service.login(request)).isInstanceOfSatisfying(BusinessException.class,
-            e -> assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CHILD_CREDENTIALS));
+        assertRejected(request);
         verify(encoder).matches("password", "dummy");
         var account = ChildAccount.create("child", "hash", 1L, 2L);
         when(accounts.findByLoginId("child")).thenReturn(Optional.of(account));
-        assertThatThrownBy(() -> service.login(request)).isInstanceOfSatisfying(BusinessException.class,
-            e -> assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CHILD_CREDENTIALS));
+        assertRejected(request);
         verify(encoder).matches("password", "hash");
     }
 
     @Test
     void rejectsAccountDeletedWhileComparingPassword() {
-        var accounts = mock(ChildAccountRepository.class);
-        var encoder = mock(PasswordEncoder.class);
-        when(encoder.encode(anyString())).thenReturn("dummy");
         when(encoder.matches("password", "hash")).thenReturn(true);
         when(accounts.findByLoginId("child")).thenReturn(Optional.of(ChildAccount.create("child", "hash", 1L, 2L)));
-        var refreshTokens = mock(RefreshTokenService.class);
-        var service = new ChildAuthService(accounts, encoder, refreshTokens, mock(AccessTokenIssuer.class));
 
-        assertThatThrownBy(() -> service.login(new ChildLoginRequest("child", "password")))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CHILD_CREDENTIALS));
+        assertRejected(new ChildLoginRequest("child", "password"));
         verifyNoInteractions(refreshTokens);
     }
 
     @Test
     void rejectsPasswordChangedWhileComparing() {
-        var accounts = mock(ChildAccountRepository.class);
-        var encoder = mock(PasswordEncoder.class);
-        when(encoder.encode(anyString())).thenReturn("dummy");
         when(encoder.matches("password", "hash")).thenReturn(true);
         var account = mock(ChildAccount.class);
         when(account.getId()).thenReturn(1L);
         when(account.getPasswordHash()).thenReturn("hash");
         when(accounts.findByLoginId("child")).thenReturn(Optional.of(account));
         when(accounts.findByIdAndPasswordHashForUpdate(1L, "hash")).thenReturn(Optional.empty());
-        var refreshTokens = mock(RefreshTokenService.class);
-        var service = new ChildAuthService(accounts, encoder, refreshTokens, mock(AccessTokenIssuer.class));
 
-        assertThatThrownBy(() -> service.login(new ChildLoginRequest("child", "password")))
-            .isInstanceOfSatisfying(BusinessException.class,
-                e -> assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CHILD_CREDENTIALS));
+        assertRejected(new ChildLoginRequest("child", "password"));
         verifyNoInteractions(refreshTokens);
+    }
+
+    private void assertRejected(ChildLoginRequest request) {
+        assertThatThrownBy(() -> service.login(request)).isInstanceOfSatisfying(BusinessException.class,
+            e -> assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CHILD_CREDENTIALS));
     }
 }

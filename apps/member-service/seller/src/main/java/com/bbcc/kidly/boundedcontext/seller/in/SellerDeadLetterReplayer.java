@@ -8,9 +8,6 @@ import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.stereotype.Component;
 
-/**
- * 원래 토픽(kidly.member.events)은 다른 도메인도 받으므로 다시 보내면 그쪽도 또 받는다.
- */
 @Component
 @RequiredArgsConstructor
 public class SellerDeadLetterReplayer implements SellerDeadLetterReplay {

@@ -2,9 +2,6 @@ package com.bbcc.kidly.boundedcontext.childprofile.app.dto;
 
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileDeadLetter;
 
-/**
- * DLT에서 받은 메시지. 보관할 때와 원래 처리기로 재처리할 때 쓴다.
- */
 public record ChildProfileDeadLetterMessage(String dltTopic, int dltPartition, long dltOffset, String sourceTopic,
     Integer sourcePartition, Long sourceOffset, String messageKey, String eventType, String eventId, String payload,
     String failureType) {

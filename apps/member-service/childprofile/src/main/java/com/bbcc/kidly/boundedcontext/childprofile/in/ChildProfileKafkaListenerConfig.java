@@ -54,13 +54,9 @@ class ChildProfileKafkaListenerConfig {
         return factory;
     }
 
-    private static String dlt(String topic) {
-        return topic + DLT_SUFFIX;
-    }
-
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
-            (record, e) -> new TopicPartition(dlt(record.topic()), 0));
+            (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         var errorHandler = new DefaultErrorHandler((record, e) -> {
             logDeadLetter(record, e);
             deadLetter.accept(record, e);
@@ -78,7 +74,6 @@ class ChildProfileKafkaListenerConfig {
         return kafkaTemplate;
     }
 
-    // 본문과 예외 메시지(읽지 못한 값이 들어 있다)는 남기지 않는다
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
         log.error("처리하지 못한 이벤트를 DLT로 보냅니다. eventType={} eventId={} key={} exception={}",

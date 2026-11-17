@@ -17,7 +17,6 @@ public class SwaggerConfig {
 
     private static final String BEARER_AUTH = "bearerAuth";
 
-    // @LoginMember AuthMember는 Gateway 헤더로 만드는 값이라 요청 파라미터가 아니다. 문서에서 뺀다
     static {
         SpringDocUtils.getConfig().addAnnotationsToIgnore(LoginMember.class, LoginAdmin.class, LoginChild.class);
     }

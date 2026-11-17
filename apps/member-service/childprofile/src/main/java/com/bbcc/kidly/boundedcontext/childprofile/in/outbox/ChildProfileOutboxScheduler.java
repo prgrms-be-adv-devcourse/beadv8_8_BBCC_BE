@@ -28,7 +28,6 @@ public class ChildProfileOutboxScheduler {
         runLoggingErrorTypeOnly("정리", cleanupService::cleanUp);
     }
 
-    // DB 오류 메시지에 행 값(본문)이 들어갈 수 있어 예외 종류만 남긴다
     private static void runLoggingErrorTypeOnly(String job, Runnable task) {
         try {
             task.run();

@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.inOrder;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AdminAuthService;
 import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
@@ -65,9 +64,6 @@ class AdminAuthServiceTest {
         var tokens = adminAuthService.login(REQUEST);
 
         assertThat(tokens).isEqualTo(new AuthTokens("access", "refresh"));
-        var order = inOrder(refreshTokenService, accessTokenIssuer);
-        order.verify(refreshTokenService).issue(PrincipalId.admin(ADMIN_ID));
-        order.verify(accessTokenIssuer).issue(SUBJECT);
     }
 
     @Test

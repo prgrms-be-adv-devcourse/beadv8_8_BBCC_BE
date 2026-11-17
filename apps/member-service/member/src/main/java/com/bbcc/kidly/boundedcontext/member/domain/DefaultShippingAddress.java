@@ -12,10 +12,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
-/**
- * 회원의 기본 배송지를 가리키는 포인터. PK가 회원 ID라 회원당 최대 1행이고,
- * FK 때문에 가리키는 배송지는 지울 수 없다. 배송지가 있으면 정확히 1행, 없으면 0행이다.
- */
 @Entity
 @Table(name = "default_shipping_address", schema = "member")
 @Getter
@@ -26,7 +22,6 @@ public class DefaultShippingAddress extends BaseTimeEntity {
     @Column(name = "member_id")
     private Long memberId;
 
-    // 다른 애그리거트라 ID로만 가리킨다. DB FK가 삭제된 배송지를 가리키지 않게 막는다
     @Column(name = "shipping_address_id", nullable = false)
     private Long shippingAddressId;
 
@@ -53,14 +48,12 @@ public class DefaultShippingAddress extends BaseTimeEntity {
         return shippingAddressId.equals(addressId);
     }
 
-    // 기본 배송지는 지울 수 없다. 배송지가 1개뿐이면 예외로 지울 수 있고, 이때 이 행도 함께 지운다
     public void checkDeletable(Long addressId, long addressCount) {
         if (isPointingTo(addressId) && addressCount > 1) {
             throw new BusinessException(MemberErrorCode.DEFAULT_SHIPPING_ADDRESS_NOT_DELETABLE);
         }
     }
 
-    // 소유자를 확인하려고 배송지 객체를 받는다
     private static void validateOwner(Long memberId, ShippingAddress shippingAddress) {
         Assert.isTrue(shippingAddress.isOwnedBy(memberId), "다른 회원의 배송지는 기본 배송지로 지정할 수 없습니다");
     }

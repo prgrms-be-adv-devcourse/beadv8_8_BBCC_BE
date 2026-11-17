@@ -21,9 +21,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 회원 본인의 정보를 조회 · 수정하고 탈퇴한다. 역할은 토큰이 아니라 DB의 현재 값으로 계산하므로 판매자 승인 직후 재발급 전에도 SELLER가 보인다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -41,8 +38,6 @@ public class MemberService {
         return MemberResult.from(memberRepository.getById(memberId), socialAccountFinder.findProviders(memberId));
     }
 
-    // 지금 닉네임과 같으면 바꾸지 않고 이벤트도 발행하지 않는다
-    // 동시에 같은 닉네임으로 바꾸면 유니크 제약이 한 요청만 통과시킨다 (나머지는 커밋 때 409)
     @Transactional
     public MemberResult update(Long memberId, MemberUpdateRequest request) {
         var member = memberRepository.getById(memberId);
@@ -54,8 +49,6 @@ public class MemberService {
         return MemberResult.from(member, socialAccountFinder.findProviders(memberId));
     }
 
-    // 배송지 · 자녀 프로필 · 소셜 계정 연결은 탈퇴 이벤트를 받아 지운다
-    // Refresh Token은 탈퇴 회원의 재발급이 막히므로 남겨 두고, 만료되면 RefreshTokenCleaner가 지운다
     @Transactional
     public void withdraw(Long memberId) {
         var now = LocalDateTime.now();

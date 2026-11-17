@@ -23,6 +23,7 @@ public class ChildSelfProfileController {
     public ChildProfileResponse get(@LoginChild AuthChild child) {
         return ChildProfileResponse.from(service.getOwnProfile(child.accountId(), child.guardianId()));
     }
+
     @GetMapping("/onboarding")
     public ChildOnboardingResponse getOnboarding(@LoginChild AuthChild child) {
         return new ChildOnboardingResponse(service.isNoticeConfirmed(child.accountId(), child.guardianId()));

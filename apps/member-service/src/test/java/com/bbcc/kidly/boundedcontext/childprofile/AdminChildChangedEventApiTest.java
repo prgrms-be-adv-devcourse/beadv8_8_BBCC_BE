@@ -13,10 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 기존 자녀의 child.changed를 다시 보내는 API를 HTTP 요청부터 응답까지 확인한다.
- * 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 세고, 아웃박스에 쌓인 행도 확인한다.
- */
 @FunctionalTest
 class AdminChildChangedEventApiTest {
 
