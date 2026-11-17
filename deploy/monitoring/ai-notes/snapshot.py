@@ -26,6 +26,13 @@ NO_DURATION = 'kidly-gateway'
 # ERROR 로그의 예외 종류(error.type)별 건수. 로그 원문 · 메시지는 읽지 않고 Loki 가 집계한 숫자와 클래스 이름만 쓴다
 EXCEPTION_TOP = 8
 EXCEPTION_NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]{0,80}')
+# 예외 스택에서 처음 지나간 우리 코드(com.bbcc.kidly) 위치. 프록시(<generated>) · 프레임워크 줄은 건너뛴다
+SITE_TOP = 5
+SITE_PATTERN = ('at com[.]bbcc[.]kidly[.](?:[A-Za-z0-9_]+[.])*'
+                '(?P<site>[A-Z][A-Za-z0-9_]*[.][A-Za-z0-9_]+[(][A-Za-z0-9_]+[.]java:[0-9]+[)])')
+SITE = re.compile(r'([A-Z][A-Za-z0-9_]{0,80})\.([A-Za-z_][A-Za-z0-9_]{0,80})\([A-Za-z0-9_]+\.java:([0-9]{1,6})\)')
+# 비어 있으면 '없음'이 정상인 지표(빠진 지표 목록에 넣지 않는다)
+EMPTY_IS_NONE = ('restarted_minutes_ago',)
 
 
 def opener():
@@ -57,6 +64,8 @@ def queries(env):
         # 서비스별로 볼 수 있게 한다: ERROR 로그 수, 30분 안에 새로 뜬 프로세스 수(배포 · 장애 · 수동 패치), 구독 그룹 kidly.<도메인>의 미처리
         'error_logs_30m': ('estimated_count', f'sum by (job) (increase(logback_events_total{{{app},level="error"}}[30m]))'),
         'restarts_30m': ('count', f'count by (job) ((time() - process_start_time_seconds{{{app}}}) < 1800) or (0 * max by (job) (process_start_time_seconds{{{app}}}))'),
+        # 30분 안에 새로 뜬 서비스만, 가장 최근 시작이 몇 분 전인지(오류 · 지연이 바뀐 시점과 맞춰 보게 한다)
+        'restarted_minutes_ago': ('minutes', f'min by (job) ((time() - process_start_time_seconds{{{app}}}) / 60) < 30'),
         # member 서비스는 auth · childprofile · member · seller 그룹을 함께 쓴다(대시보드 상태판과 같은 규칙)
         'kafka_lag_by_service': ('count', f'sum by (job) (label_replace(label_replace((kafka_consumergroup_lag{{{lag}}} >= 0) and (time()-timestamp(kafka_consumergroup_lag{{{lag}}})<60), "job", "kidly-$1", "consumergroup", "kidly[.]([a-z]+)"), "job", "kidly-member", "consumergroup", "kidly[.](auth|childprofile|member|seller)"))'),
         'host_memory_available': ('percent', 'min(100*node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes and (time()-timestamp(node_memory_MemAvailable_bytes)<60))'),
@@ -116,6 +125,31 @@ def exception_facts(environment, now):
         yield 'error_type_30m:' + name, value, service
 
 
+def site_query(environment):
+    if environment not in ('dev', 'prod'):
+        raise ValueError('unsupported environment')
+    selector = '{env="' + environment + '", service_name=~"' + MATCH + '", level="ERROR"}'
+    return (f'topk({SITE_TOP}, sum by (service_name, error_type, site) (count_over_time({selector} '
+            '| json error_type="error.type", stack="error.stack_trace" | __error__="" | error_type != "" '
+            '| line_format "{{.stack}}" | regexp "' + SITE_PATTERN + '" | site != "" [30m])))')
+
+
+def site_facts(environment, now):
+    counts = {}
+    for row in log_rows(site_query(environment), now):
+        service = row['metric'].get('service_name')
+        name = str(row['metric'].get('error_type', '')).rsplit('.', 1)[-1].split('$', 1)[0]
+        site = SITE.fullmatch(str(row['metric'].get('site', '')))
+        value = float(row['value'][1])
+        where = ':'.join((name,) + site.groups()) if site else ''
+        # 근거 지표 이름 상한(200자) 안에 들지 않으면 버린다
+        if service in JOBS and EXCEPTION_NAME.fullmatch(name) and site and len(where) <= 180 and math.isfinite(value) and value > 0:
+            key = service, where
+            counts[key] = counts.get(key, 0) + value
+    for (service, where), value in counts.items():
+        yield 'error_site_30m:' + where, value, service
+
+
 def previous_http_facts(environment, now, facts):
     current = {(item.metric, item.service): item.value for item in facts}
     previous = {}
@@ -161,7 +195,7 @@ def collect(environment, now=None, *, compare_http=False):
         for row in rows:
             service = row['metric'].get('app_job') if name == 'app_expected' else row['metric'].get('job')
             per_service = name in ('app_expected', 'up', 'requests_30m', 'errors_30m', 'duration_sum_30m', 'hikari_pending', 'hikari_utilization',
-                                   'error_logs_30m', 'restarts_30m', 'kafka_lag_by_service')
+                                   'error_logs_30m', 'restarts_30m', 'kafka_lag_by_service', 'restarted_minutes_ago')
             if per_service and service not in JOBS:
                 continue
             if name == 'duration_sum_30m' and service == NO_DURATION:
@@ -174,10 +208,12 @@ def collect(environment, now=None, *, compare_http=False):
             if service in seen:
                 raise ValueError('ambiguous aggregate')
             seen.add(service)
+            if unit == 'minutes':
+                value = round(value, 1)
             scope = 'global' if name.startswith('host_') else environment
             facts.append(Evidence('f'+str(len(facts)), name, value, unit, scope, service))
             accepted += 1
-        if not accepted:
+        if not accepted and name not in EMPTY_IS_NONE:
             missing.append(name)
     # 지표마다 한 줄씩 쓰면 계약의 제약 20개를 넘는다. 빠진 지표는 한 줄로 묶는다
     if missing:
@@ -205,6 +241,20 @@ def collect(environment, now=None, *, compare_http=False):
         'Messages are not included; counts are events, not distinct incidents or failed requests.' if exceptions else
         'No ERROR log with an exception type in 30 minutes; ERROR logs without an exception type are not counted.'
     )
+    try:
+        sites = list(site_facts(environment, now))
+    except (OSError, ValueError, KeyError, TypeError, IndexError):
+        sites = None
+    for metric, value, service in sites or ():
+        facts.append(Evidence('f' + str(len(facts)), metric, value, 'estimated_count', environment, service))
+    if sites:
+        limitations.append(
+            'error_site_30m:<Exception>:<Class>:<method>:<line> counts ERROR events by the first own-code frame (com.bbcc.kidly) '
+            'in the stack (top 5, 30 minutes). It is where our code was when it failed, not necessarily the root cause.')
+    if any(fact.metric == 'restarted_minutes_ago' for fact in facts):
+        limitations.append(
+            'restarted_minutes_ago: minutes since the newest process start, only for services started within 30 minutes '
+            '(deploy, crash or manual; not which). Timing alignment is not causation.')
     if compare_http:
         try:
             comparison = list(previous_http_facts(environment, now, facts))

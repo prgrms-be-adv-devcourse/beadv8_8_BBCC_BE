@@ -16,6 +16,7 @@ from openai_provider import OpenAIProvider
 from groq_once import run_once, read_key, PRINCIPAL
 from storage import Store, LokiPublisher, deliver_accepted
 import snapshot
+import groq_provider
 from errors import NotesError
 
 
@@ -84,9 +85,15 @@ class GroqProviderTest(unittest.TestCase):
 
         exceptions = [{'metric': {'service_name': name, 'error_type': 'org.example.VeryLongExceptionClassName' + str(i) + 'X' * 40},
                        'value': [2000, '12345']} for i, name in enumerate(snapshot.JOBS[:snapshot.EXCEPTION_TOP])]
-        with patch('snapshot.metric_rows', side_effect=rows), patch('snapshot.log_rows', return_value=exceptions):
+        sites = [{'metric': {'service_name': name, 'error_type': 'org.example.VeryLongExceptionClassName' + str(i) + 'X' * 40,
+                             'site': 'VeryLongServiceClassName' + 'Y' * 30 + '.veryLongMethodName' + 'Z' * 30 + '(A.java:' + str(1000 + i) + ')'},
+                  'value': [2000, str(100 + i)]} for i, name in enumerate(snapshot.JOBS[:snapshot.SITE_TOP])]
+        with patch('snapshot.metric_rows', side_effect=rows), \
+                patch('snapshot.log_rows', side_effect=lambda query, at: sites if 'site' in query else exceptions):
             sample = snapshot.collect('dev', 2000, compare_http=True)
         self.assertEqual(len([f for f in sample.evidence if f.metric.startswith('error_type_30m:')]), snapshot.EXCEPTION_TOP)
+        self.assertEqual(len([f for f in sample.evidence if f.metric.startswith('error_site_30m:')]), snapshot.SITE_TOP)
+        self.assertEqual(len([f for f in sample.evidence if f.metric == 'restarted_minutes_ago']), len(snapshot.JOBS))
         client = transport()
         self.provider(client).analyze(sample, 2300)
         request = client.open.call_args.args[0]
@@ -94,6 +101,54 @@ class GroqProviderTest(unittest.TestCase):
         message = json.loads(json.loads(request.data)['messages'][1]['content'])
         self.assertEqual(len([f for f in message['evidence'] if f['metric'] == 'mean_response_previous_30m']),
                          len(snapshot.JOBS) - 1)
+        # 보조 근거만 줄인다: 예외 종류는 모두 남고, 코드 위치는 건수가 적은 것부터 빠진다
+        self.assertEqual(len([f for f in message['evidence'] if f['metric'].startswith('error_type_30m:')]), snapshot.EXCEPTION_TOP)
+        kept = [f['value'] for f in message['evidence'] if f['metric'].startswith('error_site_30m:')]
+        top = 100 + snapshot.SITE_TOP - 1
+        self.assertEqual(sorted(kept), list(range(top - len(kept) + 1, top + 1)))
+        # 재시작은 코드 위치를 다 뺀 뒤에만 줄인다
+        restarts = [f for f in message['evidence'] if f['metric'] == 'restarted_minutes_ago']
+        self.assertTrue(len(restarts) == len(snapshot.JOBS) or not kept)
+        self.assertIn(groq_provider.TRIMMED, message['limitations'])
+
+    def test_error_sites_and_recent_restarts_become_evidence(self):
+        def metric_rows(expression, when):
+            if 'process_start_time_seconds' in expression and '/ 60' in expression:
+                return [{'metric': {'job': 'kidly-order'}, 'value': [when, '3.04']},
+                        {'metric': {'job': 'kidly-unknown'}, 'value': [when, '1']}]
+            return []
+        sites = [
+            {'metric': {'service_name': 'kidly-recommend', 'error_type': 'org.springframework.transaction.CannotCreateTransactionException',
+                        'site': 'HomePreviewService.previewWithAiLater(HomePreviewService.java:70)'}, 'value': [3600, '83']},
+            {'metric': {'service_name': 'kidly-recommend', 'error_type': 'org.x.CannotCreateTransactionException',
+                        'site': 'HomePreviewService.previewWithAiLater(HomePreviewService.java:70)'}, 'value': [3600, '2']},
+            {'metric': {'service_name': 'kidly-order', 'error_type': 'java.lang.IllegalStateException',
+                        'site': 'Proxy$$SpringCGLIB$$0.read(<generated>)'}, 'value': [3600, '9']},
+            {'metric': {'service_name': 'kidly-unknown', 'error_type': 'java.io.IOException',
+                        'site': 'A.b(A.java:1)'}, 'value': [3600, '5']},
+        ]
+        with patch('snapshot.metric_rows', side_effect=metric_rows), \
+                patch('snapshot.log_rows', side_effect=lambda query, at: sites if 'site' in query else []) as read:
+            sample = snapshot.collect('dev', 2000)
+        facts = {(fact.metric, fact.service): fact.value for fact in sample.evidence}
+        self.assertEqual(facts, {
+            ('error_site_30m:CannotCreateTransactionException:HomePreviewService:previewWithAiLater:70', 'kidly-recommend'): 85,
+            ('restarted_minutes_ago', 'kidly-order'): 3.0})
+        site_query = read.call_args_list[1].args[0]
+        self.assertIn('topk(5,', site_query)
+        self.assertIn('com[.]bbcc[.]kidly', site_query)
+        self.assertTrue(any(line.startswith('error_site_30m:<') for line in sample.limitations))
+        self.assertTrue(any(line.startswith('restarted_minutes_ago:') for line in sample.limitations))
+        # 재시작이 없으면 '없음'이 정상: 빠진 지표 목록과 설명 줄에 넣지 않는다
+        with patch('snapshot.metric_rows', return_value=[]), patch('snapshot.log_rows', return_value=[]):
+            quiet = snapshot.collect('dev', 2000)
+        self.assertFalse(any('restarted_minutes_ago' in line for line in quiet.limitations))
+        self.assertFalse(any(line.startswith('error_site_30m:<') for line in quiet.limitations))
+        # Groq 에도 보낸다(MCP 전용 아님)
+        client = transport()
+        self.provider(client).analyze(sample, 2300)
+        message = json.loads(json.loads(client.open.call_args.args[0].data)['messages'][1]['content'])
+        self.assertEqual({f['metric'] for f in message['evidence']}, {metric for metric, _ in facts})
 
     def test_gateway_latency_is_never_sent_and_sse_paths_are_excluded(self):
         definitions = snapshot.queries('dev')
@@ -131,7 +186,7 @@ class GroqProviderTest(unittest.TestCase):
         self.assertEqual(facts, {('error_type_30m:CannotCreateTransactionException', 'kidly-recommend'): 379,
                                  ('error_type_30m:Outer', 'kidly-order'): 5})
         self.assertEqual(len([f for f in sample.evidence if f.metric == 'error_type_30m:Outer']), 1)
-        self.assertIn('topk(8,', read.call_args.args[0])
+        self.assertIn('topk(8,', read.call_args_list[0].args[0])
         self.assertTrue(any(line.startswith('error_type_30m:<Class>') for line in sample.limitations))
         with patch('snapshot.metric_rows', return_value=[]), patch('snapshot.log_rows', side_effect=OSError):
             failed = snapshot.collect('dev', 3600)

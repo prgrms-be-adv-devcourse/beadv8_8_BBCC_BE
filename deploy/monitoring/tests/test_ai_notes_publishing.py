@@ -169,8 +169,9 @@ class NotesPublishingTest(unittest.TestCase):
             self.assertTrue(call.args[0].startswith(('http://127.0.0.1:30090/api/v1/query?',
                                                      'http://127.0.0.1:31100/loki/api/v1/query?')))
         loki = [call.args[0] for call in opener.open.call_args_list if ':31100/' in call.args[0]]
-        self.assertEqual(len(loki), 1)
-        self.assertIn('count_over_time', urllib.parse.unquote_plus(loki[0]))
+        # 예외 종류 · 코드 위치 두 번만 Loki 집계를 읽는다(원문 조회 없음)
+        self.assertEqual(len(loki), 2)
+        self.assertTrue(all('count_over_time' in urllib.parse.unquote_plus(url) for url in loki))
         empty = {'status':'success','data':{'resultType':'vector','result':[]}}
         opener.open.return_value = response(raw=json.dumps(empty).encode())
         with patch('snapshot.opener', return_value=opener):
