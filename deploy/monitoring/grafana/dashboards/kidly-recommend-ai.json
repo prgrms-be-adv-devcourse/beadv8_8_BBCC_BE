@@ -592,7 +592,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "토큰 수 × 단가(100만 토큰당 입력 $1 · 출력 $5)입니다. 사이즈 추천은 빠른 처리 등급이라 2배로 셉니다. 캐시된 입력 할인은 넣지 않은 상한입니다.",
+      "description": "토큰 수 × 단가(100만 토큰당 입력 $1 · 출력 $5)입니다. 세 기능 모두 표준 처리 등급 단가로 셉니다. 사이즈 추천을 빠른 처리 등급으로 부르던 기간은 실제 비용이 이 값의 2배입니다. 캐시된 입력 할인은 넣지 않은 상한입니다.",
       "gridPos": {
         "x": 16,
         "y": 21,
@@ -616,7 +616,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum by (feature) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=\"input\", feature=~\"size_recommendation\"}[$__range])) + sum by (feature) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=\"output\", feature=~\"size_recommendation\"}[$__range])) * 5) * 2 / 1e6",
+          "expr": "(sum by (feature) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=\"input\", feature=~\"size_recommendation\"}[$__range])) + sum by (feature) (increase(gen_ai_client_token_usage_total{env=\"$env\", job=\"kidly-recommend\", gen_ai_token_type=\"output\", feature=~\"size_recommendation\"}[$__range])) * 5) * 1 / 1e6",
           "instant": true,
           "legendFormat": "{{feature}}"
         }
