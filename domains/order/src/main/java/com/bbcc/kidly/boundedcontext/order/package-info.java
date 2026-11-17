@@ -2,8 +2,8 @@
  * 주문 컨텍스트: 주문하기 · 결제 반영 · 취소 · 구매확정, 운영 확인(멈춘 주문 · 처리 실패 · DLT · 아웃박스), 다른 도메인 복사본.
  * 장바구니({@code boundedcontext.cart}) · 배송({@code boundedcontext.delivery}) · 조르기({@code boundedcontext.wish})는 별도 컨텍스트이고
  * 포트로만 이어진다(#617). DB 스키마 orders(order는 예약어)는 네 컨텍스트가 함께 쓴다.
- * 컨텍스트 사이 코드는 나누지 않고, 업무 규칙 · 상태 없는 공용 도구만 {@code boundedcontext.common}에 둔다
- * (주기 작업 순환 커서 {@code common.in.scheduler.RotatingCursor}, #1509).
+ * 컨텍스트 사이 코드는 나누지 않고, 업무 규칙이 없고 상태를 공유하지 않는 공용 도구만 {@code boundedcontext.common}에
+ * 둔다(주기 작업 순환 커서 {@code common.in.scheduler.RotatingCursor}, #1509).
  * 기준 문서: 기획서 + Kidly 주문 정리(하이레벨). 헥사고날 + 풍부한 도메인 모델.
  *
  * <ul>

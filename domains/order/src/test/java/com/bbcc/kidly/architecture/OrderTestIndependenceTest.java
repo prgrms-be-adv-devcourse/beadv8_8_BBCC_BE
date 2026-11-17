@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 class OrderTestIndependenceTest {
 
     private static final String ORDER = "com.bbcc.kidly.boundedcontext.order";
-    // 주문 모듈 = 주문 · 장바구니 · 배송 컨텍스트(#617)
+    // 주문 모듈 = 주문 · 장바구니 · 배송 · 조르기 컨텍스트(#617 · #640)와 공용 도구 common(#1509)
     private static final String CART = "com.bbcc.kidly.boundedcontext.cart";
     private static final String DELIVERY = "com.bbcc.kidly.boundedcontext.delivery";
     // 조르기 컨텍스트(#640). 걷어낼 수 있게 둔 컨텍스트도 같은 모듈이라 허용 목록에 든다
