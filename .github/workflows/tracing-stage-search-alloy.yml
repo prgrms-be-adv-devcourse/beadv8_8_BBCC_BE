@@ -1,0 +1,49 @@
+name: tracing-stage-search-alloy
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 검색용 Alloy 구성 검사, 적용 또는 파일럿 구성 복구
+        type: choice
+        options: [check, apply, rollback]
+        default: check
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/develop'
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 앱 서버 접속 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
+      - name: 기존 전용 Alloy에 검색 수집 구성 준비
+        run: |
+          set -euo pipefail
+          case "$OPERATION" in check|apply|rollback) ;; *) exit 2 ;; esac
+          tar -C deploy/tracing-ops -cf - stage-search-alloy.sh app-alloy app-alloy-search |
+            ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 "deploy@$SSH_HOST" "
+              set -eu
+              umask 077
+              work=\$(mktemp -d)
+              trap 'rm -rf -- \"\$work\"' EXIT
+              tar -xf - -C \"\$work\"
+              bash \"\$work/stage-search-alloy.sh\" '$OPERATION'
+            "
