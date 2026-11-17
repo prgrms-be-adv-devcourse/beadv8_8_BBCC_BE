@@ -80,6 +80,7 @@ class AnalysisAPI:
             return self.requests.request(
                 is_operator=operator, provider=headers.get('X-Kidly-AI-Provider', 'groq'),
                 paid_confirmed=headers.get('X-Kidly-AI-Confirm-Paid') == 'true',
+                focus=headers.get('X-Kidly-AI-Focus', 'overview'),
             )
         return self.requests.read(is_operator=operator)
 

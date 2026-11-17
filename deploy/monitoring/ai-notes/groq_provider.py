@@ -35,6 +35,14 @@ def output_schema(evidence_ids):
     return object_schema({'finding': finding, 'limitations': {'type': 'array', 'items': text}})
 
 
+ANALYSIS_FOCUS = {
+    'overview': ('전체 점검', ''),
+    'latency': ('응답 지연', 'Focus on same-service mean latency, request volume and measured DB pool pressure.'),
+    'errors': ('오류 증가', 'Focus on measured HTTP 5xx and request volume by service; note missing pairs.'),
+    'resources': ('서버 자원', 'Focus on observed host CPU, memory, root disk and OOM within their stated scope.'),
+}
+
+
 MCP_ONLY_METRICS = ('error_logs_30m', 'restarts_30m', 'kafka_lag_by_service')
 MISSING_PREFIX = 'No finite fresh/available result for: '
 MISSING_SUFFIX = '; absence is not healthy zero.'
@@ -94,10 +102,13 @@ UNSUPPORTED_HEALTH = re.compile(
 
 
 class StructuredChatProvider:
-    def __init__(self, api_key, *, clock=time.time, transport=None):
+    def __init__(self, api_key, *, focus="overview", clock=time.time, transport=None):
         if not isinstance(api_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{20,256}', api_key):
             raise ProviderError('missing_or_invalid_key')
+        if focus not in ANALYSIS_FOCUS:
+            raise ProviderError('invalid_focus')
         self._api_key = api_key
+        self.focus = focus
         self.clock = clock
         self.transport = transport or urllib.request.build_opener(
             urllib.request.ProxyHandler({}), NoRedirect())
@@ -126,7 +137,7 @@ class StructuredChatProvider:
             raise ProviderError('insufficient_evidence')
         snapshot['limitations'] = groq_limitations(snapshot['limitations'])
         payload = {'model': self.model, 'messages': [
-            {'role': 'system', 'content': SYSTEM},
+            {'role': 'system', 'content': SYSTEM + ('\n' + ANALYSIS_FOCUS[self.focus][1] if self.focus != 'overview' else '')},
             {'role': 'user', 'content': json.dumps(snapshot, ensure_ascii=False, allow_nan=False, separators=(',', ':'))}],
             'max_completion_tokens': self.max_tokens, **self.options,
             'response_format': {'type': 'json_schema', 'json_schema': {
@@ -215,7 +226,7 @@ class GroqProvider(StructuredChatProvider):
     max_tokens = 3000
     options = {'reasoning_effort': 'low'}
 
-    def __init__(self, api_key, *, free_tier_confirmed=False, clock=time.time, transport=None):
+    def __init__(self, api_key, *, free_tier_confirmed=False, focus="overview", clock=time.time, transport=None):
         if free_tier_confirmed is not True:
             raise ProviderError('free_tier_confirmation_required')
-        super().__init__(api_key, clock=clock, transport=transport)
+        super().__init__(api_key, focus=focus, clock=clock, transport=transport)

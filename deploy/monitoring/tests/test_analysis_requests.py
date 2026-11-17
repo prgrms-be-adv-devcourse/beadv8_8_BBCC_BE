@@ -26,7 +26,7 @@ class AnalysisRequestsTest(unittest.TestCase):
         finish = Event()
         result = 'published'
 
-        def run():
+        def run(*, focus):
             return result if finish.wait(1) else 'failed'
 
         handler = AnalysisRequests(run, lambda: 0, clock=lambda: 200)

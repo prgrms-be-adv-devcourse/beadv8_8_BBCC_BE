@@ -21,7 +21,7 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
         transport = Mock()
         transport.open.side_effect = lambda *_args, **_kwargs: io.BytesIO(json.dumps(orgs).encode())
         auth = GrafanaAuthorization('http://grafana.example.test:3000', transport=transport)
-        requests = AnalysisRequests(lambda: 'published', lambda: 0)
+        requests = AnalysisRequests(lambda **_: 'published', lambda: 0)
         return AnalysisAPI(auth, requests, origin=ORIGIN), transport
 
     def test_admin_cookie_is_verified_and_other_cookies_are_ignored(self):
@@ -68,6 +68,10 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
         groq.assert_not_called()
         openai.assert_not_called()
         headers['X-Kidly-AI-Confirm-Paid'] = 'true'
+        headers['X-Kidly-AI-Focus'] = 'free text'
+        self.assertEqual(api.dispatch('POST', ACTION_PATH, headers), (400, {'state': 'invalid_focus'}))
+        openai.assert_not_called()
+        headers['X-Kidly-AI-Focus'] = 'latency'
         self.assertEqual(api.dispatch('POST', ACTION_PATH, headers)[0], 202)
         for _ in range(100):
             result = api.requests.read(is_operator=True)[1]
@@ -75,7 +79,7 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
                 break
             time.sleep(0.005)
         self.assertEqual((result['state'], result['provider']), ('failed', 'openai'))
-        openai.assert_called_once()
+        openai.assert_called_once_with(focus='latency')
         groq.assert_not_called()
 
     def test_grafana_empty_json_action_and_dashboard_status_metrics(self):
@@ -100,7 +104,11 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
     def test_dashboard_uses_existing_prometheus_and_same_origin_post(self):
         dashboard_path = Path(__file__).parents[1] / 'grafana/dashboards/kidly-ai-notes.json'
         dashboard = json.loads(dashboard_path.read_text())
-        priority, run, status, details = dashboard['panels']
+        priority, run, status, history, details = dashboard['panels']
+        self.assertTrue(history['collapsed'])
+        self.assertEqual(history['panels'][0]['targets'][0]['maxLines'], 15)
+        self.assertIn(['X-Kidly-AI-Focus', '${analysis_focus:raw}'],
+                      run['fieldConfig']['overrides'][0]['properties'][1]['value'][0]['fetch']['headers'])
         self.assertEqual(priority['gridPos']['y'], 0)
         self.assertIn('{{if .priority}}{{.priority}}{{else}}{{.headline}}',
                       priority['targets'][0]['expr'])

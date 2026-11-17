@@ -8,6 +8,7 @@ import sys
 from threading import Lock, Thread
 import time
 
+from groq_provider import ANALYSIS_FOCUS
 from groq_once import TRIAL_INTERVAL, last_trial_at
 
 
@@ -20,21 +21,21 @@ def next_trial_at(directory):
     return last + TRIAL_INTERVAL if last is not None else 0
 
 
-def run_groq_trial(key_file, *, free_plan_confirmed):
+def run_groq_trial(key_file, *, free_plan_confirmed, focus="overview"):
     """Reuse the same complete path as GitHub Actions, including its shared lock."""
     if not free_plan_confirmed:
         return 'failed'
-    return run_trial(key_file, '--confirm-free-plan')
+    return run_trial(key_file, '--confirm-free-plan', focus=focus)
 
 
-def run_trial(key_file, confirmation_flag):
+def run_trial(key_file, confirmation_flag, *, focus="overview"):
     with key_file.open('rb') as source:
         raw = source.read(258)
     if not raw or len(raw) > 257:
         return 'failed'
     key = raw.rstrip(b'\n') + b'\n'
     result = subprocess.run(
-        [sys.executable, str(Path(__file__).with_name('groq_once.py')), confirmation_flag],
+        [sys.executable, str(Path(__file__).with_name('groq_once.py')), confirmation_flag, '--focus', focus],
         input=key, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=105,
     )
     response = json.loads(result.stdout)
@@ -60,9 +61,11 @@ class AnalysisRequests:
         self.published_at = None
         self.provider = None
 
-    def request(self, *, is_operator, provider='groq', paid_confirmed=False):
+    def request(self, *, is_operator, provider='groq', paid_confirmed=False, focus='overview'):
         if not is_operator:
             return 403, {'state': 'forbidden'}
+        if focus not in ANALYSIS_FOCUS:
+            return 400, {'state': 'invalid_focus'}
         if provider not in self.runners:
             return 400, {'state': 'provider_unavailable'}
         if provider == 'openai' and paid_confirmed is not True:
@@ -79,7 +82,7 @@ class AnalysisRequests:
                 return 429, {'state': 'limited', 'next_at': next_at}
             self.status = 'running'
             self.provider = provider
-            Thread(target=self._run, args=(self.runners[provider],), daemon=True).start()
+            Thread(target=self._run, args=(self.runners[provider], focus), daemon=True).start()
             return 202, {'state': 'running'}
 
     def read(self, *, is_operator):
@@ -95,9 +98,9 @@ class AnalysisRequests:
                     return 503, {'state': 'unavailable'}
             return 200, result
 
-    def _run(self, runner):
+    def _run(self, runner, focus):
         try:
-            result = runner()
+            result = runner(focus=focus)
         except (OSError, subprocess.SubprocessError, ValueError):
             result = 'failed'
         with self.lock:

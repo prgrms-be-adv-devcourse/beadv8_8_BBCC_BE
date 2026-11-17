@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]/'ai-notes'))
 from contracts import AnalysisContext, Evidence
-from groq_provider import GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect, groq_limitations
+from groq_provider import ANALYSIS_FOCUS, GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect, groq_limitations
 from openai_provider import OpenAIProvider
 from groq_once import run_once, read_key, PRINCIPAL
 from storage import Store, LokiPublisher, deliver_accepted
@@ -103,6 +103,18 @@ class GroqProviderTest(unittest.TestCase):
     def provider(self, client):
         return GroqProvider('test-not-a-real-api-key', free_tier_confirmed=True,
                             clock=lambda: 2001, transport=client)
+
+    def test_focused_prompt_uses_only_the_selected_preset(self):
+        for focus in ('latency', 'errors', 'resources'):
+            with self.subTest(focus=focus):
+                client = transport()
+                provider = GroqProvider('fixture-key-for-model-test', focus=focus,
+                                        free_tier_confirmed=True, clock=lambda: 2001, transport=client)
+                provider.analyze(context(), 2300)
+                message = json.loads(client.open.call_args.args[0].data)['messages'][0]['content']
+                self.assertTrue(message.endswith(ANALYSIS_FOCUS[focus][1]))
+        with self.assertRaisesRegex(ProviderError, '^invalid_focus$'):
+            GroqProvider('fixture-key-for-model-test', focus='unsupported', free_tier_confirmed=True)
 
     def test_openai_uses_explicit_confirmation_and_own_request(self):
         key = 'fixture-openai-key-for-tests'

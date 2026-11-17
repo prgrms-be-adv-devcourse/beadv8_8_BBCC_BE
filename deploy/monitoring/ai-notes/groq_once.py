@@ -3,6 +3,7 @@
 import argparse
 from contextlib import contextmanager
 from functools import partial
+from dataclasses import replace
 import fcntl
 import json
 import os
@@ -13,7 +14,7 @@ import time
 
 from contracts import analyze_and_publish
 from errors import NotesError
-from groq_provider import GroqProvider, MODEL, ProviderError
+from groq_provider import ANALYSIS_FOCUS, GroqProvider, MODEL, ProviderError
 from openai_provider import OpenAIProvider
 from receive import STATE, METRICS
 from snapshot import collect
@@ -73,11 +74,17 @@ def publish_once(provider, store, collector, publisher, clock, principal, *, pro
             'provider': provider_name, 'model': model}
 
 
+def collect_with_focus(environment, now, *, focus):
+    context = collect(environment, now, compare_http=True)
+    return replace(context, limitations=context.limitations + ('분석 목적: ' + ANALYSIS_FOCUS[focus][0],))
+
+
 def main():
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--confirm-free-plan', action='store_true')
     mode.add_argument('--confirm-paid-openai', action='store_true')
+    parser.add_argument('--focus', choices=ANALYSIS_FOCUS, default='overview')
     args = parser.parse_args()
     os.umask(0o077)
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
@@ -91,12 +98,14 @@ def main():
         key = read_key(sys.stdin.buffer)
         with trial_lock(STATE):
             store = Store(STATE, METRICS)
+            collector = partial(collect_with_focus, focus=args.focus)
             if args.confirm_paid_openai:
-                provider = OpenAIProvider(key, paid_confirmed=True)
-                result = publish_once(provider, store, partial(collect, compare_http=True), None,
+                provider = OpenAIProvider(key, paid_confirmed=True, focus=args.focus)
+                result = publish_once(provider, store, collector, None,
                                       time.time, PAID_PRINCIPAL, provider_name=provider.name, model=provider.model)
             else:
-                result = run_once(key, free_tier_confirmed=args.confirm_free_plan, store=store)
+                result = run_once(key, free_tier_confirmed=args.confirm_free_plan, store=store,
+                                  collector=collector, provider_factory=partial(GroqProvider, focus=args.focus))
         print(json.dumps({'ok': True, 'result': result}))
         return 0
     except Exception as error:

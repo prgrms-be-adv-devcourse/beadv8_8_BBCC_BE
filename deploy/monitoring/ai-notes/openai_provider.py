@@ -11,7 +11,7 @@ class OpenAIProvider(StructuredChatProvider):
     max_tokens = 600
     options = {'store': False}
 
-    def __init__(self, api_key, *, paid_confirmed=False, clock=time.time, transport=None):
+    def __init__(self, api_key, *, paid_confirmed=False, focus="overview", clock=time.time, transport=None):
         if paid_confirmed is not True:
             raise ProviderError('paid_confirmation_required')
-        super().__init__(api_key, clock=clock, transport=transport)
+        super().__init__(api_key, focus=focus, clock=clock, transport=transport)

@@ -71,6 +71,18 @@
           "text": "groq",
           "value": "groq"
         }
+      },
+      {
+        "name": "analysis_focus",
+        "label": "분석 목적",
+        "type": "custom",
+        "query": "전체 점검 : overview,응답 지연 : latency,오류 증가 : errors,서버 자원 : resources",
+        "current": {
+          "text": "전체 점검",
+          "value": "overview"
+        },
+        "includeAll": false,
+        "multi": false
       }
     ]
   },
@@ -113,7 +125,7 @@
       "id": 201,
       "type": "table",
       "title": "운영 AI 분석 실행",
-      "description": "위에서 제공자를 선택한 뒤 실행하세요. Groq는 무료이며 OpenAI 사용량은 청구될 수 있습니다.",
+      "description": "위에서 제공자와 분석 목적을 선택한 뒤 실행하세요. Groq는 무료이며 OpenAI 사용량은 청구될 수 있습니다.",
       "gridPos": {
         "x": 0,
         "y": 10,
@@ -182,6 +194,10 @@
                         [
                           "X-Kidly-AI-Confirm-Paid",
                           "true"
+                        ],
+                        [
+                          "X-Kidly-AI-Focus",
+                          "${analysis_focus:raw}"
                         ]
                       ]
                     }
@@ -251,13 +267,61 @@
       }
     },
     {
+      "id": 205,
+      "type": "row",
+      "title": "이전 분석 내역",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 204,
+          "type": "logs",
+          "title": "이전 분석 · 최신순 최대 15건",
+          "gridPos": {
+            "x": 0,
+            "y": 16,
+            "w": 24,
+            "h": 14
+          },
+          "timeFrom": "14d",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.report}}\"",
+              "queryType": "range",
+              "maxLines": 15
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": false,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "enableLogDetails": false,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          },
+          "description": "선택한 환경의 최근 14일 메모입니다. 각 행의 관측 시각과 제공자를 확인하세요."
+        }
+      ]
+    },
+    {
       "id": 5,
       "type": "row",
       "title": "분석 근거 · 게시 상태 · 사용 안내",
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 16,
         "w": 24,
         "h": 1
       },
@@ -268,7 +332,7 @@
           "title": "최신 분석 전체 메모 · 근거와 원인 후보",
           "gridPos": {
             "x": 0,
-            "y": 16,
+            "y": 17,
             "w": 24,
             "h": 14
           },
@@ -301,7 +365,7 @@
           "title": "AI에게 분석 맡기기 · 메모 읽는 법",
           "gridPos": {
             "x": 0,
-            "y": 30,
+            "y": 31,
             "w": 24,
             "h": 10
           },
@@ -316,7 +380,7 @@
           "title": "게시된 메모의 관측 경과 · 서비스 정상 여부 아님",
           "gridPos": {
             "x": 0,
-            "y": 40,
+            "y": 41,
             "w": 12,
             "h": 5
           },
@@ -383,7 +447,7 @@
           "title": "미전송 메모 · 실패 시 AI 재호출하지 않음",
           "gridPos": {
             "x": 12,
-            "y": 40,
+            "y": 41,
             "w": 12,
             "h": 5
           },
