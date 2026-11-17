@@ -34,8 +34,9 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          files=$(git diff --name-only HEAD^1 HEAD)
-          if grep -qvE '^(docs|wiki)/|\.md$' <<< "$files"; then
+          # 옮긴 파일은 옛 경로도 본다(코드를 docs/ 로 옮겨도 코드 변경이다). 리소스로 읽는 .md 는 코드로 본다
+          files=$(git diff --name-only --no-renames HEAD^1 HEAD)
+          if grep -qvE '^(docs|wiki)/|\.md$' <<< "$files" || grep -qE '/src/[^/]+/resources/' <<< "$files"; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
