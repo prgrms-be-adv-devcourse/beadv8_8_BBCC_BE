@@ -71,7 +71,7 @@ class AiResponseServiceAsyncTest {
 
     @BeforeEach
     void setUp() {
-        service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT, CALL_TIMEOUTS,
+        service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT, 100, CALL_TIMEOUTS,
             ASYNC_WAIT, REUSE_PERIOD, new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP));
     }
 

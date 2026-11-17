@@ -87,7 +87,7 @@ class AiResponseServiceTest {
     void setUp() {
         ObservationRegistry observations = ObservationRegistry.create();
         observations.observationConfig().observationHandler(new DefaultMeterObservationHandler(meterRegistry));
-        service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, CALL_TIMEOUTS,
+        service = new AiResponseService(store, quota, jsonMapper, CLOCK, DAILY_LIMIT, 100, CALL_TIMEOUTS,
             Duration.ofSeconds(10), REUSE_PERIOD, new RecommendAiMetrics(meterRegistry, observations));
     }
 

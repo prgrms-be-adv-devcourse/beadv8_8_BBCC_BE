@@ -65,7 +65,7 @@ class AiResponseServiceCallTimeoutTest {
             AiResponseType.HOME_PREVIEW, Duration.ofMillis(200),
             AiResponseType.BOUGHT_TOGETHER, Duration.ofMillis(1_500),
             AiResponseType.SIZE_RECOMMENDATION, Duration.ofMillis(1_500));
-        service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT, callTimeouts,
+        service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT, 100, callTimeouts,
             Duration.ofSeconds(10), REUSE_PERIOD, new RecommendAiMetrics(meterRegistry, observations));
     }
 

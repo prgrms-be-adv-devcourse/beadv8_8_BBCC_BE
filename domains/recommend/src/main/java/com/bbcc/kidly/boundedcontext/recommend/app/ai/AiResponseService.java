@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -41,6 +42,7 @@ public class AiResponseService {
     private final JsonMapper jsonMapper;
     private final Clock clock;
     private final int dailyCallLimit;
+    private final Semaphore inFlightCalls;
     private final Map<AiResponseType, Duration> callTimeouts;
     private final Duration asyncWait;
     private final Duration reusePeriod;
@@ -52,6 +54,7 @@ public class AiResponseService {
         AiCallQuota quota,
         JsonMapper jsonMapper,
         @Value("${kidly.recommend.ai.daily-call-limit:2000}") int dailyCallLimit,
+        @Value("${kidly.recommend.ai.max-concurrent-calls:6}") int maxConcurrentCalls,
         // 화면이 아래쪽에 있어 늦게 보여도 되는 기능일수록 길게 기다린다. Gateway의 추천 경로 제한 시간보다 짧아야 한다
         @Value("${kidly.recommend.ai.call-timeout.home-preview:PT3S}") Duration homePreviewTimeout,
         @Value("${kidly.recommend.ai.call-timeout.bought-together:PT4S}") Duration boughtTogetherTimeout,
@@ -61,7 +64,7 @@ public class AiResponseService {
         @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod,
         RecommendAiMetrics metrics
     ) {
-        this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit,
+        this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit, maxConcurrentCalls,
             Map.of(AiResponseType.HOME_PREVIEW, homePreviewTimeout,
                 AiResponseType.BOUGHT_TOGETHER, boughtTogetherTimeout,
                 AiResponseType.SIZE_RECOMMENDATION, sizeRecommendationTimeout),
@@ -74,6 +77,7 @@ public class AiResponseService {
         JsonMapper jsonMapper,
         Clock clock,
         int dailyCallLimit,
+        int maxConcurrentCalls,
         Map<AiResponseType, Duration> callTimeouts,
         Duration asyncWait,
         Duration reusePeriod,
@@ -84,6 +88,7 @@ public class AiResponseService {
         this.jsonMapper = jsonMapper;
         this.clock = clock;
         this.dailyCallLimit = dailyCallLimit;
+        this.inFlightCalls = new Semaphore(maxConcurrentCalls);
         this.callTimeouts = Map.copyOf(callTimeouts);
         this.asyncWait = asyncWait;
         this.reusePeriod = reusePeriod;
@@ -126,7 +131,12 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return stored;
         }
+        if (!inFlightCalls.tryAcquire()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.BUSY);
+            return Optional.empty();
+        }
         if (!tryAcquireQuietly(type, now)) {
+            inFlightCalls.release();
             return Optional.empty();
         }
         Optional<T> result = callWithTimeout(type, key, call);
@@ -257,7 +267,7 @@ public class AiResponseService {
     private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, Supplier<T> call) {
         Duration callTimeout = requireNonNull(callTimeouts.get(type), "종류별 제한 시간이 없습니다");
         CompletableFuture<T> task =
-            CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
+            CompletableFuture.supplyAsync(releasingWhenDone(metrics.observeCall(type, call)), VIRTUAL_THREAD);
         try {
             T answer = task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
             if (answer == null) {
@@ -279,6 +289,16 @@ public class AiResponseService {
             logCallFailure(type, e.getCause());
         }
         return Optional.empty();
+    }
+
+    private <T> Supplier<T> releasingWhenDone(Supplier<T> call) {
+        return () -> {
+            try {
+                return call.get();
+            } finally {
+                inFlightCalls.release();
+            }
+        };
     }
 
     private <T> void saveLateAnswer(AiResponseType type, AiResponseKey key, T lateAnswer) {
