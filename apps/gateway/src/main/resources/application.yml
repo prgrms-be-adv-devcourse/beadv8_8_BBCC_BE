@@ -24,12 +24,11 @@ spring:
                 exposed-headers: X-Request-Id,Retry-After
                 allow-credentials: true
                 max-age: 3600
-          # 백엔드 호출 timeout(#668). 연결 3초(도메인의 외부 호출 connect-timeout과 같은 값), 응답 55초
-          # (결제 승인이 Toss를 동기로 부르고 연결 3초 + 읽기 30초라 그보다 짧으면 결제는 됐는데 클라이언트는 504를 받는다.
-          # Traefik의 응답 시간 제한은 기본으로 없다)
+          # 백엔드 호출 timeout(#668). 연결 3초(도메인의 외부 호출 connect-timeout과 같은 값)
+          # 응답 제한은 응답 헤더가 올 때까지만 잰다(NettyRoutingFilter). Traefik의 응답 시간 제한은 기본으로 없다
           httpclient:
             connect-timeout: 3000
-            response-timeout: 55s
+            response-timeout: 15s
           # Host는 Traefik 값(원래 호스트)을 넘긴다. 없으면 백엔드 주소(app:8080)로 바뀐다
           default-filters:
             - PreserveHostHeader
@@ -124,9 +123,16 @@ spring:
               uri: ${kidly.gateway.recommend-uri}
               predicates:
                 - Path=/api/v1/recommendations/**
-              # 추천이 느려도 화면이 추천 영역만 비우고 넘어가도록, 전체 응답 제한(55초) 대신 3초에 끊고 504를 낸다(밀리초)
+              # 추천이 느려도 화면이 추천 영역만 비우고 넘어가도록, 전체 응답 제한 대신 3초에 끊고 504를 낸다(밀리초)
               metadata:
                 response-timeout: 3000
+            - id: settlement-run
+              uri: ${kidly.gateway.settlement-uri}
+              predicates:
+                - Method=POST
+                - Path=/api/v1/admin/settlements/run
+              metadata:
+                response-timeout: 55000
             # 정산 API(판매자 · 관리자)는 정산 서비스로 간다(#729). 경로는 정산 컨트롤러 기준이고 역할 검사(RoleFilter)는 원래 경로로 한다
             - id: settlement
               uri: ${kidly.gateway.settlement-uri}
@@ -143,8 +149,14 @@ spring:
               uri: ${kidly.gateway.member-uri}
               predicates:
                 - Path=/api/v1/auth/**,/api/v1/members/**,/api/v1/seller/me/**,/api/v1/admin/admins/**,/api/v1/admin/members/**,/api/v1/admin/sellers/**,/api/v1/admin/seller-applications/**,/api/v1/admin/auth-dead-letters/**,/api/v1/admin/member-dead-letters/**,/api/v1/admin/seller-dead-letters/**,/api/v1/admin/child-profile-dead-letters/**,/api/v1/admin/children/**,/api/v1/dev/**
+            - id: payment-toss
+              uri: ${kidly.gateway.payment-uri}
+              predicates:
+                - Method=POST
+                - Path=/api/v1/wallets/me/charges/confirm,/api/v1/wallets/me/charges/*/cancel,/api/v1/admin/wallets/charges/*/fail
+              metadata:
+                response-timeout: 55000
             # 결제 · 지갑 · 충전 · 토스 웹훅 · 결제 관리자 API는 결제 서비스로 간다(#525)
-            # 응답 제한은 전체 값(55초)을 쓴다. 충전 승인이 토스를 동기로 부른다(위 httpclient 주석)
             - id: payment
               uri: ${kidly.gateway.payment-uri}
               predicates:
@@ -170,6 +182,13 @@ spring:
               uri: ${kidly.gateway.notification-uri}
               predicates:
                 - Path=/api/v1/notifications/**,/api/v1/child/notifications/**,/api/v1/admin/notification-dead-letters/**
+            - id: chatbot-long
+              uri: ${kidly.gateway.chatbot-uri}
+              predicates:
+                - Method=POST,PUT
+                - Path=/api/v1/chatbot/messages,/api/v1/admin/chatbot/documents,/api/v1/admin/chatbot/documents/*
+              metadata:
+                response-timeout: 55000
             # 챗봇 API(회원)와 챗봇 관리자 API(답변 근거 문서)는 챗봇 서비스로 간다(#1191)
             - id: chatbot
               uri: ${kidly.gateway.chatbot-uri}

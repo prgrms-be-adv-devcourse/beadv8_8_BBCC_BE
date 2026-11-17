@@ -11,7 +11,7 @@ spring:
       server:
         webflux:
           httpclient:
-            # 504 테스트(BackendTimeoutIntegrationTest)가 응답을 몇 초씩 기다리지 않게 운영값(55s)보다 짧게 둔다
+            # 504 테스트(BackendTimeoutIntegrationTest)가 응답을 몇 초씩 기다리지 않게 운영값보다 짧게 둔다
             response-timeout: 1s
 
 jwt:
