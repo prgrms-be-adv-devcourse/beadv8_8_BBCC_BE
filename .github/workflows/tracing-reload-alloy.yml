@@ -1,0 +1,42 @@
+name: tracing-reload-alloy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  reload:
+    if: github.ref == 'refs/heads/develop'
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 앱 서버 접속 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
+      - name: 전용 Alloy 설정 다시 읽기
+        run: |
+          set -euo pipefail
+          hour=$(TZ=Asia/Seoul date +%H)
+          (( 10#$hour >= 9 && 10#$hour < 18 )) || { echo 'Outside the operating window'; exit 1; }
+          tar -C deploy/tracing-ops -cf - reload-alloy.sh app-alloy/otlp.alloy |
+            ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 "deploy@$SSH_HOST" '
+              set -eu
+              umask 077
+              work=$(mktemp -d)
+              trap '"'"'rm -rf -- "$work"'"'"' EXIT
+              tar -xf - -C "$work"
+              bash "$work/reload-alloy.sh" "$work/app-alloy/otlp.alloy"
+            '
