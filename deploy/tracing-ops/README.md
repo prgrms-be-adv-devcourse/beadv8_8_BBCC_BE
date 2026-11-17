@@ -57,7 +57,7 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 
 ## Gateway·주문 Agent 시범 적용
 
-`tracing-switch-pilot-agent`의 `apply`는 최근 1시간 이내에 성공한 `tracing-verify-alloy` 실행 ID와 적용 시각·대상 서비스 사전 공유 확인을 요구합니다. 앱 서버에서 기존 배포와 같은 잠금으로 두 서비스만 순차 롤링합니다. 둘 다 준비되면 일반 배포에서도 유지할 선택 파일을 둡니다. 실패 시 선택 파일을 제거하고 이번에 적용한 패치를 역순으로 원복합니다. 이후 `rollback` 실행으로 원복할 수도 있습니다.
+`tracing-switch-pilot-agent`의 `apply`는 현재 develop 커밋에서 최근 1시간 이내에 성공한 `tracing-verify-alloy` 실행 ID와 적용 시각·대상 서비스 사전 공유 확인을 요구합니다. 앱 서버에서 기존 배포와 같은 잠금으로 두 서비스만 순차 롤링합니다. 둘 다 준비되면 일반 배포에서도 유지할 선택 파일을 둡니다. 실패 시 선택 파일을 제거하고 이번에 적용한 패치를 역순으로 원복합니다. 이후 `rollback` 실행으로 원복할 수도 있습니다. 롤아웃 원복에 실패하더라도 일반 배포가 Agent를 다시 켜지 않도록 선택 파일은 제거합니다.
 
 ## 운영 적용·원복 점검
 

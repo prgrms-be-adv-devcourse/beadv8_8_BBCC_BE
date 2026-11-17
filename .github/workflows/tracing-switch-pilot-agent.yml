@@ -30,7 +30,7 @@ jobs:
     if: github.ref == 'refs/heads/develop' && (inputs.operation == 'rollback' || inputs.notice_shared)
     environment: dev
     runs-on: ubuntu-latest
-    timeout-minutes: 22
+    timeout-minutes: 35
     env:
       SSH_HOST: ${{ vars.SSH_HOST }}
       OPERATION: ${{ inputs.operation }}
@@ -44,11 +44,12 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$TRANSPORT_RUN_ID" =~ ^[0-9]+$ ]]
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TRANSPORT_RUN_ID" | jq -e '
-            .path == ".github/workflows/tracing-verify-alloy.yml"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TRANSPORT_RUN_ID" | jq -e --arg sha "$GITHUB_SHA" '
+            (.path | split("@")[0]) == ".github/workflows/tracing-verify-alloy.yml"
+            and .head_sha == $sha
             and .head_branch == "develop" and .event == "workflow_dispatch"
             and .conclusion == "success"
-            and ((now - (.updated_at | fromdateiso8601)) < 3600)
+            and ((now - (.updated_at | fromdateiso8601)) | . >= 0 and . < 3600)
           ' >/dev/null
       - name: 서버 접속 확인 · SSH 키 준비
         uses: ./.github/actions/server-ssh
