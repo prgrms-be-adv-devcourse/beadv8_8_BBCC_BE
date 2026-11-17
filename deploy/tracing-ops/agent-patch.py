@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read a Gateway or order Deployment JSON and print its tracing patch."""
+"""Read an allowed Deployment JSON and print its tracing patch."""
 
 import argparse
 import json
@@ -11,14 +11,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'k3s'))
 from tracing_agent import AGENT_JAR, AGENT_VOLUME, NAMESPACE, PILOT_SERVICES, agent_settings
 
 
-def render_patch(deployment, java_options, rollback=False):
+def render_patch(deployment, java_options, rollback=False, search=False):
     metadata = deployment['metadata']
     service = metadata['name']
+    allowed = ('search',) if search else PILOT_SERVICES
     if (deployment['kind'] != 'Deployment' or metadata['namespace'] != NAMESPACE
-            or service not in PILOT_SERVICES):
-        raise ValueError('expected the gateway or order Deployment in kidly-dev')
+            or service not in allowed):
+        raise ValueError('unexpected Deployment for the selected tracing scope')
 
-    pod = deployment['spec']['template']['spec']
+    template = deployment['spec']['template']
+    pod = template['spec']
+    if search:
+        labels = template.get('metadata', {}).get('labels', {})
+        if labels.get('app') != 'search':
+            raise ValueError('expected the search Pod label')
+        if ((rollback and labels.get('kidly/tracing') != 'enabled')
+                or (not rollback and 'kidly/tracing' in labels)):
+            raise ValueError('unexpected search tracing label')
     containers = [c for c in pod['containers'] if c['name'] == service]
     if len(containers) != 1:
         raise ValueError('expected one application container matching the Deployment')
@@ -44,7 +53,7 @@ def render_patch(deployment, java_options, rollback=False):
             entry['name'].startswith('OTEL_') for entry in env):
         raise ValueError('existing inline JVM or tracing settings require review')
 
-    return {
+    patch = {
         'metadata': {'resourceVersion': metadata['resourceVersion']},
         'spec': {'template': {'spec': {
             'containers': [{
@@ -55,14 +64,20 @@ def render_patch(deployment, java_options, rollback=False):
             'volumes': [volume],
         }}},
     }
+    if search:
+        patch['spec']['template']['metadata'] = {
+            'labels': {'kidly/tracing': None if rollback else 'enabled'},
+        }
+    return patch
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--java-tool-options', required=True, help='Current non-secret JVM flags')
     parser.add_argument('--rollback', action='store_true', help='Remove only the matching tracing patch')
+    parser.add_argument('--search', action='store_true', help='Limit the patch to the search Deployment')
     args = parser.parse_args()
     try:
-        print(json.dumps(render_patch(json.load(sys.stdin), args.java_tool_options, args.rollback), indent=2))
+        print(json.dumps(render_patch(json.load(sys.stdin), args.java_tool_options, args.rollback, args.search), indent=2))
     except (KeyError, TypeError, ValueError) as error:
         sys.exit(f'Cannot generate tracing patch: {error}')
