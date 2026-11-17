@@ -15,9 +15,6 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.NestedExceptionUtils;
 import org.springframework.kafka.core.KafkaTemplate;
 
-/**
- * 릴레이가 결과를 보고 보낸 기록이나 실패 기록을 남기므로, 브로커 응답을 sendTimeout까지 기다린다.
- */
 @RequiredArgsConstructor
 public class KafkaSellerOutboxSender implements SellerOutboxSender, DisposableBean {
 
@@ -44,7 +41,6 @@ public class KafkaSellerOutboxSender implements SellerOutboxSender, DisposableBe
         }
     }
 
-    // 예외 메시지는 로그에 남으므로 본문 대신 eventType · eventId · 키와 원인만 담는다
     private SellerOutboxSendException failure(SellerOutboxMessage message, String reason, Throwable cause) {
         return new SellerOutboxSendException(
             "판매자 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. eventType=%s eventId=%s key=%s reason=%s"

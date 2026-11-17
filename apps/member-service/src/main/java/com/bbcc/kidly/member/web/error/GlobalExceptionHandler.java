@@ -21,9 +21,6 @@ import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-/**
- * 모든 오류를 ProblemDetail 5필드로 응답한다. 스프링 MVC 기본 예외는 부모 클래스가 처리한다.
- */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
@@ -34,7 +31,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(problem.getStatus()).body(problem);
     }
 
-    // 동시 요청이 DB 제약(PK · FK · unique)이나 낙관적 락(@Version)에 막힌 경우. 다시 시도하면 될 수 있어 409로 응답한다
     @ExceptionHandler({DataIntegrityViolationException.class, OptimisticLockingFailureException.class})
     public ResponseEntity<ProblemDetail> handleConflict(DataAccessException e, HttpServletRequest request) {
         log.warn("DB 충돌: {}", request.getRequestURI(), e);
@@ -59,7 +55,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(e, problem, headers, status, request);
     }
 
-    // JSON 형식이 틀렸거나 enum에 없는 값이면 여기로 온다
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
         HttpMessageNotReadableException e, HttpHeaders headers, HttpStatusCode status, WebRequest request) {

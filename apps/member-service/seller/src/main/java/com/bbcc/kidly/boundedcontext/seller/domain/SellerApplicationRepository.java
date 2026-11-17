@@ -12,14 +12,12 @@ public interface SellerApplicationRepository {
 
     Optional<SellerApplication> findById(Long id);
 
-    // 회원의 가장 최근 신청
     Optional<SellerApplication> findFirstByApplicantIdOrderByIdDesc(Long applicantId);
 
     List<SellerApplication> findAllByApplicantId(Long applicantId);
 
     boolean existsByApplicantIdAndStatus(Long applicantId, SellerApplicationStatus status);
 
-    // 초기 데이터를 넣을지 판단한다
     long count();
 
     default SellerApplication getById(Long id) {

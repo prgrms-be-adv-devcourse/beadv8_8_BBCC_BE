@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-// 자녀(2) · 판매자(3) 초기 데이터가 이 회원을 쓰므로 가장 먼저 넣는다
 @Profile({"local", "dev"})
 @Component
 @Order(1)

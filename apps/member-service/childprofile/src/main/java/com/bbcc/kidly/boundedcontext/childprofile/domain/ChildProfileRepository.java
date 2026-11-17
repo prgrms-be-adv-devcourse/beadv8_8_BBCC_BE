@@ -17,7 +17,6 @@ public interface ChildProfileRepository {
 
     List<ChildProfile> findAllByMemberIdForUpdate(Long memberId);
 
-    // 삭제되지 않은 자녀 전체
     List<ChildProfile> findAll();
 
     List<ChildProfile> findAllWithGrowthRecords();

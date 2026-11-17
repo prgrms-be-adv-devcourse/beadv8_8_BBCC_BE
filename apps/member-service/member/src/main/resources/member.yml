@@ -1,11 +1,8 @@
-# 회원 도메인 설정. application.yml이 가져온다
 
 kidly:
   member:
     outbox:
-      # 바로 전송하지 못한 오래된 메시지를 분마다 확인한다
       relay-interval: PT1M
-      # 보낸 메시지를 지우는 시각. 매일 04:00. 보관 기간(7일)은 MemberOutboxCleanupService에 있다
       cleanup-cron: "0 0 4 * * *"
 
 ---

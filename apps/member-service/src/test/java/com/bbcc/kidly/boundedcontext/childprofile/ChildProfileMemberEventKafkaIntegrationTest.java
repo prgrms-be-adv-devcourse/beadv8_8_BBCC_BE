@@ -38,14 +38,6 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * member.withdrawn 또는 member.suspended를 받으면 그 회원의 자녀를 모두 삭제한다(#569, #886).
- * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
- * 회원 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 회원 ID · 키로 걸러 본다.
- * 자녀마다 삭제 이벤트를 발행하는 것은 서비스 동작이라 ChildProfileServiceIntegrationTest가 본다.
- * 이 서비스에는 회원 도메인이 없으므로 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 7개 + data)으로
- * 토픽에 직접 넣는다. 회원 토픽은 KafkaTestcontainersConfiguration이 선언한다.
- */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class ChildProfileMemberEventKafkaIntegrationTest {
@@ -60,7 +52,6 @@ class ChildProfileMemberEventKafkaIntegrationTest {
         "첫째", LocalDate.of(2019, 1, 15), Gender.MALE, new BigDecimal("115.0"), new BigDecimal("20.0"),
         BodyType.NORMAL, PreferredFit.LOOSE, true, true);
 
-    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
@@ -139,11 +130,9 @@ class ChildProfileMemberEventKafkaIntegrationTest {
         var other = childProfileService.register(otherMemberId, REQUEST).id();
         var event = memberWithdrawn();
 
-        // 회원 릴레이가 보낸 뒤 보낸 기록을 남기기 전에 멈추면 같은 메시지를 한 번 더 보낸다
         send(event);
         var second = send(event);
 
-        // 두 번째에는 지울 자녀가 없어 결과가 바뀌지 않으므로, 그룹이 두 번째 메시지까지 처리 완료를 표시할 때까지 기다린다
         messages.awaitProcessed(GROUP, TOPIC, second);
         assertThat(childrenOf(memberId)).isEmpty();
         assertThat(childrenOf(otherMemberId)).extracting(ChildProfile::getId).containsExactly(other);
@@ -198,7 +187,6 @@ class ChildProfileMemberEventKafkaIntegrationTest {
             new MemberWithdrawnEvent.Data(memberId));
     }
 
-    // 메시지를 이 테스트의 회원 ID 키로 직접 넣는다. 회원이 보내지 않는 메시지(다른 종류 · 깨진 본문)도 넣는다
     private RecordMetadata sendRaw(String eventType, UUID eventId, String body) throws Exception {
         return messages.sendRaw(TOPIC, String.valueOf(memberId), eventType, eventId, body);
     }

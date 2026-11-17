@@ -20,14 +20,9 @@ import org.springframework.security.converter.RsaKeyConverters;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
-/**
- * 인증이 발급한 Access Token(로그인 · 재발급 · dev 토큰 응답)을 테스트 공개키로 검증(서명 · 만료)해 읽은 클레임.
- * 테스트는 루트에서 돈다(kidly.boot-app).
- */
 public record IssuedAccessToken(PrincipalId principal, String nickname, List<Role> roles, Instant expiresAt,
     Long guardianId) {
 
-    // application-test.yml의 jwt.public-key와 같은 파일
     private static final JwtDecoder DECODER =
         NimbusJwtDecoder.withPublicKey(readPublicKey(Path.of("config/jwt/local-public.pem"))).build();
 

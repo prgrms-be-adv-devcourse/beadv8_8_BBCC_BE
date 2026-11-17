@@ -24,9 +24,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
-/**
- * 정지는 이미 발급된 Access Token을 무효화한다. 무효화(auth.tokens-revoked 발행)를 Gateway가 받아 그 토큰을 거절한다.
- */
 @ExtendWith(MockitoExtension.class)
 class AdminMemberServiceTest {
 

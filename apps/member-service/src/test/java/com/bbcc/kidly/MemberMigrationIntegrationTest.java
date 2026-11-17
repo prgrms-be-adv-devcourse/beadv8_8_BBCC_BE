@@ -18,15 +18,9 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-/**
- * 예전에 kidly-app이 회원 테이블을 만든 DB에서도 서비스 Flyway가 지금 스키마까지 맞추는지 본다.
- * kidly-app이 만든 DB는 이 서비스의 마이그레이션을 kidly-app 이력 자리(public.flyway_schema_history)에 적용해 흉내 낸다.
- * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
- */
 @Tag("integration")
 class MemberMigrationIntegrationTest {
 
-    // kidly-app 파일 중 회원 스키마를 바꾸는 마지막 버전(Access Token 무효화 표)
     private static final String KIDLY_APP_LAST_MEMBER_VERSION = "202610201313";
 
     private PostgreSQLContainer postgres;
@@ -58,7 +52,6 @@ class MemberMigrationIntegrationTest {
         assertThat(tables("auth")).contains("social_account", "refresh_token", "admin_account");
     }
 
-    // kidly-app 설정(이력 public.flyway_schema_history)으로 kidly-app 파일과 같은 버전까지 적용한다
     private void migrateLikeKidlyApp() {
         Flyway.configure()
             .dataSource(dataSource)
@@ -70,7 +63,6 @@ class MemberMigrationIntegrationTest {
             .migrate();
     }
 
-    // 서비스 application.yml의 spring.flyway 값 그대로
     private Flyway serviceFlyway() {
         var config = serviceConfig();
         return Flyway.configure()

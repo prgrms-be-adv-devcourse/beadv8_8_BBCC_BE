@@ -26,9 +26,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 저장은 발행한 트랜잭션 안에서 일어나야 하므로 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class MemberOutboxRecorderIntegrationTest {
 
@@ -109,7 +106,6 @@ class MemberOutboxRecorderIntegrationTest {
     @Test
     @DisplayName("아웃박스 저장이 실패하면 같은 트랜잭션의 업무도 커밋되지 않는다")
     void rollBackBusinessWhenRecordFails() {
-        // 같은 eventId 행을 먼저 넣어 두면 커밋 직전 INSERT가 event_id UNIQUE에 걸린다
         var eventId = UUID.randomUUID();
         outboxRepository.save(MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn(eventId)));
 

@@ -18,7 +18,6 @@ public class HttpSellerWithdrawalBlockerFinder implements SellerWithdrawalBlocke
     private final RestClient withdrawalRestClient;
     private final WithdrawalCheckProperties properties;
 
-    // 실패 · 타임아웃 · 읽을 수 없는 응답은 확인하지 못한 것이므로 탈퇴를 통과시키지 않는다(503)
     @Override
     public List<WithdrawalBlocker> find(Long sellerId) {
         try {

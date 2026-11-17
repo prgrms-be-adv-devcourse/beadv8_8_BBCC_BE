@@ -77,7 +77,6 @@ class ChildProfileMigrationIntegrationTest {
         }
     }
 
-    // kidly-app의 init이 만드는 자녀 테이블은 자녀 init과 같다. 자녀 init만 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
     private static void createChildTablesLikeKidlyAppInit(DriverManagerDataSource dataSource, JdbcTemplate jdbc) {
         Flyway.configure()
             .dataSource(dataSource)

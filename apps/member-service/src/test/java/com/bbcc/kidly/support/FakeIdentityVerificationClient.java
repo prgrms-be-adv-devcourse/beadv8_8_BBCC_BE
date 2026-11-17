@@ -9,10 +9,6 @@ import java.time.LocalDateTime;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
-/**
- * 통합 · 기능 테스트에서 포트원 대신 쓴다. 정해 둔 ID가 아니면 모두 같은 사람으로 인증된다.
- * 실제 포트원 응답 해석은 PortOneIdentityVerificationClientTest가 확인한다.
- */
 @Primary
 @Component
 public class FakeIdentityVerificationClient implements IdentityVerificationClient {

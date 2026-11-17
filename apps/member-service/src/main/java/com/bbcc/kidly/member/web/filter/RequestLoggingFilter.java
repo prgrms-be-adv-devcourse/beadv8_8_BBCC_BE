@@ -21,7 +21,6 @@ import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.util.pattern.PathPattern;
 import org.springframework.web.util.pattern.PathPatternParser;
 
-/** 요청 본문을 버퍼링하지 않고 정규화 경로·상태·소요시간·traceId만 기록한다. */
 @Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -64,7 +63,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         long duration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
         log.atInfo()
             .addKeyValue("http.request.method", request.getMethod())
-            // Keep the existing field for dashboards, but never put the raw URL in it.
             .addKeyValue("url.path", route)
             .addKeyValue("http.route", route)
             .addKeyValue("http.response.status_code", status)

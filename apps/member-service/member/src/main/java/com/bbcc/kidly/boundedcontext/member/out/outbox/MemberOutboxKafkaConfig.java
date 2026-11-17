@@ -12,11 +12,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.ProducerListener;
 
-/**
- * 회원 아웃박스 릴레이가 쓰는 동기 전송기를 회원 전용 KafkaTemplate으로 만든다.
- * 템플릿은 Boot 프로듀서 설정(주소 · 직렬화 등)을 그대로 쓰고 대기 시간만 덮어쓴다.
- * 빈으로 등록하지 않으므로 Boot 기본 KafkaTemplate과 앱 spring.kafka 설정은 그대로다.
- */
 @Configuration
 class MemberOutboxKafkaConfig {
 

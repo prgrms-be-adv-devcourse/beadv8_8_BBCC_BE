@@ -38,7 +38,6 @@ class MemberSummaryQueryIntegrationTest {
     private Member fifth;
     private Member withdrawn;
 
-    // 6번(탈퇴)은 어느 필터에도 나오지 않는다
     @BeforeEach
     void setUp() {
         buyer = memberRepository.save(MemberFixture.kakaoMember("1"));
@@ -123,7 +122,6 @@ class MemberSummaryQueryIntegrationTest {
         assertThat(page.getContent()).extracting(AdminMemberSummary::id).containsExactly(seller.getId());
     }
 
-    // 닉네임에 번호가 없는 회원은 번호로만, 닉네임에 번호가 든 회원은 닉네임으로만 걸린다
     @Test
     @DisplayName("숫자만 있으면 회원 번호가 같은 회원과 닉네임에 그 숫자가 든 회원을 모두 찾는다")
     void searchByIdOrNickname() {
@@ -166,7 +164,6 @@ class MemberSummaryQueryIntegrationTest {
         assertThat(row.email()).isNull();
     }
 
-    // 이메일이 null이면 이메일 조건만 거짓이 되고 회원 번호 · 닉네임 조건은 그대로 걸린다
     @Test
     @DisplayName("이메일을 받기 전에 가입한 회원도 회원 번호 · 닉네임으로 찾는다")
     void searchMemberWithoutEmail() {
@@ -179,7 +176,6 @@ class MemberSummaryQueryIntegrationTest {
         assertThat(byNickname.getContent()).extracting(AdminMemberSummary::id).containsExactly(noEmail.getId());
     }
 
-    // 이메일에 번호가 든 회원은 닉네임에 숫자가 없어 이메일로만 걸린다
     @Test
     @DisplayName("숫자만 있으면 회원 번호가 같은 회원과 이메일에 그 숫자가 든 회원을 모두 찾는다")
     void searchByIdOrEmail() {

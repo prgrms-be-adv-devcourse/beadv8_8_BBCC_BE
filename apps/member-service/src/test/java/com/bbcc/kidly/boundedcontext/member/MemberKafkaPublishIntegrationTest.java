@@ -45,11 +45,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 회원 이벤트가 커밋 뒤 kidly.member.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#548).
- * 받는 쪽이 받는 것은 그 도메인의 테스트가 본다.
- * 다른 테스트의 회원 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
- */
 @KafkaIntegrationTest
 @RecordApplicationEvents
 class MemberKafkaPublishIntegrationTest {
@@ -152,7 +147,6 @@ class MemberKafkaPublishIntegrationTest {
     @Test
     @DisplayName("릴레이가 보내다 실패하면 그 메시지에 실패를 남기고 뒤 메시지는 보내지 않으며, 다음 실행은 실패한 메시지부터 다시 보낸다")
     void stopAtFailureAndRetryFromSameMessage() {
-        // 브로커의 토픽 자동 생성이 꺼져 있어 선언하지 않은 토픽으로는 보내지 못한다
         var failingId = UUID.randomUUID();
         var afterId = UUID.randomUUID();
         outboxRepository.save(MemberOutboxMessage.create(new MemberOutboxMessage.CreateInfo(
@@ -222,7 +216,6 @@ class MemberKafkaPublishIntegrationTest {
         assertThat(header(record, "eventType")).isEqualTo(eventType);
     }
 
-    // 전송은 비동기라 메시지가 올 때까지 읽는다. 받은 뒤 끝내므로 다음 테스트에 끼어들지 않는다
     private ConsumerRecord<String, String> awaitRecord(DomainEvent event) {
         AsyncWait.until(TIMEOUT, () -> {
             consumer.poll(Duration.ofMillis(200)).forEach(received::add);

@@ -14,12 +14,10 @@ public interface JpaSellerOutboxRepository
     extends JpaRepository<SellerOutboxMessage, Long>, SellerOutboxRepository {
 
     // JpaRepository와 SellerOutboxRepository의 save를 둘 다 물려받아, 이 타입으로 save를 부르면 컴파일러가 하나를 고르지 못한다.
-    // 여기서 다시 선언해 하나로 정한다. 실행은 그대로 Spring Data의 기본 save가 맡는다.
     @Override
     SellerOutboxMessage save(SellerOutboxMessage message);
 
     // PostgreSQL 트랜잭션 advisory lock. 키는 이 릴레이 전용 문자열의 해시라 다른 잠금과 겹치지 않는다.
-    // 세션 잠금(pg_try_advisory_lock)은 쓰지 않는다. 트랜잭션이 끝나면 연결을 풀에 돌려주는 설정이라 같은 연결로 풀 수 없다
     @Override
     @Query(value = "select pg_try_advisory_xact_lock(hashtext('kidly.seller.outbox-relay'))", nativeQuery = true)
     boolean tryLockRelay();

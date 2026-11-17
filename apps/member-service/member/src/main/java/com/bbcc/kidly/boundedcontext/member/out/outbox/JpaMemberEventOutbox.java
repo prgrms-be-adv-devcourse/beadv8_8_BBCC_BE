@@ -10,9 +10,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 키는 correlationId(회원 ID)라 같은 회원의 이벤트가 같은 파티션에 쌓이고, 본문은 {@link MemberEventEnvelope} JSON이다.
- */
 @Component
 @RequiredArgsConstructor
 public class JpaMemberEventOutbox implements MemberEventOutbox {

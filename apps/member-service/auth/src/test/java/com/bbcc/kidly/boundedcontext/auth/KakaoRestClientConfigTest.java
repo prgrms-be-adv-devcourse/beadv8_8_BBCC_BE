@@ -39,7 +39,6 @@ class KakaoRestClientConfigTest {
         server.stop(0);
     }
 
-    // 카카오 오류 코드(KOE...)가 로그에 남아야 설정 문제를 찾을 수 있다
     @Test
     @DisplayName("POST에 401이 와도 응답 본문을 버리지 않는다")
     void keepsBodyOfUnauthorized() {

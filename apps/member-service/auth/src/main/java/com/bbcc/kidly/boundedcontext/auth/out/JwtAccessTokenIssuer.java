@@ -15,7 +15,6 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * 주체로 Access Token(JWT, RS256)을 발급한다. 개인키는 인증 도메인만 가진다.
  * JWT의 iat·exp는 epoch 초라서 LocalDateTime 대신 Instant를 쓴다.
  */
 @Component

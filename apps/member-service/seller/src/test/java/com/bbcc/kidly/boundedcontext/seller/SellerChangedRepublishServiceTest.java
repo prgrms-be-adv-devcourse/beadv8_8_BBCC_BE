@@ -66,7 +66,6 @@ class SellerChangedRepublishServiceTest {
 
         sellerChangedRepublishService.republishAll();
 
-        // 받는 쪽 복사본은 저장된 occurredAt보다 늦은 이벤트만 반영한다
         var captor = ArgumentCaptor.forClass(SellerChangedEvent.class);
         then(eventPublisher).should(times(2)).publishEvent(captor.capture());
         var events = captor.getAllValues();

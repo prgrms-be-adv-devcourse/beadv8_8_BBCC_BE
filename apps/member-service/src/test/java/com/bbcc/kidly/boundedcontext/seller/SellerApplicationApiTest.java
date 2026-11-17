@@ -169,7 +169,6 @@ class SellerApplicationApiTest {
             .expectStatus().isUnauthorized();
     }
 
-    // 응답 본문에 원본 사업자등록번호가 없어야 한다
     private static void assertRawNumberNotExposed(byte[] body) {
         assertThat(new String(body, StandardCharsets.UTF_8)).doesNotContain(SellerFixture.BUSINESS_REGISTRATION_NUMBER);
     }

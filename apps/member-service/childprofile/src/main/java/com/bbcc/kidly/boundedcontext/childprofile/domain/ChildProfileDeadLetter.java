@@ -16,9 +16,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 자녀 프로필 처리기가 처리하지 못해 DLT로 간 메시지. DLT 위치(토픽 · 파티션 · 오프셋)당 하나다.
- */
 @Entity
 @Table(name = "dead_letter", schema = "childprofile")
 @Getter

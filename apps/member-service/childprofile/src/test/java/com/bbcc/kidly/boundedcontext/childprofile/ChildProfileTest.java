@@ -134,7 +134,6 @@ class ChildProfileTest {
         assertThat(child.getGrowthRecords()).hasSize(1);
     }
 
-    // 115.0과 115는 같은 키다
     @Test
     @DisplayName("같은 값으로 수정하면 성장 이력을 쌓지 않는다")
     void updateWithSameValuesKeepsRecords() {

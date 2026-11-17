@@ -15,9 +15,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 판매자 정보 조회 · 자격 정지. 정지는 SellerChangedEvent를 발행하고, 회원의 역할은 다음 토큰 재발급부터 바뀐다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

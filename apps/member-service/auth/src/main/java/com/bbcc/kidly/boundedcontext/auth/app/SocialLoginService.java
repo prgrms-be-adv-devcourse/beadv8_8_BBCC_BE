@@ -23,11 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-/**
- * 소셜 계정으로 로그인한다. 처음이면 가입시킨다. 토큰은 {@link AuthService}가 발급한다.
- * 클래스에 트랜잭션을 걸지 않는다. 유니크 충돌로 롤백된 뒤 다시 조회할 수 있어야 하고,
- * 소셜 제공자 호출이 트랜잭션 밖이라야 제공자가 느려도 DB 커넥션을 붙잡지 않는다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,7 +32,6 @@ public class SocialLoginService implements SocialAccountFinder {
     private final MemberAccounts memberAccounts;
     private final OAuthClient oauthClient;
 
-    // provider는 URL 경로의 소문자 이름(kakao)이다
     public MemberLoginState signIn(String providerName, SocialLoginRequest request) {
         var provider = OAuthProvider.from(providerName);
         var profile = oauthClient.fetchProfile(provider, request.code());
@@ -70,7 +64,6 @@ public class SocialLoginService implements SocialAccountFinder {
     }
 
     private MemberLoginState register(Optional<SocialAccount> claimed, SocialIdentity identity, OAuthProfile profile) {
-        // 이메일은 가입할 때만 필수다. 이메일을 받기 전에 가입한 회원은 이메일 없이도 로그인한다
         if (!StringUtils.hasText(profile.email())) {
             throw new BusinessException(AuthErrorCode.EMAIL_REQUIRED);
         }

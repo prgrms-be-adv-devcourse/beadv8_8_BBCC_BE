@@ -192,7 +192,6 @@ class RefreshTokenApiTest {
             .expectCookie().maxAge(COOKIE, Duration.ZERO);
     }
 
-    // 로그인 응답의 Refresh Token 쿠키 값을 돌려준다
     private String login() {
         return client.post().uri(LOGIN_PATH)
             .contentType(MediaType.APPLICATION_JSON)

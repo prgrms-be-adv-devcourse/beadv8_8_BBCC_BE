@@ -17,10 +17,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * 카카오 REST API로 인가 코드를 토큰으로 바꾸고 사용자 정보를 받는다.
  * 인가 코드는 한 번만 쓸 수 있어서 재시도하지 않는다. 카카오 응답 본문은 밖으로 내보내지 않고 로그로만 남긴다.
- * 지원하는 제공자가 카카오뿐이라 provider는 보지 않는다. 제공자가 늘면 제공자별 클래스로 나누고
- * provider로 골라 맡기는 클래스가 {@link OAuthClient}를 구현한다.
  */
 @Slf4j
 @Component
@@ -124,7 +121,6 @@ public class KakaoOAuthClient implements OAuthClient {
         @JsonProperty("is_email_valid") Boolean emailValid,
         @JsonProperty("is_email_verified") Boolean emailVerified) {
 
-        // 만료되거나 인증하지 않은 이메일은 메일이 닿는다고 볼 수 없어 없는 것으로 본다
         String verifiedEmail() {
             if (Boolean.TRUE.equals(emailValid) && Boolean.TRUE.equals(emailVerified)) {
                 return email;

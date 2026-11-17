@@ -4,9 +4,6 @@ import com.bbcc.kidly.member.support.error.ErrorCode;
 import java.net.URI;
 import org.springframework.http.ProblemDetail;
 
-/**
- * ProblemDetail 5필드(type, title, status, detail, instance)와 오류 코드(code)를 채운다.
- */
 public final class ProblemDetails {
 
     // Spring 7은 기본값 about:blank를 응답에서 빼므로 명시해서 5필드를 항상 보낸다

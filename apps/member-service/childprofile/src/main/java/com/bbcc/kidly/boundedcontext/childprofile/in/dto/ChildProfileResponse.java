@@ -11,8 +11,6 @@ import java.time.LocalDateTime;
 /**
  * @param bodyType 입력하지 않았으면 null
  * @param preferredFit 입력하지 않았으면 null
- * @param growthRecordCount 성장 이력 건수
- * @param lastRecordedAt 마지막 성장 이력 시각
  */
 public record ChildProfileResponse(
     Long id,

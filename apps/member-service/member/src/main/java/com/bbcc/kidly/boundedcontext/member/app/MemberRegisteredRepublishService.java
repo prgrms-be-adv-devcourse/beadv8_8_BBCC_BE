@@ -10,11 +10,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 이메일이 있는 회원마다 MemberRegisteredEvent를 resent=true로 다시 보낸다. 회원은 바꾸지 않는다.
- * 가입 이벤트를 놓친 쪽(나중에 붙은 알림의 이메일 복사본 등)이 따라잡게 한다.
- * 받는 쪽은 resent면 가입 때만 할 일(환영 메일)을 하지 않고, 복사본은 회원마다 한 건이라 여러 번 불러도 결과가 같다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

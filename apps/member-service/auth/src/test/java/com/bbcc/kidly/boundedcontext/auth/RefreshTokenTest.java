@@ -48,7 +48,6 @@ class RefreshTokenTest {
         assertThat(rotatedAt(NOW.minusSeconds(10).minusNanos(1)).isReused(NOW)).isTrue();
     }
 
-    // 교체 시각은 리포지토리 쿼리로만 바뀌어서 테스트에서는 필드를 직접 넣는다
     private static RefreshToken rotatedAt(LocalDateTime rotatedAt) {
         var token = BeanUtils.instantiateClass(RefreshToken.class);
         ReflectionTestUtils.setField(token, "rotatedAt", rotatedAt);

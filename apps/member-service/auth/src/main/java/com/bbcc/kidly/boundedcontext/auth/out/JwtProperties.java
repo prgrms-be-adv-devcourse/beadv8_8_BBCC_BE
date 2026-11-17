@@ -12,7 +12,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.security.converter.RsaKeyConverters;
 
 /**
- * Access Token 서명 키(PEM 파일 위치)와 유효 기간. 발급(인증)만 쓴다. 검증은 Gateway가 공개키로 한다.
  * 공개키는 PUBLIC KEY(X.509), 개인키는 PRIVATE KEY(PKCS#8) 형식이어야 한다.
  */
 @ConfigurationProperties("jwt")

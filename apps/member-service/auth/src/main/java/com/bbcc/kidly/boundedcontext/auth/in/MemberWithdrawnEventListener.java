@@ -8,10 +8,6 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * kidly.member.events에서 member.withdrawn을 받아 그 회원의 소셜 계정 연결을 모두 지운다.
- * 같은 메시지를 다시 받아도 지울 연결이 없어 아무 일도 하지 않는다. 트랜잭션은 SocialLoginService.unlinkAll이 연다.
- */
 @Component
 @RequiredArgsConstructor
 public class MemberWithdrawnEventListener {
@@ -24,7 +20,7 @@ public class MemberWithdrawnEventListener {
     public void on(ConsumerRecord<String, String> record) {
         switch (AuthKafkaListenerConfig.header(record, "eventType")) {
             case "member.withdrawn" -> onWithdrawn(jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
-            default -> { }  // 인증이 받지 않는 종류
+            default -> { }
         }
     }
 

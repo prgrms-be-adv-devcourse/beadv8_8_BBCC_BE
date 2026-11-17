@@ -13,7 +13,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class ShippingAddressTest {
 
-    // fixture 값에서 한 필드만 바꾼 입력을 만든다
     private static ShippingAddressInfo withDetail(String v) {
         var base = ShippingAddressFixture.info();
         return new ShippingAddressInfo(base.recipientName(), base.recipientPhone(), base.zipCode(),

@@ -25,12 +25,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 판매자 신청 · 조회 · 승인 · 거절.
- * 승인은 한 트랜잭션에서 신청을 APPROVED로 바꾸고, 판매자를 만들고, SellerChangedEvent를 발행한다.
- * 거절은 신청을 REJECTED로 바꾸고, SellerApplicationRejectedEvent를 발행한다.
- * 회원이 닉네임을 바꾸면 그 회원의 신청에 반영하고, 탈퇴하면 그 회원의 신청에서 개인정보를 비운다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -41,7 +35,6 @@ public class SellerApplicationService {
     private final SellerApplicationSummaryQuery sellerApplicationSummaryQuery;
     private final ApplicationEventPublisher eventPublisher;
 
-    // 같은 회원의 동시 신청은 막지 않는다. 두 번째 승인이 이미 판매자라서 실패한다
     @Transactional
     public SellerApplicationResult submit(
         Long applicantId, String applicantNickname, SellerApplicationRequest request) {
@@ -70,7 +63,6 @@ public class SellerApplicationService {
         return sellerApplicationSummaryQuery.findAll(status, pageable);
     }
 
-    // 정말 동시에 같은 회원의 신청 두 건을 승인하면 Seller PK 충돌로 실패한다(500). 판매자는 1명만 남는다
     @Transactional
     public SellerApplicationSummary approve(Long applicationId, Long adminId) {
         var now = LocalDateTime.now();

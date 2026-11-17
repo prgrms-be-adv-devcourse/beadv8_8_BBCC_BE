@@ -21,12 +21,9 @@ public interface MemberRepository {
 
     boolean existsByNickname(String nickname);
 
-    // 자신을 빼고 다른 회원이 쓰는 닉네임인지
     boolean existsByNicknameAndIdNot(String nickname, Long id);
 
-    // 이메일이 있는 회원. 탈퇴하면 이메일을 지우므로 탈퇴 회원은 빠진다
     List<Member> findByEmailIsNotNull();
 
-    // 초기 데이터를 넣을지 판단한다
     long count();
 }

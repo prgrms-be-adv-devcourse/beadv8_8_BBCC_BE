@@ -2,9 +2,6 @@ package com.bbcc.kidly.boundedcontext.member.app.dto;
 
 import com.bbcc.kidly.boundedcontext.member.domain.MemberDeadLetter;
 
-/**
- * DLT에서 받은 메시지. 보관할 때와 원래 처리기로 재처리할 때 쓴다.
- */
 public record MemberDeadLetterMessage(String dltTopic, int dltPartition, long dltOffset, String sourceTopic,
     Integer sourcePartition, Long sourceOffset, String messageKey, String eventType, String eventId, String payload,
     String failureType) {

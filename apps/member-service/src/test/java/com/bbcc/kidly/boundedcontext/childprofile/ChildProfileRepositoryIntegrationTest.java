@@ -31,7 +31,6 @@ class ChildProfileRepositoryIntegrationTest {
 
         var found = childProfileRepository.findByIdAndMemberId(saved.getId(), MEMBER_ID);
 
-        // 트랜잭션 밖에서 이력을 읽어도 LazyInitializationException이 나지 않아야 한다
         assertThat(found).hasValueSatisfying(child -> assertThat(child.growthRecordCount()).isEqualTo(1));
     }
 
@@ -62,7 +61,6 @@ class ChildProfileRepositoryIntegrationTest {
                 e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
     }
 
-    // 이력이 여러 건이어도(fetch join) 같은 자녀가 두 번 나오지 않아야 한다
     @Test
     @DisplayName("회원의 자녀 목록을 등록 순으로 주고, 자녀마다 성장 이력을 함께 읽는다")
     void findAllByMemberId() {

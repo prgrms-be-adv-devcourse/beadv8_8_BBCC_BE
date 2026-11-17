@@ -74,7 +74,6 @@ class ChildProfileKafkaListenerConfig {
         return kafkaTemplate;
     }
 
-    // 본문과 예외 메시지(읽지 못한 값이 들어 있다)는 남기지 않는다
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
         log.error("처리하지 못한 이벤트를 DLT로 보냅니다. eventType={} eventId={} key={} exception={}",

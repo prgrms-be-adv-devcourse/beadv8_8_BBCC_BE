@@ -8,10 +8,6 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * kidly.member.events에서 member.withdrawn을 받아 그 회원의 배송지를 모두 삭제한다.
- * 같은 메시지를 다시 받아도 지울 배송지가 없어 아무 일도 하지 않는다. 트랜잭션은 ShippingAddressService.deleteAll이 연다.
- */
 @Component
 @RequiredArgsConstructor
 public class ShippingAddressMemberEventListener {

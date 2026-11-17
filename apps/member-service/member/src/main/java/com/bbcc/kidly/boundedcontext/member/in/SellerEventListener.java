@@ -8,11 +8,6 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * kidly.seller.events에서 seller.changed를 받아 판매자 상태 복사본을 갱신한다(#608). SELLER를 잃으면 Access Token을 무효화한다.
- * 같은 메시지를 다시 받아도 저장된 변경 시각보다 늦은 변경만 반영하고, 이미 SELLER가 없으면 다시 무효화하지 않으므로 결과는 한 번 받은 것과 같다.
- * 트랜잭션은 SellerStateService.apply가 연다.
- */
 @Component
 @RequiredArgsConstructor
 public class SellerEventListener {

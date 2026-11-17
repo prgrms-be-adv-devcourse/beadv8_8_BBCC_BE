@@ -13,10 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 기존 회원의 가입 이벤트를 다시 보내는 API를 HTTP 요청부터 응답까지 확인한다.
- * 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다.
- */
 @FunctionalTest
 class AdminMemberRegisteredEventApiTest {
 

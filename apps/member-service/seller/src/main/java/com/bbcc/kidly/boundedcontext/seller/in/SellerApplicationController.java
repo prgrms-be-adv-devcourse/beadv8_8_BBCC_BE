@@ -17,9 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 회원의 판매자 신청 API. 신청 회원 닉네임은 요청 본문이 아니라 토큰에서 꺼낸다.
- */
 @RestController
 @RequestMapping(SellerApplicationController.PATH)
 @RequiredArgsConstructor
@@ -38,7 +35,6 @@ public class SellerApplicationController {
         return SellerApplicationResponse.from(application);
     }
 
-    // 가장 최근 신청. 신청한 적이 없으면 404
     @GetMapping
     public SellerApplicationResponse getLatest(@LoginMember AuthMember member) {
         return SellerApplicationResponse.from(sellerApplicationService.getLatest(member.id()));

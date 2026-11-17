@@ -20,9 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Refresh Token을 발급 · 재발급 · 폐기한다. 원문은 쿠키로만 내려주고 DB에는 해시만 둔다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,7 +32,6 @@ public class RefreshTokenService {
     private final RefreshTokenProperties properties;
     private final AccessTokenRevocationService accessTokenRevocationService;
 
-    // 로그인할 때 발급한다. 이미 있으면 새 값으로 바꾸므로 다른 기기의 토큰은 다음 재발급 때 거절된다
     @Transactional
     public String issue(PrincipalId principal) {
         var now = LocalDateTime.now();
@@ -44,8 +40,6 @@ public class RefreshTokenService {
         return token;
     }
 
-    // 토큰을 새 값으로 바꾼다. 같은 토큰으로 동시에 요청하면 한 요청만 바꾸고 나머지는 거절한다
-    // 재사용을 감지해 지운 것은 401을 던져도 남아야 해서 업무 예외로는 롤백하지 않는다
     @Transactional(noRollbackFor = BusinessException.class)
     public ReissuedToken reissue(PrincipalType expected, String token) {
         if (token == null) {

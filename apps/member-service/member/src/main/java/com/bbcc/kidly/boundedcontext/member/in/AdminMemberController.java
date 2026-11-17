@@ -23,9 +23,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 관리자 회원 API. /api/v1/admin/** 라 관리자 주체만 호출할 수 있다.
- */
 @RestController
 @RequestMapping("/api/v1/admin/members")
 @RequiredArgsConstructor
@@ -34,7 +31,6 @@ public class AdminMemberController {
     private final AdminMemberService adminMemberService;
     private final MemberRegisteredRepublishService memberRegisteredRepublishService;
 
-    // keyword는 회원 번호 · 닉네임 · 이메일 검색. 탈퇴 회원은 빠진다
     @GetMapping
     public PageResponse<AdminMemberSummaryResponse> list(
         @RequestParam(defaultValue = "ALL") AdminMemberFilter filter,
@@ -51,7 +47,6 @@ public class AdminMemberController {
         adminMemberService.suspend(memberId, admin.id(), request);
     }
 
-    // 이메일이 있는 회원마다 회원 가입됨을 다시 보냄 표시로 다시 보내고, 보낸 회원 수를 돌려준다
     @PostMapping("/registered-events")
     public MemberRegisteredRepublishResponse republishRegisteredEvents() {
         return new MemberRegisteredRepublishResponse(memberRegisteredRepublishService.republishAll());

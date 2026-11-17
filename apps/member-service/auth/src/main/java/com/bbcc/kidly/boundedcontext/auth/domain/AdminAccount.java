@@ -69,7 +69,6 @@ public class AdminAccount extends BaseTimeEntity {
     }
 
     public boolean disable(Long actorId, LocalDateTime now) {
-        // 자신을 비활성화하지 못하게 해 관리자가 스스로 마지막 계정을 없애지 못한다.
         if (id.equals(actorId)) {
             throw new BusinessException(AuthErrorCode.ADMIN_NOT_DISABLABLE);
         }

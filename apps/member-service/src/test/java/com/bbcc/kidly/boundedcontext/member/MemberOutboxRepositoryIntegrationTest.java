@@ -18,10 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 회원 아웃박스 리포지토리가 직접 선언한 조회 · 삭제 · 릴레이 잠금을 실제 DB로 확인한다.
- * 리포지토리는 서비스 트랜잭션 안에서 불리므로 테스트도 호출을 트랜잭션으로 감싸고, 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class MemberOutboxRepositoryIntegrationTest {
 
@@ -33,7 +29,6 @@ class MemberOutboxRepositoryIntegrationTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
-    // 지운 뒤 남은 행은 요청서에 전체 조회가 없어 표를 직접 읽어 확인한다
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -113,7 +108,6 @@ class MemberOutboxRepositoryIntegrationTest {
         }
     }
 
-    // 잠금을 쥔 트랜잭션을 테스트가 풀어 줄 때까지 열어 둔다
     private static void awaitQuietly(CountDownLatch latch) {
         try {
             latch.await(10, TimeUnit.SECONDS);

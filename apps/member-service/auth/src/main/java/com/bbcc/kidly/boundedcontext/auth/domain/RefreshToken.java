@@ -21,10 +21,6 @@ import lombok.NoArgsConstructor;
 import org.springframework.security.crypto.keygen.Base64StringKeyGenerator;
 import org.springframework.security.crypto.keygen.StringKeyGenerator;
 
-/**
- * 주체(회원 · 관리자)의 Refresh Token. 주체당 1개이고(PK가 (principal_type, principal_id)), 원문 대신 SHA-256 해시만 저장한다.
- * 발급 · 교체는 동시 요청에도 한 행만 남도록 {@link RefreshTokenRepository}의 쿼리 한 번으로 한다.
- */
 @Entity
 @Table(
     name = "refresh_token",
@@ -37,11 +33,9 @@ import org.springframework.security.crypto.keygen.StringKeyGenerator;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken extends BaseTimeEntity {
 
-    // 원문은 의미 없는 256비트(32바이트) 랜덤 값이다. 쿠키에 그대로 넣을 수 있게 URL-safe Base64(43자)로 만든다
     private static final StringKeyGenerator GENERATOR =
         new Base64StringKeyGenerator(Base64.getUrlEncoder().withoutPadding(), 32);
 
-    // 교체 직후 직전 토큰이 오는 것은 탭 여러 개가 동시에 재발급한 것이라 이 시간 안에는 탈취로 보지 않는다
     private static final Duration REUSE_GRACE = Duration.ofSeconds(10);
 
     @EmbeddedId
@@ -63,7 +57,6 @@ public class RefreshToken extends BaseTimeEntity {
         return GENERATOR.generateKey();
     }
 
-    // 원문이 256비트 랜덤 값이라 salt나 느린 해시 없이 SHA-256으로 충분하다
     public static String hashOf(String token) {
         try {
             var digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));

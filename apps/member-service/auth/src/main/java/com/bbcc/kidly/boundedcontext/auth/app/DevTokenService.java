@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-// 로컬 개발용 토큰 발급. 회원이 실제로 있는지는 확인하지 않으므로 운영에서는 등록하지 않는다
 @Profile({"local", "test", "dev"})
 @Service
 @RequiredArgsConstructor

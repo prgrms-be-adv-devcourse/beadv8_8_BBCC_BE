@@ -36,9 +36,6 @@ public class AdminAuthDeadLetterController {
         return AuthDeadLetterResponse.from(service.get(id));
     }
 
-    /**
-     * 처리 실패도 200/OPEN으로 이력을 반환한다. 이미 성공했으면 재실행 없이 200이다.
-     */
     @PostMapping("/{id}/reprocess")
     public AuthDeadLetterResponse reprocess(@PathVariable Long id, @LoginAdmin AuthAdmin admin) {
         return AuthDeadLetterResponse.from(service.reprocess(id, admin.id()));

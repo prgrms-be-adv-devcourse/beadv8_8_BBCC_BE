@@ -16,9 +16,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.IllegalTransactionStateException;
 
-/**
- * 무효화 이벤트(auth.tokens-revoked)가 커밋 뒤에만 Kafka로 가는 것은 AuthKafkaPublishIntegrationTest가 본다.
- */
 @IntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class AccessTokenRevocationServiceIntegrationTest {

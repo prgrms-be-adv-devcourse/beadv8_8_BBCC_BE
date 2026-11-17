@@ -56,12 +56,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * seller.changed가 커밋되면 kidly.seller.events를 거쳐 회원의 판매자 상태 복사본을 갱신하고,
- * SELLER를 잃으면 Access Token을 무효화한다(#608). 무효화는 kidly.auth.events에 온 auth.tokens-revoked로 본다.
- * 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 판매자 이벤트(판매자 ID 1, 2 …)도 쌓여 이어서 받을 수 있으므로
- * 회원 ID를 테스트마다 무작위로 정해 저장하고, 결과는 이 테스트의 회원 · 키로 걸러 본다.
- */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class MemberSellerEventKafkaIntegrationTest {
@@ -74,7 +68,6 @@ class MemberSellerEventKafkaIntegrationTest {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final LocalDateTime APPROVED_AT = LocalDateTime.of(2026, 10, 13, 9, 0);
 
-    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
@@ -247,7 +240,6 @@ class MemberSellerEventKafkaIntegrationTest {
         save(MemberFixture.kakaoMember());
         sendRaw("seller.registered", UUID.randomUUID(), "받지 않는 종류라 읽지 않는 본문");
 
-        // 키(회원 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
         publishInTransaction(sellerChanged(SellerStatus.ACTIVE, APPROVED_AT));
 
         AsyncWait.until(TIMEOUT, () -> sellerState() != null && sellerState().status() == SellerStatus.ACTIVE);
@@ -286,7 +278,6 @@ class MemberSellerEventKafkaIntegrationTest {
         });
     }
 
-    // 회원 ID는 자동 증가라 다음 값을 이 테스트의 ID로 맞춘 뒤 저장한다. 테이블 비우기가 ID를 1부터 다시 시작하게 돌려놓는다
     private void save(Member member) {
         jdbcTemplate.queryForObject("SELECT setval('member.member_id_seq', ?, false)", Long.class, memberId);
         assertThat(memberRepository.save(member).getId()).isEqualTo(memberId);
@@ -296,7 +287,6 @@ class MemberSellerEventKafkaIntegrationTest {
         return memberRepository.getById(memberId).getSellerState();
     }
 
-    // 지금까지 받은 인증 이벤트 중 이 테스트 회원 키의 auth.tokens-revoked 수
     private long tokensRevokedCount() {
         authEventConsumer.poll(Duration.ofMillis(200)).forEach(authEvents::add);
         return authEvents.stream()
@@ -306,8 +296,6 @@ class MemberSellerEventKafkaIntegrationTest {
             .count();
     }
 
-    // 무효화하지 않았음을 보려면 기다릴 기준이 필요하다. 인증 이벤트는 아웃박스 순서대로 보내고 같은 키는 같은 파티션이라,
-    // 처리가 끝난 뒤 같은 회원 키로 보낸 확인용 무효화가 왔으면 그 앞의 무효화도 이미 와 있다
     private long tokensRevokedCountAfterMarker() {
         var now = LocalDateTime.now();
         var marker = new AuthTokensRevokedEvent(UUID.randomUUID(), now,
@@ -342,12 +330,10 @@ class MemberSellerEventKafkaIntegrationTest {
             new SellerChangedEvent.Data(memberId, "소소한옷장", status));
     }
 
-    // 보낸 결과를 위치로 기다려야 하는 변경은 직접 넣는다. 리스너는 본문에서 eventId · occurredAt · data만 읽는다
     private RecordMetadata sendChanged(SellerChangedEvent event) throws Exception {
         return sendRaw("seller.changed", event.eventId(), jsonMapper.writeValueAsString(event));
     }
 
-    // 판매자가 보내지 않는 메시지(다른 종류 · 깨진 본문)를 이 테스트의 회원 ID 키로 직접 넣는다
     private RecordMetadata sendRaw(String eventType, UUID eventId, String body) throws Exception {
         var record = new ProducerRecord<>(TOPIC, String.valueOf(memberId), body);
         record.headers().add("eventId", eventId.toString().getBytes(UTF_8));
@@ -360,7 +346,6 @@ class MemberSellerEventKafkaIntegrationTest {
         }
     }
 
-    // 결과가 바뀌지 않는 메시지는 처리했는지 결과로 알 수 없다. 한 건씩 처리 완료를 커밋하므로, 회원 그룹의 커밋 위치가 그 메시지를 지나면 처리한 것이다
     private void awaitProcessed(RecordMetadata sent) {
         var partition = new TopicPartition(TOPIC, sent.partition());
         var config = Map.<String, Object>of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
@@ -379,7 +364,6 @@ class MemberSellerEventKafkaIntegrationTest {
         }
     }
 
-    // DLT를 처음부터 지금 끝까지 읽어 이 테스트의 키만 돌려준다. 다른 테스트가 넣은 DLT 메시지도 있다
     private List<ConsumerRecord<String, String>> deadLetters() {
         var partition = new TopicPartition(DLT, 0);
         try (var consumer = new KafkaConsumer<String, String>(Map.of(

@@ -26,7 +26,6 @@ public class MemberDeadLetterService {
     private final MemberDeadLetterReplay replayer;
     private final TransactionTemplate transactionTemplate;
 
-    // DLT는 파티션 1개를 컨테이너 하나가 차례로 읽어 같은 위치를 동시에 저장하지 않는다. 겹치면 유니크 제약이 막는다
     @Transactional
     public boolean receive(MemberDeadLetterMessage message) {
         if (repository.existsByDltTopicAndDltPartitionAndDltOffset(
@@ -53,7 +52,6 @@ public class MemberDeadLetterService {
     }
 
     public MemberDeadLetterResult reprocess(Long id, Long adminId) {
-        // 없는 id는 실패 이력을 남기지 않고 404로 끝낸다
         repository.getById(id);
         try {
             var result = transactionTemplate.execute(status -> replay(id, adminId));
@@ -66,7 +64,6 @@ public class MemberDeadLetterService {
         }
     }
 
-    // 행 잠금으로 동시 재처리를 한 줄로 세운다. 처리기는 이 트랜잭션에 참여해 실패하면 함께 롤백된다
     private MemberDeadLetterResult replay(Long id, Long adminId) {
         var deadLetter = repository.findByIdForUpdate(id).orElseThrow();
         if (deadLetter.isReprocessed()) {
@@ -81,7 +78,6 @@ public class MemberDeadLetterService {
 
     private MemberDeadLetterResult recordFailure(Long id, Long adminId, String failureType) {
         var deadLetter = repository.findByIdForUpdate(id).orElseThrow();
-        // 실패한 뒤 잠금을 기다리던 다른 재처리가 성공했을 수 있다
         if (!deadLetter.isReprocessed()) {
             deadLetter.recordReplayFailure(adminId, LocalDateTime.now(), failureType);
         }

@@ -107,7 +107,6 @@ class JwtAccessTokenIssuerTest {
         return NimbusJwtDecoder.withPublicKey((RSAPublicKey) keyPair.getPublic()).build();
     }
 
-    // 설정 파일과 같은 PEM 형식으로 만들어 JwtProperties가 키를 읽는 과정까지 거치게 한다
     private static Resource pem(String type, Key key) {
         var body = Base64.getMimeEncoder().encodeToString(key.getEncoded());
         var pem = "-----BEGIN " + type + "-----\n" + body + "\n-----END " + type + "-----\n";
