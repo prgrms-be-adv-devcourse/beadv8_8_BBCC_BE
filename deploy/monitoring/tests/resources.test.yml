@@ -106,3 +106,29 @@ tests:
   - eval_time: 8m
     alertname: kidly-host-oom
     exp_alerts: []
+- name: memory hovering around the threshold stays one alert instead of flapping
+  interval: 1m
+  input_series:
+  - series: node_memory_MemTotal_bytes{job="integrations/unix",instance="monitoring"}
+    values: 100+0x16
+  - series: node_memory_MemAvailable_bytes{job="integrations/unix",instance="monitoring"}
+    values: 8+0x5 12+0x1 8+0x8
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: kidly-host-memory-low
+    exp_alerts:
+    - exp_labels:
+        job: integrations/unix
+        instance: monitoring
+  - eval_time: 7m
+    alertname: kidly-host-memory-low
+    exp_alerts:
+    - exp_labels:
+        job: integrations/unix
+        instance: monitoring
+  - eval_time: 10m
+    alertname: kidly-host-memory-low
+    exp_alerts:
+    - exp_labels:
+        job: integrations/unix
+        instance: monitoring

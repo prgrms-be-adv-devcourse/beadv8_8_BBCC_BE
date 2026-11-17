@@ -20,7 +20,8 @@ groups:
         to: 0
       model:
         refId: A
-        expr: (100 * node_memory_MemAvailable_bytes{job="integrations/unix"} / node_memory_MemTotal_bytes{job="integrations/unix"})
+        # 10분 평균으로 본다. 10% 언저리를 오가며 몇 분 간격으로 발생 · 해결을 반복(11/17 30분에 3번)하던 것을 한 번으로 묶는다
+        expr: avg_over_time((100 * node_memory_MemAvailable_bytes{job="integrations/unix"} / node_memory_MemTotal_bytes{job="integrations/unix"})[10m:1m])
           and on (instance) (time() - timestamp(node_memory_MemAvailable_bytes{job="integrations/unix"})
           < 60)
         instant: true
@@ -38,7 +39,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "{{ $labels.instance }} 사용 가능 메모리 10% 미만이 5분 지속됐습니다"
+      summary: "{{ $labels.instance }} 사용 가능 메모리(10분 평균) 10% 미만이 5분 지속됐습니다"
       description: 서버 대시보드에서 메모리와 컨테이너 사용량을 확인하세요. 배포·기동 중이면 추가 기동을 멈추고, 자원 부족이 지속되면
         운영할 환경을 정해 environment-operation으로 중지하세요.
   - uid: kidly-host-disk-high
