@@ -743,7 +743,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|.*/stream\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|.*/stream\"}[5m])) > 0)",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0)",
           "legendFormat": "{{job}}"
         }
       ]
