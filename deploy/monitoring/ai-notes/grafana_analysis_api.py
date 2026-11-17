@@ -131,6 +131,8 @@ class AnalysisAPI:
                 is_operator=operator, provider=headers.get('X-Kidly-AI-Provider', 'groq'),
                 paid_confirmed=headers.get('X-Kidly-AI-Confirm-Paid') == 'true',
                 focus=headers.get('X-Kidly-AI-Focus', 'overview'),
+                # Slack 은 사람이 처리할 일만 받는다. 버튼 실행은 누른 사람이 이 화면에서 보고, Slack 에는 알림이 부른 분석만 올린다
+                share=False,
             )
         return self.requests.read(is_operator=operator)
 

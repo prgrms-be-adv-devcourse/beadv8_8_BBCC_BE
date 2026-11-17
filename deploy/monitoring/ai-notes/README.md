@@ -42,7 +42,7 @@ Groq 실행은 같은 서비스의 최근 30분과 직전 30분을 비교합니�
 
 ## Grafana에서 바로 실행
 
-Grafana → Kidly → **Kidly AI 운영 분석** 상단에서 제공자와 분석 목적을 고르고 **새 분석 실행**을 누릅니다. 기본 조직 Admin만 실행 · 상태 조회할 수 있습니다(Viewer 거부). 옆 칸에서 실행 중 · 게시 · 한도 · 실패를 보고, 게시되면 최신 메모가 바뀝니다.
+Grafana → Kidly → **Kidly AI 운영 분석** 상단에서 제공자와 분석 목적을 고르고 **새 분석 실행**을 누릅니다. 결과는 이 화면에서만 봅니다. Slack에는 사람이 처리할 일만 보냅니다: 서비스 알림(`ai_analysis: auto` 라벨)이 뜨면 Groq 분석이 자동으로 1회 돌고, 그 요약만 운영 채널에 올라갑니다. 버튼 · 알림 · GitHub 수동 실행은 1시간 간격을 함께 씁니다. 기본 조직 Admin만 실행 · 상태 조회할 수 있습니다(Viewer 거부). 옆 칸에서 실행 중 · 게시 · 한도 · 실패를 보고, 게시되면 최신 메모가 바뀝니다.
 
 - 처리기(`grafana_analysis_api.py`)는 모니터링 서버의 deploy 유저 프로세스입니다. `analysis-api.sh`가 배포마다 다시 띄우고, 서버가 다시 켜지면 crontab `@reboot`으로 다시 뜹니다
 - 경로: 브라우저 → 엣지 Traefik → 모니터링 k3s IngressRoute `kidly-ai-analysis`(`POST /kidly-ai-analysis/run`, `GET /kidly-ai-analysis/status`만) → 노드 사설 IP:8786. 나머지는 그대로 Grafana로 갑니다
