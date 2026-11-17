@@ -25,8 +25,8 @@ otelcol.processor.filter "tracing_ops" {
   traces {
     span = [
       `resource.attributes["deployment.environment.name"] != "dev"`,
-      `resource.attributes["service.name"] != "kidly-gateway" and resource.attributes["service.name"] != "kidly-order"`,
-      `attributes["http.request.method"] == nil and attributes["http.method"] == nil and instrumentation_scope.name != "io.opentelemetry.jdbc" and instrumentation_scope.name != "io.opentelemetry.hibernate-6.0" and instrumentation_scope.name != "io.opentelemetry.spring-data-1.8"`,
+      `resource.attributes["service.name"] == nil or not IsMatch(resource.attributes["service.name"], "` + sys.env("TRACING_ALLOWED_SERVICES") + `")`,
+      `attributes["http.request.method"] == nil and attributes["http.method"] == nil and instrumentation_scope.name != "io.opentelemetry.jdbc" and instrumentation_scope.name != "io.opentelemetry.hibernate-6.0" and instrumentation_scope.name != "io.opentelemetry.spring-data-1.8" and not (resource.attributes["service.name"] == "kidly-search" and (attributes["db.system.name"] == "elasticsearch" or attributes["db.system"] == "elasticsearch"))`,
     ]
     spanevent = ["true"]
   }
@@ -50,6 +50,7 @@ otelcol.processor.transform "tracing_ops" {
       `set(name, "JDBC") where instrumentation_scope.name == "io.opentelemetry.jdbc"`,
       `set(name, "Hibernate") where instrumentation_scope.name == "io.opentelemetry.hibernate-6.0"`,
       `set(name, "Spring Data") where instrumentation_scope.name == "io.opentelemetry.spring-data-1.8"`,
+      `set(name, "Elasticsearch") where resource.attributes["service.name"] == "kidly-search" and (attributes["db.system.name"] == "elasticsearch" or attributes["db.system"] == "elasticsearch")`,
       `set(status.message, "")`,
       `delete_key(attributes, "kidly.operation")`,
       `set(attributes["kidly.operation"], "order.detail") where resource.attributes["service.name"] == "kidly-order" and kind == SPAN_KIND_SERVER and (attributes["http.request.method"] == "GET" or attributes["http.method"] == "GET") and attributes["http.route"] == "/api/v1/orders/{orderId}"`,

@@ -19,7 +19,9 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 
 ## 일반 앱 배포에서 유지
 
-운영 시범에서 서비스별 실제 트레이스와 자원 사용량을 확인한 뒤에만 앱 서버의 `/opt/app/dev/operations/tracing-agent/`에 `gateway.enabled` 또는 `order.enabled`를 둡니다. 일반 배포는 선택 파일이 있는 서비스에 현재 Compose JVM 옵션과 같은 Agent 설정을 붙입니다. 배포 파일 업로드는 이 경로를 보존합니다. Agent JAR이 없거나 비어 있으면 해당 서비스 명세를 적용하기 전에 실패합니다.
+검색 등 추가 서비스는 [다른 서비스로 확대](#다른-서비스로-확대) 절을 따릅니다.
+
+Gateway·주문 시범에서 실제 트레이스와 자원 사용량을 확인한 뒤 앱 서버의 `/opt/app/dev/operations/tracing-agent/`에 `gateway.enabled` 또는 `order.enabled`를 둡니다. 일반 배포는 선택 파일이 있는 서비스에 현재 Compose JVM 옵션과 같은 Agent 설정을 붙입니다. 배포 파일 업로드는 이 경로를 보존합니다. Agent JAR이 없거나 비어 있으면 해당 서비스 명세를 적용하기 전에 실패합니다.
 
 원복은 선택 파일을 먼저 지운 뒤 일반 배포로 진행합니다. 수동 시범 패치가 이미 필드를 소유하고 있으면 일반 배포 뒤에도 해당 필드가 남을 수 있으므로, 현재 명세를 읽고 위의 `--rollback` 도구로 제거합니다. Pod가 준비된 뒤 Agent 환경 변수와 마운트가 사라졌는지 확인합니다.
 
@@ -31,6 +33,16 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 - 모니터링 쪽 수신기에 상호 TLS를 구성한 뒤, 사설 HTTPS 주소를 `tracing-tempo-endpoint` ConfigMap의 `url`에 지정합니다. `tracing-alloy-client-tls` Secret에는 해당 CA와 클라이언트 인증서·키를 준비합니다. 수신기는 HTTPS와 클라이언트 인증을 모두 검증해야 합니다.
 - 모니터링 클러스터에는 `kubectl kustomize deploy/tracing-ops/private-receiver`로 상호 TLS 수신 설정을 렌더링합니다. `tracing-tempo-server-tls`에는 서버 인증서·키와 클라이언트 검증 CA를 준비합니다. 이 오버레이는 4318을 컨테이너 포트로만 두고 Service와 NetworkPolicy에 수신 접근을 추가하지 않습니다. 배포 전에 앱 클러스터에서만 접근할 수 있는 사설 주소와 실제 송신 원본에 맞는 정책을 설정해야 합니다.
 - 기본 Tempo 조회 구성의 OTLP는 루프백에 있습니다. 수신 오버레이와 사설 경로가 준비된 뒤 Alloy를 적용하고 기존 Prometheus·Loki 수집과 분리해 검증합니다.
+
+## 다른 서비스로 확대
+
+확장 구성의 환경 변수와 NetworkPolicy는 앱 클러스터에 확장 Kustomize를 적용해 반영합니다. 설정 파일을 다시 읽는 작업은 이 전환에 사용하지 않습니다.
+
+Gateway·주문 시범에 성공한 뒤 `kubectl kustomize deploy/tracing-ops/app-alloy-extended`로 확장 수집 구성을 확인합니다. 기본 Alloy 구성의 허용 대상은 Gateway와 주문입니다. 확장 구성에서도 이 두 서비스의 연결은 유지됩니다. 나머지는 앱 서버의 동일한 경로에 서비스 이름으로 선택 파일을 둡니다(예를 들어 `search.enabled`). 추가 서비스는 일반 배포에서 추적 라벨이 붙은 Pod만 연결됩니다. 수동 패치 도구는 Gateway와 주문에만 사용합니다. 송신 Pod는 NetworkPolicy로 제한하며, Alloy가 읽는 서비스 이름 자체는 송신자가 기록한 값입니다.
+
+검색, 상품, 회원, 결제, 커뮤니티, 알림, 정산, 추천, 챗봇을 하나씩 올리고 Grafana에서 대표 읽기 요청을 확인합니다. HTTP·JDBC 속성은 상태 코드만 남기며, 검색에서 Elasticsearch DB span이 들어오면 이름을 Elasticsearch로 고정합니다. 실제 클라이언트가 해당 span을 내보내는지는 운영 시범에서 확인합니다. 오류 메시지, 원래 span 이름, SQL 원문, 요청 본문이 저장되지 않는지도 확인합니다.
+
+원복은 해당 서비스의 선택 파일을 제거하고 그 서비스의 Agent 제거 및 요청 정상 여부를 확인하는 순서입니다. 확장 서비스를 모두 해제한 뒤 기본 Alloy 구성으로 복귀하고 Deployment의 허용 목록과 NetworkPolicy가 Gateway·주문만 허용하는지 확인합니다. 수집기를 먼저 복귀하면 Agent가 아직 켜진 서비스에서 전송 실패가 발생합니다.
 
 ## 두 클러스터 사이 사설 경로
 
