@@ -1,0 +1,72 @@
+name: tracing-switch-pilot-agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Gateway와 주문 Java Agent 작업
+        type: choice
+        options: [apply, rollback]
+        required: true
+      transport_run_id:
+        description: Agent 적용 전 성공한 tracing-verify-alloy 실행 ID
+        type: string
+        default: ''
+      notice_shared:
+        description: Agent 적용 시각과 대상 서비스를 사전에 공유했음을 확인
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  switch:
+    if: github.ref == 'refs/heads/develop' && (inputs.operation == 'rollback' || inputs.notice_shared)
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+      OPERATION: ${{ inputs.operation }}
+      TRANSPORT_RUN_ID: ${{ inputs.transport_run_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 운영 수집 경로 검증 결과 확인
+        if: inputs.operation == 'apply'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$TRANSPORT_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TRANSPORT_RUN_ID" | jq -e --arg sha "$GITHUB_SHA" '
+            (.path | split("@")[0]) == ".github/workflows/tracing-verify-alloy.yml"
+            and .head_sha == $sha
+            and .head_branch == "develop" and .event == "workflow_dispatch"
+            and .conclusion == "success"
+            and ((now - (.updated_at | fromdateiso8601)) | . >= 0 and . < 3600)
+          ' >/dev/null
+      - name: 서버 접속 확인 · SSH 키 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
+      - name: Gateway와 주문 Agent 적용 또는 원복
+        run: |
+          set -euo pipefail
+          [[ "$OPERATION" == apply || "$OPERATION" == rollback ]]
+          tar -C deploy -cf - tracing-ops/switch-pilot-agent.sh tracing-ops/agent-patch.py k3s/tracing_agent.py \
+            | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 "deploy@$SSH_HOST" "
+              set -eu
+              umask 077
+              files=\$(mktemp -d)
+              trap 'rm -rf -- \"\$files\"' EXIT
+              tar -xf - -C \"\$files\"
+              bash \"\$files/tracing-ops/switch-pilot-agent.sh\" '$OPERATION'
+            "
