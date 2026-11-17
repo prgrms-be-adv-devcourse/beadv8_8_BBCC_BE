@@ -22,7 +22,6 @@ final class ProductSizeSpecs {
     private ProductSizeSpecs() {
     }
 
-    // 실측 목록, 그 안의 실측과 사이즈 값, 실측 값 묶음과 그 안의 값은 null이면 안 된다. 권장 키는 null을 허용한다
     static void requireNonNullValues(AddSizeSpecsInfo info) {
         requireNonNull(info.specs(), "specs는 필수입니다");
         for (SizeSpecInfo spec : info.specs()) {
@@ -35,7 +34,6 @@ final class ProductSizeSpecs {
         }
     }
 
-    // 새 실측을 다음 순서로 검사한다: 사이즈 역할, 권장 키 범위, 중복, 실측 항목, 사이즈 값이 옵션에 있는지
     static void validateNewSpecs(List<SizeSpecInfo> specs, List<SizeSpec> existing, List<ProductOption> options,
                                  Category category, ProductType productType) {
         validateSizeRole(productType);
@@ -102,7 +100,6 @@ final class ProductSizeSpecs {
         }
     }
 
-    // 실측의 사이즈 값은 보관하지 않은 옵션이 쓰는 사이즈 값이어야 한다
     private static void validateSizeValuesInOptions(List<SizeSpecInfo> specs, List<ProductOption> options,
         ProductType productType) {
         Set<AttributeValue> used = ProductOptions.activeSizeValues(options, productType);

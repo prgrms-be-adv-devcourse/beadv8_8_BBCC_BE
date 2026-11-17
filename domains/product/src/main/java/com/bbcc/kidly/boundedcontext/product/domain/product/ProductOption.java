@@ -48,19 +48,16 @@ public class ProductOption extends BaseTimeEntity {
     @Column(nullable = false)
     private long price;
 
-    // 판매자가 붙이는 관리 코드다. 없으면 null이다
     private String skuCode;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ProductOptionStatus saleStatus;
 
-    // DB에서 다시 읽어도 입력한 순서를 지키려고 id 순으로 읽는다
     @OneToMany(mappedBy = "productOption", cascade = CascadeType.ALL)
     @OrderBy("id ASC")
     private List<ProductOptionValue> values = new ArrayList<>();
 
-    // 판매중 옵션을 만들고 옵션의 값마다 한 행을 입력 순서대로 붙인다
     static ProductOption create(Product product, long price, String skuCode, List<AttributeValue> values) {
         validatePriceAndSkuCode(price, skuCode);
         ProductOption option = new ProductOption();
@@ -74,7 +71,6 @@ public class ProductOption extends BaseTimeEntity {
         return option;
     }
 
-    // 판매대기 상품의 옵션을 바꿔 넣을 때 값 조합이 같은 옵션을 그대로 두고 SKU 코드와 판매가만 받은 값으로 바꿔 넣는다
     void replaceSkuAndPrice(String skuCode, long price) {
         validatePriceAndSkuCode(price, skuCode);
         this.skuCode = skuCode;
@@ -91,7 +87,6 @@ public class ProductOption extends BaseTimeEntity {
         }
     }
 
-    // 살 수 없는 이유가 없으면 살 수 있다
     public boolean isPurchasable() {
         return notPurchasableReason().isEmpty();
     }

@@ -28,7 +28,6 @@ public final class ProductImageUrls {
         if (!ownPrefix.endsWith("/")) {
             throw new IllegalArgumentException("본인 경로는 /로 끝나야 합니다");
         }
-        // 썸네일은 없어도 된다
         if (thumbnailUrl != null) {
             requireOwnImage(thumbnailUrl, ownPrefix);
         }
@@ -44,7 +43,6 @@ public final class ProductImageUrls {
         }
     }
 
-    // 확장자 목록은 업로드 주소를 만들 때 쓰는 ProductImageFormat에서 가져와 한곳에서만 관리한다
     private static Pattern serverMadeName() {
         StringJoiner extensions = new StringJoiner("|", "(", ")");
         for (ProductImageFormat format : ProductImageFormat.values()) {

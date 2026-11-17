@@ -46,7 +46,6 @@ public final class ProductChangedData {
         return entries;
     }
 
-    // 실측 행마다 사이즈 이름 · 권장 키 · 실측 값을 상품에 저장된 순서대로 옮긴다
     private static List<ProductChangedEvent.SizeSpec> toSizeSpecs(Product product) {
         List<ProductChangedEvent.SizeSpec> sizeSpecs = new ArrayList<>();
         for (SizeSpec spec : product.getSizeSpecs()) {
@@ -76,7 +75,6 @@ public final class ProductChangedData {
             toSaleStatus(option.getSaleStatus()), toOptionValueEntries(option));
     }
 
-    // 옵션 값 조합을 항목 코드 · 값 ID · 값으로 옮긴다. 옵션 값은 모두 목록 값이라 값 ID가 있다
     private static List<ProductChangedEvent.AttributeEntry> toOptionValueEntries(ProductOption option) {
         List<ProductChangedEvent.AttributeEntry> entries = new ArrayList<>();
         for (ProductOptionValue value : option.getValues()) {
@@ -87,7 +85,6 @@ public final class ProductChangedData {
         return entries;
     }
 
-    // 상품 정보 값을 항목 코드 · 값 ID · 값으로 옮긴다. 목록 항목은 고른 목록 값을 담고, 직접 입력 항목은 값 ID 없이 입력한 글을 담는다
     private static List<ProductChangedEvent.AttributeEntry> toInfoValueEntries(Product product) {
         List<ProductChangedEvent.AttributeEntry> entries = new ArrayList<>();
         for (ProductInfoValue infoValue : product.getInfoValues()) {
@@ -112,7 +109,6 @@ public final class ProductChangedData {
         };
     }
 
-    // 옵션 값 중 유형이 사이즈 역할로 정한 값을 찾는다. 없으면 null이다
     private static AttributeValue findSizeValue(ProductOption option, ProductType productType) {
         for (ProductOptionValue value : option.getValues()) {
             if (productType.isSizeValue(value.getAttributeValue())) {

@@ -38,7 +38,6 @@ final class ProductOptions {
         return FREE_SIZE.equals(value.getName());
     }
 
-    // 옵션 목록과 가격 목록, 그 안의 값은 null이면 안 된다. SKU 코드는 null을 허용한다
     static void requireNonNullValues(AddOptionsInfo info) {
         requireNonNull(info.options(), "options는 필수입니다");
         requireNonNull(info.prices(), "prices는 필수입니다");
@@ -55,7 +54,6 @@ final class ProductOptions {
         }
     }
 
-    // 새 옵션을 다음 순서로 검사한다: 옵션 하나의 값, 기존 옵션과 합친 항목 구성, 중복, 사이즈 무관 규칙, 기존 옵션의 가격
     static void validateNewOptions(AddOptionsInfo info, List<ProductOption> existing, ProductType productType) {
         for (OptionInfo option : info.options()) {
             validateOption(option.values(), productType);
@@ -79,7 +77,6 @@ final class ProductOptions {
             if (!productType.allows(value)) {
                 throw new BusinessException(ProductErrorCode.OPTION_VALUE_NOT_ALLOWED);
             }
-            // 옵션은 옵션 항목마다 값 하나다
             if (!attributes.add(value.getAttribute())) {
                 throw new BusinessException(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED);
             }
@@ -158,7 +155,6 @@ final class ProductOptions {
         return !lists.isEmpty();
     }
 
-    // 보관하지 않은 옵션이 쓰는 사이즈 값을 옵션에 처음 나온 순서대로 모은다. 같은 사이즈는 한 번만 담는다
     static Set<AttributeValue> activeSizeValues(List<ProductOption> options, ProductType productType) {
         Set<AttributeValue> sizeValues = new LinkedHashSet<>();
         for (List<AttributeValue> values : activeValueLists(options)) {
@@ -171,7 +167,6 @@ final class ProductOptions {
         return sizeValues;
     }
 
-    // 보관하지 않은 옵션이 하나라도 있는지 본다
     static boolean hasActiveOptions(List<ProductOption> options) {
         return !activeOptions(options).isEmpty();
     }
@@ -187,7 +182,6 @@ final class ProductOptions {
         }
     }
 
-    // 이미 있는 옵션(보관 제외)의 값 목록이다
     private static List<List<AttributeValue>> activeValueLists(List<ProductOption> existing) {
         List<List<AttributeValue>> lists = new ArrayList<>();
         for (ProductOption option : activeOptions(existing)) {
@@ -244,7 +238,6 @@ final class ProductOptions {
         return matched.getFirst().price();
     }
 
-    // 받은 옵션 하나로 새 옵션을 만든다. 판매가는 가격 구분 묶음으로 찾고, 옵션 값은 유형의 항목 순서로 늘어놓는다
     static ProductOption newOption(
         Product product, OptionInfo option, List<PriceInfo> prices, ProductType productType) {
         long price = findPrice(option.values(), prices, productType);

@@ -61,12 +61,10 @@ final class SaleInputsReplacement {
         return new SaleInputsReplacement(options, sizeSpecs);
     }
 
-    // 미리 만든 옵션 · 실측이 지금 값과 다른지 본다
     boolean differsFrom(List<ProductOption> currentOptions, List<SizeSpec> currentSizeSpecs) {
         return differsOptions(currentOptions) || differsSizeSpecs(currentSizeSpecs);
     }
 
-    // 받은 순서대로 값 조합이 같은 지금 옵션을 짝지어 돌려준다. 지금 값과 같아 바꿔 넣지 않을 때 쓴다
     List<ProductOption> matchedOptions(List<ProductOption> currentOptions) {
         Map<Set<AttributeValue>, ProductOption> bySet = activeBySet(currentOptions);
         List<ProductOption> matched = new ArrayList<>();
@@ -76,15 +74,12 @@ final class SaleInputsReplacement {
         return matched;
     }
 
-    // 지금 옵션 · 실측을 미리 만든 값으로 바꿔 넣고, 뺀 옵션과 받은 순서대로 짝지은 옵션을 알려 준다
     UpdateResult replace(List<ProductOption> currentOptions, List<SizeSpec> currentSizeSpecs) {
         UpdateResult result = replaceOptions(currentOptions);
         replaceSizeSpecs(currentSizeSpecs);
         return result;
     }
 
-    // 지금 옵션(보관 제외)과 다른지 본다. 값 조합이 같은 옵션은 SKU 코드와 판매가를 비교하고,
-    // 값 조합이 짝지어지지 않으면 다른 것으로 본다
     private boolean differsOptions(List<ProductOption> current) {
         Map<Set<AttributeValue>, ProductOption> bySet = activeBySet(current);
         if (bySet.size() != options.size()) {
@@ -101,7 +96,6 @@ final class SaleInputsReplacement {
         return false;
     }
 
-    // 지금 실측과 다른지 본다. 사이즈 값이 짝지어지지 않으면 다른 것으로 본다
     private boolean differsSizeSpecs(List<SizeSpec> current) {
         Map<AttributeValue, SizeSpec> bySize = bySize(current);
         if (current.size() != sizeSpecs.size()) {
@@ -142,8 +136,6 @@ final class SaleInputsReplacement {
         return new UpdateResult(true, removed, requested);
     }
 
-    // 사이즈 값이 같은 실측은 객체를 그대로 두고 권장 키와 실측 값만 맞추고, 미리 만든 실측에 없는 사이즈의 실측은 빼고,
-    // 지금 없는 사이즈의 실측은 미리 만든 객체를 그대로 넣는다
     private void replaceSizeSpecs(List<SizeSpec> current) {
         Map<AttributeValue, SizeSpec> bySize = bySize(current);
         List<SizeSpec> added = new ArrayList<>();
@@ -159,7 +151,6 @@ final class SaleInputsReplacement {
         current.addAll(added);
     }
 
-    // 보관하지 않은 옵션을 값 조합으로 찾을 수 있게 모은다. 값 묶음은 순서와 상관없는 집합으로 비교한다
     private static Map<Set<AttributeValue>, ProductOption> activeBySet(List<ProductOption> options) {
         Map<Set<AttributeValue>, ProductOption> bySet = new LinkedHashMap<>();
         for (ProductOption option : ProductOptions.activeOptions(options)) {
@@ -172,7 +163,6 @@ final class SaleInputsReplacement {
         return new HashSet<>(ProductOptions.valuesOf(option));
     }
 
-    // 실측을 사이즈 값으로 찾을 수 있게 모은다
     private static Map<AttributeValue, SizeSpec> bySize(List<SizeSpec> sizeSpecs) {
         Map<AttributeValue, SizeSpec> bySize = new HashMap<>();
         for (SizeSpec sizeSpec : sizeSpecs) {

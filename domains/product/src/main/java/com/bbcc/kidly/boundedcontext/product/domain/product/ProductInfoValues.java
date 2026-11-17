@@ -24,7 +24,6 @@ final class ProductInfoValues {
     private ProductInfoValues() {
     }
 
-    // 정보 값의 항목과 값 목록, 목록 안의 값은 null이면 안 된다. 직접 입력한 글(text)은 null을 허용한다
     static void requireNonNullValues(List<InfoValueInfo> infoValues) {
         for (InfoValueInfo infoValue : infoValues) {
             requireNonNull(infoValue, "infoValue는 필수입니다");
@@ -36,7 +35,6 @@ final class ProductInfoValues {
         }
     }
 
-    // 목록 값마다 한 행을, 직접 입력한 글이 있으면 그 항목의 한 행을 입력 순서대로 만든다
     static List<ProductInfoValue> create(Product product, List<InfoValueInfo> infoValues) {
         List<ProductInfoValue> rows = new ArrayList<>();
         for (InfoValueInfo infoValue : infoValues) {
@@ -50,7 +48,6 @@ final class ProductInfoValues {
         return rows;
     }
 
-    // 받은 값으로 만들 행이 지금 행과 순서까지 모두 같은지 본다. 비교용 행은 create로 만들기만 하고 상품에 붙이지 않는다
     static boolean sameAs(Product product, List<ProductInfoValue> current, List<InfoValueInfo> infoValues) {
         List<ProductInfoValue> received = create(product, infoValues);
         if (received.size() != current.size()) {
@@ -73,7 +70,6 @@ final class ProductInfoValues {
         validateRequiredInfoValues(infoValues, productType);
     }
 
-    // 값을 넣은 항목은 이 유형에 정보 항목으로 연결돼 있어야 한다. 유형에 없는 항목이나 옵션 항목은 거절한다
     private static void validateInfoAttributes(List<InfoValueInfo> infoValues, ProductType productType) {
         for (InfoValueInfo infoValue : infoValues) {
             Optional<ProductTypeAttribute> link = productType.findLink(infoValue.attribute());
@@ -83,7 +79,6 @@ final class ProductInfoValues {
         }
     }
 
-    // 직접 입력 항목은 글자만, 그 밖의 항목(팔레트 · 목록 · 다중 선택 목록)은 목록 값만 받는다
     private static void validateInputTypes(List<InfoValueInfo> infoValues) {
         for (InfoValueInfo infoValue : infoValues) {
             boolean isText = infoValue.attribute().getInputType() == AttributeInputType.TEXT;
@@ -140,7 +135,6 @@ final class ProductInfoValues {
         }
     }
 
-    // 목록 항목은 values가, 직접 입력 항목은 text가 비어 있지 않아야 값이 있는 것이다
     private static boolean hasValue(List<InfoValueInfo> infoValues, Attribute attribute) {
         for (InfoValueInfo infoValue : infoValues) {
             if (infoValue.attribute() != attribute) {

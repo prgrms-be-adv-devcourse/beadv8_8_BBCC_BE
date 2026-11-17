@@ -9,19 +9,15 @@ import java.util.Optional;
 
 public interface ProductRepository {
 
-    // 상품을 저장한다. 옵션 · 실측 · 정보 값은 상품과 함께 저장된다
     Product save(Product product);
 
     // 저장하고 바로 DB에 반영해, 늘어난 version을 같은 트랜잭션에서 읽을 수 있게 한다
     Product saveAndFlush(Product product);
 
-    // 상품을 ID로 찾는다. 없으면 빈 값을 돌려준다
     Optional<Product> findById(Long id);
 
-    // 저장된 모든 상품을 돌려준다
     List<Product> findAll();
 
-    // 저장된 상품의 수를 돌려준다
     long count();
 
     // 그 카테고리에 등록된 상품이 하나라도 있는지 본다. 카테고리 설정을 바꿀 때 기존 상품을 깨는지 판단하는 데 쓴다
@@ -53,7 +49,6 @@ public interface ProductRepository {
     // SKU 코드 · 판매가 · 실측처럼 자식 행만 바뀐 수정에서 version을 확실히 올리려고 쓴다
     void incrementVersion(Product product);
 
-    // 상품을 ID로 찾는다. 없으면 404 오류(PRODUCT_NOT_FOUND)를 던진다
     default Product getById(Long id) {
         return findById(id).orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
     }

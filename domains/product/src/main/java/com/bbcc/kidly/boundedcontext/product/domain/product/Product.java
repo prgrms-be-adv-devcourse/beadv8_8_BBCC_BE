@@ -164,8 +164,6 @@ public class Product extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private ProductStatus status;
 
-    // 관리자가 운영 정책을 어긴 상품을 판매중지했는지 나타낸다. 켜져 있으면 판매자가 다시 판매를 시작할 수 없다.
-    // 상품 행이 이미 있는 표에도 칸을 더할 수 있게 DB 기본값을 false로 둔다
     @ColumnDefault("false")
     @Column(name = "is_stopped_by_admin", nullable = false)
     private boolean stoppedByAdmin;
@@ -174,7 +172,6 @@ public class Product extends BaseTimeEntity {
     @Column(name = "sale_started_at")
     private LocalDateTime saleStartedAt;
 
-    // 같은 상품을 동시에 바꾸면 나중 쪽이 실패한다
     @Version
     private Long version;
 
@@ -260,7 +257,6 @@ public class Product extends BaseTimeEntity {
         if (category != info.category()) {
             rejectDeletedCategory(info.category());
         }
-        // 정보 값은 등록할 때와 같은 규칙으로 검사한다. 상품 유형은 받은 카테고리에서 꺼낸다
         ProductInfoValues.validate(info.infoValues(), info.category().productTypeToRegister());
         // 옵션 · 가격 · 실측은 주문이 없는 판매대기 상품에서만 바꿔 넣는다. 같은 값을 보내도 거절한다
         if (saleInputs != null && status != ProductStatus.SALE_PENDING) {
@@ -276,7 +272,6 @@ public class Product extends BaseTimeEntity {
         if (saleInputs != null) {
             replacement = SaleInputsReplacement.prepare(this, saleInputs, info.category());
         } else if (category != info.category()) {
-            // 카테고리를 바꾸면 옵션 · 실측도 새 카테고리에 맞게 다시 쓴다. 지금 옵션 · 실측을 그대로 옮기지 않는다
             throw new BusinessException(ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_CATEGORY_CHANGE);
         }
         // 받은 값이 지금과 같으면 같은 요청을 다시 받은 것이라 아무것도 바꾸지 않는다
@@ -304,7 +299,6 @@ public class Product extends BaseTimeEntity {
         }
     }
 
-    // 기본 정보와 정보 값을 받은 값으로 바꾼다
     private void replaceInfo(UpdateInfo info) {
         name = info.name();
         brand = info.brand();
@@ -312,7 +306,6 @@ public class Product extends BaseTimeEntity {
         thumbnailUrl = info.thumbnailUrl();
         imageUrls = new ArrayList<>(info.imageUrls());
         category = info.category();
-        // 정보 값은 받은 값으로 통째로 바꾸므로 이전 행을 모두 빼고 받은 값으로 다시 만든다
         infoValues.clear();
         infoValues.addAll(ProductInfoValues.create(this, info.infoValues()));
     }
