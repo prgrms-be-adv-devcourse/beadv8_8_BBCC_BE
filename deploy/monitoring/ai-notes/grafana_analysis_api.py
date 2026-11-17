@@ -106,7 +106,8 @@ class AnalysisAPI:
         if trigger is None:
             return 202, {'state': 'ignored'}
         focus, text = trigger
-        code, result = self.requests.request(is_operator=True, provider='groq', focus=focus, trigger=text)
+        # 알림이 부른 분석만 Slack 에 올린다(share=True). 기본값은 올리지 않음
+        code, result = self.requests.request(is_operator=True, provider='groq', focus=focus, trigger=text, share=True)
         # 한도 · 실행 중도 2xx 로 돌려 Grafana 가 같은 알림을 재전송하지 않게 한다
         return (202 if code in (202, 409, 429) else code), result
 
@@ -131,6 +132,8 @@ class AnalysisAPI:
                 is_operator=operator, provider=headers.get('X-Kidly-AI-Provider', 'groq'),
                 paid_confirmed=headers.get('X-Kidly-AI-Confirm-Paid') == 'true',
                 focus=headers.get('X-Kidly-AI-Focus', 'overview'),
+                # Slack 은 사람이 처리할 일만 받는다. 버튼 실행은 누른 사람이 이 화면에서 보고, Slack 에는 알림이 부른 분석만 올린다
+                share=False,
             )
         return self.requests.read(is_operator=operator)
 

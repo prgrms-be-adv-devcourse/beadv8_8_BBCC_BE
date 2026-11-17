@@ -127,7 +127,9 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
         self.assertIn('kidly_ai_analysis_provider_enabled', provider['query'])
         self.assertEqual((run['datasource']['uid'], status['datasource']['uid']), ('prometheus', 'prometheus'))
         actions = run['fieldConfig']['overrides'][0]['properties'][1]['value']
-        self.assertEqual(len(actions), 1)
+        # One run button; Slack only receives alert-triggered analysis (things a person must act on)
+        self.assertEqual([item['title'] for item in actions], ['새 분석 실행'])
+        self.assertIn('Slack에는 올리지 않습니다', actions[0]['confirmation'])
         action = actions[0]
         self.assertIn(['X-Kidly-AI-Provider', '${provider:raw}'], action['fetch']['headers'])
         self.assertIn('청구', action['confirmation'])

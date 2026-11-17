@@ -136,7 +136,7 @@ class SlackNotifierTest(unittest.TestCase):
         for result, expected in (('published', 1), ('failed', 0)):
             calls.clear()
             handler = AnalysisRequests(lambda **_: result, lambda: 0, notifier=boom, clock=lambda: 100)
-            handler.request(is_operator=True, trigger='Grafana 버튼')
+            handler.request(is_operator=True, trigger='알림 "5xx 증가"', share=True)
             for _ in range(200):
                 if handler.read(is_operator=True)[1]['state'] != 'running':
                     break
@@ -146,6 +146,36 @@ class SlackNotifierTest(unittest.TestCase):
             self.assertEqual(handler.read(is_operator=True)[1]['state'], result)
         self.assertEqual(slack_text('a\nb', provider='openai', trigger='Grafana 버튼').splitlines()[0],
                          '🤖 AI 운영 분석 · OpenAI · Grafana 버튼')
+
+
+class ButtonShareTest(unittest.TestCase):
+    def run_button(self, headers):
+        from grafana_analysis_api import ACTION_PATH
+        shared = []
+        auth = MagicMock()
+        auth.is_operator.return_value = True
+        requests = AnalysisRequests(lambda **_: 'published', lambda: 0, clock=lambda: 100,
+                                    notifier=lambda **kwargs: shared.append(kwargs))
+        api = AnalysisAPI(auth, requests, origin='https://grafana.example.test')
+        code, _ = api.dispatch('POST', ACTION_PATH, {'Origin': 'https://grafana.example.test', 'Content-Length': '2', **headers}, b'{}')
+        self.assertEqual(code, 202)
+        requests.thread.join(2)
+        self.assertFalse(requests.thread.is_alive())
+        return shared
+
+    def test_button_never_posts_to_slack_but_alert_does(self):
+        # Slack is for things a person must act on: alert-triggered analysis only, never a manual run
+        self.assertEqual(self.run_button({}), [])
+        self.assertEqual(self.run_button({'X-Kidly-AI-Share': 'slack'}), [])
+        shared = []
+        requests = AnalysisRequests(lambda **_: 'published', lambda: 0, clock=lambda: 100,
+                                    notifier=lambda **kwargs: shared.append(kwargs))
+        requests.request(is_operator=True, trigger='알림 "5xx 증가"', share=True)
+        requests.thread.join(2)
+        self.assertEqual(len(shared), 1)
+        requests.request(is_operator=True)  # default never shares
+        requests.thread.join(2)
+        self.assertEqual(len(shared), 1)
 
 
 class AlertDeploymentTest(unittest.TestCase):

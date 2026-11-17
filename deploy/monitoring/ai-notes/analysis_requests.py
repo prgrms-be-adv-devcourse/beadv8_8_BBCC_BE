@@ -63,7 +63,7 @@ class AnalysisRequests:
         # 게시 뒤 요약을 알릴 곳(Slack). 실패해도 분석 결과에는 영향이 없다
         self.notifier = notifier
 
-    def request(self, *, is_operator, provider='groq', paid_confirmed=False, focus='overview', trigger='Grafana 버튼'):
+    def request(self, *, is_operator, provider='groq', paid_confirmed=False, focus='overview', trigger='Grafana 버튼', share=False):
         if not is_operator:
             return 403, {'state': 'forbidden'}
         if focus not in ANALYSIS_FOCUS:
@@ -84,8 +84,9 @@ class AnalysisRequests:
                 return 429, {'state': 'limited', 'next_at': next_at}
             self.status = 'running'
             self.provider = provider
-            Thread(target=self._run, args=(self.runners[provider], focus, provider, trigger, int(self.clock())),
-                   daemon=True).start()
+            self.thread = Thread(target=self._run, args=(self.runners[provider], focus, provider, trigger, int(self.clock()), share),
+                                 daemon=True)
+            self.thread.start()
             return 202, {'state': 'running'}
 
     def read(self, *, is_operator):
@@ -101,7 +102,7 @@ class AnalysisRequests:
                     return 503, {'state': 'unavailable'}
             return 200, result
 
-    def _run(self, runner, focus, provider='groq', trigger='Grafana 버튼', started=0):
+    def _run(self, runner, focus, provider='groq', trigger='Grafana 버튼', started=0, share=False):
         try:
             result = runner(focus=focus)
         except Exception:
@@ -111,7 +112,8 @@ class AnalysisRequests:
             self.status = result
             if result == 'published':
                 self.published_at = int(self.clock())
-        if result == 'published' and self.notifier is not None:
+        # 알림이 부른 분석만 Slack 에 올린다(사람이 처리할 알림에 붙는 근거). 버튼 실행은 화면에서만 본다
+        if result == 'published' and share and self.notifier is not None:
             try:
                 self.notifier(provider=provider, trigger=trigger, since=started)
             except Exception:
