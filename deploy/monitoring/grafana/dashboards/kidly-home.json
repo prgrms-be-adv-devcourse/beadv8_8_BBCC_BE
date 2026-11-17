@@ -763,7 +763,7 @@
           },
           "options": {
             "mode": "markdown",
-            "content": "[서버 자원](/d/kidly-server) · [JVM](/d/kidly-jvm) · [Spring Boot](/d/kidly-spring-boot)"
+            "content": "[서비스 상세](/d/kidly-service) · [서버 자원](/d/kidly-server) · 참고: [JVM 원시 지표](/d/kidly-jvm) · [Spring Boot 원시 지표](/d/kidly-spring-boot)"
           }
         }
       ]
