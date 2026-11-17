@@ -105,6 +105,12 @@ Grafana → Kidly → **Kidly 부하 테스트** (운영 홈 · 서비스 상태
    - k6 초당 요청이 VU를 늘려도 더 오르지 않는 지점: 서버 처리량의 한계
    - 그 시각의 서버 평균 응답 · CPU · DB 연결 기다림: 무엇이 먼저 막혔는지
    - 보라색 세로선은 서비스 재시작입니다. 부하 중에 나오면 OOM · 헬스체크 실패를 확인합니다
+5. 맨 아래 "서버 한계"는 결과를 앱 한계로 말하기 전에 확인합니다
+   - **앱 서버 CPU · steal**: 사용률이 100%에 붙으면 노드가 먼저 한계입니다. steal이 오르면 t3 CPU 크레딧이 떨어졌을 수 있으니 AWS 콘솔 → EC2 → 모니터링 → `CPUCreditBalance`를 같은 시각으로 캡처해 둡니다(Prometheus에는 없음)
+   - **서비스별 CPU(코어)**: 앱 서버는 2코어이고 컨테이너 CPU 한도가 없어 스로틀링 지표는 없습니다. 합이 2에 가까우면 노드 CPU가 상한입니다
+   - **서비스별 파드 수**: 추천 서비스 자동 확장(1~2개)이 늘었는지 봅니다
+   - **Gateway 속도 제한(429)**: 값이 있으면 k6 실패 중 429는 서버 한계가 아니라 제한입니다. 요약의 실패율은 429를 빼고, 429 비율은 따로 보여 줍니다
+   - 응답 시간은 k6를 돌린 PC 기준(네트워크 포함, 사용자 체감)입니다. 발표 자료에 그렇게 적습니다
 
 ## 지표 이름 (k6 v1.x, experimental-prometheus-rw)
 
@@ -112,7 +118,8 @@ Grafana → Kidly → **Kidly 부하 테스트** (운영 홈 · 서비스 상태
 |---|---|
 | 요청 수 · 초당 요청 | `k6_http_reqs_total` (라벨 `testid` · `name` · `status` · `expected_response`) |
 | 응답 시간 | `k6_http_req_duration_p95` · `_p99` · `_avg` (초 단위, 테스트 시작부터 누적) |
-| 실패율 | `k6_http_reqs_total{expected_response="false"}` ÷ 전체 |
+| 실패율 | `k6_http_reqs_total{expected_response="false",status!="429"}` ÷ 전체 (429는 `status="429"` 따로) |
+| 앱 서버 · 파드 · 속도 제한 | `node_cpu_seconds_total`(idle · steal) · `container_cpu_usage_seconds_total`(namespace `kidly-dev`) · `kidly_gateway_rate_limited_total`(라벨 `target`) |
 | 가상 사용자 | `k6_vus` · `k6_vus_max` |
 | check | `k6_checks_rate` (라벨 `check`) |
 
