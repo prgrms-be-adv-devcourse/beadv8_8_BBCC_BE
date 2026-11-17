@@ -14,7 +14,6 @@ import com.bbcc.kidly.boundedcontext.childprofile.domain.GrowthRecordRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileErrorCode;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
-import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.childprofile.event.ChildGrowthRecordDeletedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,7 +42,7 @@ public class ChildProfileService {
         }
         var now = LocalDateTime.now();
         var child = childProfileRepository.save(ChildProfile.register(request.toRegisterInfo(memberId), now));
-        publish(child, false, now);
+        eventPublisher.publishEvent(child.toChangedEvent(now));
         publishGrowthRecorded(child.getGrowthRecords().getLast());
         log.info("자녀 등록: memberId={} childId={}", memberId, child.getId());
         return ChildProfileResult.from(child);
@@ -87,7 +86,7 @@ public class ChildProfileService {
         var now = LocalDateTime.now();
         var child = childProfileRepository.getByIdAndMemberId(childId, memberId);
         var recorded = child.update(request.toUpdateInfo(), now);
-        publish(child, false, now);
+        eventPublisher.publishEvent(child.toChangedEvent(now));
         recorded.ifPresent(this::publishGrowthRecorded);
         log.info("자녀 수정: memberId={} childId={}", memberId, childId);
         return ChildProfileResult.from(child);
@@ -98,7 +97,7 @@ public class ChildProfileService {
         var now = LocalDateTime.now();
         var child = childProfileRepository.getByIdAndMemberId(childId, memberId);
         child.delete(now);
-        publish(child, true, now);
+        eventPublisher.publishEvent(child.toChangedEvent(now));
         log.info("자녀 삭제: memberId={} childId={}", memberId, childId);
     }
 
@@ -108,7 +107,7 @@ public class ChildProfileService {
         var children = childProfileRepository.findAllByMemberIdForUpdate(memberId);
         for (var child : children) {
             child.delete(now);
-            publish(child, true, now);
+            eventPublisher.publishEvent(child.toChangedEvent(now));
         }
         log.info("회원 자녀 전체 삭제: memberId={} count={}", memberId, children.size());
     }
@@ -132,7 +131,7 @@ public class ChildProfileService {
         var deleted = child.deleteGrowthRecord(recordId);
         var now = LocalDateTime.now();
         if (deleted.restored()) {
-            publish(child, false, now);
+            eventPublisher.publishEvent(child.toChangedEvent(now));
         }
         eventPublisher.publishEvent(new ChildGrowthRecordDeletedEvent(UUID.randomUUID(), now,
             new ChildGrowthRecordDeletedEvent.Data(deleted.record().getId(), childId)));
@@ -141,14 +140,5 @@ public class ChildProfileService {
     private void publishGrowthRecorded(GrowthRecord record) {
         var saved = growthRecordRepository.save(record);
         eventPublisher.publishEvent(saved.toRecordedEvent());
-    }
-
-    private void publish(ChildProfile child, boolean deleted, LocalDateTime now) {
-        eventPublisher.publishEvent(new ChildChangedEvent(
-            UUID.randomUUID(),
-            now,
-            new ChildChangedEvent.Data(
-                child.getId(), child.getMemberId(), child.getHeightCm(), child.getWeightKg(), child.getGender(),
-                child.getBirthDate(), child.getBodyType(), child.getPreferredFit(), deleted)));
     }
 }

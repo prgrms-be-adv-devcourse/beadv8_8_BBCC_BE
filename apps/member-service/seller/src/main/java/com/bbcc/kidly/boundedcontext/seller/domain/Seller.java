@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.seller.domain;
 import com.bbcc.kidly.member.support.entity.BaseTimeEntity;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
+import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -12,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -72,5 +74,10 @@ public class Seller extends BaseTimeEntity {
 
     public void close() {
         this.status = SellerStatus.CLOSED;
+    }
+
+    public SellerChangedEvent toChangedEvent(LocalDateTime occurredAt) {
+        return new SellerChangedEvent(UUID.randomUUID(), occurredAt,
+            new SellerChangedEvent.Data(id, businessName, status));
     }
 }

@@ -1,15 +1,12 @@
 package com.bbcc.kidly.boundedcontext.auth.in;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AuthService;
-import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenProperties;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.SocialLoginRequest;
 import com.bbcc.kidly.boundedcontext.auth.in.dto.LoginResponse;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.CacheControl;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,19 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private static final String NO_STORE = CacheControl.noStore().getHeaderValue();
-
     private final AuthService authService;
     private final RefreshTokenCookies refreshTokenCookies;
-    private final RefreshTokenProperties refreshTokenProperties;
 
     @PostMapping("/api/v1/auth/login/{provider}")
     public LoginResponse login(
         @PathVariable String provider, @Valid @RequestBody SocialLoginRequest request, HttpServletResponse response) {
         var tokens = authService.login(provider, request);
-        refreshTokenCookies.add(
-            response, PrincipalType.MEMBER, tokens.refreshToken(), refreshTokenProperties.validity());
-        response.setHeader(HttpHeaders.CACHE_CONTROL, NO_STORE);
+        refreshTokenCookies.issue(response, PrincipalType.MEMBER, tokens.refreshToken());
         return new LoginResponse(tokens.accessToken());
     }
 
@@ -43,9 +35,7 @@ public class AuthController {
         @CookieValue(name = RefreshTokenCookies.NAME, required = false) String refreshToken,
         HttpServletResponse response) {
         var tokens = authService.reissue(refreshToken);
-        refreshTokenCookies.add(
-            response, PrincipalType.MEMBER, tokens.refreshToken(), refreshTokenProperties.validity());
-        response.setHeader(HttpHeaders.CACHE_CONTROL, NO_STORE);
+        refreshTokenCookies.issue(response, PrincipalType.MEMBER, tokens.refreshToken());
         return new LoginResponse(tokens.accessToken());
     }
 

@@ -14,7 +14,6 @@ import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.seller.domain.SellerApplicationStatus;
 import com.bbcc.kidly.shared.seller.event.SellerApplicationRejectedEvent;
-import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -74,8 +73,7 @@ public class SellerApplicationService {
             throw new BusinessException(SellerErrorCode.ALREADY_SELLER);
         }
         var seller = sellerRepository.save(Seller.from(application));
-        eventPublisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), now,
-            new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+        eventPublisher.publishEvent(seller.toChangedEvent(now));
         log.info("판매자 승인: applicationId={} sellerId={} adminId={}", applicationId, seller.getId(), adminId);
         return SellerApplicationSummary.from(application);
     }
