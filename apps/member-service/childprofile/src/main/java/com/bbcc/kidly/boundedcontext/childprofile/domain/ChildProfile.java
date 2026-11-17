@@ -5,6 +5,7 @@ import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
+import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -163,6 +165,11 @@ public class ChildProfile extends BaseSoftDeleteEntity {
     }
 
     public record GrowthRecordDeletion(GrowthRecord record, boolean restored) { }
+
+    public ChildChangedEvent toChangedEvent(LocalDateTime occurredAt) {
+        return new ChildChangedEvent(UUID.randomUUID(), occurredAt, new ChildChangedEvent.Data(
+            id, memberId, heightCm, weightKg, gender, birthDate, bodyType, preferredFit, isDeleted()));
+    }
 
     public LocalDateTime lastRecordedAt() {
         return growthRecords.getLast().getRecordedAt();
