@@ -51,7 +51,9 @@ otelcol.processor.transform "tracing_ops" {
       `set(name, "Hibernate") where instrumentation_scope.name == "io.opentelemetry.hibernate-6.0"`,
       `set(name, "Spring Data") where instrumentation_scope.name == "io.opentelemetry.spring-data-1.8"`,
       `set(status.message, "")`,
-      `keep_keys(attributes, ["http.response.status_code", "http.status_code"])`,
+      `delete_key(attributes, "kidly.operation")`,
+      `set(attributes["kidly.operation"], "order.detail") where resource.attributes["service.name"] == "kidly-order" and kind == SPAN_KIND_SERVER and (attributes["http.request.method"] == "GET" or attributes["http.method"] == "GET") and attributes["http.route"] == "/api/v1/orders/{orderId}"`,
+      `keep_keys(attributes, ["http.response.status_code", "http.status_code", "kidly.operation"])`,
     ]
   }
 
