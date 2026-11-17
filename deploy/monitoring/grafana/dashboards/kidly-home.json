@@ -58,12 +58,12 @@
       "id": 9,
       "type": "table",
       "title": "서비스 상태판 · 운영(dev) · 최근 5분",
-      "description": "줄을 누르면 '서비스 상세 열기'(HTTP · JVM · DB 풀 · Kafka 한 화면) · '서비스 상태 열기' · '오류 로그 열기'를 고를 수 있습니다. 그 서비스가 선택되고 시간 범위는 유지됩니다.\n수집 상태: 정상이 아니면 서비스 상태의 '서비스 수집 상태'와 Pod 재시작 여부 확인\n5xx 비율: 오르면 오류 로그에서 같은 시각의 ERROR · 요청 로그 확인 (Gateway는 하위 서비스 오류를 포함, 5% 이상이면 알림)\nERROR 로그: 오르면 오류 로그의 'ERROR 로그'에서 예외 타입 확인 (5건 이상이면 알림)\n초당 요청: 갑자기 0이 되면 Gateway 라우팅 · 앞단 서비스 확인, 급증하면 오류율 · 응답시간 함께 확인\n평균 응답시간: 오르면 오류 로그의 'API 처리 시간(p95)'과 응답·DB 연결의 풀 대기 확인 (이 열은 평균)\nKafka 미처리: 계속 늘면 Kafka 처리 화면에서 그룹 · 토픽별 추이 확인. member 줄은 auth · childprofile · member · seller 그룹 합계 (구독하지 않거나 오프셋이 아직 확정되지 않으면 -)\n마지막 재시작: 예상하지 못한 최근 시각이면 배포 이력 · 수동 패치(#1349) 덮어쓰기 · 메모리 부족 확인",
+      "description": "줄을 누르면 '서비스 상세 열기'(HTTP · JVM · DB 풀 · Kafka 한 화면) · '서비스 상태 열기' · '오류 로그 열기'를 고를 수 있습니다. 그 서비스가 선택되고 시간 범위는 유지됩니다.\n수집 상태: 정상이 아니면 서비스 상태의 '서비스 수집 상태'와 Pod 재시작 여부 확인\n5xx 비율: 오르면 오류 로그에서 같은 시각의 ERROR · 요청 로그 확인 (Gateway는 하위 서비스 오류를 포함, 5% 이상이면 알림)\nERROR 로그: 오르면 오류 로그의 'ERROR 로그'에서 예외 타입 확인 (5건 이상이면 알림)\n초당 요청: 갑자기 0이 되면 Gateway 라우팅 · 앞단 서비스 확인, 급증하면 오류율 · 응답시간 함께 확인\n평균 응답시간: 실시간 알림 스트림(SSE) 두 경로는 뺀 평균. Gateway는 경로 구분이 없어 스트림이 섞일 수 있음. 오르면 오류 로그의 'API 처리 시간(p95)'과 응답·DB 연결의 풀 대기 확인 (이 열은 평균)\nKafka 미처리: 계속 늘면 Kafka 처리 화면에서 그룹 · 토픽별 추이 확인. member 줄은 auth · childprofile · member · seller 그룹 합계 (구독하지 않거나 오프셋이 아직 확정되지 않으면 -)\n마지막 재시작: 예상하지 못한 최근 시각이면 배포 이력 · 수동 패치(#1349) 덮어쓰기 · 메모리 부족 확인",
       "gridPos": {
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 13
+        "h": 14
       },
       "datasource": {
         "type": "prometheus",
@@ -112,7 +112,7 @@
             "uid": "prometheus"
           },
           "refId": "D",
-          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"kidly-gateway|kidly-member|kidly-product|kidly-order|kidly-payment|kidly-settlement|kidly-search|kidly-recommend|kidly-notification|kidly-community|kidly-chatbot\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0)",
           "instant": true,
           "range": false,
           "format": "table",
@@ -404,12 +404,12 @@
                 "value": "마지막 재시작"
               },
               {
-                "id": "unit",
-                "value": "dateTimeAsLocal"
-              },
-              {
                 "id": "noValue",
                 "value": "-"
+              },
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
               }
             ]
           },
@@ -504,7 +504,7 @@
       "description": "발화 중인 알림과 평가 오류·데이터 누락을 최대 6개 표시합니다.",
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 14,
         "w": 12,
         "h": 9
       },
@@ -538,7 +538,7 @@
       "title": "최근 AI 분석 · 24시간",
       "gridPos": {
         "x": 12,
-        "y": 13,
+        "y": 14,
         "w": 12,
         "h": 9
       },
@@ -582,13 +582,13 @@
       "title": "증상별로 확인하기",
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 23,
         "w": 17,
         "h": 7
       },
       "options": {
         "mode": "markdown",
-        "content": "- **어느 서비스가 이상한지** → 위 상태판에서 빨강 · 주황 칸이 있는 줄을 눌러 서비스 상태나 오류 로그로 갑니다.\n- **5xx·서비스 다운** → [서비스 상태](/d/kidly-http?var-env=dev)에서 영향 범위를 보고 [오류 로그](/d/kidly-logs?var-env=dev)에서 같은 시각을 확인합니다.\n- **응답 지연** → [오류 로그](/d/kidly-logs?var-env=dev)의 **API 처리 시간(p95)**에서 느린 경로를 찾고, [응답·DB 연결](/d/kidly-db-latency?var-env=dev)에서 풀 대기를 봅니다.\n- **Kafka 처리 지연** → [Kafka](/d/kidly-kafka?var-env=dev)에서 알림의 그룹·토픽과 오프셋 전진 여부를 확인합니다.\n- **원인을 정리할 시간이 없으면** → [AI 운영 분석](/d/kidly-ai-notes?var-env=dev)의 요청 문장을 AI 클라이언트에 붙여 넣어 분석 메모를 받습니다."
+        "content": "- **어느 서비스가 이상한지** → 위 상태판에서 빨강 · 주황 칸이 있는 줄을 눌러 서비스 상태나 오류 로그로 갑니다.\n- **5xx·서비스 다운** → [서비스 상태](/d/kidly-http?var-env=dev)에서 영향 범위를 보고 [오류 로그](/d/kidly-logs?var-env=dev)에서 같은 시각을 확인합니다.\n- **응답 지연** → [오류 로그](/d/kidly-logs?var-env=dev)의 **API 처리 시간** 패널(p95)에서 느린 경로를 찾고, [응답·DB 연결](/d/kidly-db-latency?var-env=dev)에서 풀 대기를 봅니다.\n- **Kafka 처리 지연** → [Kafka](/d/kidly-kafka?var-env=dev)에서 알림의 그룹·토픽과 오프셋 전진 여부를 확인합니다.\n- **원인을 정리할 시간이 없으면** → [AI 운영 분석](/d/kidly-ai-notes?var-env=dev)의 요청 문장을 AI 클라이언트에 붙여 넣어 분석 메모를 받습니다."
       }
     },
     {
@@ -598,7 +598,7 @@
       "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
       "gridPos": {
         "x": 17,
-        "y": 22,
+        "y": 23,
         "w": 7,
         "h": 7
       },
@@ -672,7 +672,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 30,
         "w": 24,
         "h": 1
       },
@@ -684,7 +684,7 @@
           "description": "환경 운영 설정과 전환 상태를 표시합니다. 서비스별 수집과 오류는 서비스 상태에서 확인하세요.",
           "gridPos": {
             "x": 0,
-            "y": 30,
+            "y": 31,
             "w": 8,
             "h": 4
           },
@@ -757,7 +757,7 @@
           "title": "상세 화면",
           "gridPos": {
             "x": 8,
-            "y": 30,
+            "y": 31,
             "w": 16,
             "h": 4
           },

@@ -117,7 +117,7 @@
           "values": false
         },
         "orientation": "horizontal",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "colorMode": "value",
         "graphMode": "none"
       }
@@ -161,7 +161,11 @@
         "orientation": "horizontal",
         "textMode": "value_and_name",
         "colorMode": "value",
-        "graphMode": "none"
+        "graphMode": "none",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 16
+        }
       },
       "description": "마지막 up 샘플 이후 경과 시간입니다. 5분 이상 미수신이면 데이터가 없어질 수 있습니다. 중지 환경의 과거 데이터는 보관 기간 내 조회 가능합니다."
     },
@@ -246,7 +250,11 @@
         "textMode": "value_and_name",
         "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 16
+        }
       }
     },
     {
@@ -290,8 +298,8 @@
     {
       "id": 35,
       "type": "table",
-      "title": "5xx가 난 API · 최근 5분",
-      "description": "서버 오류가 난 경로입니다. 하위 서비스 상위 10개와 Gateway 상위 5개를 따로 뽑습니다. 줄을 누르면 그 서비스의 오류 로그가 열립니다.\n건수가 오르면 같은 시각의 ERROR 로그에서 예외 타입을 확인합니다. Gateway 줄은 하위 서비스 오류가 넘어온 것일 수 있습니다.\n비어 있으면 선택 기간 끝 5분에 5xx가 없었다는 뜻입니다(수집 끊김은 위 '서비스 수집 상태'로 판단).",
+      "title": "5xx가 난 API · 선택 기간",
+      "description": "서버 오류가 난 경로입니다. 하위 서비스 상위 10개와 Gateway 상위 5개를 따로 뽑습니다. 줄을 누르면 그 서비스의 오류 로그가 열립니다.\n건수가 오르면 같은 시각의 ERROR 로그에서 예외 타입을 확인합니다. Gateway 줄은 하위 서비스 오류가 넘어온 것일 수 있습니다.\n비어 있으면 선택 기간에 5xx가 없었다는 뜻입니다(수집 끊김은 위 '서비스 수집 상태'로 판단).",
       "gridPos": {
         "x": 0,
         "y": 16,
@@ -312,7 +320,7 @@
           "instant": true,
           "range": false,
           "format": "table",
-          "expr": "topk(10, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\",job!=\"kidly-gateway\"}[5m])) > 0) or topk(5, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\",job=\"kidly-gateway\"}[5m])) > 0)"
+          "expr": "topk(10, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\",job!=\"kidly-gateway\"}[$__range])) > 0) or topk(5, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\",job=\"kidly-gateway\"}[$__range])) > 0)"
         }
       ],
       "transformations": [
@@ -358,7 +366,8 @@
               "title": "이 서비스 오류 로그 열기",
               "url": "/d/kidly-logs?var-env=${env}&var-service=${__data.fields.job}&${__url_time_range}"
             }
-          ]
+          ],
+          "noValue": "선택 기간에 해당 응답이 없습니다"
         },
         "overrides": [
           {
@@ -404,10 +413,6 @@
             },
             "properties": [
               {
-                "id": "displayName",
-                "value": "건수 · 5분"
-              },
-              {
                 "id": "decimals",
                 "value": 0
               },
@@ -423,6 +428,10 @@
                   "mode": "fixed",
                   "fixedColor": "red"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "건수"
               }
             ]
           },
@@ -449,13 +458,19 @@
         "cellHeight": "sm",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "건수",
+            "desc": true
+          }
+        ]
       }
     },
     {
       "id": 36,
       "type": "table",
-      "title": "4xx가 많은 API · 최근 5분",
+      "title": "4xx가 많은 API · 선택 기간",
       "description": "요청 오류(400 · 401 · 403 · 404 · 409 등) 경로입니다. 하위 서비스 상위 10개와 Gateway 상위 5개를 따로 뽑습니다. 줄을 누르면 그 서비스의 오류 로그가 열립니다.\n특정 경로에서 갑자기 오르면 화면 요청 형식 · 인증 만료 · 배포 직후 API 변경을 확인합니다. 정상 흐름(로그인 만료 401 등)도 섞여 있습니다.",
       "gridPos": {
         "x": 12,
@@ -477,7 +492,7 @@
           "instant": true,
           "range": false,
           "format": "table",
-          "expr": "topk(10, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"4..\",job!=\"kidly-gateway\"}[5m])) > 0) or topk(5, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"4..\",job=\"kidly-gateway\"}[5m])) > 0)"
+          "expr": "topk(10, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"4..\",job!=\"kidly-gateway\"}[$__range])) > 0) or topk(5, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"4..\",job=\"kidly-gateway\"}[$__range])) > 0)"
         }
       ],
       "transformations": [
@@ -523,7 +538,8 @@
               "title": "이 서비스 오류 로그 열기",
               "url": "/d/kidly-logs?var-env=${env}&var-service=${__data.fields.job}&${__url_time_range}"
             }
-          ]
+          ],
+          "noValue": "선택 기간에 해당 응답이 없습니다"
         },
         "overrides": [
           {
@@ -569,10 +585,6 @@
             },
             "properties": [
               {
-                "id": "displayName",
-                "value": "건수 · 5분"
-              },
-              {
                 "id": "decimals",
                 "value": 0
               },
@@ -588,6 +600,10 @@
                   "mode": "fixed",
                   "fixedColor": "orange"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "건수"
               }
             ]
           },
@@ -614,7 +630,13 @@
         "cellHeight": "sm",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "건수",
+            "desc": true
+          }
+        ]
       }
     },
     {
@@ -641,7 +663,11 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit"
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "axisSoftMax": 0.05
+          }
         },
         "overrides": []
       },
@@ -697,7 +723,7 @@
       "id": 30,
       "type": "timeseries",
       "title": "평균 API 응답 시간",
-      "description": "서비스별 최근 5분 평균입니다. 같은 시간대 요청 수·오류율을 함께 보세요. p95는 히스토그램을 수집한 뒤 확인할 수 있습니다.",
+      "description": "서비스별 최근 5분 평균입니다. 같은 시간대 요청 수·오류율을 함께 보세요. p95는 히스토그램을 수집한 뒤 확인할 수 있습니다. 실시간 알림 스트림(SSE) 경로는 연결이 오래 열려 있어 평균에서 뺍니다(Gateway는 경로 구분이 없어 섞일 수 있음).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -717,7 +743,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0)",
           "legendFormat": "{{job}}"
         }
       ]

@@ -236,7 +236,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 0
+          "decimals": 0,
+          "noValue": "선택 기간에 예외 타입이 있는 ERROR 로그가 없습니다"
         },
         "overrides": [
           {

@@ -204,8 +204,8 @@
     },
     {
       "type": "stat",
-      "title": "5xx 비율 · 5분",
-      "description": "오르면 아래 'API별 5xx 비율'에서 경로를 찾고 같은 시간 로그의 예외를 확인합니다. 5% 이상이면 알림입니다.",
+      "title": "5xx 비율",
+      "description": "최근 5분. 오르면 아래 'API별 5xx 비율'에서 경로를 찾고 같은 시간 로그의 예외를 확인합니다. 5% 이상이면 알림입니다.",
       "gridPos": {
         "x": 4,
         "y": 0,
@@ -240,7 +240,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
-          "noValue": "데이터 없음",
+          "noValue": "요청 없음",
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
@@ -280,8 +280,8 @@
     },
     {
       "type": "stat",
-      "title": "초당 요청 · 5분",
-      "description": "갑자기 0이 되면 Gateway 라우팅과 앞단 서비스를, 급증하면 오류율 · 응답시간을 함께 봅니다.",
+      "title": "초당 요청",
+      "description": "최근 5분. 갑자기 0이 되면 Gateway 라우팅과 앞단 서비스를, 급증하면 오류율 · 응답시간을 함께 봅니다.",
       "gridPos": {
         "x": 8,
         "y": 0,
@@ -339,8 +339,8 @@
     },
     {
       "type": "stat",
-      "title": "평균 응답 · 5분",
-      "description": "오르면 아래 '경로별 평균 응답'으로 느린 API를 찾고 DB 커넥션 풀 대기 · GC를 확인합니다. 평균이며 p95가 아닙니다.",
+      "title": "평균 응답",
+      "description": "최근 5분. 오르면 아래 '경로별 평균 응답'으로 느린 API를 찾고 DB 커넥션 풀 대기 · GC를 확인합니다. 평균이며 p95가 아닙니다. 실시간 알림 스트림(SSE) 경로는 뺍니다.",
       "gridPos": {
         "x": 12,
         "y": 0,
@@ -354,7 +354,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum(rate(http_server_requests_seconds_sum{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m])) / (sum(rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "expr": "sum(rate(http_server_requests_seconds_sum{env=\"$env\",job=\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum(rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0)",
           "legendFormat": "",
           "instant": true,
           "range": false
@@ -375,7 +375,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "noValue": "데이터 없음",
+          "noValue": "요청 없음",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -414,8 +414,8 @@
     },
     {
       "type": "stat",
-      "title": "ERROR 로그 · 5분",
-      "description": "오르면 오류 로그 화면의 '자주 난 예외'에서 예외 타입을 확인합니다. 5건 이상이면 알림입니다.",
+      "title": "ERROR 로그",
+      "description": "최근 5분. 오르면 오류 로그 화면의 '자주 난 예외'에서 예외 타입을 확인합니다. 5건 이상이면 알림입니다.",
       "gridPos": {
         "x": 16,
         "y": 0,
@@ -526,7 +526,11 @@
       "fieldConfig": {
         "defaults": {
           "unit": "dateTimeFromNow",
-          "noValue": "데이터 없음"
+          "noValue": "데이터 없음",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       },
@@ -758,7 +762,7 @@
     {
       "type": "timeseries",
       "title": "경로별 평균 응답 (상위 10)",
-      "description": "오르는 경로가 있으면 DB 커넥션 풀 대기 · 외부 호출 · GC를 확인합니다. 평균이며 p95는 오류 로그 화면의 API 처리 시간에서 봅니다.",
+      "description": "오르는 경로가 있으면 DB 커넥션 풀 대기 · 외부 호출 · GC를 확인합니다. 평균이며 p95는 오류 로그 화면의 API 처리 시간에서 봅니다. 실시간 알림 스트림(SSE) 경로는 연결이 오래 열려 있어 뺍니다.",
       "gridPos": {
         "x": 12,
         "y": 13,
@@ -772,7 +776,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "topk(10, sum by (method, uri) (rate(http_server_requests_seconds_sum{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m])) / (sum by (method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m])) > 0))",
+          "expr": "topk(10, sum by (method, uri) (rate(http_server_requests_seconds_sum{env=\"$env\",job=\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum by (method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0))",
           "legendFormat": "{{method}} {{uri}}"
         }
       ],
