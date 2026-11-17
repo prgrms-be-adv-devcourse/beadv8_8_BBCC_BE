@@ -103,13 +103,17 @@ def exception_query(environment):
 
 
 def exception_facts(environment, now):
+    counts = {}
     for row in log_rows(exception_query(environment), now):
         service = row['metric'].get('service_name')
         # 패키지 경로를 빼고 클래스 이름만 남긴다(내부 클래스 $ 이하도 뺀다). 형식이 다르면 버린다
         name = str(row['metric'].get('error_type', '')).rsplit('.', 1)[-1].split('$', 1)[0]
         value = float(row['value'][1])
         if service in JOBS and EXCEPTION_NAME.fullmatch(name) and math.isfinite(value) and value > 0:
-            yield 'error_type_30m:' + name, value, service
+            # 이름을 줄이면 다른 클래스가 같은 이름이 될 수 있어 서비스 · 이름별로 더한다(근거 중복 방지)
+            counts[service, name] = counts.get((service, name), 0) + value
+    for (service, name), value in counts.items():
+        yield 'error_type_30m:' + name, value, service
 
 
 def previous_http_facts(environment, now, facts):

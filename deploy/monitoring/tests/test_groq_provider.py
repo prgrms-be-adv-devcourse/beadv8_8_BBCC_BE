@@ -121,6 +121,7 @@ class GroqProviderTest(unittest.TestCase):
             {'metric': {'service_name': 'kidly-recommend',
                         'error_type': 'org.springframework.transaction.CannotCreateTransactionException'}, 'value': [3600, '379']},
             {'metric': {'service_name': 'kidly-order', 'error_type': 'com.x.Outer$Inner'}, 'value': [3600, '2']},
+            {'metric': {'service_name': 'kidly-order', 'error_type': 'org.y.Outer$Other'}, 'value': [3600, '3']},
             {'metric': {'service_name': 'kidly-unknown', 'error_type': 'java.io.IOException'}, 'value': [3600, '5']},
             {'metric': {'service_name': 'kidly-order', 'error_type': 'bad name; DROP'}, 'value': [3600, '9']},
         ]}}
@@ -128,7 +129,8 @@ class GroqProviderTest(unittest.TestCase):
             sample = snapshot.collect('dev', 3600)
         facts = {(fact.metric, fact.service): fact.value for fact in sample.evidence}
         self.assertEqual(facts, {('error_type_30m:CannotCreateTransactionException', 'kidly-recommend'): 379,
-                                 ('error_type_30m:Outer', 'kidly-order'): 2})
+                                 ('error_type_30m:Outer', 'kidly-order'): 5})
+        self.assertEqual(len([f for f in sample.evidence if f.metric == 'error_type_30m:Outer']), 1)
         self.assertIn('topk(8,', read.call_args.args[0])
         self.assertTrue(any(line.startswith('error_type_30m:<Class>') for line in sample.limitations))
         with patch('snapshot.metric_rows', return_value=[]), patch('snapshot.log_rows', side_effect=OSError):
