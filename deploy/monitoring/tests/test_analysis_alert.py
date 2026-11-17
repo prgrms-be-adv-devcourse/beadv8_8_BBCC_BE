@@ -79,6 +79,18 @@ class AlertTriggerTest(unittest.TestCase):
                          ('errors', '알림 "ERROR 로그" (kidly-order)'))
         self.assertEqual(alert_trigger(firing('서비스 다운', ())), ('overview', '알림 "서비스 다운"'))
         self.assertIsNone(alert_trigger(firing('x\n' * 30)))
+        # Malformed shapes never raise (no 500), they are ignored or fall back to the first alert's labels
+        for payload in ({'status': 'firing', 'alerts': 'x'}, {'status': 'firing', 'commonLabels': 'x', 'alerts': [{'status': 'firing', 'labels': 'x'}]},
+                        {'status': 'firing', 'alerts': [{'status': 'firing', 'labels': {'alertname': '5xx 증가', 'job': 7}}]}, []):
+            alert_trigger(payload)
+        self.assertEqual(alert_trigger({'status': 'firing', 'alerts': [{'status': 'firing', 'labels': {'alertname': '5xx 증가', 'job': 7}}]}),
+                         ('errors', '알림 "5xx 증가"'))
+
+    def test_focus_keys_match_rule_titles(self):
+        from grafana_analysis_api import ALERT_FOCUS
+        rules = (ROOT / 'grafana/provisioning/alerting/alerting.yml').read_text() + (ROOT / 'grafana/provisioning/alerting/resources.yml').read_text()
+        for title in ALERT_FOCUS:
+            self.assertRegex(rules, r'title: ' + title + r'\n')
 
 
 class SlackNotifierTest(unittest.TestCase):

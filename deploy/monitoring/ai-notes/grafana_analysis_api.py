@@ -67,12 +67,18 @@ def alert_trigger(payload):
     """Grafana webhook payload → (focus, trigger text). Only labels Grafana sets; no annotations or values."""
     if not isinstance(payload, dict) or payload.get('status') != 'firing':
         return None
-    alerts = [item for item in payload.get('alerts') or () if isinstance(item, dict) and item.get('status') == 'firing']
-    labels = payload.get('commonLabels') if isinstance(payload.get('commonLabels'), dict) else {}
-    name = labels.get('alertname') or (alerts[0].get('labels') or {}).get('alertname') if alerts else labels.get('alertname')
+    def labels_of(value):
+        return value if isinstance(value, dict) else {}
+
+    alerts = payload.get('alerts') if isinstance(payload.get('alerts'), list) else []
+    alerts = [item for item in alerts if isinstance(item, dict) and item.get('status') == 'firing']
+    name = labels_of(payload.get('commonLabels')).get('alertname')
+    if name is None and alerts:
+        name = labels_of(alerts[0].get('labels')).get('alertname')
     if not isinstance(name, str) or not 1 <= len(name) <= 50 or any(ord(char) < 32 for char in name):
         return None
-    jobs = sorted({(item.get('labels') or {}).get('job') for item in alerts} - {None})
+    jobs = {labels_of(item.get('labels')).get('job') for item in alerts}
+    jobs = sorted(job for job in jobs if isinstance(job, str))
     jobs = [job for job in jobs if isinstance(job, str) and re.fullmatch(r'kidly-[a-z][a-z0-9-]{0,50}', job)][:5]
     trigger = f'알림 "{name}"' + (f' ({", ".join(jobs)})' if jobs else '')
     return ALERT_FOCUS.get(name, 'overview'), trigger
