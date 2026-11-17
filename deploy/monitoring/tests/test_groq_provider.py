@@ -90,7 +90,28 @@ class GroqProviderTest(unittest.TestCase):
         self.assertLessEqual(len(request.data), 24000)
         message = json.loads(json.loads(request.data)['messages'][1]['content'])
         self.assertEqual(len([f for f in message['evidence'] if f['metric'] == 'mean_response_previous_30m']),
-                         len(snapshot.JOBS))
+                         len(snapshot.JOBS) - 1)
+
+    def test_gateway_latency_is_never_sent_and_sse_paths_are_excluded(self):
+        definitions = snapshot.queries('dev')
+        for name in ('requests_30m', 'errors_30m', 'duration_sum_30m'):
+            self.assertIn('notifications/stream', definitions[name][1])
+        self.assertIn('job!~"kidly-gateway"', definitions['duration_sum_30m'][1])
+
+        def rows(expression, when):
+            # Even if Prometheus returned a Gateway duration row, it must not become evidence.
+            if 'http_server_requests' not in expression:
+                return []
+            return [{'metric': {'job': job}, 'value': [when, 10]} for job in ('kidly-gateway', 'kidly-order')]
+
+        with patch('snapshot.metric_rows', side_effect=rows):
+            sample = snapshot.collect('dev', 3600, compare_http=True)
+        gateway = {fact.metric for fact in sample.evidence if fact.service == 'kidly-gateway'}
+        self.assertIn('requests_30m', gateway)
+        self.assertIn('requests_previous_30m', gateway)
+        self.assertFalse({'duration_sum_30m', 'mean_response_current_30m', 'mean_response_previous_30m'} & gateway)
+        self.assertIn('mean_response_current_30m', {fact.metric for fact in sample.evidence if fact.service == 'kidly-order'})
+        self.assertTrue(any('SSE' in line for line in sample.limitations))
 
     def test_stdin_key_boundaries_do_not_echo_input(self):
         for raw in (b'private-without-newline', b'x'*257+b'\n', b'\xff\n'):
