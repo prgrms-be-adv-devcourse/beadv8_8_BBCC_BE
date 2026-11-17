@@ -55,7 +55,7 @@ spec:
             - name: action.auto_create_index
               value: "false"
             - name: ES_JAVA_OPTS
-              value: -Xms512m -Xmx512m
+              value: -Xms384m -Xmx384m
           ports:
             - name: http
               containerPort: 9200
