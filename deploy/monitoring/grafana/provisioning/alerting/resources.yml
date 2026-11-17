@@ -189,5 +189,6 @@ groups:
       severity: warning
     annotations:
       service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
+      ai_prompt: 'DB 연결 대기 · 사용 중 · 최대(hikaricp_connections_pending · active · max)와 연결 획득 시간, 같은 시각 요청량 · 5xx를 비교해 요청 폭증인지 느린 쿼리 · 연결 누수인지 봐줘'
       summary: '{{ $labels.job }} · {{ $labels.pool }} 풀에서 여유 DB 연결 없이 5분간 요청이 대기했습니다'
       description: DB 연결 대기와 타임아웃을 확인하세요. 같은 시간의 요청량, 연결 획득 시간, DB 쿼리 지연을 확인해 원인을 좁히세요.
