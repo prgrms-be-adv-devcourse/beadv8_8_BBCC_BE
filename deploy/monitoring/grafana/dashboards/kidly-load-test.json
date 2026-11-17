@@ -162,8 +162,12 @@
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "noValue": "데이터 없음",
-          "decimals": 0
+          "noValue": "테스트를 고르세요",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       }
@@ -211,8 +215,12 @@
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "noValue": "데이터 없음",
-          "decimals": 0
+          "noValue": "테스트를 고르세요",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
         },
         "overrides": []
       }
@@ -260,7 +268,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
-          "noValue": "데이터 없음",
+          "noValue": "테스트를 고르세요",
           "decimals": 2,
           "thresholds": {
             "mode": "absolute",
@@ -278,6 +286,9 @@
                 "value": 0.05
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -326,7 +337,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "noValue": "데이터 없음",
+          "noValue": "테스트를 고르세요",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -343,6 +354,9 @@
                 "value": 1
               }
             ]
+          },
+          "color": {
+            "mode": "thresholds"
           }
         },
         "overrides": []
@@ -872,7 +886,7 @@
       "id": 16,
       "type": "timeseries",
       "title": "평균 응답",
-      "description": "서버가 잰 평균 응답(1분)입니다. p95는 앱에 히스토그램이 없어 k6 값으로만 봅니다. 오르면 DB 풀 대기 · GC를 확인합니다.",
+      "description": "서버가 잰 평균 응답(1분)입니다. p95는 앱에 히스토그램이 없어 k6 값으로만 봅니다. 오르면 DB 풀 대기 · GC를 확인합니다. 실시간 알림 스트림(SSE) 경로는 뺍니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -890,7 +904,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"dev\",job=~\"$service\",uri!~\"/actuator.*\"}[1m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"$service\",uri!~\"/actuator.*\"}[1m])) > 0)",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"dev\",job=~\"$service\",uri!~\"/actuator.*|.*/stream\"}[1m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"dev\",job=~\"$service\",uri!~\"/actuator.*|.*/stream\"}[1m])) > 0)",
           "legendFormat": "{{job}}"
         }
       ],
