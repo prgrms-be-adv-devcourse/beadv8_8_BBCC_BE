@@ -131,12 +131,7 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return stored;
         }
-        if (!inFlightCalls.tryAcquire()) {
-            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.BUSY);
-            return Optional.empty();
-        }
-        if (!tryAcquireQuietly(type, now)) {
-            inFlightCalls.release();
+        if (!tryStartCall(type, now)) {
             return Optional.empty();
         }
         Optional<T> result = callWithTimeout(type, key, call);
@@ -170,11 +165,11 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return CompletableFuture.completedFuture(stored);
         }
-        if (!tryAcquireQuietly(type, now)) {
+        if (!tryStartCall(type, now)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         CompletableFuture<T> task =
-            CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
+            CompletableFuture.supplyAsync(releasingWhenDone(metrics.observeCall(type, call)), VIRTUAL_THREAD);
         // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
         task.thenAccept(answer -> saveLateAnswer(type, key, answer));
         return settleWithin(type, task);
@@ -289,6 +284,18 @@ public class AiResponseService {
             logCallFailure(type, e.getCause());
         }
         return Optional.empty();
+    }
+
+    private boolean tryStartCall(AiResponseType type, LocalDateTime now) {
+        if (!inFlightCalls.tryAcquire()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.BUSY);
+            return false;
+        }
+        if (tryAcquireQuietly(type, now)) {
+            return true;
+        }
+        inFlightCalls.release();
+        return false;
     }
 
     private <T> Supplier<T> releasingWhenDone(Supplier<T> call) {

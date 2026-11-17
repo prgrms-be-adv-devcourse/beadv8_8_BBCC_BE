@@ -28,7 +28,7 @@ class RecommendAiMetricsTest {
     void registerZeroCountersOnStart(String feature) {
         new RecommendAiMetrics(registry, ObservationRegistry.NOOP);
 
-        for (String result : new String[] {"stored", "answered", "timeout", "error", "daily_limit"}) {
+        for (String result : new String[] {"stored", "answered", "timeout", "error", "daily_limit", "busy"}) {
             assertThat(registry.get("kidly.recommend.ai.requests").tag("feature", feature).tag("result", result)
                 .counter().count()).isZero();
         }

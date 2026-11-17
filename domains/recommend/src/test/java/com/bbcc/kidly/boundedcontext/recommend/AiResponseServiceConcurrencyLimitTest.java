@@ -79,8 +79,12 @@ class AiResponseServiceConcurrencyLimitTest {
 
     @BeforeEach
     void setUp() {
-        service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT,
-            MAX_CONCURRENT_CALLS, CALL_TIMEOUTS, ASYNC_WAIT, REUSE_PERIOD,
+        service = serviceWaitingAsyncAnswerFor(ASYNC_WAIT);
+    }
+
+    private AiResponseService serviceWaitingAsyncAnswerFor(Duration asyncWait) {
+        return new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT,
+            MAX_CONCURRENT_CALLS, CALL_TIMEOUTS, asyncWait, REUSE_PERIOD,
             new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP));
     }
 
@@ -247,6 +251,85 @@ class AiResponseServiceConcurrencyLimitTest {
     private double requestCount(String result) {
         return meterRegistry.get("kidly.recommend.ai.requests")
             .tag("feature", "home_preview").tag("result", result).counter().count();
+    }
+
+    @Test
+    @DisplayName("기다리지 않는 호출도 상한만큼 진행 중이면 AI를 부르지 않고 빈 값으로 이미 끝난 결과를 돌려주며, busy를 하나 센다")
+    void returnCompletedEmptyWithoutCallingAiWhenLimitReachedAsync() {
+        given(store.find(any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        holdCallsInBackground(MAX_CONCURRENT_CALLS);
+        AtomicInteger calls = new AtomicInteger();
+
+        CompletableFuture<Optional<Answer>> result =
+            service.respondAsync(TYPE, INPUT, Answer.class, countingCall(calls));
+
+        assertThat(result).isCompletedWithValue(Optional.empty());
+        assertThat(calls).hasValue(0);
+        assertThat(requestCount("busy")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("기다리는 호출과 기다리지 않는 호출이 같은 상한을 함께 쓴다")
+    void shareOneLimitBetweenWaitingAndAsyncCalls() {
+        given(store.find(any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        holdCallsInBackground(MAX_CONCURRENT_CALLS - 1);
+        CountDownLatch started = new CountDownLatch(1);
+        service.respondAsync(TYPE, INPUT, Answer.class, heldCall(started));
+        awaitAll(started);
+        AtomicInteger calls = new AtomicInteger();
+
+        Optional<Answer> result = service.respond(TYPE, INPUT, Answer.class, countingCall(calls));
+
+        assertThat(result).isEmpty();
+        assertThat(calls).hasValue(0);
+    }
+
+    enum AsyncEnd { ANSWERS, THROWS }
+
+    @ParameterizedTest
+    @EnumSource(AsyncEnd.class)
+    @DisplayName("기다리지 않는 호출도 AI 답이 오거나 실패하면 자리가 풀려 다음 요청이 AI를 부른다")
+    void releaseSlotWhenAsyncCallEnds(AsyncEnd end) {
+        given(store.find(any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        for (int i = 0; i < MAX_CONCURRENT_CALLS; i++) {
+            service.respondAsync(TYPE, INPUT, Answer.class, () -> {
+                if (end == AsyncEnd.THROWS) {
+                    throw new IllegalStateException("응답 본문");
+                }
+                return new Answer("먼저 온 답");
+            }).join();
+        }
+        AtomicInteger calls = new AtomicInteger();
+
+        CompletableFuture<Optional<Answer>> result =
+            service.respondAsync(TYPE, INPUT, Answer.class, countingCall(calls));
+
+        assertThat(result.join()).contains(new Answer("새 답"));
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    @DisplayName("최대 대기 시간을 넘겨 빈 값으로 끝난 뒤에도 그 AI 호출이 끝날 때까지 자리를 쥐고 있고, 끝나면 풀린다")
+    void keepSlotUntilAiCallEndsEvenAfterAsyncWaitPassed() {
+        given(store.find(any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        service = serviceWaitingAsyncAnswerFor(Duration.ofMillis(100));
+        CountDownLatch started = new CountDownLatch(MAX_CONCURRENT_CALLS);
+        for (int i = 0; i < MAX_CONCURRENT_CALLS; i++) {
+            assertThat(service.respondAsync(TYPE, INPUT, Answer.class, heldCall(started)).join()).isEmpty();
+        }
+        AtomicInteger calls = new AtomicInteger();
+
+        CompletableFuture<Optional<Answer>> whileHeld =
+            service.respondAsync(TYPE, INPUT, Answer.class, countingCall(calls));
+
+        assertThat(whileHeld).isCompletedWithValue(Optional.empty());
+        assertThat(calls).hasValue(0);
+        release.countDown();
+        assertThat(respondOnceSlotIsFree(calls)).contains(new Answer("새 답"));
     }
 
     // 다른 스레드에서 respond를 count번 부르고, 그 AI 호출이 모두 시작돼 답을 기다리는 상태가 될 때까지 기다린다
