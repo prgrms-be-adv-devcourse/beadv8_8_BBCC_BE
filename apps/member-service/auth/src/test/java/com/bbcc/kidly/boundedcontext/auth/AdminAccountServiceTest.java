@@ -9,12 +9,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.bbcc.kidly.boundedcontext.auth.app.AccessTokenRevocationService;
 import com.bbcc.kidly.boundedcontext.auth.app.AdminAccountService;
+import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminStatus;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
-import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.auth.PrincipalId;
@@ -36,9 +35,7 @@ class AdminAccountServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
     @Mock
-    private RefreshTokenRepository refreshTokens;
-    @Mock
-    private AccessTokenRevocationService revocations;
+    private RefreshTokenService refreshTokenService;
     @InjectMocks
     private AdminAccountService service;
 
@@ -63,8 +60,7 @@ class AdminAccountServiceTest {
         service.disable(1L, 2L);
         service.disable(1L, 2L);
 
-        verify(refreshTokens, times(1)).deleteByPrincipal(PrincipalId.admin(2L));
-        verify(revocations, times(1)).revoke(eq(PrincipalId.admin(2L)), any());
+        verify(refreshTokenService, times(1)).revokeAllTokens(eq(PrincipalId.admin(2L)), any());
     }
 
     @Test
@@ -88,7 +84,7 @@ class AdminAccountServiceTest {
         assertThatThrownBy(() -> service.disable(1L, 2L))
             .isInstanceOf(BusinessException.class)
             .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.UNAUTHORIZED);
-        verify(refreshTokens, never()).deleteByPrincipal(any());
+        verify(refreshTokenService, never()).revokeAllTokens(any(), any());
     }
 
     @Test

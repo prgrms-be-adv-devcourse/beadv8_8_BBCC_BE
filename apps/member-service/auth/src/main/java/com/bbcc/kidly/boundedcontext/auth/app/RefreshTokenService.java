@@ -91,10 +91,15 @@ public class RefreshTokenService {
             .filter(refreshToken -> refreshToken.isReused(now))
             .map(RefreshToken::principal)
             .ifPresent(principal -> {
-                refreshTokenRepository.deleteByPrincipal(principal);
-                accessTokenRevocationService.revoke(principal, now);
+                revokeAllTokens(principal, now);
                 log.warn("Refresh Token 재사용 감지로 폐기: type={} id={}", principal.type(), principal.id());
             });
+    }
+
+    @Transactional
+    public void revokeAllTokens(PrincipalId principal, LocalDateTime now) {
+        refreshTokenRepository.deleteByPrincipal(principal);
+        accessTokenRevocationService.revoke(principal, now);
     }
 
     @Transactional

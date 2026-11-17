@@ -6,7 +6,6 @@ import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminPassword;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminStatus;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
-import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.auth.PrincipalId;
@@ -25,8 +24,7 @@ public class AdminAccountService {
 
     private final AdminAccountRepository adminAccountRepository;
     private final PasswordEncoder passwordEncoder;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final AccessTokenRevocationService accessTokenRevocationService;
+    private final RefreshTokenService refreshTokenService;
 
     @Transactional(readOnly = true)
     public Page<AdminAccount> list(String status, Pageable pageable) {
@@ -60,9 +58,7 @@ public class AdminAccountService {
         var now = LocalDateTime.now();
         if (target.disable(actorId, now)) {
             adminAccountRepository.saveAccount(target);
-            var principal = PrincipalId.admin(adminId);
-            refreshTokenRepository.deleteByPrincipal(principal);
-            accessTokenRevocationService.revoke(principal, now);
+            refreshTokenService.revokeAllTokens(PrincipalId.admin(adminId), now);
         }
     }
 

@@ -8,7 +8,6 @@ import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccount;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildPassword;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildProfileReplicaRepository;
-import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.event.ChildAccountChangedEvent;
@@ -26,8 +25,7 @@ public class ChildAccountService {
     private final ChildProfileReplicaRepository replicas;
     private final ChildAccountRepository accounts;
     private final PasswordEncoder passwordEncoder;
-    private final RefreshTokenRepository refreshTokens;
-    private final AccessTokenRevocationService revocationService;
+    private final RefreshTokenService refreshTokenService;
     private final AuthEventOutbox outbox;
 
     @Transactional(readOnly = true)
@@ -93,8 +91,6 @@ public class ChildAccountService {
     }
 
     private void revokeTokens(Long accountId) {
-        var principal = PrincipalId.child(accountId);
-        refreshTokens.deleteByPrincipal(principal);
-        revocationService.revoke(principal, LocalDateTime.now());
+        refreshTokenService.revokeAllTokens(PrincipalId.child(accountId), LocalDateTime.now());
     }
 }
