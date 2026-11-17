@@ -1,6 +1,7 @@
 """Fixed local metric reader; no raw logs, arbitrary PromQL or original labels."""
 import json
 import math
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -22,6 +23,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 # 응답 시간(평균)을 믿을 수 없는 서비스. 요청 수 · 5xx 는 그대로 쓴다
 NO_DURATION = 'kidly-gateway'
+# ERROR 로그의 예외 종류(error.type)별 건수. 로그 원문 · 메시지는 읽지 않고 Loki 가 집계한 숫자와 클래스 이름만 쓴다
+EXCEPTION_TOP = 8
+EXCEPTION_NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]{0,80}')
 
 
 def opener():
@@ -73,6 +77,43 @@ def metric_rows(expression, at):
     if not isinstance(rows, list) or len(rows) > 30:
         raise ValueError('too many metric rows')
     return rows
+
+
+def log_rows(expression, at):
+    params = urllib.parse.urlencode({'query': expression, 'time': at})
+    with opener().open('http://127.0.0.1:31100/loki/api/v1/query?' + params, timeout=5) as response:
+        raw = response.read(256*1024+1)
+    if len(raw) > 256*1024:
+        raise ValueError('oversized log response')
+    result = json.loads(raw)
+    if result.get('status') != 'success' or result.get('data', {}).get('resultType') != 'vector':
+        raise ValueError('incomplete log response')
+    rows = result['data']['result']
+    if not isinstance(rows, list) or len(rows) > EXCEPTION_TOP:
+        raise ValueError('too many log rows')
+    return rows
+
+
+def exception_query(environment):
+    if environment not in ('dev', 'prod'):
+        raise ValueError('unsupported environment')
+    selector = '{env="' + environment + '", service_name=~"' + MATCH + '", level="ERROR"}'
+    return (f'topk({EXCEPTION_TOP}, sum by (service_name, error_type) (count_over_time({selector} '
+            '| json error_type="error.type" | __error__="" | error_type != "" [30m])))')
+
+
+def exception_facts(environment, now):
+    counts = {}
+    for row in log_rows(exception_query(environment), now):
+        service = row['metric'].get('service_name')
+        # 패키지 경로를 빼고 클래스 이름만 남긴다(내부 클래스 $ 이하도 뺀다). 형식이 다르면 버린다
+        name = str(row['metric'].get('error_type', '')).rsplit('.', 1)[-1].split('$', 1)[0]
+        value = float(row['value'][1])
+        if service in JOBS and EXCEPTION_NAME.fullmatch(name) and math.isfinite(value) and value > 0:
+            # 이름을 줄이면 다른 클래스가 같은 이름이 될 수 있어 서비스 · 이름별로 더한다(근거 중복 방지)
+            counts[service, name] = counts.get((service, name), 0) + value
+    for (service, name), value in counts.items():
+        yield 'error_type_30m:' + name, value, service
 
 
 def previous_http_facts(environment, now, facts):
@@ -152,6 +193,18 @@ def collect(environment, now=None, *, compare_http=False):
         'kafka_lag_by_service maps consumer group kidly.<name> to kidly-<name>; kidly-member sums auth, childprofile, member and seller groups. DLT groups and unknown offsets are excluded.',
         'error_logs_30m counts ERROR log events, not distinct incidents. restarts_30m counts process instances started within 30 minutes (deploy, crash or manual patch); it does not say which, and several instances count separately.',
     ))
+    try:
+        exceptions = list(exception_facts(environment, now))
+    except (OSError, ValueError, KeyError, TypeError, IndexError):
+        exceptions = None
+    for metric, value, service in exceptions or ():
+        facts.append(Evidence('f' + str(len(facts)), metric, value, 'estimated_count', environment, service))
+    limitations.append(
+        'ERROR log exception types were unavailable; this is not zero.' if exceptions is None else
+        'error_type_30m:<Class> counts ERROR log events per service by exception class (top 8, 30 minutes). '
+        'Messages are not included; counts are events, not distinct incidents or failed requests.' if exceptions else
+        'No ERROR log with an exception type in 30 minutes; ERROR logs without an exception type are not counted.'
+    )
     if compare_http:
         try:
             comparison = list(previous_http_facts(environment, now, facts))

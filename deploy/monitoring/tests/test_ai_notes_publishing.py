@@ -165,7 +165,12 @@ class NotesPublishingTest(unittest.TestCase):
         self.assertNotIn('private', serialized)
         self.assertTrue(ctx.evidence)
         for call in opener.open.call_args_list:
-            self.assertTrue(call.args[0].startswith('http://127.0.0.1:30090/api/v1/query?'))
+            # Fixed local Prometheus queries plus one fixed Loki aggregate (exception class counts, never log lines)
+            self.assertTrue(call.args[0].startswith(('http://127.0.0.1:30090/api/v1/query?',
+                                                     'http://127.0.0.1:31100/loki/api/v1/query?')))
+        loki = [call.args[0] for call in opener.open.call_args_list if ':31100/' in call.args[0]]
+        self.assertEqual(len(loki), 1)
+        self.assertIn('count_over_time', urllib.parse.unquote_plus(loki[0]))
         empty = {'status':'success','data':{'resultType':'vector','result':[]}}
         opener.open.return_value = response(raw=json.dumps(empty).encode())
         with patch('snapshot.opener', return_value=opener):
