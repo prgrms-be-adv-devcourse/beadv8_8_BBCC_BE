@@ -224,10 +224,10 @@ class OpenAiSizeChooserTest {
     }
 
     @Test
-    @DisplayName("사이즈 AI는 빠른 처리 등급(Fast mode, service_tier priority)으로 부르고, 모델 · 추론 강도 · 최대 토큰 설정은 그대로 둔다")
-    void callWithFastServiceTier() {
+    @DisplayName("사이즈 AI는 처리 등급(service_tier)을 지정하지 않고, 모델 · 추론 강도 · 최대 토큰 설정은 그대로 둔다")
+    void callWithoutServiceTier() {
         List<Prompt> prompts = new ArrayList<>();
-        // 실제 OpenAI 모델처럼 기본 옵션이 OpenAI 옵션이어야 요청 옵션의 처리 등급이 합쳐진다
+        // 실제 OpenAI 모델처럼 기본 옵션이 OpenAI 옵션이어야 모델에 넘어가는 옵션에서 처리 등급을 읽을 수 있다
         ChatModel model = new ChatModel() {
             @Override
             public ChatResponse call(Prompt prompt) {
@@ -248,7 +248,8 @@ class OpenAiSizeChooserTest {
 
         assertThat(prompts.getFirst().getOptions()).isInstanceOfSatisfying(OpenAiChatOptions.class,
             options -> {
-                assertThat(options.getServiceTier()).isEqualTo("priority");
+                // 등급을 지정하지 않으면 OpenAI가 표준 등급으로 처리한다
+                assertThat(options.getServiceTier()).isNull();
                 assertThat(options.getModel()).isEqualTo("gpt-6.1-terra");
                 assertThat(options.getReasoningEffort()).isEqualTo("low");
                 assertThat(options.getMaxCompletionTokens()).isEqualTo(2048);
