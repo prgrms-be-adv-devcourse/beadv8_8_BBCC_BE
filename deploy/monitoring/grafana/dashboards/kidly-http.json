@@ -379,6 +379,10 @@
               {
                 "id": "displayName",
                 "value": "서비스"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
               }
             ]
           },
@@ -391,6 +395,10 @@
               {
                 "id": "displayName",
                 "value": "메서드"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -403,6 +411,10 @@
               {
                 "id": "displayName",
                 "value": "상태"
+              },
+              {
+                "id": "custom.width",
+                "value": 60
               }
             ]
           },
@@ -447,7 +459,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 320
+                "value": 220
               }
             ]
           }
@@ -551,6 +563,10 @@
               {
                 "id": "displayName",
                 "value": "서비스"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
               }
             ]
           },
@@ -563,6 +579,10 @@
               {
                 "id": "displayName",
                 "value": "메서드"
+              },
+              {
+                "id": "custom.width",
+                "value": 70
               }
             ]
           },
@@ -575,6 +595,10 @@
               {
                 "id": "displayName",
                 "value": "상태"
+              },
+              {
+                "id": "custom.width",
+                "value": 60
               }
             ]
           },
@@ -619,7 +643,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 320
+                "value": 220
               }
             ]
           }
