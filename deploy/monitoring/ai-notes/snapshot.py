@@ -11,6 +11,8 @@ from contracts import AnalysisContext, Evidence
 JOBS = ('kidly-gateway', 'kidly-search', 'kidly-recommend', 'kidly-member', 'kidly-payment',
         'kidly-product', 'kidly-order', 'kidly-community', 'kidly-chatbot', 'kidly-settlement', 'kidly-notification')
 MATCH = '|'.join(JOBS)
+HTTP_WINDOW = 1800
+HTTP_COMPARISON = ('requests_30m', 'errors_30m', 'duration_sum_30m')
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -52,21 +54,59 @@ def queries(env):
     }
 
 
-def collect(environment, now=None):
+def metric_rows(expression, at):
+    params = urllib.parse.urlencode({'query': expression, 'time': at, 'timeout': '3s'})
+    with opener().open('http://127.0.0.1:30090/api/v1/query?' + params, timeout=5) as response:
+        raw = response.read(1024*1024+1)
+    if len(raw) > 1024*1024:
+        raise ValueError('oversized metric response')
+    result = json.loads(raw)
+    if result.get('status') != 'success' or result.get('warnings') or result.get('data', {}).get('resultType') != 'vector':
+        raise ValueError('incomplete metric response')
+    rows = result['data']['result']
+    if not isinstance(rows, list) or len(rows) > 30:
+        raise ValueError('too many metric rows')
+    return rows
+
+
+def previous_http_facts(environment, now, facts):
+    current = {(item.metric, item.service): item.value for item in facts}
+    previous = {}
+    for name in HTTP_COMPARISON:
+        _, expression = queries(environment)[name]
+        seen = set()
+        for row in metric_rows(expression, now - HTTP_WINDOW):
+            service = row['metric'].get('job')
+            if service not in JOBS:
+                continue
+            if service in seen:
+                raise ValueError('ambiguous comparison aggregate')
+            seen.add(service)
+            value = float(row['value'][1])
+            if math.isfinite(value) and value >= 0:
+                previous[name, service] = value
+
+    for service in JOBS:
+        count = current.get(('requests_30m', service))
+        prior_count = previous.get(('requests_30m', service))
+        if count is None or prior_count is None or min(count, prior_count) <= 0:
+            continue
+        yield ('requests_previous_30m', prior_count, 'estimated_count', service)
+        errors = previous.get(('errors_30m', service))
+        if errors is not None and ('errors_30m', service) in current:
+            yield ('errors_previous_30m', errors, 'estimated_count', service)
+        duration = current.get(('duration_sum_30m', service))
+        prior_duration = previous.get(('duration_sum_30m', service))
+        if duration is not None and prior_duration is not None:
+            yield ('mean_response_current_30m', round(1000 * (duration / count), 3), 'milliseconds', service)
+            yield ('mean_response_previous_30m', round(1000 * (prior_duration / prior_count), 3), 'milliseconds', service)
+
+
+def collect(environment, now=None, *, compare_http=False):
     now = int(time.time()) if now is None else now
     facts, limitations, missing = [], [], []
     for name, (unit, expression) in queries(environment).items():
-        params = urllib.parse.urlencode({'query': expression, 'time': now, 'timeout': '3s'})
-        with opener().open('http://127.0.0.1:30090/api/v1/query?' + params, timeout=5) as response:
-            raw = response.read(1024*1024+1)
-        if len(raw) > 1024*1024:
-            raise ValueError('oversized metric response')
-        result = json.loads(raw)
-        if result.get('status') != 'success' or result.get('warnings') or result.get('data', {}).get('resultType') != 'vector':
-            raise ValueError('incomplete metric response')
-        rows = result['data']['result']
-        if not isinstance(rows, list) or len(rows) > 30:
-            raise ValueError('too many metric rows')
+        rows = metric_rows(expression, now)
         seen = set()
         accepted = 0
         for row in rows:
@@ -101,4 +141,17 @@ def collect(environment, now=None):
         'kafka_lag_by_service maps consumer group kidly.<name> to kidly-<name>; kidly-member sums auth, childprofile, member and seller groups. DLT groups and unknown offsets are excluded.',
         'error_logs_30m counts ERROR log events, not distinct incidents. restarts_30m counts process instances started within 30 minutes (deploy, crash or manual patch); it does not say which, and several instances count separately.',
     ))
+    if compare_http:
+        try:
+            comparison = list(previous_http_facts(environment, now, facts))
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
+            comparison = []
+        for metric, value, unit, service in comparison:
+            if math.isfinite(value):
+                facts.append(Evidence('f' + str(len(facts)), metric, value, unit, environment, service))
+        limitations.append(
+            'HTTP comparison pairs the observation window with the immediately preceding 30 minutes. '
+            'Only services with nonzero measured requests in both windows are paired; a missing pair is not zero.'
+            if comparison else 'No comparable previous HTTP window was available.'
+        )
     return AnalysisContext(1, str(uuid.uuid4()), now-1800, now, (environment,), tuple(facts), tuple(limitations))

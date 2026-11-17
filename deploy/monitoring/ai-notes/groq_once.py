@@ -2,6 +2,7 @@
 """Operator-only dev trial. Read key from stdin; never persist it or expose in argv."""
 import argparse
 from contextlib import contextmanager
+from functools import partial
 import fcntl
 import json
 import os
@@ -42,7 +43,7 @@ def read_key(stream):
         raise ProviderError('missing_or_invalid_key') from None
 
 
-def run_once(key, *, free_tier_confirmed, store, collector=collect, provider_factory=GroqProvider,
+def run_once(key, *, free_tier_confirmed, store, collector=partial(collect, compare_http=True), provider_factory=GroqProvider,
              publisher=None, clock=time.time):
     # Construct/validate credentials and confirmation before collecting or persisting a context.
     provider = provider_factory(key, free_tier_confirmed=free_tier_confirmed, clock=clock)
