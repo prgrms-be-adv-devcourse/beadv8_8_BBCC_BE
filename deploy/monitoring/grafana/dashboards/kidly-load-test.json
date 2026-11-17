@@ -228,8 +228,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "실패율",
-      "description": "k6가 기대하지 않은 응답(기본: 4xx · 5xx · 연결 실패)의 비율입니다. 오르면 아래 서버 5xx · 오류 로그를 같은 시각으로 확인합니다.",
+      "title": "실패율 · 속도 제한(429) 따로",
+      "description": "위 값: 429를 뺀 실패율(4xx · 5xx · 연결 실패). 아래 값: Gateway 속도 제한(초당 500건 등)에 걸린 429 비율입니다. 429는 서버가 못 버틴 게 아니라 제한에 걸린 것이라 따로 봅니다. 실패율이 오르면 아래 서버 5xx · 오류 로그를 같은 시각으로 확인합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -247,8 +247,19 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "(sum(max_over_time(k6_http_reqs_total{testid=\"$testid\",expected_response=\"false\"}[$__range])) or vector(0)) / (sum(max_over_time(k6_http_reqs_total{testid=\"$testid\"}[$__range])) > 0)",
-          "legendFormat": "",
+          "expr": "(sum(max_over_time(k6_http_reqs_total{testid=\"$testid\",expected_response=\"false\",status!=\"429\"}[$__range])) or vector(0)) / (sum(max_over_time(k6_http_reqs_total{testid=\"$testid\"}[$__range])) > 0)",
+          "legendFormat": "실패율(429 제외)",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "(sum(max_over_time(k6_http_reqs_total{testid=\"$testid\",status=\"429\"}[$__range])) or vector(0)) / (sum(max_over_time(k6_http_reqs_total{testid=\"$testid\"}[$__range])) > 0)",
+          "legendFormat": "429 비율",
           "instant": true,
           "range": false
         }
@@ -263,7 +274,7 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "fieldConfig": {
         "defaults": {
@@ -1148,6 +1159,251 @@
             "showPoints": "never",
             "spanNulls": false
           }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "서버 한계 · 앱 서버 CPU · 파드 · 속도 제한",
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "앱 서버 CPU · steal",
+      "description": "앱 서버(kidly-dev 파드가 있는 노드)의 CPU 사용률과 steal입니다. steal이 오르면 t3 CPU 크레딧이 떨어져 기준 성능으로 묶였을 수 있으니, 결과를 앱 한계로 해석하기 전에 AWS 콘솔 CloudWatch CPUCreditBalance를 같은 시각으로 확인합니다. 사용률이 100%에 붙으면 앱보다 노드가 먼저 한계입니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m]))) and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "legendFormat": "사용률 {{instance}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "100 * avg by (instance) (rate(node_cpu_seconds_total{mode=\"steal\"}[1m])) and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "legendFormat": "steal {{instance}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "서비스별 CPU(코어)",
+      "description": "서비스 컨테이너가 쓴 CPU 코어 수입니다. 앱 서버는 2코어이고 컨테이너 CPU 한도는 두지 않아 한도 · 스로틀링 지표는 없습니다. 합이 2에 가까우면 노드 CPU가 상한입니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 48,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (job) (label_replace(rate(container_cpu_usage_seconds_total{namespace=\"kidly-dev\",container!=\"\",container!=\"POD\"}[1m]), \"job\", \"kidly-$1\", \"container\", \"(.+)\")) and on (job) group by (job) (up{env=\"dev\",job=~\"$service\"})",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "decimals": 2,
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "서비스별 파드 수",
+      "description": "서비스마다 떠 있는 파드 수입니다. 추천 서비스는 CPU 기준 자동 확장(1~2개)이라 부하 중 2로 늘었는지 여기서 봅니다. 줄었다 늘면 재시작 · 재배포를 의심합니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 48,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "count by (job) (label_replace(count by (container, pod) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\",container!=\"\",container!=\"POD\"}), \"job\", \"kidly-$1\", \"container\", \"(.+)\")) and on (job) group by (job) (up{env=\"dev\",job=~\"$service\"})",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "Gateway 속도 제한(429)",
+      "description": "Gateway가 속도 제한으로 돌려보낸 요청(초당)입니다. 여기 값이 있으면 k6 실패 중 429는 서버 한계가 아니라 제한에 걸린 것입니다. total은 전체 제한, client · search · chat은 경로별 제한입니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (target) (rate(kidly_gateway_rate_limited_total{env=\"dev\"}[1m]))",
+          "legendFormat": "{{target}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0
         },
         "overrides": []
       }
