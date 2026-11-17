@@ -27,7 +27,7 @@
     {
       "title": "AI 분석",
       "type": "link",
-      "url": "/d/kidly-ai-notes?var-env=dev",
+      "url": "/d/kidly-ai-notes?var-env=dev&var-analysis_focus=overview",
       "includeVars": false,
       "keepTime": true,
       "targetBlank": false

@@ -31,6 +31,15 @@
       "includeVars": false,
       "keepTime": false,
       "targetBlank": false
+    },
+    {
+      "title": "AI 분석",
+      "type": "link",
+      "url": "/d/kidly-ai-notes?var-env=${env}&var-analysis_focus=errors",
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "external link",
+      "tooltip": "AI 운영 분석에서 이 화면에 맞는 분석 목적으로 엽니다(실행 · 결과는 한 곳)"
     }
   ],
   "uid": "kidly-logs",
