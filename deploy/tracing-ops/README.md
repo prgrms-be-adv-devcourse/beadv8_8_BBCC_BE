@@ -19,6 +19,8 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 
 ## 일반 앱 배포에서 유지
 
+검색 등 추가 서비스는 [다른 서비스로 확대](#다른-서비스로-확대) 절을 따릅니다.
+
 Gateway·주문 시범에서 실제 트레이스와 자원 사용량을 확인한 뒤 앱 서버의 `/opt/app/dev/operations/tracing-agent/`에 `gateway.enabled` 또는 `order.enabled`를 둡니다. 일반 배포는 선택 파일이 있는 서비스에 현재 Compose JVM 옵션과 같은 Agent 설정을 붙입니다. 배포 파일 업로드는 이 경로를 보존합니다. Agent JAR이 없거나 비어 있으면 해당 서비스 명세를 적용하기 전에 실패합니다.
 
 원복은 선택 파일을 먼저 지운 뒤 일반 배포로 진행합니다. 수동 시범 패치가 이미 필드를 소유하고 있으면 일반 배포 뒤에도 해당 필드가 남을 수 있으므로, 현재 명세를 읽고 위의 `--rollback` 도구로 제거합니다. Pod가 준비된 뒤 Agent 환경 변수와 마운트가 사라졌는지 확인합니다.
@@ -33,6 +35,8 @@ Gateway·주문 시범에서 실제 트레이스와 자원 사용량을 확인�
 - 기본 Tempo 조회 구성의 OTLP는 루프백에 있습니다. 수신 오버레이와 사설 경로가 준비된 뒤 Alloy를 적용하고 기존 Prometheus·Loki 수집과 분리해 검증합니다.
 
 ## 다른 서비스로 확대
+
+확장 구성의 환경 변수와 NetworkPolicy는 앱 클러스터에 확장 Kustomize를 적용해 반영합니다. 설정 파일을 다시 읽는 작업은 이 전환에 사용하지 않습니다.
 
 Gateway·주문 시범에 성공한 뒤 `kubectl kustomize deploy/tracing-ops/app-alloy-extended`로 확장 수집 구성을 확인합니다. 기본 Alloy 구성의 허용 대상은 Gateway와 주문입니다. 확장 구성에서도 이 두 서비스의 연결은 유지됩니다. 나머지는 앱 서버의 동일한 경로에 서비스 이름으로 선택 파일을 둡니다(예를 들어 `search.enabled`). 추가 서비스는 일반 배포에서 추적 라벨이 붙은 Pod만 연결됩니다. 수동 패치 도구는 Gateway와 주문에만 사용합니다. 송신 Pod는 NetworkPolicy로 제한하며, Alloy가 읽는 서비스 이름 자체는 송신자가 기록한 값입니다.
 
