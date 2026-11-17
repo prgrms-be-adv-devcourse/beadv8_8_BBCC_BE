@@ -46,12 +46,13 @@ public class CartReservation extends CartTimeEntity {
     private Long payerId;
 
     /**
-     * 결제 가능 기한(#1008). null이면 기한 없음.
+     * 결제 가능 기한(#1008). 이 시각과 같거나 지난 뒤에는 허용 주체도 이 예약 칸으로 주문할 수 없다. null이면 기한 없음.
      */
     private LocalDateTime validUntil;
 
     /**
-     * 결제 정리가 이 예약의 칸을 처음 정리한 시각(#999). 아직 없으면 null.
+     * 결제 정리가 이 예약의 칸을 처음 정리한 시각(#999). 칸이 남는 일부 결제도 예약한 쪽이 결제가 시작됐음을 알게 남긴다
+     * (조르기 만료는 이 표시가 있으면 건너뛴다). 아직 없으면 null.
      */
     private LocalDateTime purchasedAt;
 

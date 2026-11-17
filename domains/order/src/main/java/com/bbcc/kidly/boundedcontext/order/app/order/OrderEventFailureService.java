@@ -216,7 +216,7 @@ public class OrderEventFailureService {
             .orElseThrow(() -> new BusinessException(OrderErrorCode.EVENT_FAILURE_NOT_FOUND));
     }
 
-    // 기록은 주문이 있을 때만 생기고 주문은 지우지 않는다. 그래도 없으면 불변식 위반이라 예외로 알린다
+    // 기록은 주문이 있을 때만 생기고 주문은 지우지 않는다. 그래도 주문이 없으면 취소된 주문으로 보지 않아(false) 기록을 닫지 않는다
     private boolean isOrderCancelled(Long orderId) {
         return orderRepository.findById(orderId).map(order -> order.getStatus() == Order.Status.CANCELLED)
             .orElse(false);

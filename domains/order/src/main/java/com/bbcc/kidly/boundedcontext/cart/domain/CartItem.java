@@ -39,7 +39,7 @@ public class CartItem extends CartTimeEntity {
     public static final int MAX_QUANTITY = 99;
 
     /**
-     * 장바구니 주인 종류(#998).
+     * 장바구니 주인 종류(#998): MEMBER = 회원, CHILD = 로그인한 자녀(자녀 프로필이 주인, 결제는 보호자).
      */
     public enum OwnerType {
         MEMBER,
