@@ -26,12 +26,17 @@
       }
     ]
   },
-  "description": "환경과 서비스를 먼저 고르세요. 데이터 없음은 정상 판정이 아닙니다. 미배포·운영 중지·해당 서비스의 미제공 지표인지 서비스 오류 화면에서 확인하세요.",
+  "description": "평소에는 Kidly 서비스 상세(서비스 하나의 HTTP · JVM · DB 풀 · Kafka)를 봅니다. 이 화면은 인스턴스 · 메모리 영역별 원시 지표가 더 필요할 때만 씁니다. 환경과 서비스를 먼저 고르세요. 데이터 없음은 정상 판정이 아닙니다. 미배포·운영 중지·해당 서비스의 미제공 지표인지 서비스 오류 화면에서 확인하세요.",
   "editable": true,
   "gnetId": 4701,
   "graphTooltip": 1,
   "hideControls": false,
   "links": [
+    {
+      "title": "서비스 상세(평소 보는 화면)",
+      "type": "link",
+      "url": "/d/kidly-service?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
+    },
     {
       "title": "서비스 상태",
       "type": "link",
@@ -2688,7 +2693,10 @@
   ],
   "schemaVersion": 14,
   "style": "dark",
-  "tags": ["03 상세 진단"],
+  "tags": [
+    "03 상세 진단",
+    "참고"
+  ],
   "templating": {
     "list": [
       {
@@ -2851,7 +2859,7 @@
     ]
   },
   "timezone": "browser",
-  "title": "JVM (Micrometer)",
+  "title": "참고 · JVM 원시 지표 (Micrometer)",
   "version": 34,
   "uid": "kidly-jvm"
 }
