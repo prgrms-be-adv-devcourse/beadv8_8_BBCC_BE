@@ -93,11 +93,8 @@ UNSUPPORTED_HEALTH = re.compile(
 )
 
 
-class GroqProvider:
-    def __init__(self, api_key, *, free_tier_confirmed=False, clock=time.time, transport=None):
-        # An operator attests the account plan. The inference API does not prove billing tier.
-        if free_tier_confirmed is not True:
-            raise ProviderError('free_tier_confirmation_required')
+class StructuredChatProvider:
+    def __init__(self, api_key, *, clock=time.time, transport=None):
         if not isinstance(api_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{20,256}', api_key):
             raise ProviderError('missing_or_invalid_key')
         self._api_key = api_key
@@ -128,16 +125,16 @@ class GroqProvider:
         if not snapshot['evidence']:
             raise ProviderError('insufficient_evidence')
         snapshot['limitations'] = groq_limitations(snapshot['limitations'])
-        payload = {'model': MODEL, 'messages': [
+        payload = {'model': self.model, 'messages': [
             {'role': 'system', 'content': SYSTEM},
             {'role': 'user', 'content': json.dumps(snapshot, ensure_ascii=False, allow_nan=False, separators=(',', ':'))}],
-            'max_completion_tokens': 3000, 'reasoning_effort': 'low',
+            'max_completion_tokens': self.max_tokens, **self.options,
             'response_format': {'type': 'json_schema', 'json_schema': {
                 'name': 'operational_note', 'strict': True, 'schema': output_schema(item['evidence_id'] for item in snapshot['evidence'])}}}
         raw = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode()
         if len(raw) > 24000:
             raise ProviderError('input_too_large')
-        request = urllib.request.Request(ENDPOINT, data=raw, headers={
+        request = urllib.request.Request(self.endpoint, data=raw, headers={
             'Authorization': 'Bearer '+self._api_key, 'Content-Type': 'application/json',
             'User-Agent': 'kidly-monitoring/1.0'}, method='POST')
         try:
@@ -161,7 +158,7 @@ class GroqProvider:
             raise ProviderError('invalid_provider_response')
         try:
             envelope = json.loads(body)
-            if envelope['model'] != MODEL:
+            if envelope['model'] != self.model:
                 raise ProviderError('response_model_mismatch')
             if len(envelope['choices']) != 1:
                 raise ProviderError('response_shape_invalid')
@@ -182,7 +179,7 @@ class GroqProvider:
             normalized.update(checks=[finding['check']], evidence_ids=[finding['evidence_id']])
             # These metadata are assigned by the adapter, never by the model.
             report = report_from_dict(dict(findings=[normalized], limitations=result['limitations'], version=1, context_id=context.context_id,
-                                           provider='Groq', model=MODEL, generated_at=int(self.clock())))
+                                           provider=self.name, model=self.model, generated_at=int(self.clock())))
             validate_report(context, report, self.clock())
             finding = report.findings[0]
             if any(UNSUPPORTED_HEALTH.search(value) for value in
@@ -209,3 +206,16 @@ class GroqProvider:
             raise ProviderError('response_shape_invalid') from None
         except Exception:
             raise ProviderError('invalid_provider_response') from None
+
+
+class GroqProvider(StructuredChatProvider):
+    name = 'Groq'
+    endpoint = ENDPOINT
+    model = MODEL
+    max_tokens = 3000
+    options = {'reasoning_effort': 'low'}
+
+    def __init__(self, api_key, *, free_tier_confirmed=False, clock=time.time, transport=None):
+        if free_tier_confirmed is not True:
+            raise ProviderError('free_tier_confirmation_required')
+        super().__init__(api_key, clock=clock, transport=transport)

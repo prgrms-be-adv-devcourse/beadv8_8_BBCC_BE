@@ -9,7 +9,7 @@ import re
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
-from analysis_requests import AnalysisRequests, next_trial_at, run_groq_trial
+from analysis_requests import AnalysisRequests, next_trial_at, run_groq_trial, run_trial
 from groq_provider import NoRedirect
 from receive import STATE
 
@@ -71,8 +71,12 @@ class AnalysisAPI:
             operator = self.authorization.is_operator(headers.get('Cookie', ''))
         except RuntimeError:
             return 503, {'state': 'unavailable'}
-        action = self.requests.request if method == 'POST' else self.requests.read
-        return action(is_operator=operator)
+        if method == 'POST':
+            return self.requests.request(
+                is_operator=operator, provider=headers.get('X-Kidly-AI-Provider', 'groq'),
+                paid_confirmed=headers.get('X-Kidly-AI-Confirm-Paid') == 'true',
+            )
+        return self.requests.read(is_operator=operator)
 
 
 class AnalysisHTTPHandler(BaseHTTPRequestHandler):
@@ -104,12 +108,18 @@ def main():
     parser.add_argument('--grafana-url', required=True, help='Trusted internal Grafana URL')
     parser.add_argument('--origin', required=True, help='Exact browser Grafana origin')
     parser.add_argument('--key-file', type=Path, required=True)
+    parser.add_argument('--openai-key-file', type=Path)
+    parser.add_argument('--allow-paid-openai', action='store_true')
     parser.add_argument('--port', type=int, default=8786)
     parser.add_argument('--confirm-free-plan', action='store_true', required=True)
     args = parser.parse_args()
+    if args.allow_paid_openai != bool(args.openai_key_file):
+        parser.error('Paid OpenAI requires both explicit enablement and a server key.')
+    openai_runner = (partial(run_trial, args.openai_key_file, '--confirm-paid-openai')
+                     if args.allow_paid_openai else None)
     requests = AnalysisRequests(
         partial(run_groq_trial, args.key_file, free_plan_confirmed=args.confirm_free_plan),
-        partial(next_trial_at, STATE),
+        partial(next_trial_at, STATE), openai_runner=openai_runner,
     )
     with HTTPServer(('127.0.0.1', args.port), AnalysisHTTPHandler) as server:
         server.analysis_api = AnalysisAPI(GrafanaAuthorization(args.grafana_url), requests, origin=args.origin)

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / 'ai-notes'))
 from analysis_requests import AnalysisRequests, next_trial_at, run_groq_trial
-from groq_once import PRINCIPAL, ProviderError, trial_lock
+from groq_once import PAID_PRINCIPAL, PRINCIPAL, ProviderError, trial_lock
 from storage import Store
 
 
@@ -52,6 +52,14 @@ class AnalysisRequestsTest(unittest.TestCase):
             handler = AnalysisRequests(None, lambda: next_trial_at(path), clock=lambda: 500)
             self.assertEqual(handler.request(is_operator=True),
                              (429, {'state': 'limited', 'next_at': 3700}))
+            store = Store(path)
+            with store.db:
+                store.db.execute('INSERT INTO contexts VALUES (?,?,?,?,?)',
+                                 ('paid-fixture', '{}', 200, PAID_PRINCIPAL, 200))
+            store.db.close()
+            self.assertEqual(handler.request(is_operator=True),
+                             (429, {'state': 'limited', 'next_at': 3800}))
+
 
     def test_manual_and_server_process_share_trial_lock(self):
         with tempfile.TemporaryDirectory() as temp, trial_lock(Path(temp)):

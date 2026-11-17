@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).parents[1]/'ai-notes'))
 from contracts import AnalysisContext, Evidence
 from groq_provider import GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect, groq_limitations
+from openai_provider import OpenAIProvider
 from groq_once import run_once, read_key, PRINCIPAL
 from storage import Store, LokiPublisher, deliver_accepted
 import snapshot
@@ -102,6 +103,25 @@ class GroqProviderTest(unittest.TestCase):
     def provider(self, client):
         return GroqProvider('test-not-a-real-api-key', free_tier_confirmed=True,
                             clock=lambda: 2001, transport=client)
+
+    def test_openai_uses_explicit_confirmation_and_own_request(self):
+        key = 'fixture-openai-key-for-tests'
+        sample = json.loads(body())
+        sample['model'] = OpenAIProvider.model
+        client = transport(json.dumps(sample).encode())
+        with self.assertRaisesRegex(ProviderError, '^paid_confirmation_required$'):
+            OpenAIProvider(key, transport=client)
+        client.open.assert_not_called()
+        report = OpenAIProvider(key, paid_confirmed=True, clock=lambda: 2001,
+                                transport=client).analyze(context(), 2300)
+        self.assertEqual((report.provider, report.model), ('OpenAI', OpenAIProvider.model))
+        client.open.assert_called_once()
+        request = client.open.call_args.args[0]
+        self.assertEqual(request.full_url, OpenAIProvider.endpoint)
+        payload = json.loads(request.data)
+        self.assertFalse(payload['store'])
+        self.assertEqual(payload['max_completion_tokens'], 600)
+        self.assertNotIn('reasoning_effort', payload)
 
     def test_single_fixed_request_and_adapter_attribution(self):
         client = transport()

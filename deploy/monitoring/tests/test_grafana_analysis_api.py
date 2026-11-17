@@ -2,6 +2,7 @@ import io
 import json
 from pathlib import Path
 import sys
+import time
 import unittest
 from unittest.mock import Mock
 from urllib.error import HTTPError
@@ -53,3 +54,25 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
             transport.open.side_effect = HTTPError('http://grafana.example.test', upstream,
                                                    'fixture', {}, None)
             self.assertEqual(api.dispatch('GET', STATUS_PATH, headers)[0], expected)
+
+    def test_paid_provider_requires_enablement_and_per_request_confirmation(self):
+        api, _ = self.setup_api([{'orgId': 1, 'role': 'Admin'}])
+        headers = {'Origin': ORIGIN, 'Cookie': 'grafana_session=fixture',
+                   'X-Kidly-AI-Provider': 'openai'}
+        self.assertEqual(api.dispatch('POST', ACTION_PATH, headers), (400, {'state': 'provider_unavailable'}))
+        groq, openai = Mock(return_value='published'), Mock(return_value='failed')
+        api.requests = AnalysisRequests(groq, lambda: 0, openai_runner=openai)
+        self.assertEqual(api.dispatch('POST', ACTION_PATH, headers),
+                         (400, {'state': 'paid_confirmation_required'}))
+        groq.assert_not_called()
+        openai.assert_not_called()
+        headers['X-Kidly-AI-Confirm-Paid'] = 'true'
+        self.assertEqual(api.dispatch('POST', ACTION_PATH, headers)[0], 202)
+        for _ in range(100):
+            result = api.requests.read(is_operator=True)[1]
+            if result['state'] == 'failed':
+                break
+            time.sleep(0.005)
+        self.assertEqual((result['state'], result['provider']), ('failed', 'openai'))
+        openai.assert_called_once()
+        groq.assert_not_called()

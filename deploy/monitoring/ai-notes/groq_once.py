@@ -14,12 +14,20 @@ import time
 from contracts import analyze_and_publish
 from errors import NotesError
 from groq_provider import GroqProvider, MODEL, ProviderError
+from openai_provider import OpenAIProvider
 from receive import STATE, METRICS
 from snapshot import collect
 from storage import LokiPublisher, Store
 
 PRINCIPAL = 'groq-dev-manual'
+PAID_PRINCIPAL = 'openai-dev-manual'
 TRIAL_INTERVAL = 3600
+
+
+def last_trial_at(db):
+    return db.execute(
+        'SELECT max(started) FROM contexts WHERE principal IN (?, ?)', (PRINCIPAL, PAID_PRINCIPAL),
+    ).fetchone()[0]
 
 
 @contextmanager
@@ -47,23 +55,29 @@ def run_once(key, *, free_tier_confirmed, store, collector=partial(collect, comp
              publisher=None, clock=time.time):
     # Construct/validate credentials and confirmation before collecting or persisting a context.
     provider = provider_factory(key, free_tier_confirmed=free_tier_confirmed, clock=clock)
+    return publish_once(provider, store, collector, publisher, clock, PRINCIPAL,
+                        provider_name='Groq', model=MODEL)
+
+
+def publish_once(provider, store, collector, publisher, clock, principal, *, provider_name, model):
     now = int(clock())
-    store.check_issue_allowed(PRINCIPAL, now)
-    # At most one trial an hour, including failed inference, across manual workflow invocations.
-    last = store.db.execute('SELECT max(started) FROM contexts WHERE principal=?', (PRINCIPAL,)).fetchone()[0]
-    if last is not None and now-last < TRIAL_INTERVAL:
+    store.check_issue_allowed(principal, now)
+    last = last_trial_at(store.db)
+    if last is not None and now - last < TRIAL_INTERVAL:
         raise ProviderError('trial_cooldown')
     context = collector('dev', now)
-    store.issue(context, PRINCIPAL, now)
+    store.issue(context, principal, now)
     receipt = analyze_and_publish(context, provider, publisher or LokiPublisher(store),
-                                  principal=PRINCIPAL, clock=clock)
+                                  principal=principal, clock=clock)
     return {'context_id': context.context_id, 'receipt': receipt, 'delivered': True,
-            'provider': 'Groq', 'model': MODEL}
+            'provider': provider_name, 'model': model}
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--confirm-free-plan', action='store_true')
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--confirm-free-plan', action='store_true')
+    mode.add_argument('--confirm-paid-openai', action='store_true')
     args = parser.parse_args()
     os.umask(0o077)
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
@@ -76,7 +90,13 @@ def main():
     try:
         key = read_key(sys.stdin.buffer)
         with trial_lock(STATE):
-            result = run_once(key, free_tier_confirmed=args.confirm_free_plan, store=Store(STATE, METRICS))
+            store = Store(STATE, METRICS)
+            if args.confirm_paid_openai:
+                provider = OpenAIProvider(key, paid_confirmed=True)
+                result = publish_once(provider, store, partial(collect, compare_http=True), None,
+                                      time.time, PAID_PRINCIPAL, provider_name=provider.name, model=provider.model)
+            else:
+                result = run_once(key, free_tier_confirmed=args.confirm_free_plan, store=store)
         print(json.dumps({'ok': True, 'result': result}))
         return 0
     except Exception as error:
