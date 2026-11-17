@@ -82,8 +82,11 @@ class GroqProviderTest(unittest.TestCase):
             label = 'app_job' if expression == app_expected else 'job'
             return [{'metric': {label: name}, 'value': [when, assigned]} for name in snapshot.JOBS]
 
-        with patch('snapshot.metric_rows', side_effect=rows):
+        exceptions = [{'metric': {'service_name': name, 'error_type': 'org.example.VeryLongExceptionClassName' + str(i) + 'X' * 40},
+                       'value': [2000, '12345']} for i, name in enumerate(snapshot.JOBS[:snapshot.EXCEPTION_TOP])]
+        with patch('snapshot.metric_rows', side_effect=rows), patch('snapshot.log_rows', return_value=exceptions):
             sample = snapshot.collect('dev', 2000, compare_http=True)
+        self.assertEqual(len([f for f in sample.evidence if f.metric.startswith('error_type_30m:')]), snapshot.EXCEPTION_TOP)
         client = transport()
         self.provider(client).analyze(sample, 2300)
         request = client.open.call_args.args[0]
@@ -112,6 +115,25 @@ class GroqProviderTest(unittest.TestCase):
         self.assertFalse({'duration_sum_30m', 'mean_response_current_30m', 'mean_response_previous_30m'} & gateway)
         self.assertIn('mean_response_current_30m', {fact.metric for fact in sample.evidence if fact.service == 'kidly-order'})
         self.assertTrue(any('SSE' in line for line in sample.limitations))
+
+    def test_exception_classes_become_bounded_evidence_without_messages(self):
+        loki = {'status': 'success', 'data': {'resultType': 'vector', 'result': [
+            {'metric': {'service_name': 'kidly-recommend',
+                        'error_type': 'org.springframework.transaction.CannotCreateTransactionException'}, 'value': [3600, '379']},
+            {'metric': {'service_name': 'kidly-order', 'error_type': 'com.x.Outer$Inner'}, 'value': [3600, '2']},
+            {'metric': {'service_name': 'kidly-unknown', 'error_type': 'java.io.IOException'}, 'value': [3600, '5']},
+            {'metric': {'service_name': 'kidly-order', 'error_type': 'bad name; DROP'}, 'value': [3600, '9']},
+        ]}}
+        with patch('snapshot.metric_rows', return_value=[]), patch('snapshot.log_rows', return_value=loki['data']['result']) as read:
+            sample = snapshot.collect('dev', 3600)
+        facts = {(fact.metric, fact.service): fact.value for fact in sample.evidence}
+        self.assertEqual(facts, {('error_type_30m:CannotCreateTransactionException', 'kidly-recommend'): 379,
+                                 ('error_type_30m:Outer', 'kidly-order'): 2})
+        self.assertIn('topk(8,', read.call_args.args[0])
+        self.assertTrue(any(line.startswith('error_type_30m:<Class>') for line in sample.limitations))
+        with patch('snapshot.metric_rows', return_value=[]), patch('snapshot.log_rows', side_effect=OSError):
+            failed = snapshot.collect('dev', 3600)
+        self.assertIn('ERROR log exception types were unavailable; this is not zero.', failed.limitations)
 
     def test_stdin_key_boundaries_do_not_echo_input(self):
         for raw in (b'private-without-newline', b'x'*257+b'\n', b'\xff\n'):
