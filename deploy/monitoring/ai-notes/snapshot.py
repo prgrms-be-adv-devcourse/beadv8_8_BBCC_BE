@@ -20,6 +20,10 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError('redirect refused')
 
 
+# 응답 시간(평균)을 믿을 수 없는 서비스. 요청 수 · 5xx 는 그대로 쓴다
+NO_DURATION = 'kidly-gateway'
+
+
 def opener():
     return urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
 
@@ -28,7 +32,8 @@ def queries(env):
     if env not in ('dev', 'prod'):
         raise ValueError('unsupported environment')
     app = 'env="' + env + '",job=~"' + MATCH + '"'
-    http = app + ',uri!~"/actuator.*"'
+    # 대시보드와 같이 수집 요청(/actuator)과 알림 스트림(SSE, 연결이 오래 열려 평균을 왜곡)을 뺀다
+    http = app + ',uri!~"/actuator.*|/api/v1/(child/)?notifications/stream"'
     lag = 'env="' + env + '",job="kidly-kafka",consumergroup=~"kidly[.][a-z]+"'
     return {
         'environment_transition': ('boolean', f'max(kidly_environment_transition_active{{env="{env}"}} and (time()-timestamp(kidly_environment_transition_active{{env="{env}"}})<60))'),
@@ -40,7 +45,8 @@ def queries(env):
         'up': ('boolean', f'min by (job) (up{{{app}}} and (time()-timestamp(up{{{app}}})<60))'),
         'requests_30m': ('estimated_count', f'sum by (job) (increase(http_server_requests_seconds_count{{{http}}}[30m]))'),
         'errors_30m': ('estimated_count', f'sum by (job) (increase(http_server_requests_seconds_count{{{http},status=~"5.."}}[30m]))'),
-        'duration_sum_30m': ('seconds', f'sum by (job) (increase(http_server_requests_seconds_sum{{{http}}}[30m]))'),
+        # Gateway 는 하위 서비스로 넘긴 요청이 모두 uri="UNKNOWN" 이라 SSE 를 걸러낼 수 없어 응답 시간을 보내지 않는다
+        'duration_sum_30m': ('seconds', f'sum by (job) (increase(http_server_requests_seconds_sum{{{http},job!~"{NO_DURATION}"}}[30m]))'),
         'hikari_pending': ('count', f'sum by (job) (hikaricp_connections_pending{{{app}}} and (time()-timestamp(hikaricp_connections_pending{{{app}}})<60))'),
         'hikari_utilization': ('ratio', f'max by (job) (hikaricp_connections_active{{{app}}}/hikaricp_connections_max{{{app}}} and (time()-timestamp(hikaricp_connections_active{{{app}}})<60))'),
         'kafka_lag': ('count', f'sum(kafka_consumergroup_lag{{env="{env}"}} and (time()-timestamp(kafka_consumergroup_lag{{env="{env}"}})<60))'),
@@ -95,6 +101,8 @@ def previous_http_facts(environment, now, facts):
         errors = previous.get(('errors_30m', service))
         if errors is not None and ('errors_30m', service) in current:
             yield ('errors_previous_30m', errors, 'estimated_count', service)
+        if service == NO_DURATION:
+            continue
         duration = current.get(('duration_sum_30m', service))
         prior_duration = previous.get(('duration_sum_30m', service))
         if duration is not None and prior_duration is not None:
@@ -115,6 +123,8 @@ def collect(environment, now=None, *, compare_http=False):
                                    'error_logs_30m', 'restarts_30m', 'kafka_lag_by_service')
             if per_service and service not in JOBS:
                 continue
+            if name == 'duration_sum_30m' and service == NO_DURATION:
+                continue
             if not per_service:
                 service = None
             value = float(row['value'][1])
@@ -133,6 +143,7 @@ def collect(environment, now=None, *, compare_http=False):
         limitations.append('No finite fresh/available result for: ' + ', '.join(missing) + '; absence is not healthy zero.')
     limitations.extend((
         'HTTP counts/duration are 30-minute estimates; mean is not p95. Low traffic limits interpretation.',
+        'HTTP facts exclude /actuator and notification stream (SSE) paths. kidly-gateway has no duration: its proxied requests are uri=UNKNOWN, so long-lived SSE streams cannot be excluded.',
         'Absent 5xx series alone can mean no 5xx observed. Never add Gateway and service requests together.',
         'Check environment_enabled/environment_transition/app_expected before interpreting missing or down apps; disabled means intentional stop.',
         'Host metrics are worst observed across available hosts, not a specific service host; absent hosts can be omitted.',
