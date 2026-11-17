@@ -41,6 +41,6 @@ jobs:
               -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 \
               "deploy@$1" python3 - "$2" "$trace_id" < deploy/tracing-ops/verify-alloy.py
           }
+          printf 'Synthetic trace ID: %s\n' "$trace_id"
           remote "$APP_HOST" send
           remote "$MONITOR_HOST" verify
-          printf 'Synthetic trace ID: %s\n' "$trace_id"

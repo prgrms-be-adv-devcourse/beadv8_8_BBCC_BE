@@ -53,7 +53,7 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 
 ## Alloy에서 Tempo까지 확인
 
-수신 경로를 준비한 뒤 `tracing-verify-alloy`를 수동 실행합니다. 전용 Alloy에 합성 span 한 개를 넣고 Tempo에서 같은 ID를 조회합니다. 실제 요청과 구분되는 합성 계측 scope를 사용하며 앱이나 DB를 변경하지 않습니다. 운영 Grafana에서 실제 요청의 Gateway·주문·DB 추적은 Agent 적용 후 확인합니다.
+수신 경로를 준비한 뒤 `tracing-verify-alloy`를 수동 실행합니다. 전용 Alloy에 합성 span 한 개를 넣고 Tempo에서 같은 ID를 조회합니다. 기존 Alloy가 허용하는 Gateway 서비스 이름과 별도 합성 계측 scope를 사용합니다. 검증 실행에 표시된 합성 trace ID는 실제 요청 검증에서 제외합니다. 앱이나 DB는 변경하지 않습니다. 운영 Grafana에서 실제 요청의 Gateway·주문·DB 추적은 Agent 적용 후 확인합니다.
 
 ## 운영 적용·원복 점검
 
