@@ -13,6 +13,10 @@ from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
 
 
+class OrderTagMismatch(RuntimeError):
+    pass
+
+
 def fixture(trace_id, now):
     return {'resourceSpans': [{
         'resource': {'attributes': [
@@ -82,10 +86,11 @@ def verify(client, base, trace_id):
                             if scope.get('scope', {}).get('name') != 'kidly.tracing.synthetic':
                                 continue
                             for span in scope.get('spans', []):
-                                attributes = {entry['key']: entry['value'] for entry in span.get('attributes', [])}
-                                if attributes == {'kidly.operation': {'stringValue': 'order.detail'}}:
+                                if span.get('attributes') == [
+                                    {'key': 'kidly.operation', 'value': {'stringValue': 'order.detail'}},
+                                ]:
                                     return
-                    raise RuntimeError('order fixture did not retain only the expected operation tag')
+                    raise OrderTagMismatch
         except HTTPError as error:
             if error.code != 404:
                 raise
@@ -111,10 +116,10 @@ def main():
             with tunnel('monitoring', 'tempo', 3200) as base:
                 verify(client, base, args.trace_id)
             print('Tempo returned the tagged synthetic order trace')
-    except RuntimeError as error:
-        print(str(error))
+    except OrderTagMismatch:
+        print('Order fixture did not retain only the expected operation tag')
         return 1
-    except (OSError, ValueError):
+    except (OSError, ValueError, RuntimeError, TypeError, AttributeError):
         print('Could not complete the synthetic ' + args.mode)
         return 1
     return 0

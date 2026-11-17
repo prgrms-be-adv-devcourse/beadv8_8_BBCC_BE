@@ -56,5 +56,17 @@ class AlloyTransportProofTest(unittest.TestCase):
         response = client.open.return_value.__enter__.return_value
         response.status = 200
         response.read.return_value = json.dumps(probe.fixture(TRACE_ID, 1000000))
-        with self.assertRaisesRegex(RuntimeError, 'expected operation tag'):
+        with self.assertRaises(probe.OrderTagMismatch):
+            probe.verify(client, 'http://127.0.0.1:3200', TRACE_ID)
+
+    def test_check_rejects_attribute_without_key(self):
+        client = MagicMock()
+        response = client.open.return_value.__enter__.return_value
+        response.status = 200
+        result = probe.fixture(TRACE_ID, 1000000)
+        result['resourceSpans'][0]['scopeSpans'][0]['spans'][0]['attributes'] = [
+            {'value': {'stringValue': 'order.detail'}},
+        ]
+        response.read.return_value = json.dumps(result)
+        with self.assertRaises(probe.OrderTagMismatch):
             probe.verify(client, 'http://127.0.0.1:3200', TRACE_ID)
