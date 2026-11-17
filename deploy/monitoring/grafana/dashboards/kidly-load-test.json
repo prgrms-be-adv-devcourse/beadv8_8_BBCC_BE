@@ -1249,7 +1249,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m]))) and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"integrations/unix\",mode=\"idle\"}[1m]))) and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
           "legendFormat": "앱 서버 사용률"
         },
         {
@@ -1258,7 +1258,7 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "100 * avg by (instance) (rate(node_cpu_seconds_total{mode=\"steal\"}[1m])) and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "expr": "100 * avg by (instance) (rate(node_cpu_seconds_total{job=\"integrations/unix\",mode=\"steal\"}[1m])) and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
           "legendFormat": "앱 서버 steal"
         },
         {
@@ -1267,7 +1267,7 @@
             "uid": "prometheus"
           },
           "refId": "C",
-          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m]))) unless on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"integrations/unix\",mode=\"idle\"}[1m]))) unless on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
           "legendFormat": "DB 서버 사용률"
         },
         {
@@ -1276,7 +1276,7 @@
             "uid": "prometheus"
           },
           "refId": "D",
-          "expr": "100 * avg by (instance) (rate(node_cpu_seconds_total{mode=\"steal\"}[1m])) unless on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "expr": "100 * avg by (instance) (rate(node_cpu_seconds_total{job=\"integrations/unix\",mode=\"steal\"}[1m])) unless on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
           "legendFormat": "DB 서버 steal"
         }
       ],
