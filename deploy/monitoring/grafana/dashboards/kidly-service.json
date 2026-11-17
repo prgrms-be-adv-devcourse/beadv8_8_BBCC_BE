@@ -1,6 +1,6 @@
 {
   "uid": "kidly-service",
-  "title": "Kidly 서비스 상세",
+  "title": "2 · Kidly 서비스 상세",
   "description": "서비스 하나를 골라 HTTP · JVM · DB 커넥션 풀 · Kafka를 같은 구성으로 봅니다.",
   "tags": [
     "kidly"
@@ -826,468 +826,471 @@
     {
       "id": 18,
       "type": "row",
-      "title": "JVM",
-      "collapsed": false,
+      "title": "JVM · 메모리 · GC · CPU (이상할 때 펼치기)",
+      "collapsed": true,
       "gridPos": {
         "x": 0,
         "y": 21,
         "w": 24,
         "h": 1
       },
-      "panels": []
-    },
-    {
-      "type": "timeseries",
-      "title": "힙 메모리",
-      "description": "사용량이 상한에 붙어 내려오지 않으면 메모리 누수 · 큰 조회를 의심하고 GC와 재시작 표시선을 함께 봅니다.",
-      "gridPos": {
-        "x": 0,
-        "y": 22,
-        "w": 8,
-        "h": 8
-      },
-      "targets": [
+      "panels": [
         {
+          "type": "timeseries",
+          "title": "힙 메모리",
+          "description": "사용량이 상한에 붙어 내려오지 않으면 메모리 누수 · 큰 조회를 의심하고 GC와 재시작 표시선을 함께 봅니다.",
+          "gridPos": {
+            "x": 0,
+            "y": 22,
+            "w": 8,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "sum by (instance) (jvm_memory_used_bytes{env=\"$env\",job=\"$service\",area=\"heap\"})",
+              "legendFormat": "사용 · {{instance}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "B",
+              "expr": "sum by (instance) (jvm_memory_max_bytes{env=\"$env\",job=\"$service\",area=\"heap\"} > 0)",
+              "legendFormat": "상한 · {{instance}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "id": 11,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "refId": "A",
-          "expr": "sum by (instance) (jvm_memory_used_bytes{env=\"$env\",job=\"$service\",area=\"heap\"})",
-          "legendFormat": "사용 · {{instance}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "B",
-          "expr": "sum by (instance) (jvm_memory_max_bytes{env=\"$env\",job=\"$service\",area=\"heap\"} > 0)",
-          "legendFormat": "상한 · {{instance}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "max"
+          "links": [
+            {
+              "title": "같은 시간 로그 (Explore)",
+              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
+            },
+            {
+              "title": "오류 로그 화면",
+              "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
+            }
           ]
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 11,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "links": [
         {
-          "title": "같은 시간 로그 (Explore)",
-          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
-        },
-        {
-          "title": "오류 로그 화면",
-          "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "GC 정지 시간 비율",
-      "description": "1초 중 GC로 멈춘 시간의 비율입니다. 오르면 힙 메모리와 응답시간이 같이 나빠졌는지 확인합니다.",
-      "gridPos": {
-        "x": 8,
-        "y": 22,
-        "w": 8,
-        "h": 8
-      },
-      "targets": [
-        {
+          "type": "timeseries",
+          "title": "GC 정지 시간 비율",
+          "description": "1초 중 GC로 멈춘 시간의 비율입니다. 오르면 힙 메모리와 응답시간이 같이 나빠졌는지 확인합니다.",
+          "gridPos": {
+            "x": 8,
+            "y": 22,
+            "w": 8,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "sum by (instance) (rate(jvm_gc_pause_seconds_sum{env=\"$env\",job=\"$service\"}[5m]))",
+              "legendFormat": "{{instance}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "id": 12,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "refId": "A",
-          "expr": "sum by (instance) (rate(jvm_gc_pause_seconds_sum{env=\"$env\",job=\"$service\"}[5m]))",
-          "legendFormat": "{{instance}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "max"
+          "links": [
+            {
+              "title": "같은 시간 로그 (Explore)",
+              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
+            },
+            {
+              "title": "오류 로그 화면",
+              "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
+            }
           ]
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 12,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "links": [
         {
-          "title": "같은 시간 로그 (Explore)",
-          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
-        },
-        {
-          "title": "오류 로그 화면",
-          "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "프로세스 CPU",
-      "description": "JVM이 쓰는 CPU 비율입니다. 높게 유지되면 처리량 급증 · GC · 무거운 연산을 확인하고 서버 화면에서 호스트 CPU를 봅니다.",
-      "gridPos": {
-        "x": 16,
-        "y": 22,
-        "w": 8,
-        "h": 8
-      },
-      "targets": [
-        {
+          "type": "timeseries",
+          "title": "프로세스 CPU",
+          "description": "JVM이 쓰는 CPU 비율입니다. 높게 유지되면 처리량 급증 · GC · 무거운 연산을 확인하고 서버 화면에서 호스트 CPU를 봅니다.",
+          "gridPos": {
+            "x": 16,
+            "y": 22,
+            "w": 8,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "max by (instance) (process_cpu_usage{env=\"$env\",job=\"$service\"})",
+              "legendFormat": "{{instance}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "id": 13,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "refId": "A",
-          "expr": "max by (instance) (process_cpu_usage{env=\"$env\",job=\"$service\"})",
-          "legendFormat": "{{instance}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "max"
+          "links": [
+            {
+              "title": "같은 시간 로그 (Explore)",
+              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
+            },
+            {
+              "title": "오류 로그 화면",
+              "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
+            }
           ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 13,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "links": [
-        {
-          "title": "같은 시간 로그 (Explore)",
-          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
-        },
-        {
-          "title": "오류 로그 화면",
-          "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
         }
       ]
     },
     {
       "id": 19,
       "type": "row",
-      "title": "DB 커넥션 풀 (HikariCP)",
-      "collapsed": false,
+      "title": "DB 커넥션 풀 (응답이 느릴 때 펼치기)",
+      "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 22,
         "w": 24,
         "h": 1
       },
-      "panels": []
-    },
-    {
-      "type": "timeseries",
-      "title": "풀 연결",
-      "description": "사용 중이 상한에 붙고 '연결 기다림'이 생기면 느린 쿼리 · 긴 트랜잭션을 확인합니다. Gateway처럼 DB가 없는 서비스는 데이터가 없습니다.",
-      "gridPos": {
-        "x": 0,
-        "y": 31,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
+      "panels": [
         {
+          "type": "timeseries",
+          "title": "풀 연결",
+          "description": "사용 중이 상한에 붙고 '연결 기다림'이 생기면 느린 쿼리 · 긴 트랜잭션을 확인합니다. Gateway처럼 DB가 없는 서비스는 데이터가 없습니다.",
+          "gridPos": {
+            "x": 0,
+            "y": 23,
+            "w": 12,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "sum by (pool) (hikaricp_connections_active{env=\"$env\",job=\"$service\"})",
+              "legendFormat": "사용 중 · {{pool}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "B",
+              "expr": "sum by (pool) (hikaricp_connections_idle{env=\"$env\",job=\"$service\"})",
+              "legendFormat": "대기 연결 · {{pool}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "C",
+              "expr": "sum by (pool) (hikaricp_connections_pending{env=\"$env\",job=\"$service\"})",
+              "legendFormat": "연결 기다림 · {{pool}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "D",
+              "expr": "sum by (pool) (hikaricp_connections_max{env=\"$env\",job=\"$service\"})",
+              "legendFormat": "상한 · {{pool}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "id": 14,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "refId": "A",
-          "expr": "sum by (pool) (hikaricp_connections_active{env=\"$env\",job=\"$service\"})",
-          "legendFormat": "사용 중 · {{pool}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "B",
-          "expr": "sum by (pool) (hikaricp_connections_idle{env=\"$env\",job=\"$service\"})",
-          "legendFormat": "대기 연결 · {{pool}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "C",
-          "expr": "sum by (pool) (hikaricp_connections_pending{env=\"$env\",job=\"$service\"})",
-          "legendFormat": "연결 기다림 · {{pool}}"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "D",
-          "expr": "sum by (pool) (hikaricp_connections_max{env=\"$env\",job=\"$service\"})",
-          "legendFormat": "상한 · {{pool}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "max"
+          "links": [
+            {
+              "title": "같은 시간 로그 (Explore)",
+              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
+            },
+            {
+              "title": "오류 로그 화면",
+              "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
+            }
           ]
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 14,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "links": [
         {
-          "title": "같은 시간 로그 (Explore)",
-          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
-        },
-        {
-          "title": "오류 로그 화면",
-          "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "연결 획득 평균 · 시간 초과",
-      "description": "획득 시간이 오르거나 시간 초과가 생기면 풀이 모자란 것입니다. 같은 시간의 경로별 평균 응답과 함께 봅니다.",
-      "gridPos": {
-        "x": 12,
-        "y": 31,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
+          "type": "timeseries",
+          "title": "연결 획득 평균 · 시간 초과",
+          "description": "획득 시간이 오르거나 시간 초과가 생기면 풀이 모자란 것입니다. 같은 시간의 경로별 평균 응답과 함께 봅니다.",
+          "gridPos": {
+            "x": 12,
+            "y": 23,
+            "w": 12,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "sum(rate(hikaricp_connections_acquire_seconds_sum{env=\"$env\",job=\"$service\"}[5m])) / (sum(rate(hikaricp_connections_acquire_seconds_count{env=\"$env\",job=\"$service\"}[5m])) > 0)",
+              "legendFormat": "획득 평균"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "B",
+              "expr": "sum(increase(hikaricp_connections_timeout_total{env=\"$env\",job=\"$service\"}[5m]))",
+              "legendFormat": "시간 초과 · 5분"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "id": 15,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "refId": "A",
-          "expr": "sum(rate(hikaricp_connections_acquire_seconds_sum{env=\"$env\",job=\"$service\"}[5m])) / (sum(rate(hikaricp_connections_acquire_seconds_count{env=\"$env\",job=\"$service\"}[5m])) > 0)",
-          "legendFormat": "획득 평균"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "B",
-          "expr": "sum(increase(hikaricp_connections_timeout_total{env=\"$env\",job=\"$service\"}[5m]))",
-          "legendFormat": "시간 초과 · 5분"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "max"
+          "links": [
+            {
+              "title": "같은 시간 로그 (Explore)",
+              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
+            },
+            {
+              "title": "오류 로그 화면",
+              "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
+            }
           ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 15,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "links": [
-        {
-          "title": "같은 시간 로그 (Explore)",
-          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
-        },
-        {
-          "title": "오류 로그 화면",
-          "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
         }
       ]
     },
     {
       "id": 20,
       "type": "row",
-      "title": "Kafka 소비",
-      "collapsed": false,
+      "title": "Kafka 소비 (이벤트 처리가 밀릴 때 펼치기)",
+      "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 23,
         "w": 24,
         "h": 1
       },
-      "panels": []
-    },
-    {
-      "type": "timeseries",
-      "title": "구독 그룹 미처리",
-      "description": "이 서비스가 쓰는 구독 그룹(DLT 포함)의 토픽별 미처리입니다. member 서비스는 auth · childprofile · member · seller 그룹을 함께 씁니다. 계속 늘면 소비자 로그와 Kafka 처리 화면을 확인합니다. 구독하지 않는 서비스는 데이터가 없습니다.",
-      "gridPos": {
-        "x": 0,
-        "y": 40,
-        "w": 24,
-        "h": 8
-      },
-      "targets": [
+      "panels": [
         {
+          "type": "timeseries",
+          "title": "구독 그룹 미처리",
+          "description": "이 서비스가 쓰는 구독 그룹(DLT 포함)의 토픽별 미처리입니다. member 서비스는 auth · childprofile · member · seller 그룹을 함께 씁니다. 계속 늘면 소비자 로그와 Kafka 처리 화면을 확인합니다. 구독하지 않는 서비스는 데이터가 없습니다.",
+          "gridPos": {
+            "x": 0,
+            "y": 24,
+            "w": 24,
+            "h": 8
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "refId": "A",
+              "expr": "sum by (consumergroup, topic) (label_replace(label_replace(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\",consumergroup=~\"kidly[.].+\"} >= 0, \"job\", \"kidly-$1\", \"consumergroup\", \"kidly[.]([a-z]+)([.].+)?\"), \"job\", \"kidly-member\", \"consumergroup\", \"kidly[.](auth|childprofile|member|seller)([.].+)?\") and on (job) label_replace(vector(1), \"job\", \"$service\", \"\", \"\"))",
+              "legendFormat": "{{consumergroup}} · {{topic}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            },
+            "overrides": []
+          },
+          "id": 16,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "refId": "A",
-          "expr": "sum by (consumergroup, topic) (label_replace(label_replace(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\",consumergroup=~\"kidly[.].+\"} >= 0, \"job\", \"kidly-$1\", \"consumergroup\", \"kidly[.]([a-z]+)([.].+)?\"), \"job\", \"kidly-member\", \"consumergroup\", \"kidly[.](auth|childprofile|member|seller)([.].+)?\") and on (job) label_replace(vector(1), \"job\", \"$service\", \"\", \"\"))",
-          "legendFormat": "{{consumergroup}} · {{topic}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "max"
+          "links": [
+            {
+              "title": "같은 시간 로그 (Explore)",
+              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
+            },
+            {
+              "title": "오류 로그 화면",
+              "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
+            }
           ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": false
-          }
-        },
-        "overrides": []
-      },
-      "id": 16,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "links": [
-        {
-          "title": "같은 시간 로그 (Explore)",
-          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
-        },
-        {
-          "title": "오류 로그 화면",
-          "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&${__url_time_range}"
         }
       ]
     }

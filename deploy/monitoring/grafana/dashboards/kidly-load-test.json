@@ -1,6 +1,6 @@
 {
   "uid": "kidly-load-test",
-  "title": "Kidly 부하 테스트",
+  "title": "8 · Kidly 부하 테스트",
   "description": "k6 부하 지표와 서버 지표를 같은 시간축으로 봅니다. 사용법: deploy/monitoring/docs/load-test-monitoring.md",
   "tags": [
     "kidly"
