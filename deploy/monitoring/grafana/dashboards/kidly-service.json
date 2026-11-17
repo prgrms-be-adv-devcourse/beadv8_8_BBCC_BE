@@ -1302,6 +1302,102 @@
           ]
         }
       ]
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "트레이스 · 게이트웨이 · 주문만 (느리거나 5xx일 때 펼치기)",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 22,
+          "type": "table",
+          "title": "느린 요청 · 500ms 이상 (최근 20건)",
+          "description": "선택 시간 범위에서 서버 처리 500ms 이상인 요청입니다. 게이트웨이 · 주문만 트레이스를 남깁니다(다른 서비스는 계측 전이라 비어 있음). trace ID를 누르면 게이트웨이 → 서비스 → Hibernate · JDBC 구간별 시간이 보입니다. 지금 트레이스에는 API 경로 · SQL이 남지 않습니다(수집 설정에서 제거). 어떤 API인지는 같은 시각의 'API별' 그래프와 로그로 맞춰 봅니다.",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 25,
+            "w": 12,
+            "h": 9
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "tempo",
+                "uid": "tempo"
+              },
+              "queryType": "traceql",
+              "query": "{resource.service.name=\"$service\" && resource.deployment.environment.name=\"$env\" && kind=server && duration>=500ms}",
+              "limit": 20,
+              "spss": 3,
+              "tableType": "traces"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          }
+        },
+        {
+          "id": 23,
+          "type": "table",
+          "title": "5xx 요청 (최근 20건)",
+          "description": "선택 시간 범위에서 5xx로 끝난 요청입니다. 게이트웨이 · 주문만 트레이스를 남깁니다(다른 서비스는 계측 전이라 비어 있음). trace ID를 누르면 게이트웨이 → 서비스 → Hibernate · JDBC 구간별 시간이 보입니다. 지금 트레이스에는 API 경로 · SQL이 남지 않습니다(수집 설정에서 제거). 어떤 API인지는 같은 시각의 'API별' 그래프와 로그로 맞춰 봅니다.",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 25,
+            "w": 12,
+            "h": 9
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "tempo",
+                "uid": "tempo"
+              },
+              "queryType": "traceql",
+              "query": "{resource.service.name=\"$service\" && resource.deployment.environment.name=\"$env\" && kind=server && span.http.response.status_code>=500}",
+              "limit": 20,
+              "spss": 3,
+              "tableType": "traces"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            }
+          }
+        }
+      ]
     }
   ]
 }
