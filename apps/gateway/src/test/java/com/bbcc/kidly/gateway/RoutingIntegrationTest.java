@@ -35,8 +35,8 @@ import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 class RoutingIntegrationTest extends GatewayTestSupport {
 
     private static final String ORIGIN = RecordingBackend.ALLOWED_ORIGIN;
-    // nginx dev 블록이 받는 이름. 허용 origin(프론트)에는 없다
-    private static final String NGINX_HOST = "dev-api.example";
+    // Traefik api 라우트가 받는 이름. 허용 origin(프론트)에는 없다
+    private static final String TRAEFIK_HOST = "api.example";
     private static final String CLIENT_IP = "1.2.3.4";
 
     @Autowired
@@ -637,15 +637,15 @@ class RoutingIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("nginx가 넣은 Host · X-Forwarded-*를 앱이 nginx 직결 때와 같은 값으로 받는다")
-    void forwardsNginxHeaders() {
+    @DisplayName("Traefik이 넣은 Host · X-Forwarded-*를 앱이 바꾸지 않고 받는다")
+    void forwardsTraefikHeaders() {
         client.get().uri("/api/v1/products/1")
-            .headers(this::nginxHeaders)
+            .headers(this::traefikHeaders)
             .exchange()
             .expectStatus().isOk();
 
         assertThat(productBackend.lastRequest()).hasValueSatisfying(request -> {
-            assertThat(request.header(HttpHeaders.HOST)).containsExactly(NGINX_HOST);
+            assertThat(request.header(HttpHeaders.HOST)).containsExactly(TRAEFIK_HOST);
             // Tomcat은 오른쪽부터 내부 프록시(사설 · 루프백)를 건너뛴 첫 값을 클라이언트로 본다
             var forwardedFor = request.header("X-Forwarded-For").stream()
                 .flatMap(value -> Arrays.stream(value.split(",")))
@@ -655,19 +655,19 @@ class RoutingIntegrationTest extends GatewayTestSupport {
             assertThat(forwardedFor.subList(1, forwardedFor.size())).allMatch(RoutingIntegrationTest::isInternal);
             // 값이 여럿이면(https,http) Tomcat이 https로 보지 않는다
             assertThat(request.header("X-Forwarded-Proto")).containsExactly("https");
-            assertThat(request.header("X-Forwarded-Host")).containsExactly(NGINX_HOST);
+            assertThat(request.header("X-Forwarded-Host")).containsExactly(TRAEFIK_HOST);
             assertThat(request.header("X-Forwarded-Port")).containsExactly("443");
-            // nginx는 Forwarded를 넣지 않는다. Gateway도 만들지 않는다
+            // Traefik은 Forwarded를 넣지 않는다. Gateway도 만들지 않는다
             assertThat(request.header("Forwarded")).isEmpty();
         });
     }
 
     @Test
-    @DisplayName("nginx 뒤의 같은 출처 요청(dev Swagger)은 CORS로 막지 않는다")
-    void treatsSameOriginBehindNginxAsSameOrigin() {
+    @DisplayName("Traefik 뒤의 같은 출처 요청(dev Swagger)은 CORS로 막지 않는다")
+    void treatsSameOriginBehindTraefikAsSameOrigin() {
         client.post().uri("/api/v1/orders")
-            .headers(this::nginxHeaders)
-            .header(HttpHeaders.ORIGIN, "https://" + NGINX_HOST)
+            .headers(this::traefikHeaders)
+            .header(HttpHeaders.ORIGIN, "https://" + TRAEFIK_HOST)
             .exchange()
             .expectStatus().isOk();
 
@@ -687,13 +687,13 @@ class RoutingIntegrationTest extends GatewayTestSupport {
             .exchange();
     }
 
-    // deploy/nginx/kidly.conf.template 공통 설정이 넣는 헤더
-    private void nginxHeaders(HttpHeaders headers) {
-        headers.set(HttpHeaders.HOST, NGINX_HOST);
+    // 엣지 Traefik(deploy/traefik)이 넣는 헤더
+    private void traefikHeaders(HttpHeaders headers) {
+        headers.set(HttpHeaders.HOST, TRAEFIK_HOST);
         headers.set("X-Real-IP", CLIENT_IP);
         headers.set("X-Forwarded-For", CLIENT_IP);
         headers.set("X-Forwarded-Proto", "https");
-        headers.set("X-Forwarded-Host", NGINX_HOST);
+        headers.set("X-Forwarded-Host", TRAEFIK_HOST);
         headers.set("X-Forwarded-Port", "443");
     }
 

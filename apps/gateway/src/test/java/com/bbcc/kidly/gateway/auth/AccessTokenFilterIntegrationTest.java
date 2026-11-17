@@ -17,6 +17,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,7 +27,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * Gateway가 밖에서 온 X-Member-* 헤더를 지우고, Bearer 토큰을 검증 · 무효화 확인한 뒤 회원 헤더를 붙여 넘기는지 본다(#608).
+ * Gateway가 밖에서 온 주체 헤더를 지우고, Bearer 토큰을 검증 · 무효화 확인한 뒤 회원 헤더를 붙여 넘기는지 본다(#608).
  */
 @IntegrationTest
 class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
@@ -34,6 +35,9 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     // 상품 서비스로 가는 공개 API. 목록(/api/v1/products)은 검색 서비스로 간다
     private static final String PATH = "/api/v1/products/1";
     private static final Duration VALIDITY = Duration.ofMinutes(30);
+    private static final List<String> PRINCIPAL_HEADERS = Arrays.stream(PrincipalType.values())
+        .flatMap(type -> PrincipalHeaders.namesOf(type).stream())
+        .toList();
 
     @Autowired
     private AccessTokenRevocations revocations;
@@ -41,6 +45,48 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
     @Autowired
     @Qualifier(RecordingBackendConfiguration.MEMBER)
     private RecordingBackend memberBackend;
+
+    @Test
+    @DisplayName("토큰 없이 보낸 모든 주체 헤더를 지운다")
+    void removesAllForgedHeadersWithoutToken() {
+        client.get().uri(PATH)
+            .headers(headers -> PRINCIPAL_HEADERS.forEach(name -> headers.add(name, "999")))
+            .exchange().expectStatus().isOk();
+
+        var received = received();
+        PRINCIPAL_HEADERS.forEach(name -> assertThat(received.header(name)).isEmpty());
+    }
+
+    @Test
+    @DisplayName("회원 토큰과 함께 보낸 주체 헤더는 토큰의 회원 헤더만 남긴다")
+    void removesAllForgedHeadersWithMemberToken() {
+        var now = Instant.now();
+        var token = TestTokens.issue(7L, List.of("BUYER"), now, now.plus(VALIDITY));
+        client.get().uri(PATH)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .headers(headers -> PRINCIPAL_HEADERS.forEach(name -> headers.add(name, "999")))
+            .exchange().expectStatus().isOk();
+
+        var received = received();
+        assertThat(received.header(MemberHeaders.MEMBER_ID)).containsExactly("7");
+        assertThat(received.header(MemberHeaders.MEMBER_ROLES)).containsExactly("BUYER");
+        assertThat(received.header(MemberHeaders.MEMBER_NICKNAME)).isEmpty();
+        PrincipalHeaders.namesOf(PrincipalType.ADMIN).forEach(name -> assertThat(received.header(name)).isEmpty());
+        PrincipalHeaders.namesOf(PrincipalType.CHILD).forEach(name -> assertThat(received.header(name)).isEmpty());
+    }
+
+    @Test
+    @DisplayName("로그아웃에 보낸 모든 주체 헤더를 지운다")
+    void removesAllForgedHeadersOnLogout() {
+        memberBackend.reset();
+        client.post().uri("/api/v1/auth/logout")
+            .headers(headers -> PRINCIPAL_HEADERS.forEach(name -> headers.add(name, "999")))
+            .cookie("refresh_token", "refresh")
+            .exchange().expectStatus().isOk();
+
+        assertThat(memberBackend.lastRequest()).hasValueSatisfying(request ->
+            PRINCIPAL_HEADERS.forEach(name -> assertThat(request.header(name)).isEmpty()));
+    }
 
     @Test
     @DisplayName("밖에서 보낸 X-Member-* 헤더는 지우고 넘긴다")
@@ -225,6 +271,15 @@ class AccessTokenFilterIntegrationTest extends GatewayTestSupport {
         var token = TestTokens.issue(8L, List.of("BUYER"), now.minusSeconds(5), now.plus(VALIDITY));
 
         expectUnauthorized(bearer(token), PATH);
+    }
+
+    @Test
+    @DisplayName("발급 시각(iat)이 없는 토큰은 무효화를 확인할 수 없으므로 401이다")
+    void rejectsTokenWithoutIssuedAt() {
+        var now = Instant.now();
+        revocations.revoke(member(12L), now, now);
+
+        expectUnauthorized(bearer(TestTokens.issueWithoutIssuedAt(12L)), PATH);
     }
 
     @Test

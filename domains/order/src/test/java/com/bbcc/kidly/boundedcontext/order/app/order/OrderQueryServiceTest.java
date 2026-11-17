@@ -362,4 +362,66 @@ class OrderQueryServiceTest {
             LocalDateTime.of(2026, 10, 14, 9, 0));
     }
 
+    @Nested
+    @DisplayName("상태 필터(#1280)")
+    class StatusFilter {
+
+        private final PageRequest pageable = PageRequest.of(0, 20);
+
+        @Test
+        @DisplayName("status가 없으면(null) 지금 쿼리 그대로(구매자 · 관리자), 상태 쿼리는 부르지 않는다")
+        void nullStatusUsesUnfilteredQuery() {
+            when(orderRepository.findAllByMemberIdOrderByIdDesc(BUYER_ID, pageable)).thenReturn(Page.empty(pageable));
+            when(orderRepository.findAllByOrderByIdDesc(pageable)).thenReturn(Page.empty(pageable));
+
+            orderQueries.getOrders(BUYER_ID, null, 0, 20);
+            orderQueries.getAllOrders(null, 0, 20);
+
+            verify(orderRepository, never()).findAllByMemberIdAndStatusOrderByIdDesc(any(), any(), any());
+            verify(orderRepository, never()).findAllByStatusOrderByIdDesc(any(), any());
+        }
+
+        @Test
+        @DisplayName("status가 있으면 그 상태 쿼리로 DB에서 거른다(건수도 그 페이지의 같은 조건)")
+        void statusUsesFilteredQuery() {
+            when(orderRepository.findAllByMemberIdAndStatusOrderByIdDesc(BUYER_ID, Order.Status.PAID, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 3));
+            when(orderRepository.findAllByStatusOrderByIdDesc(Order.Status.CANCELLED, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 5));
+
+            assertThat(orderQueries.getOrders(BUYER_ID, "PAID", 0, 20).getTotalElements()).isEqualTo(3L);
+            assertThat(orderQueries.getAllOrders("CANCELLED", 0, 20).getTotalElements()).isEqualTo(5L);
+            verify(orderRepository, never()).findAllByMemberIdOrderByIdDesc(any(), any());
+            verify(orderRepository, never()).findAllByOrderByIdDesc(any());
+        }
+
+        @Test
+        @DisplayName("offset이 int를 넘는 큰 page는 조회 없이 빈 페이지, 건수는 그 상태 건수")
+        void hugePageCountsStatus() {
+            when(orderRepository.countByMemberIdAndStatus(BUYER_ID, Order.Status.PENDING_PAYMENT)).thenReturn(4L);
+            when(orderRepository.countByStatus(Order.Status.PENDING_PAYMENT)).thenReturn(9L);
+
+            assertThat(orderQueries.getOrders(BUYER_ID, "PENDING_PAYMENT", 1_073_741_824, 2).getTotalElements())
+                .isEqualTo(4L);
+            assertThat(orderQueries.getAllOrders("PENDING_PAYMENT", 1_073_741_824, 2).getTotalElements())
+                .isEqualTo(9L);
+            verify(orderRepository, never()).findAllByMemberIdAndStatusOrderByIdDesc(any(), any(), any());
+            verify(orderRepository, never()).findAllByStatusOrderByIdDesc(any(), any());
+        }
+
+        @Test
+        @DisplayName("응답 status 값과 정확히 같아야 한다: 소문자 · 빈 값 · 공백 · 모르는 값은 INVALID_ORDER_STATUS이고 조회하지 않는다")
+        void unknownStatusIsRejectedBeforeQuery() {
+            for (String status : List.of("paid", "", " PAID", "SHIPPING")) {
+                assertThatThrownBy(() -> orderQueries.getOrders(BUYER_ID, status, 0, 20))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(OrderErrorCode.INVALID_ORDER_STATUS));
+                assertThatThrownBy(() -> orderQueries.getAllOrders(status, 0, 20))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(OrderErrorCode.INVALID_ORDER_STATUS));
+            }
+            verify(orderRepository, never()).findAllByMemberIdAndStatusOrderByIdDesc(any(), any(), any());
+            verify(orderRepository, never()).findAllByStatusOrderByIdDesc(any(), any());
+        }
+    }
 }

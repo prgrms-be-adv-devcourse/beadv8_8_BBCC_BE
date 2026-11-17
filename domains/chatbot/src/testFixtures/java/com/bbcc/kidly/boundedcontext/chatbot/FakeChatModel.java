@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.chatbot;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -15,7 +16,7 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions;
 
 /**
  * OpenAI 없이 쓰는 chat 모델. 늘 {@link #ANSWER}로 답하고 받은 요청을 남긴다. {@link #failWith}로 호출 실패를,
- * {@link #callToolNext}로 도구 호출을 흉내 낸다. 테스트가 끝나면 {@link #reset}으로 되돌린다.
+ * {@link #callToolNext}로 도구 호출을, {@link #delayEachCall}로 느린 응답을 흉내 낸다. 테스트가 끝나면 {@link #reset}으로 되돌린다.
  */
 public class FakeChatModel implements ChatModel {
 
@@ -25,9 +26,17 @@ public class FakeChatModel implements ChatModel {
     private final Queue<AssistantMessage.ToolCall> plannedToolCalls = new ConcurrentLinkedQueue<>();
     private final AtomicInteger toolCallIds = new AtomicInteger();
     private volatile RuntimeException failure;
+    private volatile Duration delay = Duration.ZERO;
 
     public void failWith(RuntimeException failure) {
         this.failure = failure;
+    }
+
+    /**
+     * 부를 때마다 이만큼 기다린 뒤 답한다(기다리는 중에 끊겨도 끝까지 기다린다. 이미 보낸 HTTP 호출처럼).
+     */
+    public void delayEachCall(Duration delay) {
+        this.delay = delay;
     }
 
     /**
@@ -40,6 +49,7 @@ public class FakeChatModel implements ChatModel {
 
     public void reset() {
         failure = null;
+        delay = Duration.ZERO;
         plannedToolCalls.clear();
         prompts.clear();
     }
@@ -60,6 +70,7 @@ public class FakeChatModel implements ChatModel {
     @Override
     public ChatResponse call(Prompt prompt) {
         prompts.add(prompt);
+        sleepUninterruptibly(delay);
         RuntimeException current = failure;
         if (current != null) {
             throw current;
@@ -72,6 +83,21 @@ public class FakeChatModel implements ChatModel {
             return new ChatResponse(List.of(new Generation(toolCall)));
         }
         return new ChatResponse(List.of(new Generation(new AssistantMessage(ANSWER))));
+    }
+
+    private static void sleepUninterruptibly(Duration duration) {
+        long deadline = System.nanoTime() + duration.toNanos();
+        boolean interrupted = false;
+        while (System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(Duration.ofNanos(deadline - System.nanoTime()));
+            } catch (InterruptedException e) {
+                interrupted = true;
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static boolean offersTools(Prompt prompt) {

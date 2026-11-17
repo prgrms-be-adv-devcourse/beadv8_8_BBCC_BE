@@ -2,7 +2,7 @@
 #   server: t3.medium k3s 에 Prometheus · Loki · Grafana(deploy/monitoring). kubectl apply -k
 #   agent: t3.large(앱 서버)에 수집기 Alloy(deploy/monitoring-agent). 그 서버 k3s 의 namespace monitoring(#1210). 받는 쪽이 먼저 떠 있도록 server 다음에 돈다
 # 설정의 원본은 레포, 비밀의 원본은 Environment dev 의 Secret(SLACK_OPS_WEBHOOK_URL, GRAFANA_ADMIN_PASSWORD)이다. 서버의 비밀 파일 · .env 는 매번 새로 만든다
-# nginx(deploy/nginx, t3.large k3s 의 namespace edge)는 여기서 다루지 않는다. deploy/nginx/deploy.sh 로 따로 바꾼다
+# Traefik(deploy/traefik, t3.large k3s 의 namespace edge)은 여기서 다루지 않는다. deploy/traefik/deploy.sh 로 따로 바꾼다
 name: monitoring-deploy
 
 on:
@@ -65,10 +65,13 @@ jobs:
         env:
           SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          # AI 운영 분석 버튼(ai-notes/analysis-api.sh)이 실행 때마다 읽는다. 없으면 버튼(OpenAI 는 그 선택지)만 꺼진다. k8s Secret 에는 넣지 않는다
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           out="$RUNNER_TEMP/monitoring"
           mkdir -p "$out"
-          cp -r deploy/monitoring/{kustomization.yaml,deploy.sh,k8s,prometheus,loki,alloy,grafana,mcp,ai-notes} "$out/"
+          cp -r deploy/monitoring/{kustomization.yaml,deploy.sh,k8s,prometheus,loki,alloy,grafana,mcp,ai-notes,tempo} "$out/"
 
           # 빠지거나 작은따옴표 · 줄바꿈이 든 Secret 이 있으면 스크립트가 안내를 남기고 실패해 이 단계도 멈춘다. 출력(KEY='값' 줄)은 쓰지 않는다
           .github/scripts/env-lines.sh dev SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD > /dev/null
@@ -79,18 +82,28 @@ jobs:
             for key in SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD; do
               printf '%s' "${!key}" > "$out/secrets/$key"
             done
+            for key in GROQ_API_KEY OPENAI_API_KEY; do
+              value=${!key}
+              [[ -n "$value" ]] || continue
+              # 키 한 줄만 받는다(처리기가 256바이트까지 읽는다). 값은 출력하지 않는다
+              if [[ "$value" == *$'\n'* || ${#value} -gt 256 ]]; then
+                echo "::warning::$key 형식이 맞지 않아 넣지 않습니다(한 줄, 256자 이하)"
+                continue
+              fi
+              printf '%s' "$value" > "$out/secrets/$key"
+            done
           )
 
       # 설정 폴더는 지우고 새로 풀어 레포에서 지운 파일이 서버에 남지 않게 한다. 데이터는 k3s PVC 라 그대로다
       - name: 서버에 설정 파일 올리기
         run: |
           dir=/opt/app/monitoring
-          tar -C "$RUNNER_TEMP/monitoring" -czf - kustomization.yaml deploy.sh k8s prometheus loki alloy grafana mcp ai-notes secrets \
+          tar -C "$RUNNER_TEMP/monitoring" -czf - kustomization.yaml deploy.sh k8s prometheus loki alloy grafana mcp ai-notes tempo secrets \
             | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "deploy@$SSH_HOST" "
               set -e
               mkdir -p $dir
               cd $dir
-              rm -rf k8s prometheus loki alloy grafana mcp ai-notes secrets
+              rm -rf k8s prometheus loki alloy grafana mcp ai-notes tempo secrets
               tar -xzf - --no-same-owner
               chmod 700 secrets
               chmod 600 secrets/*

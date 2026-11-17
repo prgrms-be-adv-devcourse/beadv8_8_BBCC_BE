@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.delivery.out.tracker;
 
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker.TrackingEvent;
+import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker.TrackingHistory;
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryStatusChecker.TrackingResult;
 import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.delivery.out.config.DeliveryTrackerCircuitBreakerProperties;
@@ -15,7 +17,9 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.locks.ReentrantLock;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -41,17 +45,35 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
 
     private static final String DELIVERED = "DELIVERED";
 
+    /**
+     * 구매자 진행 이력(#1320)이 호출 간격 자리를 기다리는 최대 시간. 넘으면 부르지 않고 일시 오류(요청 스레드를 오래 잡지 않게).
+     */
+    static final Duration HISTORY_MAX_WAIT = Duration.ofSeconds(1);
+    static final String CALL_SLOT_BUSY = "CALL_SLOT_BUSY";
+
     private final DeliveryTrackerClient client;
     private final TrackerCircuitBreaker circuitBreaker;
+    private final TrackerCircuitBreaker historyCircuitBreaker;
     private final long minCallIntervalNanos;
+    private final long historyMaxWaitNanos;
     private final ZoneId zone;
+    // 호출 간격은 상태 조회(주기 작업)와 구매자 진행 이력이 함께 나눠 쓴다(호출 한도는 Delivery Tracker 계정 하나)
+    private final ReentrantLock callIntervalLock = new ReentrantLock(true);
     private long lastCallNanos;
 
     DeliveryTrackerChecker(DeliveryTrackerClient client, TrackerCircuitBreaker circuitBreaker, Duration minCallInterval,
         ZoneId zone) {
+        this(client, circuitBreaker, circuitBreaker.sibling("delivery-tracker-history", "택배 진행 이력 서킷"),
+            minCallInterval, HISTORY_MAX_WAIT, zone);
+    }
+
+    DeliveryTrackerChecker(DeliveryTrackerClient client, TrackerCircuitBreaker circuitBreaker,
+        TrackerCircuitBreaker historyCircuitBreaker, Duration minCallInterval, Duration historyMaxWait, ZoneId zone) {
         this.client = client;
         this.circuitBreaker = circuitBreaker;
+        this.historyCircuitBreaker = historyCircuitBreaker;
         this.minCallIntervalNanos = minCallInterval.toNanos();
+        this.historyMaxWaitNanos = historyMaxWait.toNanos();
         this.zone = zone;
     }
 
@@ -89,13 +111,88 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
         }
     }
 
-    // 호출 한도(초당 10회)를 넘지 않게 호출 사이를 띄운다. 스케줄러 한 스레드가 부르지만 다른 호출이 생겨도 지켜지게 동기화한다
-    private synchronized void waitForCallInterval() {
-        long waitNanos = lastCallNanos + minCallIntervalNanos - System.nanoTime();
-        if (lastCallNanos != 0 && waitNanos > 0) {
-            LockSupport.parkNanos(waitNanos);
+    /**
+     * 진행 이력(#1320, 구매자 요청). 서킷은 상태 조회와 따로 센다(같은 설정, 구매자 조회 실패가 배송 완료 반영을 막지 않게).
+     * 호출 간격 자리는 상태 조회와 나눠 쓰되 최대 1초만 기다리고 못 얻으면 부르지 않고 일시 오류(CALL_SLOT_BUSY)다.
+     * 테스트용 DUMMY는 구매자에게 보여 줄 이력이 아니라 조회하지 않는다. 택배사에 아직 등록 전(NOT_FOUND)은 오류가 아니라 빈 이력이다
+     * (발송 직후 흔하다, {@link TrackingHistory#notRegistered()}). 이벤트는 최신 먼저로 뒤집는다.
+     */
+    @Override
+    public TrackingHistory history(Delivery.Carrier carrier, String trackingNumber) {
+        String carrierId = carrier == Delivery.Carrier.DUMMY ? null : CARRIER_IDS.get(carrier);
+        if (carrierId == null) {
+            return TrackingHistory.unsupportedCarrier();
         }
-        lastCallNanos = System.nanoTime();
+        // 꺼져 있으면(인증값 없음) 부르지 않는다. 서킷에 실패로 세지 않게 호출 전에 거른다
+        if (!client.isEnabled()) {
+            return TrackingHistory.unavailable("DISABLED");
+        }
+        // 서킷 허락을 먼저 받는다: 열림 → 반열림 전환은 허락을 물을 때만 일어나므로 열렸는지 미리 보고 거르면 다시 닫히지 않는다.
+        // 열려 있으면 호출 간격 자리를 쓰지 않는다
+        if (!historyCircuitBreaker.tryAcquirePermission()) {
+            return TrackingHistory.unavailable(TrackingResult.CIRCUIT_OPEN);
+        }
+        if (!tryWaitForCallInterval(historyMaxWaitNanos)) {
+            historyCircuitBreaker.releasePermission();
+            return TrackingHistory.unavailable(CALL_SLOT_BUSY);
+        }
+        try {
+            List<TrackEventRow> rows = historyCircuitBreaker.callPermitted(
+                () -> client.events(carrierId, trackingNumber));
+            return TrackingHistory.ok(rows.reversed().stream()
+                .map(row -> new TrackingEvent(
+                    row.time() == null ? null : row.time().atZoneSameInstant(zone).toLocalDateTime(),
+                    row.location(), row.statusCode()))
+                .toList());
+        } catch (DeliveryTrackerException e) {
+            if ("NOT_FOUND".equals(e.code())) {
+                return TrackingHistory.notRegistered();
+            }
+            return e.isInvalidTrackingNumber()
+                ? TrackingHistory.invalidTrackingNumber(e.code())
+                : TrackingHistory.unavailable(e.code());
+        }
+    }
+
+    // 호출 한도(초당 10회)를 넘지 않게 호출 사이를 띄운다. 스케줄러 한 스레드가 부르지만 다른 호출이 생겨도 지켜지게 동기화한다
+    private void waitForCallInterval() {
+        callIntervalLock.lock();
+        try {
+            long waitNanos = lastCallNanos + minCallIntervalNanos - System.nanoTime();
+            if (lastCallNanos != 0 && waitNanos > 0) {
+                LockSupport.parkNanos(waitNanos);
+            }
+            lastCallNanos = System.nanoTime();
+        } finally {
+            callIntervalLock.unlock();
+        }
+    }
+
+    // 구매자 요청용: 자리(잠금 + 간격)를 maxWaitNanos 안에 얻을 때만 true. 주기 작업 경로(waitForCallInterval)는 그대로 기다린다
+    private boolean tryWaitForCallInterval(long maxWaitNanos) {
+        long deadline = System.nanoTime() + maxWaitNanos;
+        try {
+            if (!callIntervalLock.tryLock(maxWaitNanos, TimeUnit.NANOSECONDS)) {
+                return false;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        try {
+            long now = System.nanoTime();
+            long waitNanos = lastCallNanos + minCallIntervalNanos - now;
+            if (lastCallNanos != 0 && waitNanos > 0) {
+                if (waitNanos > deadline - now) {
+                    return false;
+                }
+                LockSupport.parkNanos(waitNanos);
+            }
+            lastCallNanos = System.nanoTime();
+            return true;
+        } finally {
+            callIntervalLock.unlock();
+        }
     }
 
     /**

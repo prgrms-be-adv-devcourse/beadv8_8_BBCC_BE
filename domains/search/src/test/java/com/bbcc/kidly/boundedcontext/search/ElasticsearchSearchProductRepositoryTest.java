@@ -83,6 +83,9 @@ class ElasticsearchSearchProductRepositoryTest {
         assertThat(document.occurredAt()).isEqualTo("2026-10-15T10:00:00");
         // 항목 code와 값 ID를 code:값ID 한 단어로 묶어 keyword 하나로 거른다. 값 ID가 없는 직접 입력 항목은 빠진다
         assertThat(document.attributeValues()).containsExactly("color:3", "color:5", "material:11");
+        // 벡터 없이 저장하면 나중에 다시 만들 수 있게 문장을 함께 저장한다
+        assertThat(document.embedding()).isNull();
+        assertThat(document.embeddingText()).isEqualTo(product.getEmbeddingText());
     }
 
     @Test

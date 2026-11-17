@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.order.app.port;
 
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -20,6 +21,18 @@ public interface OrderStatusHistoryRepository {
      * 주문들의 마지막(가장 큰) 이력 ID(#926 진단 중복 판단). 이력이 없는 주문은 빠진다.
      */
     List<LastHistory> findLastHistoryIds(Collection<Long> orderIds);
+
+    /**
+     * 주문들이 CANCELLED가 된 시각(#1325, 주문 대상 이력 중 가장 최근). 그 이력이 없는 주문은 빠진다.
+     */
+    List<CancelledAt> findOrderCancelledAt(Collection<Long> orderIds);
+
+    interface CancelledAt {
+
+        Long getOrderId();
+
+        LocalDateTime getCancelledAt();
+    }
 
     interface LastHistory {
 

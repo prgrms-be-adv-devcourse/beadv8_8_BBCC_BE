@@ -7,6 +7,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
+import io.micrometer.core.instrument.Timer;
+import java.util.concurrent.TimeUnit;
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
@@ -47,16 +53,20 @@ class AiResponseServiceCallTimeoutTest {
     @Mock
     private AiCallQuota quota;
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     private AiResponseService service;
 
     @BeforeEach
     void setUp() {
+        ObservationRegistry observations = ObservationRegistry.create();
+        observations.observationConfig().observationHandler(new DefaultMeterObservationHandler(meterRegistry));
         Map<AiResponseType, Duration> callTimeouts = Map.of(
             AiResponseType.HOME_PREVIEW, Duration.ofMillis(200),
             AiResponseType.BOUGHT_TOGETHER, Duration.ofMillis(1_500),
             AiResponseType.SIZE_RECOMMENDATION, Duration.ofMillis(1_500));
         service = new AiResponseService(store, quota, JsonMapper.builder().build(), CLOCK, DAILY_LIMIT, callTimeouts,
-            Duration.ofSeconds(10), REUSE_PERIOD);
+            Duration.ofSeconds(10), REUSE_PERIOD, new RecommendAiMetrics(meterRegistry, observations));
     }
 
     @Test
@@ -88,6 +98,22 @@ class AiResponseServiceCallTimeoutTest {
         assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(Duration.ofMillis(500));
         verify(store, timeout(3_000)).save(AiResponseType.HOME_PREVIEW, AiResponseKey.of(INPUT),
             "{\"reason\":\"늦은 답\"}", REUSE_PERIOD);
+    }
+
+    @Test
+    @DisplayName("AI 답이 제한 시간을 넘기면 요청 결과 timeout을 세고, AI 호출 시간은 늦은 답이 올 때까지 잰다")
+    void countTimeoutAndTimeLateCall() {
+        given(store.find(any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+
+        service.respond(AiResponseType.HOME_PREVIEW, INPUT, Answer.class, () -> answerAfter(Duration.ofMillis(600)));
+
+        assertThat(meterRegistry.get("kidly.recommend.ai.requests").tag("feature", "home_preview")
+            .tag("result", "timeout").counter().count()).isEqualTo(1);
+        verify(store, timeout(3_000)).save(any(), any(), any(), any());
+        Timer call = meterRegistry.get("kidly.recommend.ai.call").tag("feature", "home_preview").timer();
+        assertThat(call.count()).isEqualTo(1);
+        assertThat(call.totalTime(TimeUnit.MILLISECONDS)).isGreaterThanOrEqualTo(600);
     }
 
     private static Answer answerAfter(Duration duration) {

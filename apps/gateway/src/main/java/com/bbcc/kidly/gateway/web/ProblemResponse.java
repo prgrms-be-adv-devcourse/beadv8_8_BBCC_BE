@@ -59,6 +59,11 @@ public class ProblemResponse {
             "잠시 후 다시 시도해 주세요.");
     }
 
+    public Mono<Void> serviceUnavailable(ServerWebExchange exchange, long retryAfterSeconds) {
+        exchange.getResponse().getHeaders().set(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds));
+        return serviceUnavailable(exchange);
+    }
+
     public Mono<Void> gatewayTimeout(ServerWebExchange exchange) {
         return write(exchange, HttpStatus.GATEWAY_TIMEOUT, "GATEWAY_TIMEOUT", "응답이 지연되고 있습니다", "잠시 후 다시 시도해 주세요.");
     }

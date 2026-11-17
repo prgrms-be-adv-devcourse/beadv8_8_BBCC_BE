@@ -45,13 +45,28 @@ class ChildProfileOutboxRepositoryIntegrationTest {
         var first = saveUnsent();
         saveSent(SENT_AT);
         var third = saveUnsent();
-        saveUnsent();
+        var recent = saveUnsent();
+        jdbcTemplate.update("update childprofile.child_profile_outbox set created_at = ? where event_id <> ?",
+            LocalDateTime.now().minusMinutes(6), recent);
 
-        List<UUID> found = transactionTemplate.execute(status -> outboxRepository.findUnsent(2).stream()
+        List<UUID> found = transactionTemplate.execute(status -> outboxRepository
+            .findUnsentCreatedBefore(LocalDateTime.now().minusMinutes(5), 2).stream()
             .map(ChildProfileOutboxMessage::getEventId)
             .toList());
 
         assertThat(found).containsExactly(first, third);
+    }
+
+    @Test
+    @DisplayName("선택한 메시지만 전송 시각과 시도 횟수를 일괄 기록한다")
+    void markSentInBatch() {
+        var first = saveUnsent();
+        var second = saveUnsent();
+        var ids = jdbcTemplate.queryForList("select id from childprofile.child_profile_outbox where event_id in (?, ?)",
+            Long.class, first, second);
+        transactionTemplate.executeWithoutResult(status -> outboxRepository.markSent(ids, SENT_AT));
+        assertThat(jdbcTemplate.queryForObject("select count(*) from childprofile.child_profile_outbox "
+            + "where sent_at = ? and attempt_count = 1", Integer.class, SENT_AT)).isEqualTo(2);
     }
 
     @Test

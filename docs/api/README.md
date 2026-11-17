@@ -6,7 +6,8 @@
 - 오류 응답은 ProblemDetail 5필드(`type`, `title`, `status`, `detail`, `instance`)와 오류 코드 `code`다. `code`는 오류 enum 상수 이름(예: `IDEMPOTENCY_KEY_REUSED`)이라 문구가 바뀌어도 그대로이므로, 화면은 `title` 문장 대신 `code`로 분기한다. 도메인 오류의 상태 · `title` · `detail` · `code`는 각 도메인의 `XxxErrorCode` enum에 있다. Gateway가 직접 내는 오류도 같은 `code`를 쓴다(400 `INVALID_INPUT` · 401 `UNAUTHORIZED` · 403 `FORBIDDEN` · 404 `NOT_FOUND` · 429 `TOO_MANY_REQUESTS` · 500 `INTERNAL_ERROR` · 503 `SERVICE_UNAVAILABLE` · 504 `GATEWAY_TIMEOUT`). 스프링이 직접 만드는 오류(405 등)에는 `code`가 없다
 - API를 추가 · 변경 · 삭제하는 PR에서 이 표도 같이 고친다
 - 권한: 🌐 누구나 · 🔒 로그인 · 🏪 판매자 · 🛠 관리자 · 내부(서비스끼리만 부름. Gateway가 `/internal/**`을 밖에서 404로 막는다). 판매자 · 관리자 역할은 Gateway가 `/api/v1/seller/**` · `/api/v1/admin/**` 경로로 검사한다
-- 요청 수 제한: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 분당 30번까지 받는다. 넘으면 429 ProblemDetail(`title` "요청이 너무 많습니다")과 `Retry-After`(초)다(#816)
+- 요청 수 제한: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 분당 30번까지 받는다. Redis로 Gateway 여러 대의 한도를 공유한다. 넘으면 429 ProblemDetail(`title` "요청이 너무 많습니다")과 `Retry-After`(초)다(#816)
+- 전체 요청 수 제한: 모든 요청을 Gateway가 로그인 주체 · 비로그인 IP마다 분당 200번(한꺼번에 200번까지)까지 받는다. 넘으면 위와 같은 429다. 모든 Gateway를 합친 전체 한도는 초당 500번이며 넘으면 503과 `Retry-After`를 낸다(#1417). 관리자(🛠)는 `GET /api/v1/admin/gateway/rate-limit`으로 지금 설정을 보고(`{"enabled": true, "client": {"capacity": 200, "period": "PT1M"}, "total": {"capacity": 500, "period": "PT1S"}}`), `PUT` 같은 경로로 보낸 칸만 바꾼다. `{"enabled": false}`로 끄거나 `true`로 켜고, `{"total": {"capacity": 800, "period": "PT1S"}}`처럼 키별(`client`) · 전체(`total`) 한도를 재배포 없이 바꾼다(#1421, period는 ISO-8601). 응답은 바뀐 뒤의 설정 전체다. 본문이 잘못되면(바꿀 칸 없음, capacity 1 미만, period 1ms 미만 포함) 400, 저장하지 못하면 503이다. 부하테스트 때 끄거나 한도를 바꾼다. 바꾼 값은 Redis에 남아 설정 파일 기본값보다 우선한다. 검색 · 챗봇 제한은 끄거나 바꾸지 않는다
 
 ## 인증
 
@@ -140,59 +141,62 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거 `reasons`(`type` · `detail` · `sourceId`) · 출처 `source`(`AI` · `RULE`)). AI가 규칙 계산 결과를 받아 그 상품의 실제 사이즈 안에서 고른다. AI가 없거나 실패 · 3.5초 초과 · 하루 호출 상한 · 상품에 없는 사이즈를 답하면 규칙 결과로 답하고 `source`는 `RULE`, `reasons`는 `[]`이다. AI 답은 규칙 후보 밖의 사이즈일 수 있어 `recommendedSize`가 `candidateSizes`에 없을 수 있다. 사이즈 구분이 없는 상품은 AI를 부르지 않는다. 같은 자녀 · 상품 · 입력이면 24시간 동안 지난 AI 답을 다시 쓴다. 기준 옷이 있으면 기준 핏 `referenceFit`(`productPart` 사려는 상품의 칸 · `comparedPart` 비교한 기준 옷 칸, 다르면 같은 종류 칸이 비어 다른 칸과 너비 항목만 비교한 것 · `items[]`(`code` 실측 항목 · `garmentCm` 기준 옷 실측 · `sizes[]`(`size` · `productCm` 상품 실측 · `diffCm` 상품 − 기준 옷))). 기준 옷이 없거나 비교할 항목이 없으면 `null`이다. AI가 기준 핏을 보고 판단하면 추천 사이즈의 항목별 판단 `itemJudgements[]`(`code` · `diffCm` · `fit`(`TIGHT` · `PROPER` · `ROOMY`) · 그 판단에 쓴 여유 범위 `allowanceMinCm` · `allowanceMaxCm`)를 담고, `source`가 `RULE`이면 `[]`이다. AI 답의 사이즈 · 항목별 차이 · 근거 문장의 숫자가 보낸 입력과 맞지 않으면 그 답을 버리고 규칙 결과로 답한다. 자녀의 키 성장 속도 `growthSpeed`(`cmPerMonth` 전체 속도(cm/월) · `recentCmPerMonth` 최근 3개월 속도, 기록이 부족하면 `null` · `recordCount` 계산에 쓴 성장 기록 수 · `recordMonths` 첫 기록과 마지막 기록 사이 개월 수 · `childSharePercent` 전체 속도에서 자녀 기록이 차지하는 비중(%) · `tableCmPerMonth` 나이 · 성별 표 값(cm/월) · `tableSource` 표 출처)은 늘 있고 숫자는 소수 둘째 자리까지 반올림한 값이다. 사이즈별로 입을 수 있는 기간 `wearablePeriods[]`(`size` · `lengthMonths` 권장 키 상한까지 크는 개월 수 · `widthMonths` 기준 옷보다 큰 너비를 몸이 채우는 개월 수 · `months` 둘 중 짧은 개월 수)는 사이즈 무관 상품이나 모자 · 양말이면 `[]`이고, 계산할 수 없는 칸은 `null`이며 24개월이 상한이다. 자녀가 상품 사이즈를 입은 모습 `wearPreview`(`garment` 상품의 옷 종류 `TOP` · `BOTTOM` · `OUTER` · `DRESS` · `SKIRT` · `body`(바닥에서 잰 목뒤 `neckCm` · 어깨 `shoulderCm` · 허리 `waistCm` · 엉덩이 `hipCm` · 샅 `crotchCm` · 무릎 `kneeCm` · 가쪽복사 `ankleCm` 높이와 팔길이 `armCm`, 단위 cm, 소수 첫째 자리까지 반올림) · `sizes[]`(`size` · `hemCm` 밑단 높이 · `hemAt` 밑단 위치 · `sleeveCm` 소매 끝 길이 · `sleeveAt` 소매 위치))는 AI를 쓰지 못해도 값이 온다. 밑단 위치 `hemAt`은 `ABOVE_WAIST` · `WAIST_HIP` · `HIP` · `THIGH` · `ABOVE_KNEE` · `KNEE` · `BELOW_KNEE` · `ANKLE` · `FLOOR` 아홉 가지이고, 소매 위치 `sleeveAt`은 `ELBOW`(팔꿈치까지 또는 그 위) · `ABOVE_WRIST` · `WRIST` · `HAND` 네 가지이다. 프런트는 위치를 cm로 다시 계산하지 말고 `hemAt` · `sleeveAt`을 그대로 쓴다. 사이즈 무관 상품이나 모자 · 양말이면 `wearPreview`가 `null`이고, 총장 실측이 없는 사이즈는 `hemCm` · `hemAt`이, 소매길이 실측이 없는 사이즈와 바지 · 치마는 `sleeveCm` · `sleeveAt`이 `null`이다. 원피스는 상품 실측에 소매길이 항목이 없어 소매 칸이 `null`이다. 밑단이 바닥보다 아래면 `hemCm`은 `0`이다. 지난 구매 사이즈 `lastPurchasedSize`는 같은 기준 옷 칸(상의 · 바지 · 아우터 · 원피스 · 치마)에서 12개월 안에 마지막으로 구매확정한 사이즈 이름이고, 없거나 사이즈 무관 상품 · 모자 · 양말이면 `null`이다. 같은 칸의 최근 구매(최대 3개)는 산 옷 실측과 견준 값으로 AI 입력에 넣고, AI가 지난 구매를 근거로 쓰면 `reasons[].type`은 `PURCHASE`다 | 🔒 |
+| GET | `/api/v1/recommendations/size` | 사이즈 추천(`productId` · `childId`. 추천 사이즈 · 적합도 · 안내 · 후보 사이즈 · 근거 `reasons`(`type` · `detail` · `sourceId`) · 출처 `source`(`AI` · `RULE`)). AI가 규칙 계산 결과를 받아 그 상품의 실제 사이즈 안에서 고른다. AI가 없거나 실패 · 3.5초 초과 · 하루 호출 상한 · 상품에 없는 사이즈를 답하면 규칙 결과로 답하고 `source`는 `RULE`, `reasons`는 `[]`이다. AI 답은 규칙 후보 밖의 사이즈일 수 있어 `recommendedSize`가 `candidateSizes`에 없을 수 있다. 사이즈 구분이 없는 상품은 AI를 부르지 않는다. 같은 자녀 · 상품 · 입력이면 24시간 동안 지난 AI 답을 다시 쓴다. 기준 옷이 있으면 기준 핏 `referenceFit`(`productPart` 사려는 상품의 칸 · `comparedPart` 비교한 기준 옷 칸, 다르면 같은 종류 칸이 비어 다른 칸과 너비 항목만 비교한 것 · `items[]`(`code` 실측 항목 · `garmentCm` 기준 옷 실측 · `sizes[]`(`size` · `productCm` 상품 실측 · `diffCm` 상품 − 기준 옷))). 기준 옷이 없거나 비교할 항목이 없으면 `null`이다. AI가 기준 핏을 보고 판단하면 추천 사이즈의 항목별 판단 `itemJudgements[]`(`code` · `diffCm` · `fit`(`TIGHT` · `PROPER` · `ROOMY`) · 그 판단에 쓴 여유 범위 `allowanceMinCm` · `allowanceMaxCm`)를 담고, `source`가 `RULE`이면 `[]`이다. AI 답의 사이즈 · 항목별 차이 · 근거 문장의 숫자가 보낸 입력과 맞지 않으면 그 답을 버리고 규칙 결과로 답한다. 자녀의 키 성장 속도 `growthSpeed`(`cmPerMonth` 전체 속도(cm/월) · `recentCmPerMonth` 최근 3개월 속도, 기록이 부족하면 `null` · `recordCount` 계산에 쓴 성장 기록 수 · `recordMonths` 첫 기록과 마지막 기록 사이 개월 수 · `childSharePercent` 전체 속도에서 자녀 기록이 차지하는 비중(%) · `tableCmPerMonth` 나이 · 성별 표 값(cm/월) · `tableSource` 표 출처)은 늘 있고 숫자는 소수 둘째 자리까지 반올림한 값이다. 사이즈별로 입을 수 있는 기간 `wearablePeriods[]`(`size` · `lengthMonths` 권장 키 상한까지 크는 개월 수 · `widthMonths` 너비로 입을 수 있는 개월 수(지금 잘 맞는 기준 옷과 같은 너비여도 키가 5cm 더 클 때까지는 입는다고 보고, 기준 옷보다 넉넉하면 길게 좁으면 짧게 계산) · `months` 둘 중 짧은 개월 수)는 사이즈 무관 상품이나 모자 · 양말이면 `[]`이고, 계산할 수 없는 칸은 `null`이며 24개월이 상한이다. 자녀가 상품 사이즈를 입은 모습 `wearPreview`(`garment` 상품의 옷 종류 `TOP` · `BOTTOM` · `OUTER` · `DRESS` · `SKIRT` · `body`(바닥에서 잰 목뒤 `neckCm` · 어깨 `shoulderCm` · 허리 `waistCm` · 엉덩이 `hipCm` · 샅 `crotchCm` · 무릎 `kneeCm` · 가쪽복사 `ankleCm` 높이와 팔길이 `armCm`, 단위 cm, 소수 첫째 자리까지 반올림) · `sizes[]`(`size` · `hemCm` 밑단 높이 · `hemAt` 밑단 위치 · `sleeveCm` 소매 끝 길이 · `sleeveAt` 소매 위치))는 AI를 쓰지 못해도 값이 온다. 밑단 위치 `hemAt`은 `ABOVE_WAIST` · `WAIST_HIP` · `HIP` · `THIGH` · `ABOVE_KNEE` · `KNEE` · `BELOW_KNEE` · `ANKLE` · `FLOOR` 아홉 가지이고, 소매 위치 `sleeveAt`은 `ELBOW`(팔꿈치까지 또는 그 위) · `ABOVE_WRIST` · `WRIST` · `HAND` 네 가지이다. 프런트는 위치를 cm로 다시 계산하지 말고 `hemAt` · `sleeveAt`을 그대로 쓴다. 사이즈 무관 상품이나 모자 · 양말이면 `wearPreview`가 `null`이고, 총장 실측이 없는 사이즈는 `hemCm` · `hemAt`이, 소매길이 실측이 없는 사이즈와 바지 · 치마는 `sleeveCm` · `sleeveAt`이 `null`이다. 원피스는 상품 실측에 소매길이 항목이 없어 소매 칸이 `null`이다. 밑단이 바닥보다 아래면 `hemCm`은 `0`이다. 지난 구매 사이즈 `lastPurchasedSize`는 같은 기준 옷 칸(상의 · 바지 · 아우터 · 원피스 · 치마)에서 12개월 안에 마지막으로 구매확정한 사이즈 이름이고, 없거나 사이즈 무관 상품 · 모자 · 양말이면 `null`이다. AI 입력에는 12개월 안 같은 칸의 최근 구매(최대 3개)마다 그 구매에 남긴 공개 리뷰의 사이즈 핏을 함께 넣고, 이 상품에 핏을 남긴 공개 리뷰가 5건 이상이면 핏별 리뷰 수(작아요 · 잘 맞아요 · 커요)도 넣는다. 응답 칸은 그대로이고, 구매의 리뷰 핏을 근거로 쓴 문장은 `reasons`의 `type` `PURCHASE`, 이 상품의 핏별 리뷰 수를 근거로 쓴 문장은 `MEASUREMENT`로 온다. 같은 칸의 최근 구매(최대 3개)는 산 옷 실측과 견준 값으로 AI 입력에 넣고, AI가 지난 구매를 근거로 쓰면 `reasons[].type`은 `PURCHASE`다. `Accept: text/event-stream`으로 부르면 AI 답을 기다리지 않는 스트림이다(아래 「AI 추천 스트림」) | 🔒 |
 | GET | `/api/v1/recommendations/products` | 자녀 맞춤 상품(`childId` · `categoryId` · `page` · `size` · `asOf`). 선호 점수 순이고, 자녀가 남아면 원피스 · 치마처럼 여아에게만 보여 줄 카테고리(보일 성별 `GIRL`)의 상품은 뺀다(홈 맛보기 · 함께 사면 후보도 같다). 응답 끝에 기준 시각 `asOf`(한국 시간, 시간대 표시 없음, 초 단위)가 있다. 2쪽부터는 1쪽 응답의 `asOf`를 그대로 보낸다. 없으면 지금 시각이고, 지금보다 늦으면 400 | 🔒 |
 | GET | `/api/v1/recommendations/products/preview` | 홈 맛보기 4개(`childId`). 응답 `source`(`AI` · `RULE`)와 `products`(더보기 카드 칸 + `reason`). AI가 자녀 맞춤 상품 상위 20개 중 4개와 이유를 고르고, 같은 입력이면 24시간 동안 지난 답을 다시 쓴다. AI를 쓸 수 없으면(키 없음 · 하루 상한 · 실패 · 시간 초과) 상위 4개를 `RULE`로, 이유는 `null`. `source`가 `AI`여도 `reason`은 `null`일 수 있다(AI가 모자라게 골라 빈 자리를 채운 상품, AI가 이유를 주지 않은 상품). 후보가 없으면 `products`는 `[]`, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404. `Accept: text/event-stream`으로 부르면 AI 답을 기다리지 않는 스트림이다(아래 「AI 추천 스트림」) | 🔒 |
 | GET | `/api/v1/recommendations/companions` | 함께 사면 좋은 상품(`productId` · `childId` 필수). 보고 있는 상품과 짝이 되는 종류(예: 상의 → 바지 · 치마 · 아우터 · 잡화. 카테고리 「하의」와 「바지」는 같은 종류, 자녀가 남아면 치마 · 원피스는 뺀다) 가운데 자녀에게 맞는 사이즈로 살 수 있고 장바구니 · 구매확정 상품이 아닌 상품을 4개까지 돌려준다. 응답 `source`(`AI` · `RULE`)와 `products`(상품 카드 · AI가 쓴 이유 `reason`). `reason`은 40자 안의 경어체 한 문장이고, 규칙으로 채운 상품이거나 AI 이유가 40자를 넘거나 경어체로 끝나지 않으면 `null`이다. 후보가 없으면 `products`는 `[]`, 없는 상품 · 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404. `Accept: text/event-stream`으로 부르면 AI 답을 기다리지 않는 스트림이다(아래 「AI 추천 스트림」) | 🔒 |
-| POST | `/api/v1/recommendations/product-views` | 상품 상세 진입 기록(`productId` · 선택 `childId`. 같은 회원 · 자녀 · 상품은 같은 날(한국 시간) 한 번만 기록, 응답 204, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404) | 🔒 |
+| POST | `/api/v1/recommendations/product-views` | 상품 조회 기록(`productId` · 선택 `childId` · 선택 `viewType`. `viewType`은 `DETAIL` 상세 진입 · `QUICK` 담기 팝업을 연 것이고 없으면 `DETAIL`, 모르는 값이면 400(#1363). 같은 회원 · 자녀 · 상품 · `viewType`은 같은 날(한국 시간) 한 번만 기록하고 같은 날의 `DETAIL`과 `QUICK`은 따로 기록, 응답 204, 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404) | 🔒 |
 | GET | `/api/v1/recommendations/children/{childId}/reference-garments` | 자녀의 기준 옷 목록(상의, 바지, 아우터, 원피스, 치마 순서이고 없으면 `[]`. 칸 `part`(`TOP` · `BOTTOM` · `OUTER` · `DRESS` · `SKIRT`) · `categoryId` · `measurements`(실측 항목 코드별 cm)). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
 | PUT | `/api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 저장(`{part}`는 `TOP` 상의 · `BOTTOM` 바지 · `OUTER` 아우터 · `DRESS` 원피스 · `SKIRT` 치마. 본문 `categoryId`(상품 말단 카테고리. 상의는 「상의」, 바지는 「하의」 · 「바지」, 아우터는 「아우터」, 원피스는 「원피스」, 치마는 「치마」 카테고리) · `measurements`(`TOP` · `OUTER` 필수 `TOTAL_LENGTH` · `CHEST_WIDTH`, 선택 `SHOULDER_WIDTH` · `SLEEVE_LENGTH` / `DRESS` 필수 `TOTAL_LENGTH` · `CHEST_WIDTH`, 선택 `SHOULDER_WIDTH` / `BOTTOM` 필수 `TOTAL_LENGTH` · `WAIST_WIDTH`, 선택 `RISE` / `SKIRT` 필수 `TOTAL_LENGTH` · `WAIST_WIDTH`, 선택 `HIP_WIDTH`. 0cm 초과 200cm 이하, 소수 첫째 자리까지). 원피스 · 아우터를 `TOP`에, 치마를 `BOTTOM`에 저장하면 400이다. 같은 구분을 다시 저장하면 교체하고 응답 200에 저장한 값. 값이 틀리거나 알 수 없는 구분이면 400, 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
 | DELETE | `/api/v1/recommendations/children/{childId}/reference-garments/{part}` | 기준 옷 삭제(응답 204, 이미 없어도 204. 알 수 없는 구분이면 400, 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404) | 🔒 |
 | GET | `/api/v1/recommendations/children/{childId}/purchases?page=&size=` | 자녀에게 산 옷 목록(기준 옷 「산 옷에서 고르기」용, #1109). 구매확정된 주문상품만 구매확정이 늦은 순서로, 팀 목록 형식. 칸 `orderItemId` · `productId` · `productName` · `categoryId` · `part`(그 옷이 들어갈 기준 옷 칸 `TOP` · `BOTTOM` · `OUTER` · `DRESS` · `SKIRT`. 기준 옷 저장과 같은 판정으로 상품 카테고리 경로에서 정하고, 어느 칸에도 들지 않거나 상품 복사본이 없으면 `null`) · `size`(주문 당시 사이즈) · `measurements`(그 사이즈의 실측, 실측 항목 코드별 cm) · `confirmedAt`. 상품 정보가 없으면 `productName` · `categoryId` · `measurements`가 null, 그 사이즈의 실측이 없으면 `measurements`만 null. `size`(쪽 크기)는 1 ~ 100(기본 20). 남의 자녀면 403, 없는 자녀 · 삭제된 자녀면 404 | 🔒 |
+| GET | `/api/v1/recommendations/children/{childId}/growth-speed` | 자녀의 키 성장 속도(#1367). 응답 칸은 사이즈 추천의 `growthSpeed`와 같고(`cmPerMonth` · `recentCmPerMonth` · `recordCount` · `recordMonths` · `childSharePercent` · `tableCmPerMonth` · `tableSource`), 같은 자녀면 값도 같다. 성장 기록이 모자라면 표 값이고 `recentCmPerMonth`는 null. 없는 자녀 · 남의 자녀 · 삭제된 자녀면 404 | 🔒 |
 
 ### AI 추천 스트림
 
-홈 맛보기(`/api/v1/recommendations/products/preview`)와 함께 사면(`/api/v1/recommendations/companions`)은 같은 주소를 `Accept: text/event-stream`으로 부르면 AI 답을 기다리지 않는 SSE 응답을 준다. `Accept: application/json`(기본)은 위의 JSON 응답 그대로다.
+홈 맛보기(`/api/v1/recommendations/products/preview`), 함께 사면(`/api/v1/recommendations/companions`), 사이즈 추천(`/api/v1/recommendations/size`)은 같은 주소를 `Accept: text/event-stream`으로 부르면 AI 답을 기다리지 않는 SSE 응답을 준다. `Accept: application/json`(기본)은 위의 JSON 응답 그대로다.
 
-- 이벤트는 두 가지다. 본문(`data`)은 JSON 응답과 같은 모양(`{ source, products }`)이다
+- 이벤트는 두 가지다. 본문(`data`)은 JSON 응답과 같은 모양이다(홈 맛보기 · 함께 사면 `{ source, products }`, 사이즈 추천은 사이즈 추천 JSON 응답 전체)
   - `rule`: 규칙 결과(`source: "RULE"`). AI 답이 없을 때 쓸 결과로, 화면은 들고 있다가 `ai` 없이 닫히면 그린다
   - `ai`: AI 결과(`source: "AI"`)
 - 보내는 순서
   - 저장한 AI 답이 있으면 `ai` 하나만 보내고 닫는다
   - 없으면 `rule`을 바로 보내고, AI 답이 오면 `ai`를 보낸 뒤 닫는다
-  - AI를 쓸 수 없으면(키 없음 · 하루 상한 · 실패 · 10초 안에 답이 없음) `rule`만 보낸 채 닫는다
+  - AI를 쓸 수 없으면(키 없음 · 하루 상한 · 실패 · 10초 안에 답이 없음 · 사이즈 추천의 사이즈 무관 상품 · AI 답이 검증에서 버려짐) `rule`만 보낸 채 닫는다
+  - 그래서 `rule`을 받은 뒤 스트림이 열려 있는 동안은 AI 답을 기다리는 중이다. 화면은 `rule`을 바로 그리고, 닫히거나 `ai`가 올 때까지 기다리는 중임을 보여 줄 수 있다
 - 스트림을 열기 전에 나는 오류(400 · 401 · 404)는 JSON 응답과 같은 상태 코드와 ProblemDetail로 받는다. 스트림 도중 서버 오류가 나면 `error` 이벤트 없이 닫는다
-- 응답 헤더 `X-Accel-Buffering: no`로 프록시가 이벤트를 모았다가 보내지 않게 한다. 연결은 최대 15초 열려 있다
+- 연결은 최대 15초 열려 있다
 - 로그인 토큰은 `Authorization` 헤더로 보내므로, 브라우저 기본 `EventSource` 대신 `fetch`로 스트림을 읽는다
 
 ## 주문
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/v1/cart` | 내 장바구니 조회(회원 · 로그인한 자녀 각자, 줄마다 `reserved`) | 🔒 |
+| GET | `/api/v1/cart` | 내 장바구니 조회(회원 · 로그인한 자녀 각자, 줄마다 `reserved` · 상품 썸네일 `thumbnailUrl`(#1328, 지금 상품 값, 없으면 null)) | 🔒 |
 | POST | `/api/v1/cart/items` | 장바구니 담기(같은 줄이면 수량 합산, 1 ~ 99). 자녀는 입을 아이가 자기로 고정 | 🔒 |
 | PATCH | `/api/v1/cart/items/{cartItemId}` | 장바구니 수량 변경(예약된 칸 409) | 🔒 |
 | DELETE | `/api/v1/cart/items/{cartItemId}` | 장바구니에서 빼기(예약된 칸 409) | 🔒 |
-| POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸이라도 그 예약의 결제 가능 기한이 지났으면 409 `RESERVATION_EXPIRED`(`결제 기한이 지난 예약입니다`, #1008). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음. 기한도 지났으면 `RESERVATION_EXPIRED`가 먼저). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) | 🔒 |
-| GET | `/api/v1/orders` | 내 주문 목록 | 🔒 |
-| GET | `/api/v1/orders/{orderId}` | 주문 상세 | 🔒 |
+| POST | `/api/v1/orders` | 주문하기(`Idempotency-Key` 헤더 선택). 줄마다 장바구니 칸 `cartItemId`(선택, #998): 내 칸이거나 결제를 허락받은 예약 칸만(같은 가족의 허락받지 않은 칸 403, 다른 가족의 칸은 없는 칸과 같게 404). 허락받은 예약 칸이라도 그 예약의 결제 가능 기한이 지났으면 409 `RESERVATION_EXPIRED`(`결제 기한이 지난 예약입니다`, #1008). 허락받은 예약 칸은 담긴 수량까지만 주문할 수 있다(넘으면 409 `RESERVED_QUANTITY_EXCEEDED` `예약된 수량보다 많이 주문할 수 없습니다`, 내 칸은 수량 제한 없음. 기한도 지났으면 `RESERVATION_EXPIRED`가 먼저). 결제가 끝나면 그 칸에서 산 수량만큼 빠지고(다 빠지면 칸이 지워진다, 결제한 사람이 칸 주인의 보호자와 달라도) `cart.item-purchased`(`quantity` = 산 수량)가 나간다(예약이 먼저 풀려도. 칸이 남으면 예약은 그대로. `cart.item-removed`는 사용자가 뺄 때만) 응답 201은 주문 상세와 같은 모양(주문상품 `thumbnailUrl`, #1328). | 🔒 |
+| GET | `/api/v1/orders` | 내 주문 목록. `status`(선택, #1280): 응답 `status`와 같은 값 하나 — `PENDING_PAYMENT` · `PAID` · `CANCELLED`(대문자 그대로)로 서버가 거르고 `totalElements`가 그 상태의 전체 건수(상태별 건수는 `?status=X&size=1`). 없으면 지금과 같다. 모르는 값 · 소문자 · 빈 값 · 여러 값은 400 `INVALID_ORDER_STATUS`(`지원하지 않는 주문 상태입니다`). 줄마다 대표 주문상품(대표 상품명과 같은 주문상품)의 `representativeProductId` · `representativeThumbnailUrl`(#1328, 주문 당시 썸네일, 없으면 null) | 🔒 |
+| GET | `/api/v1/orders/{orderId}` | 주문 상세(주문상품마다 `thumbnailUrl`, #1328: 주문 당시 썸네일, 이후 상품 사진이 바뀌어도 그대로, 없으면 null) | 🔒 |
 | GET | `/internal/sellers/{sellerId}/order-items/summary` | 서비스 사이 전용(#1120, 판매자 탈퇴 #1091의 남은 주문 확인). 200 `{"sellerId": 12, "openItemCount": 3}`: 그 판매자 상품의 주문상품 중 주문이 취소되지 않았고 주문상품이 `ORDERED`인 수(결제대기 · 결제완료 · 배송 준비 · 배송 중 · 배송 완료 후 구매확정 전. 구매확정 · 취소된 주문상품과 전체 취소된 주문의 주문상품은 빠짐, 주문이 없으면 0). `sellerId`는 숫자다(주문의 다른 응답은 ID가 문자열). 같은 모양의 계약 `shared.order.out.SellerOrderItems`(`summarize`)를 주문이 구현한다. 판매자 ID가 숫자가 아니거나 1 미만이면 400 `잘못된 판매자 ID입니다`. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
 | GET | `/internal/members/{memberId}/orders` | 서비스 사이 전용(#1191, 챗봇 내 주문 조회). 쿼리 `limit`(1~10, 기본 5). 그 회원의 주문을 최근 주문부터 준다. 200 `[{"orderId": 31, "orderedAt": "2026-11-11T09:05:00", "status": "PAID", "items": [{"productName": "여아 원피스", "optionName": "110", "quantity": 1, "status": "ORDERED", "delivery": {"status": "SHIPPING", "carrier": "CJ", "shippedAt": "2026-11-11T15:20:00", "deliveredAt": null}}]}]`(주문이 없으면 `[]`, ID는 숫자, 주문상품은 주문상품 ID 순, `delivery`는 그 상품 판매자의 배송이고 결제 전이면 `null`). 상태 · 택배사는 enum 이름이다. 배송지 · 연락처 · 수령인 · 송장번호 · 금액 · 자녀 정보는 주지 않는다. 같은 모양의 계약 `shared.order.out.MemberOrderHistory`(`recent`)를 주문이 구현한다. 회원 ID가 숫자가 아니거나 1 미만, `limit`이 범위 밖이면 400. 인증 헤더를 요구하지 않고 밖에서는 Gateway가 `/internal/**`을 막는다(404) | 내부 |
-| POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체) | 🔒 |
+| POST | `/api/v1/orders/{orderId}/cancel` | 구매자 주문 취소(발송 전, 주문 전체). 응답은 주문 상세와 같은 모양(주문상품 `thumbnailUrl`, #1328) | 🔒 |
 | GET | `/api/v1/orders/{orderId}/timeline` | 주문 처리 타임라인(단계 · 상태 · 시각) | 🔒 |
-| POST | `/api/v1/orders/{orderId}/items/{orderItemId}/confirm` | 구매확정 | 🔒 |
-| GET | `/api/v1/orders/items/mine` | 나를 위해 산 상품 내역(자녀 로그인만, 최신순 · 목록 형식, 출처 칸 없음, #1000) | 🔒 |
+| GET | `/api/v1/orders/{orderId}/deliveries/{sellerOrderId}/tracking` | 택배 진행 이력(#1320, 그 주문 구매자만, 저장하지 않고 볼 때 택배 조회. `sellerOrderId`는 판매자 API와 같은 이름의 배송 ID, 주문 상세 `deliveries`의 ID). 200 `deliveryId` · `carrier` · `trackingNumber` · `events[{time, location, status}]`(최신 먼저 · 최근 30개, `time`은 한국 시각 · 없으면 null, `location`은 장소 이름 · 없으면 null, `status`는 택배 조회 상태 코드 `IN_TRANSIT` · `OUT_FOR_DELIVERY` · `DELIVERED` 등. 설명 · 연락처는 주지 않음). 발송 전(운송장 없음)이면 `carrier` · `trackingNumber` null · `events` [], 조회할 수 없는 택배사(테스트 DUMMY)와 택배사에 아직 등록 전이면 `events` []. 같은 배송은 10분 동안 같은 결과(택배사에 아직 등록 전인 빈 결과는 1분). 404 `TRACKING_DELIVERY_NOT_FOUND`(남의 주문 · 다른 주문의 배송 · 없는 배송) · 409 `TRACKING_INVALID_NUMBER`(택배사가 운송장 형식 오류로 답함) · 503 `TRACKING_UNAVAILABLE`(`지금 택배 조회를 할 수 없어요. 잠시 후 다시 시도해 주세요.` — 조회 꺼짐 · 외부 실패 · 서킷 열림) | 🔒 |
+| POST | `/api/v1/orders/{orderId}/items/{orderItemId}/confirm` | 구매확정. 응답은 주문 상세의 주문상품 한 줄과 같은 모양(`thumbnailUrl`, #1328) | 🔒 |
+| GET | `/api/v1/orders/items/mine` | 나를 위해 산 상품 내역(자녀 로그인만, 최신순 · 목록 형식, 출처 칸 없음, #1000). 줄마다 `thumbnailUrl`(#1328, 주문 당시, 없으면 null) | 🔒 |
 | POST | `/api/v1/wish/requests` | 조르기 보내기(자녀만, 내 장바구니 칸 `cartItemIds` + 메시지. 칸을 예약한다) | 🔒 |
-| GET | `/api/v1/wish/requests` | 조르기 목록(내가 보낸 것 + 내가 승인자인 것, `childId`로 거르기 선택) | 🔒 |
-| GET | `/api/v1/wish/requests/{requestId}` | 조르기 상세(칸 · 산 것 `purchases` · 결제된 주문상품 ID `paidOrderItemIds`) | 🔒 |
+| GET | `/api/v1/wish/requests` | 조르기 목록(내가 보낸 것 + 내가 승인자인 것, `childId`로 거르기 선택). 칸마다 `items[].thumbnailUrl`(#1328, 장바구니와 같은 지금 상품 값, 없으면 null) | 🔒 |
+| GET | `/api/v1/wish/requests/{requestId}` | 조르기 상세(칸 · 산 것 `purchases` · 결제된 주문상품 ID `paidOrderItemIds`). 칸마다 `items[].thumbnailUrl`(#1328, 목록과 같은 지금 상품 값, 없으면 null) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/rejection` | 조르기 거절(승인자만, 사유. 예약이 풀린다) | 🔒 |
 | POST | `/api/v1/wish/requests/{requestId}/cancellation` | 조르기 철회(보낸 사람만, 처리 전에만. 상태 `CANCELLED` · `cancelReason` DIRECT, 예약이 풀리고 칸은 장바구니에 남음, #968) | 🔒 |
 | GET | `/api/v1/wish/requests/{requestId}/timeline` | 조르기 타임라인(보냄 → 결제 완료 · 거절 · 철회 · 만료(시스템), 산 주문 ID `orderIds`, 직접 철회면 `cancelledBy`) | 🔒 |
-| GET | `/api/v1/seller/orders` | 판매 주문 목록. 주문상품에 자녀 정보(`child`)는 없다(#997, 제3자 제공 동의 없이 판매자에게 넘기지 않음) | 🏪 |
+| GET | `/api/v1/seller/orders` | 판매 주문 목록. 주문상품에 자녀 정보(`child`)는 없다(#997, 제3자 제공 동의 없이 판매자에게 넘기지 않음). `status`(선택, #1280): 응답 `status`(배송 상태)와 같은 값 하나 — `READY` · `SHIPPING` · `DELIVERED` · `CANCELLED`(대문자 그대로)로 자기 판매 주문만 거르고 `totalElements`가 그 상태의 전체 건수. 없으면 지금과 같다. 모르는 값 · 소문자 · 빈 값 · 여러 값은 400 `INVALID_DELIVERY_STATUS`(`지원하지 않는 판매 주문 상태입니다`) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/ship` | 발송(택배사 · 송장번호) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/deliver` | 배송 완료 처리(처음 완료 때 `delivery.delivered` 1번: 그 몫 주문상품(취소 제외) · 자동 구매확정 예정 시각, #1061. 택배 조회 완료도 같다) | 🏪 |
 | POST | `/api/v1/seller/orders/{sellerOrderId}/cancel` | 판매자 발송 전 취소(자기 몫, 사유). 부분 취소 스위치는 기본 켜짐(#924), 끄면 409. 판매자가 판매할 수 없게 되면(#1121, 판매자 상태가 ACTIVE 아님) 시스템이 그 판매자의 배송 전 주문을 정리한다: 결제대기 주문은 전체 취소(`cancelReason` `SELLER_UNAVAILABLE`), 결제완료 · 배송 준비 몫은 이 취소와 같은 결과(주문상품 `cancelReason` `SELLER_UNAVAILABLE`, 판매자가 고르는 사유는 아님. 그 몫으로 주문 전체가 취소되면 주문 `cancelReason`도 `SELLER_UNAVAILABLE`), 배송 중 · 배송 완료는 그대로 | 🏪 |
-| GET | `/api/v1/admin/orders` | 전체 주문 조회 | 🛠 |
+| GET | `/api/v1/admin/orders` | 전체 주문 조회. `status`(선택, #1280): 내 주문 목록과 같은 값 · 규칙(`PENDING_PAYMENT` · `PAID` · `CANCELLED`, `totalElements` = 그 상태 전체 건수, 모르는 값 400 `INVALID_ORDER_STATUS`). 줄마다 `cancelledAt`(#1325, 취소 주문이 취소된 시각 = 상태 이력의 주문 → CANCELLED 시각, 한국 시각, 취소 아니면 null). `cancelledFrom`(선택, #1325): 한국 시간 `yyyy-MM-ddTHH:mm:ss`, 그 시각 포함 이후에 취소된 주문만(`status` 없이 와도 취소된 주문만, `status`와 함께면 AND라 CANCELLED가 아니면 0건). 오늘 취소 건수 = `?status=CANCELLED&cancelledFrom=오늘T00:00:00&size=1`의 `totalElements`. 형식이 틀리면 400 `INVALID_CANCELLED_FROM`(`취소 시각 형식이 맞지 않습니다`). 이력이 없는 옛 취소 주문(#442 이전)은 `cancelledAt`이 null이고 `cancelledFrom` 결과에서도 빠진다 | 🛠 |
 | GET | `/api/v1/admin/orders/{orderId}/history` | 주문 상태 이력 | 🛠 |
 | GET | `/api/v1/admin/orders/stuck` | 멈춘 주문 목록(`kind`). 줄마다 AI 진단 메모 `aiMemo`(#926, 없으면 null) | 🛠 |
 | GET | `/api/v1/admin/orders/stuck/summary` | 멈춘 주문 종류별 건수 | 🛠 |
@@ -290,8 +294,15 @@
 | POST | `/api/v1/webhooks/toss` | 토스 웹훅. 토스에서 직접 취소한 충전을 맞춤 | 🌐 |
 | GET | `/api/v1/admin/payments` | 전체 결제 · 환불 조회 | 🛠 |
 | GET | `/api/v1/admin/payments/summary` | 결제일 기준 날짜별 결제 금액 · 건수(`from` · `to`, 한국 시간, 비우면 오늘, 최대 31일)와 환불 이력이 있는 결제 전체 건수 | 🛠 |
+| GET | `/api/v1/admin/payments/parked-events` | 보내지 못해 격리한 결제 이벤트(아웃박스) 목록. 같은 키의 뒤 이벤트도 함께 멈춰 있음 | 🛠 |
+| POST | `/api/v1/admin/payments/parked-events/{outboxId}/release` | 격리를 풀어 그 이벤트부터 같은 키의 뒤 이벤트까지 순서대로 다시 보냄 | 🛠 |
+| GET | `/api/v1/admin/payments/refund-retries` | 환불하지 못한 주문상품 취소 목록(실패 사유: 환불 불가 코드 · `PAYMENT_NOT_FOUND` · `MEMBER_MISMATCH`) | 🛠 |
+| POST | `/api/v1/admin/payments/refund-retries/{retryId}/retry` | 받은 내용 그대로 다시 처리. 환불되면 `resolved: true` | 🛠 |
+| DELETE | `/api/v1/admin/payments/refund-retries/{retryId}` | 시스템 밖에서 처리했다고 닫음(실패한 환불 기록은 남음) | 🛠 |
 | GET | `/api/v1/admin/wallets` | 지갑 목록(`frozen` · `hasBalance`로 거름) | 🛠 |
 | POST | `/api/v1/admin/wallets/{walletId}/return-balance` | 동결 지갑의 잔액을 환급했다고 기록하고 0으로 만듦(송금은 하지 않음) | 🛠 |
+| GET | `/api/v1/admin/wallets/charges/stuck` | 충전 정리 기준 시간(기본 5분)보다 오래 승인 중인 충전, 오래된 순(토스 승인 금액이 다르거나 부분 취소돼 스케줄러가 끝내지 못한 충전) | 🛠 |
+| POST | `/api/v1/admin/wallets/charges/{chargeId}/fail` | 토스에서 돈을 정리한 멈춘 충전을 실패(`ADMIN_CLOSED`)로 끝냄(예치금은 그대로). 토스가 충전 금액대로 승인했거나 멈춘 충전이 아니면 409, 토스 결과를 모르면 503 | 🛠 |
 
 ## 정산
 
@@ -323,22 +334,25 @@
 | GET | `/api/v1/reviews` | 상품별 리뷰 목록(`productId`, 최신순). 공개 리뷰만 | 🌐 |
 | GET | `/api/v1/reviews/me` | 내 리뷰(숨겨진 리뷰 포함) | 🔒 |
 | GET | `/api/v1/reviews/summary` | 리뷰 요약(리뷰 수 · 평균 별점 · 사이즈 핏 분포 `fitSummary`). 공개 리뷰만 센다 | 🌐 |
-| PUT | `/api/v1/favorites/{productId}` | 찜(다시 해도 1건) | 🔒 |
-| DELETE | `/api/v1/favorites/{productId}` | 찜 취소(없어도 204) | 🔒 |
-| GET | `/api/v1/favorites` | 내 찜 목록. `productIds`를 주면 그중 찜한 것만 | 🔒 |
-| GET | `/api/v1/favorites/summary` | 찜 요약(찜 수) | 🌐 |
+| PUT | `/api/v1/favorites/{productId}` | 찜(다시 해도 1건). 회원 · 로그인한 자녀 각자 | 🔒 |
+| DELETE | `/api/v1/favorites/{productId}` | 찜 취소(없어도 204). 자기 찜만 | 🔒 |
+| GET | `/api/v1/favorites` | 내 찜 목록(회원 · 로그인한 자녀 각자 자기 것만). `productIds`를 주면 그중 찜한 것만 | 🔒 |
+| GET | `/api/v1/favorites/summary` | 찜 요약(찜 수, 회원 · 자녀 계정 찜 합계) | 🌐 |
 | GET | `/api/v1/admin/community/reviews` | 검사 상태별 리뷰 목록(`status` 필수: `PENDING` · `PASSED` · `HIDDEN` · `CONFIRMED_HIDDEN` · `RESTORED`, `cursor` · `size`, 최신순) | 🛠 |
 | PATCH | `/api/v1/admin/community/reviews/{reviewId}/visibility` | 숨김 확정 · 다시 공개(본문 `visibility` `HIDDEN` → `CONFIRMED_HIDDEN`, `VISIBLE` → `RESTORED`). 같은 값을 다시 보내도 200 | 🛠 |
+| POST | `/api/v1/admin/community/reviews/moderation/retry-exhausted` | 재시도 상한에 닿은 검사 대기 리뷰를 다시 검사 대기로 되돌림. 응답 `{"resetCount": n}`, 다시 불러도 200 | 🛠 |
 | GET | `/api/v1/admin/community/dead-letters` | DLT에 남은 메시지 목록(`status` 기본 OPEN, `page` · `size` 기본 0 · 20, 1~100) | 🛠 |
 | GET | `/api/v1/admin/community/dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/community/dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
 | POST | `/api/v1/admin/community/mcp` | 커뮤니티 운영 조회 MCP 창구(읽기 전용, 스위치 기본 꺼짐) | 🛠 |
 
+**찜(#1377)**: 찜 · 찜 취소 · 내 찜 목록은 회원 로그인과 자녀 로그인(자녀 토큰)을 함께 받고, 각자 자기 찜만 보고 바꾼다(보호자가 자녀 찜을 보는 API는 없다). 같은 숫자 ID라도 회원과 자녀 계정의 찜은 섞이지 않는다. 회원 헤더가 있으면 회원으로, 없으면 자녀 헤더 둘(`X-Child-Account-Id` · `X-Child-Guardian-Id`)로 보고, 하나라도 없거나 잘못되면 401이다. 삭제된 자녀 계정이면 403 `FAVORITE_CHILD_ACCOUNT_DELETED`이고, 자녀 계정을 지우면 그 계정의 찜도 지워진다. 보호자가 탈퇴하면 보호자 본인 찜과 그 자녀 계정 찜이 함께 지워진다. 찜 요약의 찜 수는 회원 · 자녀 계정 찜을 합한 값이다.
+
 리뷰 목록(상품별 · 내 리뷰) 항목에는 사진 공개 주소 `imageUrls`(순서대로, 없으면 빈 목록)와 `visibility`가 있다. `visibility`는 `PUBLIC`(공개) 또는 `UNDER_REVIEW`(숨겨짐: 검사 숨김 · 숨김 확정)이고, `UNDER_REVIEW`는 내 리뷰에서만 보인다. 상품별 목록은 늘 `PUBLIC`이다. 커서 목록의 `size`는 1~50(기본 20)이다.
 
 **리뷰 사진**: 업로드 주소 발급으로 받은 `uploadUrl`에 요청한 `Content-Type` · 크기 그대로 PUT 해 S3에 직접 올리고, 받은 `imageUrl`을 작성 · 수정의 `imageUrls`에 넣는다. 본인에게 발급된 주소만 받는다. 리뷰에 새로 붙는 사진은 실제로 올라갔는지 확인한다(이미 붙어 있던 사진은 다시 확인하지 않는다). 올라가지 않았으면 400 `IMAGE_NOT_UPLOADED`, 저장소가 답하지 못하면(장애 · 시간 초과 · 권한) 503 `IMAGE_STORAGE_UNAVAILABLE`이고 요청은 반영되지 않는다. 최대 장수 · 크기 · 만료는 `kidly.community.review.image.*`(`max-count` · `max-file-size` · `upload-url-expiry`), 확인 방식은 `upload-check`(`s3` 기본, 로컬 실행은 `none`)다.
 
-**리뷰 검사(#1002)**: 리뷰는 저장하면 바로 공개되고 검사 대기(`PENDING`)가 된다. 스케줄러가 1분 간격으로 대기 리뷰를 10건씩 금칙어 → AI(키가 있을 때만) 순으로 검사해, 통과하면 `PASSED`, 걸리면 `HIDDEN`(숨김, 관리자 판단 대기)으로 바꾼다. 숨겨진 리뷰는 상품별 목록 · 리뷰 요약에서 빠지고 작성자의 내 리뷰에는 `UNDER_REVIEW`로 보인다. 관리자는 `CONFIRMED_HIDDEN`(숨김 확정) 또는 `RESTORED`(다시 공개)로 정한다. 공개 상태(`PENDING` · `PASSED` · `RESTORED`)에서 글 · 사진을 고치면 다시 검사 대기가 되고, 숨김 상태(`HIDDEN` · `CONFIRMED_HIDDEN`)는 작성자가 고쳐도 숨김 그대로다. 판단하지 못한 검사(장애 · 시간 초과)는 다시 하고, 판단하지 못한 횟수가 10번(`max-attempts`)에 닿으면 공개 그대로 관리자 목록에서 본다(`attemptsExhausted`). AI 한도 초과(429)는 횟수에 넣지 않고 그 주기의 남은 검사만 멈춘다.
+**리뷰 검사(#1002)**: 리뷰는 저장하면 바로 공개되고 검사 대기(`PENDING`)가 된다. 스케줄러가 1분 간격으로 대기 리뷰를 10건씩 금칙어 → AI(키가 있을 때만) 순으로 검사해, 통과하면 `PASSED`, 걸리면 `HIDDEN`(숨김, 관리자 판단 대기)으로 바꾼다. 숨겨진 리뷰는 상품별 목록 · 리뷰 요약에서 빠지고 작성자의 내 리뷰에는 `UNDER_REVIEW`로 보인다. 관리자는 `CONFIRMED_HIDDEN`(숨김 확정) 또는 `RESTORED`(다시 공개)로 정한다. 공개 상태(`PENDING` · `PASSED` · `RESTORED`)에서 글 · 사진을 고치면 다시 검사 대기가 되고, 숨김 상태(`HIDDEN` · `CONFIRMED_HIDDEN`)는 작성자가 고쳐도 숨김 그대로다. 판단하지 못한 검사(장애 · 시간 초과)는 다시 하고, 판단하지 못한 횟수가 10번(`max-attempts`)에 닿으면 공개 그대로 관리자 목록에서 본다(`attemptsExhausted`). AI 한도 초과(429)는 횟수에 넣지 않고 그 주기의 남은 검사만 멈춘다. 검사는 글만 본다(사진은 지금 어떤 검사기도 보지 않는다).
 
 **커뮤니티 운영 조회 MCP 창구(#1005)**: AI가 커뮤니티 운영 상태(리뷰 요약 · DLT · 검사 현황 · 상품 복사본)를 조회해 원인을 진단하는 읽기 전용 [MCP](https://modelcontextprotocol.io) 서버다. 재처리 · 숨김 같은 조작 도구는 없고, 조작은 위 관리자 API로 사람이 한다.
 
@@ -395,7 +409,7 @@
 
 | 메서드 | 경로 | 설명 | 권한 |
 |---|---|---|---|
-| POST | `/api/v1/chatbot/messages` | 챗봇에게 묻기. 본문 `message`(1~500자) · `history`(선택, 오래된 것부터 최대 10개, 각 `role` `USER` · `ASSISTANT`, `content` 1~1000자). 응답 `{ answer, sources: [{ documentId, title }], products: [{ productId, name, businessName, price, thumbnailUrl, soldOut }] }`. `products`는 이번 답에서 찾은 상품 카드(최대 6개, 없으면 `[]`, ID · 가격은 숫자, 없는 상호명 · 썸네일은 `null`). 대화는 저장하지 않는다 | 🔒 |
+| POST | `/api/v1/chatbot/messages` | 챗봇에게 묻기. 본문 `message`(1~500자) · `history`(선택, 오래된 것부터 최대 10개, 각 `role` `USER` · `ASSISTANT`, `content` 1~1000자). 응답 `{ answer, sources: [{ documentId, title }], products: [{ productId, name, businessName, price, thumbnailUrl, soldOut }] }`. `products`는 이번 답에서 찾은 상품 카드(최대 6개, 없으면 `[]`, ID · 가격은 숫자, 없는 상호명 · 썸네일은 `null`). 대화는 저장하지 않는다. `history`는 최근 턴부터 모두 합쳐 `kidly.chatbot.quota.history-chars`(기본 3,000자)까지만 AI에 넘기고 그 앞은 뺀다(#1388). `history`는 회원이 바꿀 수 있으므로 AI에는 챗봇의 이전 답이 아니라 확인되지 않은 기록으로만 넘기고(턴마다 한 줄로 펴서 한 메시지로 묶는다), 주문 · 상품 · 가격 · 정책 사실은 도구 결과와 근거 문서로만 말하게 한다(#1388) | 🔒 |
 | POST | `/api/v1/admin/chatbot/documents` | 답변 근거 문서 저장(201 + `Location`). 본문 `title`(1~200자) · `category`(`FAQ` · `POLICY` · `SIZE_GUIDE`) · `content`(1~20,000자). 응답에 만든 조각 수 `chunkCount` | 🛠 |
 | GET | `/api/v1/admin/chatbot/documents` | 문서 목록(최신순, `page` · `size` 1~100, 기본 0 · 20). 본문은 넣지 않는다 | 🛠 |
 | GET | `/api/v1/admin/chatbot/documents/{id}` | 문서 상세(본문 · `chunkCount` 포함) | 🛠 |
@@ -406,9 +420,11 @@
 
 **상품 찾기(#1191)**: 상품을 찾거나 추천해 달라는 질문이면 AI가 상품 검색 도구(`searchProducts`, 검색어 · 최저가 · 최고가)를 불러 검색 서비스(`/internal/products/search`, 한 번에 5개)에서 찾고, 그 결과에 있는 상품 이름 · 가격만으로 답한다. 한 질문에서 도구는 세 번까지 부르고, 찾은 상품은 처음 찾은 순서대로 한 번씩 최대 6개를 `products`로 준다. 검색 서비스에는 검색어 · 가격만 보내고 회원 정보는 보내지 않는다. 검색 서비스가 실패하거나 응답하지 않으면(연결 1초 · 응답 4초) 질문은 200이고 AI가 상품을 찾지 못했다고 안내하며 `products`는 `[]`다. 쇼핑과 관계없는 질문에는 짧게 거절하도록 지시한다. OpenAI 호출이 실패하면 503 `AI를 쓸 수 없습니다`.
 
-**내 주문 · 배송(#1191)**: 주문 · 결제 · 배송 상황을 묻는 질문이면 AI가 내 주문 도구(`getMyRecentOrders`, 볼 주문 수 1~10 · 기본 5)를 불러 주문 서비스(`/internal/members/{memberId}/orders`)에서 로그인한 회원의 최근 주문을 읽고, 그 결과에 있는 주문 · 배송 사실만으로 답한다. 회원 ID는 요청의 로그인 회원으로 정하며 AI가 고르지 못한다. AI에는 주문 번호 · 주문 시각 · 상품 이름 · 옵션 · 수량 · 상태 · 택배사 · 발송 · 배송 완료 시각과 오늘 날짜만 준다(배송지 · 연락처 · 송장번호 · 금액은 주문 서비스도 주지 않는다). 도착 예정일처럼 결과에 없는 날짜는 짐작하지 않도록, 취소 · 반품 · 교환 요청은 직접 처리하지 않고 정책 문서나 주문 상세 화면 · 고객센터를 안내하도록 지시한다. 주문 서비스가 실패하거나 응답하지 않으면(연결 1초 · 응답 2초) 질문은 200이고 AI가 주문을 확인하지 못했다고 안내한다. 응답에 주문 칸은 더하지 않는다.
+**내 주문 · 배송(#1191)**: 주문 · 결제 · 배송 상황을 묻는 질문이면 AI가 내 주문 도구(`getMyRecentOrders`, 볼 주문 수 1~10 · 기본 5)를 불러 주문 서비스(`/internal/members/{memberId}/orders`)에서 로그인한 회원의 최근 주문을 읽고, 그 결과에 있는 주문 · 배송 사실만으로 답한다. 회원 ID는 요청의 로그인 회원으로 정하며 AI가 고르지 못한다. AI(OpenAI)에는 답에 쓰는 칸만 준다: 주문 시각 · 상태, 상품 이름 · 옵션(같은 상품의 여러 옵션 중 어느 것인지 가린다) · 상태, 배송 상태 · 택배사 · 발송 · 배송 완료 시각과 오늘 날짜. 주문 번호 · 수량은 주문 서비스가 주지만 AI에는 넘기지 않는다(#1388). 배송지 · 연락처 · 송장번호 · 금액은 주문 서비스도 주지 않는다. 도착 예정일처럼 결과에 없는 날짜는 짐작하지 않도록, 취소 · 반품 · 교환 요청은 직접 처리하지 않고 정책 문서나 주문 상세 화면 · 고객센터를 안내하도록 지시한다. 주문 서비스가 실패하거나 응답하지 않으면(연결 1초 · 응답 2초) 질문은 200이고 AI가 주문을 확인하지 못했다고 안내한다. 응답에 주문 칸은 더하지 않는다.
 
 오류 코드(상태 · `title` · `detail`은 `ChatbotErrorCode`에 있다):
 
 - `INVALID_CATEGORY`(400), `DOCUMENT_NOT_FOUND`(404)
 - `AI_UNAVAILABLE`(503): OpenAI 키가 없거나 호출이 실패 · 시간 초과했다. 문서 저장 · 수정은 반영되지 않는다
+- `AI_TIMEOUT`(503): 질문 하나가 시간 상한(`kidly.chatbot.answer.time-budget`, 기본 40초, Gateway 응답 제한 55초보다 짧다)을 넘었다. 넘는 즉시 답하고, 이미 보낸 OpenAI 호출 하나만 끝낸 뒤 그 질문의 남은 호출(도구 · 답 만들기)은 하지 않는다(#1388)
+- `AI_DAILY_LIMIT_REACHED`(503): 서비스 전체 하루(한국 시간) 질문 수 상한(`kidly.chatbot.quota.daily-questions`, 기본 2,000)에 닿았다. OpenAI를 부르지 않는다. 질문은 임베딩 · 답 만들기 전에 세고, 실패한 질문도 센다(챗봇 DB `question_usage`, #1388)

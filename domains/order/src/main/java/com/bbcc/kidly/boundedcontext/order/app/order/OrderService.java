@@ -612,7 +612,7 @@ public class OrderService {
         return new Order.RequestedItem(
             new OrderItem.ProductSnapshot(product.getProductId(), product.getOptionId(), product.getSellerId(),
                 product.getProductName(), product.getOptionName(), product.getSize(), product.unitPrice(),
-                product.getCategoryId()),
+                product.getCategoryId(), product.getThumbnailUrl()),
             product.isPurchasable(),
             child,
             item.quantity(),

@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.recommend.app.recommended;
 
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.HomePreviewAiAnswer;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.HomePreviewAiRequest;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.HomePreviewPicker;
@@ -44,20 +45,22 @@ public class HomePreviewService {
     private final AiResponseService aiResponseService;
     // OpenAI 키가 없으면 picker 빈이 없다
     private final Optional<HomePreviewPicker> picker;
+    private final RecommendAiMetrics metrics;
     private final HomePreviewSelector selector = new HomePreviewSelector();
 
     public HomePreviewService(
         HomePreviewCandidateReader candidateReader, RecommendReplicaSellerRepository replicaSellerRepository,
-        AiResponseService aiResponseService, Optional<HomePreviewPicker> picker) {
+        AiResponseService aiResponseService, Optional<HomePreviewPicker> picker, RecommendAiMetrics metrics) {
         this.candidateReader = candidateReader;
         this.replicaSellerRepository = replicaSellerRepository;
         this.aiResponseService = aiResponseService;
         this.picker = picker;
+        this.metrics = metrics;
     }
 
     public HomePreviewResult preview(Long memberId, Long childId) {
         HomePreviewCandidates candidates = candidateReader.read(memberId, childId);
-        return toResult(selector.select(candidates.products(), askAi(candidates)));
+        return toResult(select(askAi(candidates), candidates));
     }
 
     /**
@@ -78,11 +81,20 @@ public class HomePreviewService {
     // AI가 고른 상품이 모두 후보 밖이면 규칙 결과와 같으므로 AI 결과가 없는 것으로 본다
     private Optional<HomePreviewResult> toAiResult(Optional<HomePreviewAiAnswer> answer,
         HomePreviewCandidates candidates) {
-        HomePreview preview = selector.select(candidates.products(), toPicks(answer));
+        HomePreview preview = select(answer, candidates);
         if (preview.source() != HomePreviewSource.AI) {
             return Optional.empty();
         }
         return Optional.of(toResult(preview));
+    }
+
+    // AI 답이 있었는데 고른 상품이 모두 후보 밖이라 출처가 AI가 아니면 검증에서 버린 것으로 센다
+    private HomePreview select(Optional<HomePreviewAiAnswer> answer, HomePreviewCandidates candidates) {
+        HomePreview preview = selector.select(candidates.products(), toPicks(answer));
+        if (answer.isPresent() && preview.source() != HomePreviewSource.AI) {
+            metrics.recordRejected(AiResponseType.HOME_PREVIEW);
+        }
+        return preview;
     }
 
     private HomePreviewResult toResult(HomePreview preview) {
@@ -99,16 +111,15 @@ public class HomePreviewService {
         return new HomePreviewResult(preview.source().name(), items);
     }
 
-    // AI를 쓸 수 없거나 답이 없으면 null이고, 그러면 규칙 결과가 된다
-    private List<HomePreviewPick> askAi(HomePreviewCandidates candidates) {
+    // AI를 쓸 수 없으면 빈 값이고, 그러면 규칙 결과가 된다
+    private Optional<HomePreviewAiAnswer> askAi(HomePreviewCandidates candidates) {
         if (picker.isEmpty() || candidates.products().isEmpty()) {
-            return null;
+            return Optional.empty();
         }
         HomePreviewAiRequest request = candidates.aiRequest();
-        Optional<HomePreviewAiAnswer> answer = aiResponseService.respond(
+        return aiResponseService.respond(
             AiResponseType.HOME_PREVIEW, key(candidates), HomePreviewAiAnswer.class,
             () -> picker.get().pick(request));
-        return toPicks(answer);
     }
 
     // AI 답이 없으면 null이고, 그러면 규칙 결과가 된다

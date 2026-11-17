@@ -6,7 +6,6 @@ import com.bbcc.kidly.boundedcontext.recommend.in.recommended.dto.HomePreviewRes
 import com.bbcc.kidly.boundedcontext.recommend.in.support.AiResultStream;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,9 +35,9 @@ public class HomePreviewController {
      * AI 답이 오면 ai 이벤트를 보낸 뒤 닫는다. 없는 자녀 같은 오류는 스트림을 열기 전에 ProblemDetail로 낸다.
      */
     @GetMapping(value = PATH, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@LoginMember AuthMember member, @RequestParam Long childId, HttpServletResponse response) {
+    public SseEmitter stream(@LoginMember AuthMember member, @RequestParam Long childId) {
         HomePreviewWithAi result = homePreviewService.previewWithAiLater(member.id(), childId);
-        return aiResultStream.open(response, HomePreviewResponse.from(result.rule()),
+        return aiResultStream.open(HomePreviewResponse.from(result.rule()),
             result.ai().thenApply(found -> found.map(HomePreviewResponse::from)));
     }
 }

@@ -45,6 +45,22 @@ Google SRE book [Monitoring Distributed Systems](https://sre.google/sre-book/mon
 - 서비스가 내려가 지표가 오지 않으면 위 규칙은 데이터 없음이라 조용하고, 기존 `서비스 다운`·`수집 끊김`(critical)이 대신 알립니다. 정산·알림의 ERROR 로그 급증은 기존 `ERROR 로그`(warning)가 봅니다
 - 알림 없는 지표: `settlement_payout_retry_total`·`settlement_outbox_send_delay_seconds`·`settlement_payout_duration_seconds`·`settlement_dead_letter_total`·`kidly_notification_unsent`. 아직 대시보드 패널이 없어 Grafana Explore에서 조회합니다
 
+### 결제 규칙 (#1391)
+
+규칙 파일은 `grafana/provisioning/alerting/payment.yml`입니다. 1분마다 평가하고 `for: 0m`, 데이터가 없으면 OK입니다. 격리 · 환불 못 한 주문상품 취소 지표는 #1389 · #1390이 배포된 뒤 생깁니다.
+
+| 규칙 | 조건 | severity | 받으면 |
+| --- | --- | --- | --- |
+| 결제 이벤트 전송 지연 | `kidly_payment_outbox_oldest_unsent_age_seconds` > 600 | critical | 릴레이는 1초마다 보내므로 막혀 있습니다. 결제 서비스 WARN 로그(결제 아웃박스 전송 실패)의 reason과 Kafka를 봅니다. 격리된 메시지의 같은 키 뒤 메시지도 여기 잡힙니다 |
+| 결제 이벤트 격리 | `kidly_payment_outbox_parked_messages` > 0 | critical | `GET /api/v1/admin/payments/parked-events`의 `lastError`로 원인을 고친 뒤 `POST /api/v1/admin/payments/parked-events/{outboxId}/release` |
+| 결제 이벤트 전송 실패 반복 | `increase(kidly_payment_outbox_send_failures_total[10m])` > 10 | warning | 다음 주기에 다시 보내므로 바로 할 일은 없습니다. 계속되면 위 두 규칙이 뒤따릅니다 |
+| 결제 수신 메시지 DLT | `increase(kidly_payment_dlt_messages_total[10m])` > 0 | critical | 결제에는 DLT 재처리 장치가 없습니다. ERROR 로그(처리하지 못한 이벤트를 DLT로 보냅니다)의 topic · eventType · eventId · key로 대상을 찾아 담당 도메인과 처리합니다 |
+| 멈춘 충전 | `sum(kidly_payment_charges_stuck)` > 0(승인 중 · 취소 중 30분 초과) | critical | 금액 불일치 · 부분 취소(ERROR 로그) 또는 토스 조회 실패입니다. 토스 상점관리자에서 확인해 처리합니다 |
+| 주문 취소 환불 재처리 지연 | `kidly_payment_refund_retry_oldest_age_seconds` > 3600 | critical | 스케줄러가 다시 처리하는데도 1시간 넘게 실패했습니다. `payment.order_cancellation_retry`의 `last_error`를 봅니다 |
+| 환불 못 한 주문상품 취소 | `kidly_payment_item_refund_retry_pending` > 0 | critical | 자동 재처리가 없습니다. `GET /api/v1/admin/payments/refund-retries`의 `lastError`를 보고 고친 뒤 `POST .../{retryId}/retry`, 시스템 밖에서 처리했으면 `DELETE .../{retryId}` |
+
+- 알림 없는 지표: `kidly_payment_outbox_unsent_messages`(건수보다 나이가 증상), `kidly_payment_order_payments_total` · `kidly_payment_charges_total`(결과별), `kidly_payment_scheduler_last_success_seconds`
+
 ## 안전하게 조치하기
 
 - 배포 직후면 실패 단계와 직전 정상 버전을 확인합니다. DB 마이그레이션 호환을 확인하지 않은 SHA 롤백은 하지 않습니다.

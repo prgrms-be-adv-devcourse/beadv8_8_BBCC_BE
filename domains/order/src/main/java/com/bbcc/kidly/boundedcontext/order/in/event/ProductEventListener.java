@@ -76,7 +76,8 @@ public class ProductEventListener {
             data.categoryId(),
             data.status() == null ? UNKNOWN_STATUS : data.status().name(),
             toOptions(event.eventType(), data),
-            event.occurredAt());
+            event.occurredAt(),
+            data.thumbnailUrl());
     }
 
     /**

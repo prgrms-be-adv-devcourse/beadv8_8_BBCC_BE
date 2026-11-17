@@ -17,6 +17,7 @@ import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -96,11 +97,9 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("자녀를 등록하고 릴레이를 부르면 자녀 ID 키 · 헤더 2개 · 본문(공통 칸 7개 + data)으로 도착하고 보낸 시각이 남는다")
+    @DisplayName("자녀 등록 후 커밋되면 Kafka에 도착하고 보낸 시각이 남는다")
     void relayRegistered() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
-
-        relayService.relay();
 
         var changed = events.stream(ChildChangedEvent.class).findFirst().orElseThrow();
         var record = awaitRecord(changed.eventId());
@@ -109,6 +108,7 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
         assertThat(header(record, "eventType")).isEqualTo("child.changed");
         assertThat(JSON_MAPPER.readTree(record.value()).propertyNames()).containsExactly("eventId", "eventType",
             "schemaVersion", "occurredAt", "producer", "aggregateId", "correlationId", "data");
+        AsyncWait.until(TIMEOUT, () -> outboxRow(changed.eventId()).get("sent_at") != null);
         assertThat(outboxRow(changed.eventId())).containsEntry("attempt_count", 1)
             .extractingByKey("sent_at").isNotNull();
     }
@@ -118,8 +118,6 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     void relayDeleted() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
         childProfileService.delete(MEMBER_ID, childId);
-
-        relayService.relay();
 
         var deleted = deletedEvent();
         var record = awaitRecord(deleted.eventId());
@@ -132,8 +130,6 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     void relayDeletedOnMemberWithdrawn() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
         childProfileService.deleteAll(MEMBER_ID);
-
-        relayService.relay();
 
         var record = awaitRecord(deletedEvent().eventId());
         assertThat(record.key()).isEqualTo(String.valueOf(childId));
@@ -150,6 +146,8 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
             ChildProfileOutboxMessageFixture.PAYLOAD)));
         outboxRepository.save(ChildProfileOutboxMessage.create(
             ChildProfileOutboxMessageFixture.childChanged(afterId)));
+        jdbcTemplate.update("update childprofile.child_profile_outbox set created_at = ? where event_id in (?, ?)",
+            LocalDateTime.now().minusMinutes(6), failingId, afterId);
 
         relayService.relay();
 

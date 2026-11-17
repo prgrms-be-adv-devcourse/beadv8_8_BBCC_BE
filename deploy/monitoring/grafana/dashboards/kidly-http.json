@@ -1,6 +1,6 @@
 {
   "uid": "kidly-http",
-  "title": "Kidly 서비스 오류",
+  "title": "3 · Kidly 서비스 오류",
   "schemaVersion": 39,
   "tags": [
     "01 장애 확인",
@@ -58,195 +58,371 @@
   },
   "panels": [
     {
-      "id": 11,
-      "type": "stat",
-      "title": "선택 환경 운영 상태",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "id": 35,
+      "type": "table",
+      "title": "5xx가 난 API · 선택 기간",
+      "description": "서버 오류가 난 경로입니다. 하위 서비스 상위 10개와 Gateway 상위 5개를 따로 뽑습니다. 줄을 누르면 그 서비스의 오류 로그가 열립니다.\n건수가 오르면 같은 시각의 ERROR 로그에서 예외 타입을 확인합니다. Gateway 줄은 하위 서비스 오류가 넘어온 것일 수 있습니다.\n비어 있으면 선택 기간에 5xx가 없었다는 뜻입니다(수집 끊김은 위 '서비스 수집 상태'로 판단).",
       "gridPos": {
         "x": 0,
         "y": 0,
         "w": 12,
-        "h": 4
+        "h": 9
       },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(kidly_environment_enabled{env=\"$env\"}) + 2 * max(kidly_environment_transition_active{env=\"$env\"})",
-          "instant": true,
-          "legendFormat": "{{job}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "운영 중지",
-                  "color": "gray"
-                },
-                "1": {
-                  "text": "운영 중",
-                  "color": "green"
-                },
-                "2": {
-                  "text": "중지 처리 중",
-                  "color": "orange"
-                },
-                "3": {
-                  "text": "기동 처리 중",
-                  "color": "orange"
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none"
-      }
-    },
-    {
-      "id": 12,
-      "type": "stat",
-      "title": "최근 수신 후 경과",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "expr": "topk(10, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\",job!=\"kidly-gateway\"}[$__range])) > 0) or topk(5, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\",job=\"kidly-gateway\"}[$__range])) > 0)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "job": 0,
+              "method": 1,
+              "uri": 2,
+              "status": 3,
+              "Value": 4
+            },
+            "renameByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "links": [
+            {
+              "title": "이 서비스 오류 로그 열기",
+              "url": "/d/kidly-logs?var-env=${env}&var-service=${__data.fields.job}&${__url_time_range}"
+            }
+          ],
+          "noValue": "선택 기간에 해당 응답이 없습니다"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "job"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "서비스"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "method"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "메서드"
+              },
+              {
+                "id": "custom.width",
+                "value": 60
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "상태"
+              },
+              {
+                "id": "custom.width",
+                "value": 50
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "건수"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uri"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "경로"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "건수",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 36,
+      "type": "table",
+      "title": "4xx가 많은 API · 선택 기간",
+      "description": "요청 오류(400 · 401 · 403 · 404 · 409 등) 경로입니다. 하위 서비스 상위 10개와 Gateway 상위 5개를 따로 뽑습니다. 줄을 누르면 그 서비스의 오류 로그가 열립니다.\n특정 경로에서 갑자기 오르면 화면 요청 형식 · 인증 만료 · 배포 직후 API 변경을 확인합니다. 정상 흐름(로그인 만료 401 등)도 섞여 있습니다.",
       "gridPos": {
         "x": 12,
         "y": 0,
         "w": 12,
-        "h": 4
+        "h": 9
       },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "time() - max by(job) (timestamp(up{env=\"$env\", job=~\"$service\"}))",
-          "instant": true,
-          "legendFormat": "{{job}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none"
-      },
-      "description": "마지막 up 샘플 이후 경과 시간입니다. 5분 이상 미수신이면 데이터가 없어질 수 있습니다. 중지 환경의 과거 데이터는 보관 기간 내 조회 가능합니다."
-    },
-    {
-      "id": 10,
-      "type": "text",
-      "title": "알림을 받았다면 여기부터 확인하세요",
-      "gridPos": {
-        "x": 0,
-        "y": 4,
-        "w": 24,
-        "h": 4
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**환경·서비스 선택 → 이상 상태 확인 → 로그 확인**\n\n운영 중지/재개는 GitHub Actions의 [environment-operation](https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/actions/workflows/environment-operation.yml)에서 선택합니다. 수집 실패와 의도적 중지는 구분합니다.\n\nGateway와 하위 서비스 오류는 합산하지 않습니다. 데이터 없음은 정상이 아닙니다."
-      }
-    },
-    {
-      "id": 1,
-      "type": "stat",
-      "title": "서비스 수집 상태",
-      "description": "운영 대상 목록은 medium에서 독립 수집합니다. 1분 내 데이터 없음은 끊김으로 표시합니다. 의도적 중지는 Actions에서 등록하며 데이터 소실로 자동 제외하지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 8,
-        "w": 12,
-        "h": 8
-      },
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "refId": "A",
-          "expr": "((max by (env, job) (last_over_time(up{env=\"$env\", job=~\"$service\"}[1m])) + 1) and on(env,job) (label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1)) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1) * 0) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 0) * 0 - 1)",
-          "legendFormat": "{{job}}",
-          "instant": true
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "expr": "topk(10, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"4..\",job!=\"kidly-gateway\"}[$__range])) > 0) or topk(5, sum by (job, method, uri, status) (increase(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"4..\",job=\"kidly-gateway\"}[$__range])) > 0)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "job": 0,
+              "method": 1,
+              "uri": 2,
+              "status": 3,
+              "Value": 4
+            },
+            "renameByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value",
+                "desc": true
+              }
+            ]
+          }
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "min": -1,
-          "max": 2,
-          "mappings": [
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "links": [
             {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "운영 중지",
-                  "color": "gray"
-                },
-                "0": {
-                  "text": "데이터 끊김",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "수집 실패",
-                  "color": "orange"
-                },
-                "2": {
-                  "text": "수집 정상",
-                  "color": "green"
-                }
-              }
+              "title": "이 서비스 오류 로그 열기",
+              "url": "/d/kidly-logs?var-env=${env}&var-service=${__data.fields.job}&${__url_time_range}"
             }
-          ]
+          ],
+          "noValue": "선택 기간에 해당 응답이 없습니다"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "job"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "서비스"
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "method"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "메서드"
+              },
+              {
+                "id": "custom.width",
+                "value": 60
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "상태"
+              },
+              {
+                "id": "custom.width",
+                "value": 50
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "건수"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uri"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "경로"
+              },
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
         },
-        "orientation": "horizontal",
-        "textMode": "value_and_name",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto"
+        "sortBy": [
+          {
+            "displayName": "건수",
+            "desc": true
+          }
+        ]
       }
     },
     {
@@ -259,8 +435,8 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
-        "y": 8,
+        "x": 0,
+        "y": 9,
         "w": 12,
         "h": 8
       },
@@ -297,8 +473,8 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 0,
-        "y": 16,
+        "x": 12,
+        "y": 9,
         "w": 12,
         "h": 8
       },
@@ -311,7 +487,11 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit"
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "axisSoftMax": 0.05
+          }
         },
         "overrides": []
       },
@@ -335,8 +515,8 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 12,
-        "y": 16,
+        "x": 0,
+        "y": 17,
         "w": 12,
         "h": 8
       },
@@ -367,14 +547,14 @@
       "id": 30,
       "type": "timeseries",
       "title": "평균 API 응답 시간",
-      "description": "서비스별 최근 5분 평균입니다. 같은 시간대 요청 수·오류율을 함께 보세요. p95는 히스토그램을 수집한 뒤 확인할 수 있습니다.",
+      "description": "서비스별 최근 5분 평균입니다. 같은 시간대 요청 수·오류율을 함께 보세요. p95는 히스토그램을 수집한 뒤 확인할 수 있습니다. 실시간 알림 스트림(SSE) 경로는 연결이 오래 열려 있어 평균에서 뺍니다(Gateway는 경로 구분이 없어 섞일 수 있음).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 0,
-        "y": 24,
+        "x": 12,
+        "y": 17,
         "w": 12,
         "h": 8
       },
@@ -387,48 +567,19 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0)",
           "legendFormat": "{{job}}"
-        }
-      ]
-    },
-    {
-      "id": 31,
-      "type": "timeseries",
-      "title": "서버 가용 메모리",
-      "description": "앱·모니터링 호스트 전체의 가용 RAM입니다. dev와 prod가 공유하는 서버 지표입니다.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 24,
-        "w": 12,
-        "h": 8
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "node_memory_MemAvailable_bytes{job=\"integrations/unix\"}",
-          "legendFormat": "{{instance}}"
         }
       ]
     },
     {
       "id": 32,
       "type": "row",
-      "title": "응답 지연 상세 (필요할 때 펼치기)",
+      "title": "응답 지연 · 자원 상세 (응답이 느릴 때 펼치기)",
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 25,
         "w": 24,
         "h": 1
       },
@@ -444,7 +595,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 33,
+            "y": 26,
             "w": 12,
             "h": 8
           },
@@ -473,7 +624,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 33,
+            "y": 26,
             "w": 12,
             "h": 8
           },
@@ -490,6 +641,249 @@
               "legendFormat": "{{job}}"
             }
           ]
+        },
+        {
+          "id": 31,
+          "type": "timeseries",
+          "title": "서버 가용 메모리",
+          "description": "앱·모니터링 호스트 전체의 가용 RAM입니다. dev와 prod가 공유하는 서버 지표입니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 34,
+            "w": 24,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "node_memory_MemAvailable_bytes{job=\"integrations/unix\"}",
+              "legendFormat": "{{instance}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "type": "row",
+      "title": "수집 · 환경 상태 · 안내 (데이터가 없거나 이상할 때 펼치기)",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 11,
+          "type": "stat",
+          "title": "선택 환경 운영 상태",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 27,
+            "w": 12,
+            "h": 4
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "max(kidly_environment_enabled{env=\"$env\"}) + 2 * max(kidly_environment_transition_active{env=\"$env\"})",
+              "instant": true,
+              "legendFormat": "{{job}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "운영 중지",
+                      "color": "gray"
+                    },
+                    "1": {
+                      "text": "운영 중",
+                      "color": "green"
+                    },
+                    "2": {
+                      "text": "중지 처리 중",
+                      "color": "orange"
+                    },
+                    "3": {
+                      "text": "기동 처리 중",
+                      "color": "orange"
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "horizontal",
+            "textMode": "value",
+            "colorMode": "value",
+            "graphMode": "none"
+          }
+        },
+        {
+          "id": 12,
+          "type": "stat",
+          "title": "최근 수신 후 경과",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 27,
+            "w": 12,
+            "h": 4
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "time() - max by(job) (timestamp(up{env=\"$env\", job=~\"$service\"}))",
+              "instant": true,
+              "legendFormat": "{{job}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "horizontal",
+            "textMode": "value_and_name",
+            "colorMode": "value",
+            "graphMode": "none",
+            "text": {
+              "titleSize": 12,
+              "valueSize": 16
+            }
+          },
+          "description": "마지막 up 샘플 이후 경과 시간입니다. 5분 이상 미수신이면 데이터가 없어질 수 있습니다. 중지 환경의 과거 데이터는 보관 기간 내 조회 가능합니다."
+        },
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "서비스 수집 상태",
+          "description": "운영 대상 목록은 medium에서 독립 수집합니다. 1분 내 데이터 없음은 끊김으로 표시합니다. 의도적 중지는 Actions에서 등록하며 데이터 소실로 자동 제외하지 않습니다.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 31,
+            "w": 12,
+            "h": 8
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "((max by (env, job) (last_over_time(up{env=\"$env\", job=~\"$service\"}[1m])) + 1) and on(env,job) (label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1)) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1) * 0) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 0) * 0 - 1)",
+              "legendFormat": "{{job}}",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "min": -1,
+              "max": 2,
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "-1": {
+                      "text": "운영 중지",
+                      "color": "gray"
+                    },
+                    "0": {
+                      "text": "데이터 끊김",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "수집 실패",
+                      "color": "orange"
+                    },
+                    "2": {
+                      "text": "수집 정상",
+                      "color": "green"
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "horizontal",
+            "textMode": "value_and_name",
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "text": {
+              "titleSize": 12,
+              "valueSize": 16
+            }
+          }
+        },
+        {
+          "id": 10,
+          "type": "text",
+          "title": "알림을 받았다면 여기부터 확인하세요",
+          "gridPos": {
+            "x": 12,
+            "y": 31,
+            "w": 12,
+            "h": 8
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**환경·서비스 선택 → 이상 상태 확인 → 로그 확인**\n\n운영 중지/재개는 GitHub Actions의 [environment-operation](https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/actions/workflows/environment-operation.yml)에서 선택합니다. 수집 실패와 의도적 중지는 구분합니다.\n\nGateway와 하위 서비스 오류는 합산하지 않습니다. 데이터 없음은 정상이 아닙니다."
+          }
         }
       ]
     },
@@ -500,7 +894,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 27,
         "w": 24,
         "h": 1
       },
@@ -516,7 +910,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 42,
+            "y": 28,
             "w": 12,
             "h": 8
           },
@@ -554,7 +948,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 42,
+            "y": 28,
             "w": 12,
             "h": 8
           },
@@ -592,7 +986,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 50,
+            "y": 36,
             "w": 12,
             "h": 8
           },
@@ -630,7 +1024,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 50,
+            "y": 36,
             "w": 12,
             "h": 8
           },
@@ -692,6 +1086,54 @@
       "includeVars": false,
       "keepTime": false,
       "targetBlank": false
+    },
+    {
+      "title": "부하 테스트",
+      "type": "link",
+      "url": "/d/kidly-load-test",
+      "includeVars": false,
+      "keepTime": false,
+      "targetBlank": false
+    },
+    {
+      "title": "AI 분석",
+      "type": "link",
+      "url": "/d/kidly-ai-notes?var-env=${env}&var-analysis_focus=errors",
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "external link",
+      "tooltip": "AI 운영 분석에서 이 화면에 맞는 분석 목적으로 엽니다(실행 · 결과는 한 곳)"
     }
-  ]
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "서비스 재시작",
+        "enable": true,
+        "hide": false,
+        "iconColor": "purple",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "expr": "max by (job, instance) ((time() - process_start_time_seconds{env=\"$env\",job=~\"$service\"}) < 90 >= 0)",
+        "step": "60s",
+        "titleFormat": "{{job}} 재시작",
+        "textFormat": "{{instance}} · 배포 · 수동 패치 덮어쓰기 · OOM 여부 확인",
+        "tagKeys": "job"
+      }
+    ]
+  }
 }

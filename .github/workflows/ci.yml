@@ -14,8 +14,39 @@ concurrency:
 # 서로 상관없는 검사는 job을 나눠 동시에 돌린다. 각 job이 따로 컴파일하지만, 가장 긴 job 시간만 기다리면 된다.
 # Gradle 캐시는 기본 브랜치(develop) push 로 돈 배포 안의 CI 에서 저장되고, PR은 읽기만 한다 (setup-gradle 기본 동작)
 jobs:
+  # 문서 · 모니터링 설정만 바꾼 PR은 테스트를 돌리지 않는다. 모니터링 설정은 monitoring-check 가 검사한다. build 가 필수 검사라 워크플로 단위 paths-ignore 를 쓰면 build 가 보고되지 않아 머지할 수 없다
+  # PR 의 merge 커밋과 첫 부모(현재 base)를 비교한다. 배포에서 부른 실행(workflow_call)은 deploy.yml 이 이미 경로를 걸렀으므로 늘 전체를 돈다
+  # docker/** 는 건너뛰지 않는다. 검색 테스트가 docker/elasticsearch/Dockerfile 로 ES 이미지를 만든다
+  changes:
+    name: 변경 범위 확인
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.check.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+
+      - id: check
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != pull_request ]]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 옮긴 파일은 옛 경로도 본다(코드를 docs/ 로 옮겨도 코드 변경이다). 리소스로 읽는 .md 는 코드로 본다
+          files=$(git diff --name-only --no-renames HEAD^1 HEAD)
+          if grep -qvE '^(docs|wiki|deploy/monitoring|deploy/monitoring-agent)/|\.md$' <<< "$files" || grep -qE '/src/[^/]+/resources/' <<< "$files"; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=테스트 생략::문서 · 모니터링 설정만 바뀌어 단위 · 통합 · 기능 테스트를 건너뜁니다"
+          fi
+
   unit:
     name: 정적 검사 · 단위 테스트
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -63,6 +94,8 @@ jobs:
   # 나머지는 따로 뺀 모듈만 제외하고 돌려, 새로 생긴 모듈의 통합 테스트도 빠지지 않게 한다
   integration:
     name: 통합 테스트 (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -113,6 +146,8 @@ jobs:
   # 통합 테스트와 같은 이유로 오래 걸리는 모듈은 러너를 따로 쓴다
   functional:
     name: 기능 테스트 (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -160,14 +195,17 @@ jobs:
           path: '**/build/reports/'
           retention-days: 7
 
-  # 브랜치 보호의 필수 검사(build). 세 job이 모두 성공해야 통과한다 (하나라도 실패 · 취소면 실패)
+  # 브랜치 보호의 필수 검사(build). 세 job이 모두 성공해야 통과한다 (하나라도 실패 · 취소면 실패). 문서 · 모니터링 설정만 바뀐 PR은 세 job을 건너뛰고 통과한다
   build:
-    needs: [unit, integration, functional]
+    needs: [changes, unit, integration, functional]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: 결과 확인
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        if: >-
+          needs.changes.result != 'success'
+          || contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+          || (needs.changes.outputs.code == 'true' && contains(needs.*.result, 'skipped'))
         run: |
-          echo "실패한 검사가 있어요: unit=${{ needs.unit.result }}, integration=${{ needs.integration.result }}, functional=${{ needs.functional.result }}"
+          echo "실패한 검사가 있어요: changes=${{ needs.changes.result }}, unit=${{ needs.unit.result }}, integration=${{ needs.integration.result }}, functional=${{ needs.functional.result }}"
           exit 1

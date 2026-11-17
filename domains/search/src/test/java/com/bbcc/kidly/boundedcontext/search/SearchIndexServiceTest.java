@@ -1,7 +1,10 @@
 package com.bbcc.kidly.boundedcontext.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -9,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.search.app.SearchIndexService;
 import com.bbcc.kidly.boundedcontext.search.app.port.TextEmbedder;
+import com.bbcc.kidly.boundedcontext.search.domain.EmbeddingRefillTarget;
 import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProductRepository;
@@ -24,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -133,6 +138,66 @@ class SearchIndexServiceTest {
 
         verify(productRepository).saveIfNewer(productCaptor.capture());
         assertThat(productCaptor.getValue().getEmbedding()).isNull();
+    }
+
+    @Test
+    @DisplayName("벡터 없는 판매중 상품은 저장해 둔 문장으로 벡터를 다시 만들어 붙인다. API를 쓸 수 없는 상품은 건너뛴다")
+    void refillsMissingEmbeddings() {
+        EmbeddingRefillTarget first = new EmbeddingRefillTarget(1L, "여아 원피스", OCCURRED_AT);
+        EmbeddingRefillTarget second = new EmbeddingRefillTarget(2L, "남아 바지", OCCURRED_AT);
+        EmbeddingRefillTarget third = new EmbeddingRefillTarget(3L, "아동 모자", OCCURRED_AT);
+        when(textEmbedder.enabled()).thenReturn(true);
+        when(productRepository.findOnSaleWithoutEmbedding(null, 20)).thenReturn(List.of(first, second, third));
+        when(textEmbedder.embed("여아 원피스")).thenReturn(Optional.of(List.of(0.1f)));
+        when(textEmbedder.embed("남아 바지")).thenReturn(Optional.empty());
+        when(textEmbedder.embed("아동 모자")).thenReturn(Optional.of(List.of(0.3f)));
+
+        int refilled = searchIndexService.refillMissingEmbeddings();
+
+        assertThat(refilled).isEqualTo(2);
+        verify(productRepository).attachEmbedding(first, new ProductEmbedding(first.textHash(), List.of(0.1f)));
+        verify(productRepository).attachEmbedding(third, new ProductEmbedding(third.textHash(), List.of(0.3f)));
+        verify(productRepository, never()).attachEmbedding(eq(second), any());
+    }
+
+    @Test
+    @DisplayName("한 주기를 다 채워 찾으면 다음 주기는 그 뒤부터 찾고, 끝까지 가면 처음으로 돌아간다. 계속 실패하는 상품이 뒤 상품을 막지 않는다")
+    void rotatesRefillCursor() {
+        when(textEmbedder.enabled()).thenReturn(true);
+        when(textEmbedder.embed(anyString())).thenReturn(Optional.empty());
+        List<EmbeddingRefillTarget> fullBatch = LongStream.rangeClosed(1, 20)
+            .mapToObj(id -> new EmbeddingRefillTarget(id, "실패하는 문장 " + id, OCCURRED_AT)).toList();
+        when(productRepository.findOnSaleWithoutEmbedding(null, 20)).thenReturn(fullBatch);
+        when(productRepository.findOnSaleWithoutEmbedding(20L, 20))
+            .thenReturn(List.of(new EmbeddingRefillTarget(21L, "뒤 상품", OCCURRED_AT)));
+
+        searchIndexService.refillMissingEmbeddings();
+        searchIndexService.refillMissingEmbeddings();
+        searchIndexService.refillMissingEmbeddings();
+
+        verify(productRepository, times(2)).findOnSaleWithoutEmbedding(null, 20);
+        verify(productRepository).findOnSaleWithoutEmbedding(20L, 20);
+        verify(textEmbedder).embed("뒤 상품");
+    }
+
+    @Test
+    @DisplayName("다시 만드는 벡터의 문장 해시는 이벤트로 만든 문서의 해시와 같다")
+    void refillHashMatchesEventHash() {
+        SearchProduct product = SearchProduct.create(changeInfoOf(dressEvent("봄 원피스")));
+
+        EmbeddingRefillTarget target = new EmbeddingRefillTarget(1L, product.getEmbeddingText(), OCCURRED_AT);
+
+        assertThat(target.textHash()).isEqualTo(product.getEmbeddingTextHash());
+    }
+
+    @Test
+    @DisplayName("의미 검색을 끈 환경(키 없음)은 벡터 없는 상품을 찾지도 않는다")
+    void skipsRefillWhenDisabled() {
+        when(textEmbedder.enabled()).thenReturn(false);
+
+        assertThat(searchIndexService.refillMissingEmbeddings()).isZero();
+        verify(productRepository, never()).findOnSaleWithoutEmbedding(any(), anyInt());
+        verify(textEmbedder, never()).embed(anyString());
     }
 
     @Test

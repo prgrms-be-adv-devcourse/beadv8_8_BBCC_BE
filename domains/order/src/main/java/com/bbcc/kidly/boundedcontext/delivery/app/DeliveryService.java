@@ -348,7 +348,28 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
         if (pageable.getOffset() > Integer.MAX_VALUE) {
             return new PageImpl<>(List.of(), pageable, deliveryRepository.countBySellerId(memberId));
         }
-        Page<Delivery> deliveries = deliveryRepository.findAllBySellerIdOrderByIdDesc(memberId, pageable);
+        return toViews(deliveryRepository.findAllBySellerIdOrderByIdDesc(memberId, pageable));
+    }
+
+    /**
+     * 배송 상태로 거른 판매자 배송 목록(#1280). status가 없으면(null) {@link #getSellerOrders(Long, int, int)}와 같다.
+     * 응답 status와 같은 이름 · 값 하나만 대문자 그대로 받고(READY · SHIPPING · DELIVERED · CANCELLED), 모르는 값 · 소문자 · 빈 값은
+     * INVALID_DELIVERY_STATUS(400). 거르기와 건수(totalElements)는 DB에서 같은 조건(그 판매자 · 그 상태)으로 한다.
+     */
+    @Transactional(readOnly = true)
+    public Page<SellerOrderView> getSellerOrders(Long memberId, String status, int page, int size) {
+        if (status == null) {
+            return getSellerOrders(memberId, page, size);
+        }
+        Delivery.Status filter = toDeliveryStatus(status);
+        PageRequest pageable = PageRequest.of(page, size);
+        if (pageable.getOffset() > Integer.MAX_VALUE) {
+            return new PageImpl<>(List.of(), pageable, deliveryRepository.countBySellerIdAndStatus(memberId, filter));
+        }
+        return toViews(deliveryRepository.findAllBySellerIdAndStatusOrderByIdDesc(memberId, filter, pageable));
+    }
+
+    private Page<SellerOrderView> toViews(Page<Delivery> deliveries) {
         Map<Long, Order> ordersById = findOrdersWithItems(deliveries.getContent());
         return deliveries.map(delivery -> {
             Order order = ordersById.get(delivery.getOrderId());
@@ -373,6 +394,14 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
     private Delivery findOwned(Long memberId, Long deliveryId) {
         return deliveryRepository.findByIdAndSellerId(deliveryId, memberId)
             .orElseThrow(() -> new BusinessException(DeliveryErrorCode.DELIVERY_NOT_FOUND));
+    }
+
+    // 상태 이름 그대로(대문자)만 받는다. 소문자 · 공백 · 빈 값을 너그럽게 맞추지 않는다(응답 status 값과 같게)
+    private static Delivery.Status toDeliveryStatus(String status) {
+        return Arrays.stream(Delivery.Status.values())
+            .filter(value -> value.name().equals(status))
+            .findFirst()
+            .orElseThrow(() -> new BusinessException(DeliveryErrorCode.INVALID_DELIVERY_STATUS));
     }
 
     private static SellerCancelReason toCancelReason(String reason) {

@@ -11,9 +11,11 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]/'ai-notes'))
 from contracts import AnalysisContext, Evidence
-from groq_provider import GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect
+from groq_provider import ANALYSIS_FOCUS, GroqProvider, ProviderError, MODEL, ENDPOINT, NoRedirect, groq_limitations
+from openai_provider import OpenAIProvider
 from groq_once import run_once, read_key, PRINCIPAL
 from storage import Store, LokiPublisher, deliver_accepted
+import snapshot
 from errors import NotesError
 
 
@@ -43,6 +45,98 @@ def transport(raw=None):
 
 
 class GroqProviderTest(unittest.TestCase):
+    def test_http_comparison_uses_adjacent_windows_and_does_not_invent_missing_values(self):
+        definitions = snapshot.queries('dev')
+        by_expression = {expr: name for name, (_, expr) in definitions.items()}
+        readings = {
+            'requests_30m': (20, 40),
+            'errors_30m': (None, 2),
+            'duration_sum_30m': (2.4, 11.2),
+        }
+
+        def rows(expression, when):
+            value = readings.get(by_expression[expression], (None, None))[when == 3600]
+            return [] if value is None else [{'metric': {'job': 'kidly-order'}, 'value': [when, value]}]
+
+        with patch('snapshot.metric_rows', side_effect=rows) as read:
+            sample = snapshot.collect('dev', 3600, compare_http=True)
+        values = {fact.metric: fact.value for fact in sample.evidence}
+        self.assertEqual(values['requests_previous_30m'], 20)
+        self.assertEqual(values['mean_response_previous_30m'], 120)
+        self.assertEqual(values['mean_response_current_30m'], 280)
+        self.assertNotIn('errors_previous_30m', values)
+        self.assertEqual([call.args[1] for call in read.call_args_list[-3:]], [1800] * 3)
+
+    def test_groq_payload_can_hold_comparison_for_all_services(self):
+        definitions = snapshot.queries('dev')
+        http = {definitions[name][1] for name in snapshot.HTTP_COMPARISON}
+        app_expected = definitions['app_expected'][1]
+        globals_ = {expr for name, (_, expr) in definitions.items()
+                    if name.startswith('host_') or name in (
+                        'kafka_lag', 'environment_transition', 'environment_enabled', 'transition_age')}
+
+        def rows(expression, when):
+            assigned = 123.456789012345 if expression in http else 1
+            if expression in globals_:
+                return [{'metric': {}, 'value': [when, assigned]}]
+            label = 'app_job' if expression == app_expected else 'job'
+            return [{'metric': {label: name}, 'value': [when, assigned]} for name in snapshot.JOBS]
+
+        exceptions = [{'metric': {'service_name': name, 'error_type': 'org.example.VeryLongExceptionClassName' + str(i) + 'X' * 40},
+                       'value': [2000, '12345']} for i, name in enumerate(snapshot.JOBS[:snapshot.EXCEPTION_TOP])]
+        with patch('snapshot.metric_rows', side_effect=rows), patch('snapshot.log_rows', return_value=exceptions):
+            sample = snapshot.collect('dev', 2000, compare_http=True)
+        self.assertEqual(len([f for f in sample.evidence if f.metric.startswith('error_type_30m:')]), snapshot.EXCEPTION_TOP)
+        client = transport()
+        self.provider(client).analyze(sample, 2300)
+        request = client.open.call_args.args[0]
+        self.assertLessEqual(len(request.data), 24000)
+        message = json.loads(json.loads(request.data)['messages'][1]['content'])
+        self.assertEqual(len([f for f in message['evidence'] if f['metric'] == 'mean_response_previous_30m']),
+                         len(snapshot.JOBS) - 1)
+
+    def test_gateway_latency_is_never_sent_and_sse_paths_are_excluded(self):
+        definitions = snapshot.queries('dev')
+        for name in ('requests_30m', 'errors_30m', 'duration_sum_30m'):
+            self.assertIn('notifications/stream', definitions[name][1])
+        self.assertIn('job!~"kidly-gateway"', definitions['duration_sum_30m'][1])
+
+        def rows(expression, when):
+            # Even if Prometheus returned a Gateway duration row, it must not become evidence.
+            if 'http_server_requests' not in expression:
+                return []
+            return [{'metric': {'job': job}, 'value': [when, 10]} for job in ('kidly-gateway', 'kidly-order')]
+
+        with patch('snapshot.metric_rows', side_effect=rows):
+            sample = snapshot.collect('dev', 3600, compare_http=True)
+        gateway = {fact.metric for fact in sample.evidence if fact.service == 'kidly-gateway'}
+        self.assertIn('requests_30m', gateway)
+        self.assertIn('requests_previous_30m', gateway)
+        self.assertFalse({'duration_sum_30m', 'mean_response_current_30m', 'mean_response_previous_30m'} & gateway)
+        self.assertIn('mean_response_current_30m', {fact.metric for fact in sample.evidence if fact.service == 'kidly-order'})
+        self.assertTrue(any('SSE' in line for line in sample.limitations))
+
+    def test_exception_classes_become_bounded_evidence_without_messages(self):
+        loki = {'status': 'success', 'data': {'resultType': 'vector', 'result': [
+            {'metric': {'service_name': 'kidly-recommend',
+                        'error_type': 'org.springframework.transaction.CannotCreateTransactionException'}, 'value': [3600, '379']},
+            {'metric': {'service_name': 'kidly-order', 'error_type': 'com.x.Outer$Inner'}, 'value': [3600, '2']},
+            {'metric': {'service_name': 'kidly-order', 'error_type': 'org.y.Outer$Other'}, 'value': [3600, '3']},
+            {'metric': {'service_name': 'kidly-unknown', 'error_type': 'java.io.IOException'}, 'value': [3600, '5']},
+            {'metric': {'service_name': 'kidly-order', 'error_type': 'bad name; DROP'}, 'value': [3600, '9']},
+        ]}}
+        with patch('snapshot.metric_rows', return_value=[]), patch('snapshot.log_rows', return_value=loki['data']['result']) as read:
+            sample = snapshot.collect('dev', 3600)
+        facts = {(fact.metric, fact.service): fact.value for fact in sample.evidence}
+        self.assertEqual(facts, {('error_type_30m:CannotCreateTransactionException', 'kidly-recommend'): 379,
+                                 ('error_type_30m:Outer', 'kidly-order'): 5})
+        self.assertEqual(len([f for f in sample.evidence if f.metric == 'error_type_30m:Outer']), 1)
+        self.assertIn('topk(8,', read.call_args.args[0])
+        self.assertTrue(any(line.startswith('error_type_30m:<Class>') for line in sample.limitations))
+        with patch('snapshot.metric_rows', return_value=[]), patch('snapshot.log_rows', side_effect=OSError):
+            failed = snapshot.collect('dev', 3600)
+        self.assertIn('ERROR log exception types were unavailable; this is not zero.', failed.limitations)
+
     def test_stdin_key_boundaries_do_not_echo_input(self):
         for raw in (b'private-without-newline', b'x'*257+b'\n', b'\xff\n'):
             output = io.StringIO()
@@ -54,6 +148,37 @@ class GroqProviderTest(unittest.TestCase):
     def provider(self, client):
         return GroqProvider('test-not-a-real-api-key', free_tier_confirmed=True,
                             clock=lambda: 2001, transport=client)
+
+    def test_focused_prompt_uses_only_the_selected_preset(self):
+        for focus in ('latency', 'errors', 'resources'):
+            with self.subTest(focus=focus):
+                client = transport()
+                provider = GroqProvider('fixture-key-for-model-test', focus=focus,
+                                        free_tier_confirmed=True, clock=lambda: 2001, transport=client)
+                provider.analyze(context(), 2300)
+                message = json.loads(client.open.call_args.args[0].data)['messages'][0]['content']
+                self.assertTrue(message.endswith(ANALYSIS_FOCUS[focus][1]))
+        with self.assertRaisesRegex(ProviderError, '^invalid_focus$'):
+            GroqProvider('fixture-key-for-model-test', focus='unsupported', free_tier_confirmed=True)
+
+    def test_openai_uses_explicit_confirmation_and_own_request(self):
+        key = 'fixture-openai-key-for-tests'
+        sample = json.loads(body())
+        sample['model'] = OpenAIProvider.model
+        client = transport(json.dumps(sample).encode())
+        with self.assertRaisesRegex(ProviderError, '^paid_confirmation_required$'):
+            OpenAIProvider(key, transport=client)
+        client.open.assert_not_called()
+        report = OpenAIProvider(key, paid_confirmed=True, clock=lambda: 2001,
+                                transport=client).analyze(context(), 2300)
+        self.assertEqual((report.provider, report.model), ('OpenAI', OpenAIProvider.model))
+        client.open.assert_called_once()
+        request = client.open.call_args.args[0]
+        self.assertEqual(request.full_url, OpenAIProvider.endpoint)
+        payload = json.loads(request.data)
+        self.assertFalse(payload['store'])
+        self.assertEqual(payload['max_completion_tokens'], 600)
+        self.assertNotIn('reasoning_effort', payload)
 
     def test_single_fixed_request_and_adapter_attribution(self):
         client = transport()
@@ -70,6 +195,29 @@ class GroqProviderTest(unittest.TestCase):
         self.assertEqual(fields['check']['type'], 'string')
         self.assertNotIn('test-not-a-real-api-key', request.data.decode())
         client.open.assert_called_once()
+
+    def test_mcp_only_service_metrics_stay_out_of_groq_input(self):
+        extra = (Evidence('f1', 'error_logs_30m', 3, 'estimated_count', 'dev', 'kidly-order'),
+                 Evidence('f2', 'restarts_30m', 1, 'count', 'dev', 'kidly-order'),
+                 Evidence('f3', 'kafka_lag_by_service', 12, 'count', 'dev', 'kidly-order'))
+        client = transport()
+        self.provider(client).analyze(replace(context(), evidence=context().evidence+extra), 2300)
+        payload = json.loads(client.open.call_args.args[0].data)
+        sent = json.loads(payload['messages'][1]['content'])
+        self.assertEqual([item['evidence_id'] for item in sent['evidence']], ['f0'])
+        fields = payload['response_format']['json_schema']['schema']['properties']['finding']['properties']
+        self.assertEqual(fields['evidence_id']['enum'], ['f0'])
+        self.assertEqual(sent['limitations'], ['Host aggregate only'])
+        mixed = ('No finite fresh/available result for: kafka_lag, restarts_30m, error_logs_30m; absence is not healthy zero.',
+                 'No finite fresh/available result for: restarts_30m; absence is not healthy zero.',
+                 'Kafka lag is one snapshot; it does not establish increasing lag.',
+                 'kafka_lag_by_service maps consumer group kidly.<domain> to kidly-<domain>.')
+        self.assertEqual(groq_limitations(mixed), [
+            'No finite fresh/available result for: kafka_lag; absence is not healthy zero.',
+            'Kafka lag is one snapshot; it does not establish increasing lag.'])
+        only_extra = replace(context(), evidence=extra)
+        with self.assertRaisesRegex(ProviderError, '^insufficient_evidence$'):
+            self.provider(transport()).analyze(only_extra, 2300)
 
     def test_rejects_actual_trial_health_claim(self):
         sample = json.loads(json.loads(body())['choices'][0]['message']['content'])

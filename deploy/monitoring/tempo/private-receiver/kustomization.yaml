@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - ../base
+configMapGenerator:
+  - name: tempo-config
+    behavior: replace
+    files:
+      - tempo.yml
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: tempo
+      spec:
+        template:
+          spec:
+            containers:
+              - name: tempo
+                ports:
+                  - name: otlp
+                    containerPort: 4318
+                volumeMounts:
+                  - name: receiver-tls
+                    mountPath: /etc/tracing-tls
+                    readOnly: true
+            volumes:
+              - name: receiver-tls
+                secret:
+                  secretName: tracing-tempo-server-tls

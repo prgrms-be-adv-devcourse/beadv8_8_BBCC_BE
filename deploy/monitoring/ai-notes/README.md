@@ -18,6 +18,8 @@ Grafana → Kidly → **Kidly AI 운영 분석**. 최근 메모 행을 펼쳐 �
 ## 읽을 때
 
 - 관측/게시 시각·근거·누락된 정보와 원인 후보를 함께 확인합니다
+- **영향 서비스** 줄은 AI 문구가 아니라 발급된 근거의 서비스 이름입니다. 운영 홈 상태판의 같은 줄에서 서비스 상태 · 오류 로그를 엽니다
+- MCP 경로의 문맥에는 서비스별 ERROR 로그(30분) · 30분 안 재시작 수 · 구독 그룹 미처리가 더 들어 있습니다. Groq 시험 경로는 입력 상한(24KB) 때문에 이 셋을 보내지 않습니다
 - 오래된 메모·미전송 상태는 서비스 정상 판정이 아닙니다. 최신 메모는 30초마다 조회합니다
 - provider/model은 AI의 자기 신고입니다. 게시 경로의 호출자 기록과 구분합니다
 - AI 문구는 plain text이며 실행하지 않습니다. 형식 검증이 환각/개인정보를 완전히 막지는 않습니다
@@ -33,3 +35,21 @@ MCP 클라이언트 추론과 서버/로컬 모델 worker는 같은 결과 계�
 별도 제공자를 시험하려면 [Groq 무료 1회 분석](../docs/groq-trial.md)을 봅니다. 키 등록·Free 플랜 확인 후 dev에서 수동 실행하며 예약 실행은 없습니다.
 설치·권한·실패 복구는 [운영 안내](../docs/ai-notes-operations.md)를 봅니다.
 검증: `python3 -m unittest discover -s deploy/monitoring/tests -p 'test_*.py'`
+
+## HTTP 지표 비교
+
+Groq 실행은 같은 서비스의 최근 30분과 직전 30분을 비교합니다. 요청 수와 5xx는 관측값을 사용하고, 평균 응답 시간은 각 구간의 누적 응답 시간에서 요청 수로 나눠 계산합니다. 요청 데이터가 없거나 0인 구간, 비교할 값이 없는 지표는 변화로 해석하지 않습니다. AI에는 대응할 항목 하나를 고르고 비교 근거와 첫 확인 순서를 제안하도록 요청합니다.
+
+## Grafana에서 바로 실행
+
+Grafana → Kidly → **Kidly AI 운영 분석** 상단에서 제공자와 분석 목적을 고르고 **새 분석 실행**을 누릅니다. 결과는 이 화면에서만 봅니다. Slack에는 사람이 처리할 일만 보냅니다: 서비스 알림(`ai_analysis: auto` 라벨)이 뜨면 Groq 분석이 자동으로 1회 돌고, 그 요약만 운영 채널에 올라갑니다. 버튼 · 알림 · GitHub 수동 실행은 1시간 간격을 함께 씁니다. 기본 조직 Admin만 실행 · 상태 조회할 수 있습니다(Viewer 거부). 옆 칸에서 실행 중 · 게시 · 한도 · 실패를 보고, 게시되면 최신 메모가 바뀝니다.
+
+- 처리기(`grafana_analysis_api.py`)는 모니터링 서버의 deploy 유저 프로세스입니다. `analysis-api.sh`가 배포마다 다시 띄우고, 서버가 다시 켜지면 crontab `@reboot`으로 다시 뜹니다
+- 경로: 브라우저 → 엣지 Traefik → 모니터링 k3s IngressRoute `kidly-ai-analysis`(`POST /kidly-ai-analysis/run`, `GET /kidly-ai-analysis/status`만) → 노드 사설 IP:8786. 나머지는 그대로 Grafana로 갑니다
+- 실행은 Grafana와 같은 출처의 POST만 받고, Grafana 세션으로 권한을 확인합니다. 응답에는 상태와 게시 시각만 담습니다
+- 키: monitoring-deploy가 dev Environment Secret `GROQ_API_KEY` · `OPENAI_API_KEY`를 서버 `secrets/`(0600, deploy 유저)에 쓰고, 처리기가 실행 때마다 읽어 분석 프로세스의 stdin으로만 넘깁니다. k8s Secret · 명령 인자 · 로그 · 브라우저에는 넣지 않습니다. `GROQ_API_KEY`가 없으면 처리기를 띄우지 않고, 상태 지표가 끊기면 화면의 실행 행이 숨습니다
+- 처리기 상태는 기존 Alloy textfile(`operations/ai-analysis.prom`)로 보냅니다. 최근 45초 안의 상태 지표가 있을 때만 실행 행을 표시합니다
+
+제공자는 기본값 Groq와 선택형 OpenAI로 나눕니다. OpenAI는 dev Environment Secret `OPENAI_API_KEY`를 등록하고 monitoring-deploy를 다시 돌렸을 때만 선택지에 나옵니다(서버 `--allow-paid-openai`와 키 파일). 사용량이 청구됩니다. 매 실행마다 `X-Kidly-AI-Provider: openai`와 `X-Kidly-AI-Confirm-Paid: true`가 필요합니다. 두 제공자와 기존 GitHub 수동 실행은 동일한 실행 잠금과 한 시간 호출 간격을 공유합니다. 실패나 한도 초과 시 다른 제공자로 전환하지 않습니다.
+
+분석 목적은 전체 점검, 응답 지연, 오류 증가, 서버 자원 중 선택합니다. 전체 점검이 기본이며 두 제공자가 같은 목적별 지침을 씁니다. 자유 입력 프롬프트는 받지 않습니다. 최신 메모의 우선 조치는 상단에 표시하고, 선택한 환경의 최근 14일 중 최신 메모 최대 15건은 **이전 분석 내역**에서 펼쳐 봅니다.

@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
  *
  * @param cancelReason 취소 주문만, 나머지는 null
  * @param itemCount 주문상품 수
+ * @param cancelledAt 취소 시각(#1325, 한국 시각). 취소 주문이 아니면 null
  */
 public record AdminOrderSummaryResponse(
     String orderId,
@@ -16,10 +17,12 @@ public record AdminOrderSummaryResponse(
     String cancelReason,
     long totalAmount,
     LocalDateTime orderedAt,
-    int itemCount) {
+    int itemCount,
+    LocalDateTime cancelledAt) {
 
     public static AdminOrderSummaryResponse from(AdminOrderSummary summary) {
         return new AdminOrderSummaryResponse(String.valueOf(summary.orderId()), String.valueOf(summary.memberId()),
-            summary.status(), summary.cancelReason(), summary.totalAmount(), summary.orderedAt(), summary.itemCount());
+            summary.status(), summary.cancelReason(), summary.totalAmount(), summary.orderedAt(), summary.itemCount(),
+            summary.cancelledAt());
     }
 }

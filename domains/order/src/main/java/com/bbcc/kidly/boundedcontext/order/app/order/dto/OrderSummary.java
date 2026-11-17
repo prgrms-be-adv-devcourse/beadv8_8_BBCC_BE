@@ -14,6 +14,8 @@ import java.util.Optional;
  * @param representativeProductName 대표 상품명 = 주문상품 ID가 가장 작은 주문상품의 주문 당시 상품명. 주문상품이 없으면 null
  * @param itemCount 주문상품 수(행 수, 수량 합 아님)
  * @param sellerName 대표 주문상품 판매자의 지금 상호명(판매자 복사본). 복사본이 없거나 주문상품이 없으면 null
+ * @param representativeProductId 대표 주문상품의 상품 ID(#1328). 주문상품이 없으면 null
+ * @param representativeThumbnailUrl 대표 주문상품의 주문 당시 썸네일(#1328, 스냅샷). 없거나 주문상품이 없으면 null
  */
 public record OrderSummary(
     Long orderId,
@@ -22,7 +24,9 @@ public record OrderSummary(
     LocalDateTime orderedAt,
     String representativeProductName,
     int itemCount,
-    String sellerName) {
+    String sellerName,
+    Long representativeProductId,
+    String representativeThumbnailUrl) {
 
     /**
      * 주문상품을 함께 읽은 주문으로 만든다. 대표 상품은 주문상품 ID가 가장 작은 것(목록 정렬 순서에 기대지 않음).
@@ -35,7 +39,9 @@ public record OrderSummary(
             .map(OrderItem::getProduct);
         return new OrderSummary(order.getId(), order.getStatus().name(), order.getTotalAmount(), order.getCreatedAt(),
             representative.map(OrderItem.ProductSnapshot::productName).orElse(null), order.getItems().size(),
-            representative.map(product -> sellerNames.get(product.sellerId())).orElse(null));
+            representative.map(product -> sellerNames.get(product.sellerId())).orElse(null),
+            representative.map(OrderItem.ProductSnapshot::productId).orElse(null),
+            representative.map(OrderItem.ProductSnapshot::thumbnailUrl).orElse(null));
     }
 
     /**
@@ -43,6 +49,6 @@ public record OrderSummary(
      */
     public static OrderSummary withoutItems(Order order) {
         return new OrderSummary(order.getId(), order.getStatus().name(), order.getTotalAmount(), order.getCreatedAt(),
-            null, 0, null);
+            null, 0, null, null, null);
     }
 }

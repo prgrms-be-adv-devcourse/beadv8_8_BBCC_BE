@@ -5,7 +5,6 @@ import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.MEMBER_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.ORDER_ID;
 import static com.bbcc.kidly.boundedcontext.payment.PaymentFixture.WALLET_ID;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -15,12 +14,15 @@ import static org.mockito.Mockito.never;
 
 import com.bbcc.kidly.boundedcontext.payment.app.OrderItemCancellationService;
 import com.bbcc.kidly.boundedcontext.payment.app.dto.OrderItemCancelCommand;
+import com.bbcc.kidly.boundedcontext.payment.domain.OrderItemCancellationRetry;
+import com.bbcc.kidly.boundedcontext.payment.domain.OrderItemCancellationRetryRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.Payment;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.Refund;
 import com.bbcc.kidly.boundedcontext.payment.domain.RefundFailureCode;
+import com.bbcc.kidly.boundedcontext.payment.domain.RefundItem;
 import com.bbcc.kidly.boundedcontext.payment.domain.RefundRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.RefundStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.Wallet;
@@ -59,6 +61,9 @@ class OrderItemCancellationServiceTest {
 
     @Mock
     private WalletLedgerRepository walletLedgerRepository;
+
+    @Mock
+    private OrderItemCancellationRetryRepository retryRepository;
 
     @Mock
     private EventPublisher eventPublisher;
@@ -132,15 +137,16 @@ class OrderItemCancellationServiceTest {
         InOrder inOrder = inOrder(walletRepository, refundRepository);
         inOrder.verify(walletRepository).createIfAbsent(eq(MEMBER_ID), any(LocalDateTime.class));
         inOrder.verify(walletRepository).findWithLockByMemberId(MEMBER_ID);
-        inOrder.verify(refundRepository).existsByCancellationId(CANCELLATION_ID);
+        inOrder.verify(refundRepository).findByCancellationId(CANCELLATION_ID);
     }
 
     @Test
-    @DisplayName("같은 취소의 환불 기록이 있으면 다시 환불하지 않는다")
+    @DisplayName("같은 취소의 완료된 환불이 있으면 다시 환불하지 않는다")
     void sameCancellationOnce() {
         Wallet wallet = PaymentFixture.savedWallet(0L);
         given(walletRepository.findWithLockByMemberId(MEMBER_ID)).willReturn(Optional.of(wallet));
-        given(refundRepository.existsByCancellationId(CANCELLATION_ID)).willReturn(true);
+        given(refundRepository.findByCancellationId(CANCELLATION_ID)).willReturn(Optional.of(Refund.complete(
+            500L, ORDER_ID, CANCELLATION_ID, List.of(RefundItem.of(2L, 5_000L)), PaymentFixture.NOW)));
 
         service.handle(command(new OrderItemCancelCommand.Item(1001L, 5_000L)));
 
@@ -208,18 +214,82 @@ class OrderItemCancellationServiceTest {
         assertThat(wallet.getBalance()).isZero();
         then(refundRepository).should(never()).save(any());
         then(eventPublisher).should(never()).publish(any());
+        assertRemembered("MEMBER_MISMATCH");
     }
 
     @Test
-    @DisplayName("결제가 없는 주문의 부분 취소는 다시 해도 같아 IllegalStateException을 던진다(재시도 없이 DLT)")
-    void throwWhenPaymentMissing() {
+    @DisplayName("결제가 없는 주문의 부분 취소는 예외 없이 받은 내용 그대로 재처리 기록으로 남긴다")
+    void rememberWhenPaymentMissing() {
         given(walletRepository.findWithLockByMemberId(MEMBER_ID))
             .willReturn(Optional.of(PaymentFixture.savedWallet(0L)));
         given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.handle(command(new OrderItemCancelCommand.Item(1001L, 5_000L))))
-            .isInstanceOf(IllegalStateException.class);
+        service.handle(command(new OrderItemCancelCommand.Item(1001L, 5_000L),
+            new OrderItemCancelCommand.Item(1000L, 1_000L)));
+
         then(refundRepository).should(never()).save(any());
+        OrderItemCancellationRetry retry = assertRemembered("PAYMENT_NOT_FOUND");
+        assertThat(retry.getOrderId()).isEqualTo(ORDER_ID);
+        assertThat(retry.getMemberId()).isEqualTo(MEMBER_ID);
+        assertThat(retry.getReason()).isEqualTo("OUT_OF_STOCK");
+        assertThat(retry.getItems()).extracting(OrderItemCancellationRetry.Item::getOrderItemId)
+            .containsExactly(1001L, 1000L);
+        assertThat(retry.getAmount()).isEqualTo(6_000L);
+    }
+
+    @Test
+    @DisplayName("실패한 환불이 있는 취소를 다시 처리해 환불할 수 있으면 그 환불을 완료로 바꾸고 재처리 기록을 지운다")
+    void completeFailedRefundOnRetry() {
+        Wallet wallet = PaymentFixture.savedWallet(0L);
+        Payment payment = savedPayment();
+        givenWalletAndPayment(wallet, payment);
+        Refund failed = Refund.fail(500L, ORDER_ID, CANCELLATION_ID, 5_000L, RefundFailureCode.PAYMENT_ITEM_NOT_FOUND);
+        ReflectionTestUtils.setField(failed, "id", REFUND_ID);
+        given(refundRepository.findByCancellationId(CANCELLATION_ID)).willReturn(Optional.of(failed));
+        OrderItemCancellationRetry retry = OrderItemCancellationRetry.failed(CANCELLATION_ID, ORDER_ID, MEMBER_ID,
+            "OUT_OF_STOCK", List.of(), "PAYMENT_ITEM_NOT_FOUND", PaymentFixture.NOW);
+        given(retryRepository.findByCancellationId(CANCELLATION_ID)).willReturn(Optional.of(retry));
+
+        service.handle(command(new OrderItemCancelCommand.Item(1001L, 5_000L)));
+
+        then(refundRepository).should(never()).save(any());
+        assertThat(failed.getStatus()).isEqualTo(RefundStatus.COMPLETED);
+        assertThat(failed.getFailureCode()).isNull();
+        assertThat(failed.getRefundedAt()).isNotNull();
+        assertThat(failed.getItems()).singleElement()
+            .satisfies(item -> assertThat(item.getPaymentItemId()).isEqualTo(2L));
+        assertThat(wallet.getBalance()).isEqualTo(5_000L);
+        then(retryRepository).should().delete(retry);
+        assertThat(publishedRefund().data().refundId()).isEqualTo(REFUND_ID);
+    }
+
+    @Test
+    @DisplayName("다시 처리해도 환불할 수 없으면 실패한 환불의 사유와 재처리 기록의 시도만 바꾼다")
+    void failAgainOnRetry() {
+        Wallet wallet = PaymentFixture.savedWallet(0L);
+        givenWalletAndPayment(wallet, savedPayment());
+        Refund failed = Refund.fail(500L, ORDER_ID, CANCELLATION_ID, 5_000L, RefundFailureCode.PAYMENT_ITEM_NOT_FOUND);
+        given(refundRepository.findByCancellationId(CANCELLATION_ID)).willReturn(Optional.of(failed));
+        OrderItemCancellationRetry retry = OrderItemCancellationRetry.failed(CANCELLATION_ID, ORDER_ID, MEMBER_ID,
+            "OUT_OF_STOCK", List.of(), "PAYMENT_ITEM_NOT_FOUND", PaymentFixture.NOW);
+        given(retryRepository.findByCancellationId(CANCELLATION_ID)).willReturn(Optional.of(retry));
+
+        service.handle(command(new OrderItemCancelCommand.Item(1001L, 5_001L)));
+
+        then(refundRepository).should(never()).save(any());
+        assertThat(failed.getFailureCode()).isEqualTo(RefundFailureCode.REFUND_AMOUNT_EXCEEDED);
+        assertThat(retry.getAttemptCount()).isEqualTo(2);
+        assertThat(retry.getLastError()).isEqualTo("REFUND_AMOUNT_EXCEEDED");
+        assertThat(wallet.getBalance()).isZero();
+    }
+
+    private OrderItemCancellationRetry assertRemembered(String error) {
+        ArgumentCaptor<OrderItemCancellationRetry> retry = ArgumentCaptor.forClass(OrderItemCancellationRetry.class);
+        then(retryRepository).should().save(retry.capture());
+        assertThat(retry.getValue().getCancellationId()).isEqualTo(CANCELLATION_ID);
+        assertThat(retry.getValue().getLastError()).isEqualTo(error);
+        assertThat(retry.getValue().getAttemptCount()).isOne();
+        return retry.getValue();
     }
 
     private void assertFailed(Wallet wallet, Payment payment, RefundFailureCode failureCode, long amount) {
@@ -234,6 +304,7 @@ class OrderItemCancellationServiceTest {
         then(eventPublisher).should(never()).publish(any());
         assertThat(payment.getItems()).allSatisfy(item -> assertThat(item.getRefundedAmount()).isZero());
         then(walletLedgerRepository).should(never()).save(any());
+        assertRemembered(failureCode.name());
     }
 
     private void givenWalletAndPayment(Wallet wallet, Payment payment) {

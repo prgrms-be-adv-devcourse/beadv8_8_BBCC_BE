@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.favorite.app;
 
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
@@ -31,19 +32,19 @@ class FavoriteStatsIntegrationTest {
         replica(PRODUCT, "ON_SALE");
         assertThat(count()).isZero();
 
-        favoriteService.add(1L, "14");
-        favoriteService.add(1L, "14");
+        favoriteService.add(FavoriteOwner.member(1L), "14");
+        favoriteService.add(FavoriteOwner.member(1L), "14");
         assertThat(count()).isEqualTo(1);
 
-        favoriteService.add(2L, "14");
+        favoriteService.add(FavoriteOwner.member(2L), "14");
         assertThat(count()).isEqualTo(2);
 
-        favoriteService.remove(1L, "14");
-        favoriteService.remove(1L, "14");
+        favoriteService.remove(FavoriteOwner.member(1L), "14");
+        favoriteService.remove(FavoriteOwner.member(1L), "14");
         assertThat(count()).isEqualTo(1);
 
-        favoriteService.remove(2L, "14");
-        favoriteService.remove(3L, "14");
+        favoriteService.remove(FavoriteOwner.member(2L), "14");
+        favoriteService.remove(FavoriteOwner.member(3L), "14");
         assertThat(count()).isZero();
         assertThat(jdbcTemplate.queryForObject("select favorite_count from community.favorite_stats "
             + "where product_id = ?", Long.class, PRODUCT)).isZero();

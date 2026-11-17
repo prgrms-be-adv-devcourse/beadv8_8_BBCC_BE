@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.favorite.app.port.Favorites;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.MemberFavoriteRows.DeletedFavorite;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.MemberFavoriteRows;
 import com.bbcc.kidly.boundedcontext.favorite.domain.Favorite;
+import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwnerType;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -13,37 +14,46 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * 찜 저장소. 목록 커서 조건은 (찜 시각, id) 튜플 비교라 인덱스 (member_id, created_at desc, id desc)의 범위 조건으로 쓰인다.
+ * 찜 저장소. 목록 커서 조건은 (찜 시각, id) 튜플 비교라 인덱스 (owner_type, owner_id, created_at desc, id desc)의 범위 조건으로 쓰인다.
  */
 public interface JpaFavoriteRepository extends JpaRepository<Favorite, Long>, Favorites, MemberFavoriteRows {
 
     String MINE = "select f.id as id, f.productId as productId, f.createdAt as createdAt "
-        + "from CommunityFavorite f where f.memberId = :memberId";
+        + "from CommunityFavorite f where f.ownerType = :ownerType and f.ownerId = :ownerId";
     String NEWEST_FIRST = " order by f.createdAt desc, f.id desc";
+    String DELETED = " returning id as id, product_id as productId, owner_type as ownerType, owner_id as ownerId, "
+        + "guardian_id as guardianId";
 
     // 지운 행을 결과로 받는 DML이라 @Modifying 없이 결과 목록으로 읽는다
     @Override
-    @Query(nativeQuery = true, value = "delete from community.favorite where member_id = :memberId "
-        + "and product_id = :productId returning id")
-    List<Long> deleteByMember(@Param("memberId") Long memberId, @Param("productId") Long productId);
+    @Query(nativeQuery = true, value = "delete from community.favorite where owner_type = :ownerType "
+        + "and owner_id = :ownerId and product_id = :productId returning id")
+    List<Long> deleteByOwner(@Param("ownerType") String ownerType, @Param("ownerId") Long ownerId,
+        @Param("productId") Long productId);
 
     // 지운 행을 결과로 받는 DML이라 @Modifying 없이 결과 목록으로 읽는다
     @Override
-    @Query(nativeQuery = true, value = "delete from community.favorite where member_id = :memberId "
-        + "returning id as id, product_id as productId")
-    List<DeletedFavorite> deleteAllByMember(@Param("memberId") Long memberId);
+    @Query(nativeQuery = true, value = "delete from community.favorite where guardian_id = :guardianId" + DELETED)
+    List<DeletedFavorite> deleteAllByGuardian(@Param("guardianId") Long guardianId);
+
+    // 지운 행을 결과로 받는 DML이라 @Modifying 없이 결과 목록으로 읽는다
+    @Override
+    @Query(nativeQuery = true, value = "delete from community.favorite where owner_type = 'CHILD' "
+        + "and owner_id = :accountId" + DELETED)
+    List<DeletedFavorite> deleteAllByChild(@Param("accountId") Long accountId);
 
     @Override
     @Query(MINE + NEWEST_FIRST)
-    List<FavoriteRow> findMine(@Param("memberId") Long memberId, Limit limit);
+    List<FavoriteRow> findMine(@Param("ownerType") FavoriteOwnerType ownerType, @Param("ownerId") Long ownerId,
+        Limit limit);
 
     @Override
     @Query(MINE + " and (f.createdAt, f.id) < (:createdAt, :id)" + NEWEST_FIRST)
-    List<FavoriteRow> findMineAfter(@Param("memberId") Long memberId, @Param("createdAt") LocalDateTime createdAt,
-        @Param("id") Long id, Limit limit);
+    List<FavoriteRow> findMineAfter(@Param("ownerType") FavoriteOwnerType ownerType, @Param("ownerId") Long ownerId,
+        @Param("createdAt") LocalDateTime createdAt, @Param("id") Long id, Limit limit);
 
     @Override
     @Query(MINE + " and f.productId in :productIds" + NEWEST_FIRST)
-    List<FavoriteRow> findMineIn(@Param("memberId") Long memberId,
+    List<FavoriteRow> findMineIn(@Param("ownerType") FavoriteOwnerType ownerType, @Param("ownerId") Long ownerId,
         @Param("productIds") Collection<Long> productIds);
 }

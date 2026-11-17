@@ -7,9 +7,11 @@ import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearch;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
+import com.bbcc.kidly.boundedcontext.search.domain.EmbeddingRefillTarget;
 import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProductRepository;
+import com.bbcc.kidly.boundedcontext.search.out.ProductDocument;
 import com.bbcc.kidly.boundedcontext.search.out.SearchEmbeddingProperties;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexMetrics;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexProperties;
@@ -18,6 +20,7 @@ import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import com.bbcc.kidly.support.SearchIndexes;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -137,6 +140,75 @@ class SemanticSearchIntegrationTest {
         assertThat(disabledRegistry.find("kidly.search.products.without.embedding").gauge()).isNull();
     }
 
+    @Test
+    @DisplayName("벡터 없이 저장된 판매중 상품을 저장해 둔 문장과 함께 찾는다. 판매중지 · 벡터 있는 상품은 찾지 않는다")
+    void findsOnSaleProductsWithoutEmbedding() {
+        List<EmbeddingRefillTarget> targets = repository.findOnSaleWithoutEmbedding(null, 20);
+
+        SearchProduct product = product(5L, "원피스 수영복", ProductStatus.ON_SALE);
+        assertThat(targets).containsExactly(
+            new EmbeddingRefillTarget(5L, product.getEmbeddingText(), product.getOccurredAt()));
+    }
+
+    @Test
+    @DisplayName("상품 ID가 주어진 ID보다 큰 것부터 상품 ID 순으로 찾는다")
+    void findsAfterProductId() {
+        save(8L, "아동 모자", ProductStatus.ON_SALE, null);
+        save(9L, "아동 양말", ProductStatus.ON_SALE, null);
+        indexes.refresh();
+
+        assertThat(repository.findOnSaleWithoutEmbedding(null, 2)).extracting(EmbeddingRefillTarget::productId)
+            .containsExactly(5L, 8L);
+        assertThat(repository.findOnSaleWithoutEmbedding(5L, 20)).extracting(EmbeddingRefillTarget::productId)
+            .containsExactly(8L, 9L);
+        assertThat(repository.findOnSaleWithoutEmbedding(9L, 20)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("문장 없이 저장된 예전 문서는 다시 만들 수 없어 찾지 않는다(상품 다시 발행으로 채운다)")
+    void skipsOldDocumentsWithoutText() throws IOException {
+        client.index(request -> request.index(indexProperties.productIndex()).id("7")
+            .document(new ProductDocument(7L, "예전 원피스", null, null, 7L, 3L, "ON_SALE", false,
+                "2026-10-01T09:00:00", 15_000L, false, List.of(), "2026-11-03T10:00:00")));
+        indexes.refresh();
+
+        assertThat(repository.findOnSaleWithoutEmbedding(null, 20)).extracting(EmbeddingRefillTarget::productId)
+            .containsExactly(5L);
+    }
+
+    @Test
+    @DisplayName("찾은 상품에 벡터를 붙이면 의미 검색에 나오고, 발생 시각(버전)은 그대로라 늦은 이벤트는 여전히 거절된다")
+    void attachesEmbedding() {
+        EmbeddingRefillTarget target = repository.findOnSaleWithoutEmbedding(null, 20).getFirst();
+
+        repository.attachEmbedding(target, new ProductEmbedding(target.textHash(), axis(0)));
+        indexes.refresh();
+
+        assertThat(repository.findEmbedding(5L)).hasValueSatisfying(embedding -> {
+            assertThat(embedding.textHash()).isEqualTo(target.textHash());
+            assertThat(embedding.vector()).isEqualTo(axis(0));
+        });
+        assertThat(repository.findOnSaleWithoutEmbedding(null, 20)).isEmpty();
+        assertThat(ids(search("물놀이 옷", axis(0)))).containsExactly(5L, 1L, 3L);
+        // 같은 발생 시각의 이벤트를 다시 받아도 벡터 없는 문서로 덮어쓰지 않는다
+        repository.saveIfNewer(product(5L, "원피스 수영복", ProductStatus.ON_SALE));
+        assertThat(repository.findEmbedding(5L)).isPresent();
+    }
+
+    @Test
+    @DisplayName("찾은 뒤 새 이벤트로 문서가 바뀌었으면 예전 문장으로 만든 벡터를 붙이지 않는다")
+    void skipsAttachWhenChangedAfterFind() {
+        EmbeddingRefillTarget target = repository.findOnSaleWithoutEmbedding(null, 20).getFirst();
+        repository.saveIfNewer(product(5L, "원피스 수영복 세트", ProductStatus.ON_SALE, OCCURRED_AT.plusMinutes(1)));
+
+        repository.attachEmbedding(target, new ProductEmbedding(target.textHash(), axis(0)));
+        indexes.refresh();
+
+        assertThat(repository.findEmbedding(5L)).isEmpty();
+        assertThat(repository.findOnSaleWithoutEmbedding(null, 20)).extracting(EmbeddingRefillTarget::occurredAt)
+            .containsExactly(OCCURRED_AT.plusMinutes(1));
+    }
+
     private static SearchEmbeddingProperties embeddingProperties(String apiKey) {
         return new SearchEmbeddingProperties(apiKey, "https://api.openai.test/v1", "text-embedding-3-small",
             DIMENSIONS, 0.3f);
@@ -160,10 +232,15 @@ class SemanticSearchIntegrationTest {
     }
 
     private static SearchProduct product(long productId, String name, ProductStatus status) {
+        return product(productId, name, status, OCCURRED_AT);
+    }
+
+    private static SearchProduct product(long productId, String name, ProductStatus status,
+        LocalDateTime occurredAt) {
         return SearchProduct.create(new SearchProduct.ChangeInfo(productId, 7L, name, 3L, status, null, null,
             OCCURRED_AT.minusDays(productId), false,
             List.of(new SearchProduct.OptionInfo(15_000L, false, OptionSaleStatus.ON_SALE, List.of())), List.of(),
-            OCCURRED_AT));
+            occurredAt));
     }
 
     private static List<Float> axis(int index) {

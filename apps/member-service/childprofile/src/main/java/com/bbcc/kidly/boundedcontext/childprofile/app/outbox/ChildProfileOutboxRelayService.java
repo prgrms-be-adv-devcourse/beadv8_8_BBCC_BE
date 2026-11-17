@@ -4,6 +4,7 @@ import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileEv
 import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileEventSender;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxRepository;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChildProfileOutboxRelayService {
 
     private static final int BATCH_SIZE = 100;
+    // 바로 전송이 끝날 시간을 주어 두 경로가 같은 행을 함께 보지 않게 한다.
+    private static final Duration IMMEDIATE_SEND_GRACE = Duration.ofMinutes(5);
 
     private final ChildProfileOutboxRepository outboxRepository;
     private final ChildProfileEventSender sender;
@@ -27,7 +30,8 @@ public class ChildProfileOutboxRelayService {
         if (!outboxRepository.tryLockRelay()) {
             return;
         }
-        var messages = outboxRepository.findUnsent(BATCH_SIZE);
+        var messages = outboxRepository.findUnsentCreatedBefore(
+            LocalDateTime.now().minus(IMMEDIATE_SEND_GRACE), BATCH_SIZE);
         for (var message : messages) {
             if (!sendOrRecordFailure(message)) {
                 return;

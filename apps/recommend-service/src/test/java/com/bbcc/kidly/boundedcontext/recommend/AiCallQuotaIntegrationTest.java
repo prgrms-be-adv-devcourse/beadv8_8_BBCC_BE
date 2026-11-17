@@ -65,6 +65,17 @@ class AiCallQuotaIntegrationTest {
         assertThat(callCount(tomorrow)).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("그날 사용량은 그 날짜 줄의 횟수이고, 줄이 없으면 0이다")
+    void readUsageOfDate() {
+        LocalDate tomorrow = TODAY.plusDays(1);
+        quota.tryAcquire(TODAY, 3);
+        quota.tryAcquire(TODAY, 3);
+
+        assertThat(quota.usedOn(TODAY)).isEqualTo(2);
+        assertThat(quota.usedOn(tomorrow)).isZero();
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {0, -1})
     @DisplayName("상한이 0 이하면 거절하고 횟수 줄을 만들지 않는다")

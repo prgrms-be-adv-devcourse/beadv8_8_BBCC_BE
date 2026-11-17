@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics;
 import com.bbcc.kidly.global.error.BusinessException;
+import java.util.List;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -76,6 +77,7 @@ class PaymentKafkaListenerConfig {
         consumerOverrides.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         factory.getContainerProperties().setKafkaConsumerProperties(consumerOverrides);
         factory.setCommonErrorHandler(errorHandler(producerFactory, metrics));
+        metrics.registerDeadLetterTopics(List.of(MEMBER_EVENTS, ORDER_EVENTS, SETTLEMENT_EVENTS));
         return factory;
     }
 

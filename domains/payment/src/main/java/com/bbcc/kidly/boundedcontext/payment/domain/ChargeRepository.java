@@ -24,6 +24,10 @@ public interface ChargeRepository {
 
     List<Charge> findAllByStatusAndUpdatedAtBefore(ChargeStatus status, LocalDateTime before);
 
+    // 관리자 멈춘 충전 목록. 오래된 순이다
+    Page<Charge> findAllByStatusAndUpdatedAtBeforeOrderByUpdatedAtAscIdAsc(ChargeStatus status, LocalDateTime before,
+        Pageable pageable);
+
     long countByStatusAndUpdatedAtBefore(ChargeStatus status, LocalDateTime before);
 
     List<Charge> findAllByStatusAndExpiresAtBefore(ChargeStatus status, LocalDateTime before);

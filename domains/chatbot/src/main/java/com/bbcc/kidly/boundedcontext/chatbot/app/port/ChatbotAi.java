@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.chatbot.app.port;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
@@ -15,8 +16,9 @@ public interface ChatbotAi {
 
     /**
      * 지시문과 대화(마지막은 회원 질문)로 답을 만든다. 모델은 필요하면 tools를 불러 그 결과로 답한다(도구를 부르는 횟수는 구현이 제한한다).
+     * deadline이 지나면 모델을 더 부르지 않고 {@link UnavailableException}을 던진다(이미 보낸 호출은 끝까지 기다린다).
      */
-    String answer(String instruction, List<Turn> conversation, List<Tool<?>> tools);
+    String answer(String instruction, List<Turn> conversation, List<Tool<?>> tools, Instant deadline);
 
     /**
      * 모델이 부를 수 있는 도구. 모델에는 이름 · 설명 · 인자 형식(inputSchema, JSON Schema)만 알린다.

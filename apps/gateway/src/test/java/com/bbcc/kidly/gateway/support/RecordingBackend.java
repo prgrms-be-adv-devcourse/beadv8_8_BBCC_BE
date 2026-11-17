@@ -19,7 +19,8 @@ import org.springframework.http.HttpStatus;
 
 /**
  * Gateway 뒤의 서비스 대신 받는 가짜 백엔드. 마지막으로 받은 요청만 기억하고 200 ok로 답한다.
- * 응답 헤더를 더 붙이려면 addResponseHeader를, 응답을 늦추려면 delayResponse를 쓴다. reset()이 둘 다 지운다.
+ * 응답 헤더를 더 붙이려면 addResponseHeader를, 응답을 늦추려면 delayResponse를, 헤더는 바로 보내고 본문만 늦추려면
+ * delayBodyAfterHeaders를 쓴다. reset()이 모두 지운다.
  */
 public class RecordingBackend implements AutoCloseable {
 
@@ -31,6 +32,7 @@ public class RecordingBackend implements AutoCloseable {
     private final AtomicReference<RecordedRequest> lastRequest = new AtomicReference<>();
     private final Map<String, String> extraResponseHeaders = new ConcurrentHashMap<>();
     private volatile Duration responseDelay = Duration.ZERO;
+    private volatile Duration bodyDelay = Duration.ZERO;
 
     private RecordingBackend(HttpServer server) {
         this.server = server;
@@ -58,6 +60,7 @@ public class RecordingBackend implements AutoCloseable {
         lastRequest.set(null);
         extraResponseHeaders.clear();
         responseDelay = Duration.ZERO;
+        bodyDelay = Duration.ZERO;
     }
 
     public void addResponseHeader(String name, String value) {
@@ -66,6 +69,10 @@ public class RecordingBackend implements AutoCloseable {
 
     public void delayResponse(Duration delay) {
         responseDelay = delay;
+    }
+
+    public void delayBodyAfterHeaders(Duration delay) {
+        bodyDelay = delay;
     }
 
     public Optional<RecordedRequest> lastRequest() {
@@ -85,6 +92,8 @@ public class RecordingBackend implements AutoCloseable {
             var headers = exchange.getResponseHeaders();
             extraResponseHeaders.forEach(headers::add);
             exchange.sendResponseHeaders(HttpStatus.OK.value(), OK.length);
+            exchange.getResponseBody().flush();
+            sleep(bodyDelay);
             exchange.getResponseBody().write(OK);
         }
     }

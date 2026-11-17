@@ -22,7 +22,9 @@ public enum FavoriteErrorCode implements ErrorCode {
         "cursor는 직전 응답의 nextCursor를 그대로 보내 주세요. 처음부터 읽으려면 cursor를 빼고 보내 주세요."),
     FAVORITE_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "찜할 수 없는 상품입니다",
         "없거나 아직 판매를 시작하지 않은 상품입니다. 상품 목록에서 다시 골라 주세요."),
-    FAVORITE_PRODUCT_SALE_ENDED(HttpStatus.CONFLICT, "판매가 끝난 상품입니다", "판매가 끝난 상품은 새로 찜할 수 없습니다.");
+    FAVORITE_PRODUCT_SALE_ENDED(HttpStatus.CONFLICT, "판매가 끝난 상품입니다", "판매가 끝난 상품은 새로 찜할 수 없습니다."),
+    FAVORITE_CHILD_ACCOUNT_DELETED(HttpStatus.FORBIDDEN, "삭제된 자녀 계정입니다",
+        "삭제된 자녀 계정으로는 찜을 쓸 수 없습니다. 보호자 계정으로 다시 로그인해 주세요.");
 
     private final HttpStatus status;
     private final String title;

@@ -35,6 +35,7 @@ public final class PreferenceSignals {
         return switch (type) {
             case SEARCH -> PreferenceSignalType.SEARCH;
             case PRODUCT_VIEWED -> PreferenceSignalType.PRODUCT_VIEWED;
+            case PRODUCT_QUICK_VIEWED -> PreferenceSignalType.PRODUCT_QUICK_VIEWED;
             case CART_ITEM_ADDED -> PreferenceSignalType.CART_ITEM_ADDED;
             case SEARCH_RESULT_CLICKED -> PreferenceSignalType.SEARCH_RESULT_CLICKED;
             case WISH_SENT -> PreferenceSignalType.WISH_SENT;

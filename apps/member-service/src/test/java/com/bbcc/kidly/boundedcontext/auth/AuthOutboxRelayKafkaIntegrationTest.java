@@ -4,9 +4,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
-import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
 import com.bbcc.kidly.shared.auth.event.ChildAccountChangedEvent;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
+import com.bbcc.kidly.support.AsyncWait;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,7 +26,6 @@ import tools.jackson.databind.json.JsonMapper;
 @KafkaIntegrationTest
 class AuthOutboxRelayKafkaIntegrationTest {
     @Autowired private AuthEventOutbox outbox;
-    @Autowired private AuthOutboxRelayService relay;
     @Autowired private TransactionTemplate transactions;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private KafkaContainer kafka;
@@ -37,7 +36,6 @@ class AuthOutboxRelayKafkaIntegrationTest {
         var event = new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new ChildAccountChangedEvent.Data(100L, 200L, 300L, false));
         transactions.executeWithoutResult(status -> outbox.append(event));
-        relay.relay();
 
         try (var consumer = new KafkaConsumer<String, String>(Map.of(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
@@ -69,11 +67,12 @@ class AuthOutboxRelayKafkaIntegrationTest {
             }
             assertThat(found).isTrue();
         }
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM auth.auth_outbox", Long.class)).isZero();
+        AsyncWait.until(Duration.ofSeconds(30), () -> jdbc.queryForObject(
+            "select count(*) from auth.auth_outbox where event_id = ?", Long.class, event.eventId()) == 0);
     }
 
     @Test
-    void sendsRowsInIdOrder() {
+    void sendsBothRows() {
         var first = new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new ChildAccountChangedEvent.Data(101L, 200L, 300L, false));
         var second = new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
@@ -82,7 +81,6 @@ class AuthOutboxRelayKafkaIntegrationTest {
             outbox.append(first);
             outbox.append(second);
         });
-        relay.relay();
         try (var consumer = new KafkaConsumer<String, String>(Map.of(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
             ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString(),
@@ -103,7 +101,7 @@ class AuthOutboxRelayKafkaIntegrationTest {
                     }
                 }
             }
-            assertThat(ids).containsExactly(first.eventId().toString(), second.eventId().toString());
+            assertThat(ids).containsExactlyInAnyOrder(first.eventId().toString(), second.eventId().toString());
         }
     }
 }

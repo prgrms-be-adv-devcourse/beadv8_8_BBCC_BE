@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.Received;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.State;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
+import com.bbcc.kidly.shared.auth.event.ChildAccountChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import java.time.LocalDateTime;
@@ -162,8 +163,8 @@ class CommunityDeadLetterIntegrationTest {
     @DisplayName("회원 탈퇴 DLT도 보관 뒤 재처리하면 찜을 지우고 리뷰 작성자를 탈퇴로 표시한다(한 번만)")
     void replaysMemberWithdrawn() {
         long member = 31L;
-        jdbc.update("insert into community.favorite (member_id, product_id, created_at, updated_at) "
-            + "values (?, 14, now(), now())", member);
+        jdbc.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
+            + "created_at, updated_at) values (?, 'MEMBER', ?, ?, 14, now(), now())", member, member, member);
         jdbc.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
             + "values (14, 1, now(), now())");
         jdbc.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, content, "
@@ -193,6 +194,39 @@ class CommunityDeadLetterIntegrationTest {
         service.receive(memberMessage(event, 12L));
 
         assertThat(service.reprocess(id(), 99L).getState()).isEqualTo(State.OPEN);
+    }
+
+    @Test
+    @DisplayName("자녀 계정 삭제 DLT도 보관 뒤 재처리하면 그 계정의 찜을 지우고 계정을 막는다(한 번만). 보호자 ID가 없으면 성공이 아니다")
+    void replaysChildAccountDeleted() {
+        jdbc.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
+            + "created_at, updated_at) values (70, 'CHILD', 7, 70, 14, now(), now())");
+        jdbc.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
+            + "values (14, 1, now(), now())");
+        var deleted = new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 11, 16, 10, 0),
+            new ChildAccountChangedEvent.Data(7L, 3L, 70L, true));
+        service.receive(authMessage(deleted, 21L));
+        Long id = id();
+
+        assertThat(service.reprocess(id, 99L).getState()).isEqualTo(State.REPROCESSED);
+        assertThat(service.reprocess(id, 99L).getReplayCount()).isOne();
+        assertThat(jdbc.queryForObject("select count(*) from community.favorite", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select favorite_count from community.favorite_stats where product_id = 14",
+            Long.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from community.deleted_child_account where account_id = 7",
+            Integer.class)).isOne();
+
+        jdbc.update("delete from community.dead_letter");
+        var missing = new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 11, 16, 10, 0),
+            new ChildAccountChangedEvent.Data(8L, 3L, null, true));
+        service.receive(authMessage(missing, 22L));
+        assertThat(service.reprocess(id(), 99L).getState()).isEqualTo(State.OPEN);
+    }
+
+    private Received authMessage(ChildAccountChangedEvent event, long offset) {
+        return new Received("kidly.auth.events.community.dlt", 0, offset, "kidly.auth.events", 0, offset,
+            String.valueOf(event.data().accountId()), event.eventType(), event.eventId().toString(),
+            mapper.writeValueAsString(event), "DatabaseException");
     }
 
     private Received memberMessage(MemberWithdrawnEvent event, long offset) {

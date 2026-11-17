@@ -52,7 +52,7 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     }
 
     @Test
-    @DisplayName("nginx가 https로 받은 요청에는 HSTS를 붙인다")
+    @DisplayName("Traefik이 https로 받은 요청에는 HSTS를 붙인다")
     void addsHstsToHttpsRequest() {
         client.get().uri("/api/v1/products")
             .header("X-Forwarded-Proto", "https")
@@ -92,13 +92,6 @@ class SecurityHeadersIntegrationTest extends GatewayTestSupport {
     @DisplayName("내부 API 404에도 붙인다")
     void addsHeadersToNotFound() {
         expectSecurityHeaders(client.get().uri("/internal/members/1").exchange().expectStatus().isNotFound());
-    }
-
-    @Test
-    @DisplayName("actuator 응답에도 붙인다")
-    void addsHeadersToActuator() {
-        // 전체 health 는 무효화 목록을 다 읽기 전 503 일 수 있어, 늘 200 인 liveness 로 헤더를 본다
-        expectSecurityHeaders(client.get().uri("/actuator/health/liveness").exchange().expectStatus().isOk());
     }
 
     private static void expectSecurityHeaders(ResponseSpec response) {

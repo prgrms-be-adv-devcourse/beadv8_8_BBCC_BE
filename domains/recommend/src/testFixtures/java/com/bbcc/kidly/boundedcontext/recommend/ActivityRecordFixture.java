@@ -57,6 +57,10 @@ public final class ActivityRecordFixture {
 
     public static final LocalDateTime VIEWED_AT = LocalDateTime.of(2026, 11, 3, 10, 2);
 
+    public static final UUID QUICK_VIEW_EVENT_ID = UUID.fromString("71e30000-0000-0000-0000-000000000002");
+
+    public static final LocalDateTime QUICK_VIEWED_AT = LocalDateTime.of(2026, 11, 3, 10, 6);
+
     public static final UUID CLICK_EVENT_ID = UUID.fromString("c11c0000-0000-0000-0000-000000000001");
 
     public static final LocalDateTime CLICKED_AT = LocalDateTime.of(2026, 11, 3, 10, 1);

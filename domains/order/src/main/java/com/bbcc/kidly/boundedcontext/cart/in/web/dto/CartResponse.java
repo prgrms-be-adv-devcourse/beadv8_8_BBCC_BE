@@ -15,6 +15,7 @@ public record CartResponse(List<Line> items, long totalAmount) {
      *
      * @param sellerName 판매자의 지금 상호명. 판매자 정보가 아직 없으면 null
      * @param reserved 다른 곳이 예약한 칸인지(#998, 추가 칸). 예약된 칸은 빼거나 수량을 바꾸면 409
+     * @param thumbnailUrl 상품 썸네일 URL(#1328, 지금 상품 복사본 값). 없으면 null
      */
     public record Line(
         String cartItemId,
@@ -30,7 +31,8 @@ public record CartResponse(List<Line> items, long totalAmount) {
         boolean purchasable,
         long lineAmount,
         String sellerName,
-        boolean reserved) {
+        boolean reserved,
+        String thumbnailUrl) {
 
         public static Line from(CartView.Line view) {
             return new Line(
@@ -47,7 +49,8 @@ public record CartResponse(List<Line> items, long totalAmount) {
                 view.purchasable(),
                 view.lineAmount(),
                 view.sellerName(),
-                view.reserved());
+                view.reserved(),
+                view.thumbnailUrl());
         }
 
         private static String toText(Long id) {

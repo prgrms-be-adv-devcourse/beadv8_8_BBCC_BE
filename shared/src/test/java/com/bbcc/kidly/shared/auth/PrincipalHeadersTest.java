@@ -8,12 +8,11 @@ import org.junit.jupiter.api.Test;
 class PrincipalHeadersTest {
     @Test
     void allHeadersAndPrefixes() {
-        assertThat(PrincipalHeaders.ALL).containsExactlyInAnyOrder(MemberHeaders.MEMBER_ID, MemberHeaders.MEMBER_ROLES,
-            MemberHeaders.MEMBER_NICKNAME, PrincipalHeaders.ADMIN_ID, PrincipalHeaders.CHILD_ACCOUNT_ID,
-            PrincipalHeaders.CHILD_GUARDIAN_ID);
         assertThat(Arrays.stream(PrincipalType.values())
             .flatMap(type -> PrincipalHeaders.namesOf(type).stream()).toList())
-            .doesNotHaveDuplicates();
+            .containsExactlyInAnyOrder(MemberHeaders.MEMBER_ID, MemberHeaders.MEMBER_ROLES,
+                MemberHeaders.MEMBER_NICKNAME, PrincipalHeaders.ADMIN_ID, PrincipalHeaders.CHILD_ACCOUNT_ID,
+                PrincipalHeaders.CHILD_GUARDIAN_ID);
         assertThat(PrincipalHeaders.isPrincipalHeader("x-admin-anything")).isTrue();
         assertThat(PrincipalHeaders.isPrincipalHeader("X-MEMBER-Foo")).isTrue();
         assertThat(PrincipalHeaders.isPrincipalHeader("X-Child-Anything")).isTrue();

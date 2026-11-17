@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.auth.out.outbox;
 
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxMessage;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxRepository;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,10 +16,10 @@ public interface JpaAuthOutboxRepository extends JpaRepository<AuthOutboxMessage
     @Query(value = "select pg_try_advisory_xact_lock(hashtext('kidly.auth.outbox-relay'))", nativeQuery = true)
     boolean tryLockRelay();
 
-    List<AuthOutboxMessage> findByOrderByIdAsc(Limit limit);
+    List<AuthOutboxMessage> findByCreatedAtBeforeOrderByIdAsc(LocalDateTime cutoff, Limit limit);
 
     @Override
-    default List<AuthOutboxMessage> findOldest(int limit) {
-        return findByOrderByIdAsc(Limit.of(limit));
+    default List<AuthOutboxMessage> findCreatedBefore(LocalDateTime cutoff, int limit) {
+        return findByCreatedAtBeforeOrderByIdAsc(cutoff, Limit.of(limit));
     }
 }

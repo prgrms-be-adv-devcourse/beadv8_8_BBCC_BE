@@ -1,0 +1,43 @@
+name: tracing-stage-transport
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_private_rule:
+        description: TCP 30438 인바운드가 앱 서버 보안 그룹에만 허용된 것을 확인
+        type: boolean
+        default: false
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitoring-deploy
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/develop' && inputs.confirm_private_rule
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - name: 전용 Alloy와 Tempo 사설 수신기 준비
+        env:
+          APP_HOST: ${{ vars.SSH_HOST }}
+          MONITOR_HOST: ${{ vars.MONITORING_SSH_HOST }}
+          MONITORING_PRIVATE_IP: ${{ vars.MONITORING_PRIVATE_IP }}
+          APP_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+          MONITOR_KNOWN_HOSTS: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          auth=$(mktemp -d)
+          trap 'rm -rf "$auth"' EXIT
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$auth/key"
+          printf '%s\n' "$APP_KNOWN_HOSTS" "$MONITOR_KNOWN_HOSTS" > "$auth/known_hosts"
+          unset SSH_PRIVATE_KEY
+          TRACE_SSH_KEY="$auth/key" TRACE_KNOWN_HOSTS="$auth/known_hosts" bash deploy/tracing-ops/stage-transport.sh

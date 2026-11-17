@@ -189,7 +189,6 @@ class CompanionProductApiTest {
         String body = companionsStream(VIEWED_PRODUCT_ID)
             .expectStatus().isOk()
             .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
-            .expectHeader().valueEquals("X-Accel-Buffering", "no")
             .expectBody(String.class).returnResult().getResponseBody();
 
         assertThat(body).contains("event:rule", "\"source\":\"RULE\"", "\"productId\":\"101\"")

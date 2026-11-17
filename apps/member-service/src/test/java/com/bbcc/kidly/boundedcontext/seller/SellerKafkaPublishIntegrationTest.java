@@ -33,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -41,8 +42,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 판매자 이벤트가 커밋 뒤 kidly.seller.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#548).
- * 받는 쪽(회원 · 주문 · 상품 · 추천)이 Spring 이벤트로 받는 것은 기존 테스트가 본다.
+ * 판매자 이벤트가 아웃박스 릴레이를 거쳐 kidly.seller.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#548).
  * 다른 테스트의 판매자 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
  */
 @KafkaIntegrationTest
@@ -74,6 +74,9 @@ class SellerKafkaPublishIntegrationTest {
     @Autowired
     private KafkaContainer kafka;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private KafkaConsumer<String, String> consumer;
     private final List<ConsumerRecord<String, String>> received = new ArrayList<>();
 
@@ -100,6 +103,9 @@ class SellerKafkaPublishIntegrationTest {
 
         var changed = events.stream(SellerChangedEvent.class).findFirst().orElseThrow();
         var record = awaitRecord(changed);
+        AsyncWait.until(TIMEOUT, () -> jdbcTemplate.queryForObject(
+            "select count(*) from seller.seller_outbox where event_id = ? and sent_at is not null",
+            Integer.class, changed.eventId()) == 1);
         assertThat(record.key()).isEqualTo(String.valueOf(sellerId));
         assertThat(header(record, "eventType")).isEqualTo("seller.changed");
         assertThat(record.headers().lastHeader("__TypeId__")).isNull();
@@ -134,7 +140,6 @@ class SellerKafkaPublishIntegrationTest {
         });
         sellerService.suspend(sellerId, SellerFixture.ADMIN_ID, new SellerSuspendRequest("허위 상품 등록 신고"));
 
-        // 키(판매자 ID)가 같아 같은 파티션이므로, 뒤에 보낸 것을 받았으면 앞에서 보낸 것은 이미 왔어야 한다
         var committed = events.stream(SellerChangedEvent.class)
             .filter(event -> event.data().status() == SellerStatus.SUSPENDED)
             .filter(event -> !event.eventId().equals(rolledBack.eventId()))
@@ -143,7 +148,7 @@ class SellerKafkaPublishIntegrationTest {
         assertThat(findRecord(rolledBack)).isEmpty();
     }
 
-    // 트랜잭션 없이 호출해야 커밋 뒤 Kafka 전송이 돈다
+    // 트랜잭션 없이 호출해야 서비스 트랜잭션이 커밋돼 아웃박스에 남는다
     private Long approveSeller() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
         var request = new SellerApplicationRequest(SellerFixture.BUSINESS_NAME, SellerFixture.REPRESENTATIVE_NAME,

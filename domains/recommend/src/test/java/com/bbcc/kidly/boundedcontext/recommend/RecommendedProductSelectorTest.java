@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProduct;
 import com.bbcc.kidly.boundedcontext.recommend.domain.recommended.RecommendedProductSelector;
 import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaProduct;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReplicaProductSnapshot;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.ChildSizeInput;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -53,7 +54,7 @@ class RecommendedProductSelectorTest {
             .recommend(child, product.toProductSizes(), TODAY)
             .getRecommendedSize();
 
-        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+        List<RecommendedProduct> result = selector.select(child, snapshots(product), TODAY);
 
         assertThat(result).containsExactly(new RecommendedProduct(
             PRODUCT_A_ID,
@@ -76,7 +77,7 @@ class RecommendedProductSelectorTest {
         RecommendReplicaProduct product = productAReplica();
         assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize()).isNull();
 
-        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+        List<RecommendedProduct> result = selector.select(child, snapshots(product), TODAY);
 
         assertThat(result).isEmpty();
     }
@@ -105,7 +106,7 @@ class RecommendedProductSelectorTest {
         assertThat(product.isSellable("110")).isFalse();
         assertThat(product.hasSellableOption()).isEqualTo(withSellable120);
 
-        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+        List<RecommendedProduct> result = selector.select(child, snapshots(product), TODAY);
 
         assertThat(result).isEmpty();
     }
@@ -123,7 +124,7 @@ class RecommendedProductSelectorTest {
         assertThat(recommendedSize).isNotNull();
         assertThat(product.isSellable(recommendedSize)).isTrue();
 
-        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+        List<RecommendedProduct> result = selector.select(child, snapshots(product), TODAY);
 
         assertThat(result).isEmpty();
     }
@@ -136,7 +137,7 @@ class RecommendedProductSelectorTest {
         assertThat(product.hasSellableOption()).isTrue();
         assertThat(recommender().recommend(child, product.toProductSizes(), TODAY).getRecommendedSize()).isNull();
 
-        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+        List<RecommendedProduct> result = selector.select(child, snapshots(product), TODAY);
 
         assertThat(result).containsExactly(new RecommendedProduct(
             PRODUCT_A_ID,
@@ -157,7 +158,7 @@ class RecommendedProductSelectorTest {
         LocalDateTime saleStartedAt = PRODUCT_A_REGISTERED_AT.plusDays(3);
 
         List<RecommendedProduct> result = selector.select(
-            childSizeInputWithHeight(115.0), List.of(productAReplicaSaleStartedAt(saleStartedAt)), TODAY);
+            childSizeInputWithHeight(115.0), snapshots(productAReplicaSaleStartedAt(saleStartedAt)), TODAY);
 
         assertThat(result).extracting(RecommendedProduct::saleStartedAt).containsExactly(saleStartedAt);
     }
@@ -166,7 +167,7 @@ class RecommendedProductSelectorTest {
     @DisplayName("PREF-05 복사본에 판매 시작 시각이 없으면 등록 시각을 추천 상품의 판매 시작 시각으로 쓴다")
     void useRegisteredAtWhenSaleStartedAtIsMissing() {
         List<RecommendedProduct> result = selector.select(
-            childSizeInputWithHeight(115.0), List.of(productAReplicaSaleStartedAt(null)), TODAY);
+            childSizeInputWithHeight(115.0), snapshots(productAReplicaSaleStartedAt(null)), TODAY);
 
         assertThat(result).extracting(RecommendedProduct::saleStartedAt).containsExactly(PRODUCT_A_REGISTERED_AT);
     }
@@ -182,7 +183,7 @@ class RecommendedProductSelectorTest {
         RecommendReplicaProduct product = productASizeFreeReplica(soldOut, saleStatus);
         assertThat(product.hasSellableOption()).isFalse();
 
-        List<RecommendedProduct> result = selector.select(child, List.of(product), TODAY);
+        List<RecommendedProduct> result = selector.select(child, snapshots(product), TODAY);
 
         assertThat(result).isEmpty();
     }
@@ -197,7 +198,7 @@ class RecommendedProductSelectorTest {
         RecommendReplicaProduct middleProduct = productReplicaRegisteredAt(3L, oldest.plusDays(1));
 
         List<RecommendedProduct> result = selector.select(childSizeInputWithHeight(115.0),
-            List.of(oldestProduct, newestProduct, middleProduct), TODAY);
+            snapshots(oldestProduct, newestProduct, middleProduct), TODAY);
 
         assertThat(result).extracting(RecommendedProduct::productId).containsExactly(2L, 3L, 1L);
     }
@@ -210,7 +211,7 @@ class RecommendedProductSelectorTest {
         RecommendReplicaProduct middleId = productReplicaRegisteredAt(2L, PRODUCT_A_REGISTERED_AT);
 
         List<RecommendedProduct> result = selector.select(childSizeInputWithHeight(115.0),
-            List.of(smallestId, largestId, middleId), TODAY);
+            snapshots(smallestId, largestId, middleId), TODAY);
 
         assertThat(result).extracting(RecommendedProduct::productId).containsExactly(3L, 2L, 1L);
     }
@@ -221,7 +222,7 @@ class RecommendedProductSelectorTest {
         RecommendReplicaProduct pants = sizeFreeProductInPath(1L, "바지", CategoryVisibleGender.ALL);
         RecommendReplicaProduct skirt = sizeFreeProductInPath(2L, "치마", CategoryVisibleGender.GIRL);
 
-        List<RecommendedProduct> result = selector.select(childSizeInput(), List.of(pants, skirt), TODAY);
+        List<RecommendedProduct> result = selector.select(childSizeInput(), snapshots(pants, skirt), TODAY);
 
         assertThat(result).extracting(RecommendedProduct::productId).containsExactly(1L);
     }
@@ -246,5 +247,14 @@ class RecommendedProductSelectorTest {
             base.sellerId(), base.categoryId(), base.name(), base.status(), base.thumbnailUrl(),
             base.registeredAt(), base.sizeFree(), base.options(), base.brand(), base.description(),
             base.sizeSpecs(), base.infoValues(), base.occurredAt(), base.categoryPath(), saleStartedAt));
+    }
+
+    // 고르기는 상품 복사본에서 옮겨 담은 값을 받으므로, 복사본을 그 값으로 바꿔 넘긴다
+    private static List<ReplicaProductSnapshot> snapshots(RecommendReplicaProduct... products) {
+        List<ReplicaProductSnapshot> snapshots = new ArrayList<>();
+        for (RecommendReplicaProduct product : products) {
+            snapshots.add(ReplicaProductSnapshot.from(product));
+        }
+        return snapshots;
     }
 }

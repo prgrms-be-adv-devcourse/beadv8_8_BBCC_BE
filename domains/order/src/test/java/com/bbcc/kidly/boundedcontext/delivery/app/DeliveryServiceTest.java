@@ -376,6 +376,45 @@ class DeliveryServiceTest {
     class SellerOrders {
 
         @Test
+        @DisplayName("상태 필터(#1280): status가 없으면(null) 지금 쿼리 그대로, 있으면 그 판매자 · 그 상태 쿼리로 거른다")
+        void statusFilterUsesFilteredQuery() {
+            PageRequest pageable = PageRequest.of(0, 20);
+            when(deliveryRepository.findAllBySellerIdOrderByIdDesc(SELLER_A_ID, pageable))
+                .thenReturn(Page.empty(pageable));
+            when(deliveryRepository.findAllBySellerIdAndStatusOrderByIdDesc(SELLER_A_ID, Delivery.Status.SHIPPING,
+                pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 3));
+
+            deliveryService.getSellerOrders(SELLER_A_ID, null, 0, 20);
+            Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, "SHIPPING", 0, 20);
+
+            assertThat(page.getTotalElements()).isEqualTo(3L);
+            verify(deliveryRepository).findAllBySellerIdOrderByIdDesc(SELLER_A_ID, pageable);
+        }
+
+        @Test
+        @DisplayName("상태 필터(#1280): 큰 page는 조회 없이 빈 페이지, 건수는 그 판매자 · 그 상태 건수")
+        void statusFilterHugePageCountsStatus() {
+            when(deliveryRepository.countBySellerIdAndStatus(SELLER_A_ID, Delivery.Status.READY)).thenReturn(4L);
+
+            Page<SellerOrderView> page = deliveryService.getSellerOrders(SELLER_A_ID, "READY", 1_073_741_824, 2);
+
+            assertThat(page.getContent()).isEmpty();
+            assertThat(page.getTotalElements()).isEqualTo(4L);
+            verify(deliveryRepository, never()).findAllBySellerIdAndStatusOrderByIdDesc(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("상태 필터(#1280): 소문자 · 빈 값 · 주문 상태 · 모르는 값은 INVALID_DELIVERY_STATUS이고 조회하지 않는다")
+        void statusFilterRejectsUnknownBeforeQuery() {
+            for (String status : List.of("ready", "", "PAID", "LOST")) {
+                assertThatThrownBy(() -> deliveryService.getSellerOrders(SELLER_A_ID, status, 0, 20))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(DeliveryErrorCode.INVALID_DELIVERY_STATUS));
+            }
+            verify(deliveryRepository, never()).findAllBySellerIdAndStatusOrderByIdDesc(any(), any(), any());
+        }
+
+        @Test
         @DisplayName("offset(page × size)이 int 최댓값과 정확히 같으면(page 2147483647 · size 1) 저장소에서 조회한다")
         void offsetExactlyMaxIsQueried() {
             PageRequest pageable = PageRequest.of(Integer.MAX_VALUE, 1);

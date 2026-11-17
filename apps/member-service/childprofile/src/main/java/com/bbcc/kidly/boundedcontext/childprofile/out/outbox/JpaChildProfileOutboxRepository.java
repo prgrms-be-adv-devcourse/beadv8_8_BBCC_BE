@@ -23,12 +23,18 @@ public interface JpaChildProfileOutboxRepository
     @Query(value = "select pg_try_advisory_xact_lock(hashtext('kidly.childprofile.outbox-relay'))", nativeQuery = true)
     boolean tryLockRelay();
 
-    List<ChildProfileOutboxMessage> findBySentAtIsNullOrderByIdAsc(Limit limit);
+    List<ChildProfileOutboxMessage> findBySentAtIsNullAndCreatedAtBeforeOrderByIdAsc(LocalDateTime cutoff, Limit limit);
 
     @Override
-    default List<ChildProfileOutboxMessage> findUnsent(int limit) {
-        return findBySentAtIsNullOrderByIdAsc(Limit.of(limit));
+    default List<ChildProfileOutboxMessage> findUnsentCreatedBefore(LocalDateTime cutoff, int limit) {
+        return findBySentAtIsNullAndCreatedAtBeforeOrderByIdAsc(cutoff, Limit.of(limit));
     }
+
+    @Override
+    @Modifying
+    @Query("update ChildProfileOutboxMessage m set m.sentAt = :now, "
+        + "m.attemptCount = m.attemptCount + 1 where m.id in :ids")
+    void markSent(@Param("ids") List<Long> ids, @Param("now") LocalDateTime now);
 
     @Override
     @Modifying

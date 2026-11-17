@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.recommend.domain.purchase;
 
 import static java.util.Objects.requireNonNull;
 
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,10 +16,11 @@ import java.util.Map;
  * @param categoryPathNames 산 상품의 대분류부터 말단까지의 카테고리 이름이다
  * @param brand 산 상품의 브랜드다. 모르면 null이다
  * @param measurements 산 사이즈의 실측이다. 키는 실측 항목 코드, 값은 cm이고, 실측을 찾지 못했으면 빈 Map이다
+ * @param reviewFit 이 구매(주문상품)에 남긴 공개 리뷰의 사이즈 핏이다. 리뷰가 없거나 핏을 남기지 않았거나 숨긴 리뷰면 null이다
  */
 public record PurchasedGarment(Long purchaseRecordId, String size, LocalDateTime confirmedAt, Long categoryId,
                                List<String> categoryPathNames, String brand,
-                               Map<String, BigDecimal> measurements) {
+                               Map<String, BigDecimal> measurements, ReviewFit reviewFit) {
 
     public PurchasedGarment {
         requireNonNull(purchaseRecordId, "purchaseRecordId는 필수입니다");

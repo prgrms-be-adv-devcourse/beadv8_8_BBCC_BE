@@ -123,6 +123,11 @@ class ChildPurchaseServiceTest {
             public LocalDateTime getDeliveredAt() {
                 return deliveredAt;
             }
+
+            @Override
+            public String getThumbnailUrl() {
+                return null;
+            }
         };
     }
 }

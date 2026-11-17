@@ -22,7 +22,7 @@ final class FakeChatServer {
     private final HttpServer server;
     private final List<Received> received = new ArrayList<>();
     private volatile int status = 200;
-    private volatile String body = verdict("safe");
+    private volatile String body = reply("{\"violation\":0,\"category\":null}");
     private volatile Duration delay = Duration.ZERO;
 
     private FakeChatServer(HttpServer server) {
@@ -63,9 +63,21 @@ final class FakeChatServer {
         }
     }
 
-    static String verdict(String content) {
-        return "{\"id\":\"x\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\""
-            + content + "\"},\"finish_reason\":\"stop\"}],\"usage\":{\"total_tokens\":10}}";
+    /**
+     * 채팅 응답 하나(끝난 까닭 stop). content는 모델이 낸 글 그대로이고 JSON 문자열로 감싸 넣는다.
+     */
+    static String reply(String content) {
+        return reply(content, "stop");
+    }
+
+    static String reply(String content, String finishReason) {
+        return "{\"id\":\"x\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":"
+            + quote(content) + "},\"finish_reason\":" + (finishReason == null ? "null" : quote(finishReason))
+            + "}],\"usage\":{\"total_tokens\":10}}";
+    }
+
+    private static String quote(String value) {
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\"";
     }
 
     void respond(int status, String body) {

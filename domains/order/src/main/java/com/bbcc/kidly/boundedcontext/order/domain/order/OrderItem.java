@@ -73,6 +73,7 @@ public class OrderItem extends OrderTimeEntity {
      *
      * @param optionName 옵션 이름(색상 × 사이즈 조합 구분용). 이 값이 생기기 전 주문상품은 null
      * @param size 사이즈. 사이즈 없는 상품은 null
+     * @param thumbnailUrl 주문 당시 상품 썸네일 URL(#1328). 없었거나 이 칸이 생기기 전 주문상품은 null
      */
     @Embeddable
     public record ProductSnapshot(
@@ -84,7 +85,17 @@ public class OrderItem extends OrderTimeEntity {
         String optionName,
         String size,
         long unitPrice,
-        Long categoryId) {
+        Long categoryId,
+        @Column(length = 255)
+        String thumbnailUrl) {
+
+        /**
+         * 썸네일 없이(#1328 전 모양). 썸네일은 null.
+         */
+        public ProductSnapshot(Long productId, Long optionId, Long sellerId, String productName, String optionName,
+            String size, long unitPrice, Long categoryId) {
+            this(productId, optionId, sellerId, productName, optionName, size, unitPrice, categoryId, null);
+        }
     }
 
     /**

@@ -7,6 +7,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.CompanionProductService;
 import com.bbcc.kidly.boundedcontext.recommend.app.companion.dto.CompanionProductResult;
@@ -56,6 +59,10 @@ class CompanionProductServiceTest {
 
     @Mock
     private CompanionAiPicker aiPicker;
+
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    private final RecommendAiMetrics metrics = new RecommendAiMetrics(meterRegistry, ObservationRegistry.NOOP);
 
     @Test
     @DisplayName("PAIR-06 AI 답이 있으면 AI가 고른 순서와 이유로 돌려주고 출처는 AI다. AI는 보고 있는 상품과 후보 순서로 만든 입력으로 부른다")
@@ -162,8 +169,24 @@ class CompanionProductServiceTest {
         assertThat(result.ai().join()).isEmpty();
     }
 
+    @Test
+    @DisplayName("PAIR-06 기다리지 않는 추천에서 AI가 고른 상품이 모두 후보 밖이면 AI 결과는 빈 값이고 검증 버림 수를 하나 센다")
+    void countRejectedWhenAiPicksOutsideCandidates() {
+        given(candidateReader.read(MEMBER_ID, VIEWED_PRODUCT_ID, CHILD_ID)).willReturn(candidates(6));
+        CompanionAiAnswer answer = new CompanionAiAnswer(List.of(new CompanionAiPick(99L, "후보 밖이에요.")));
+        given(aiResponseService.respondAsync(eq(AiResponseType.BOUGHT_TOGETHER), any(), eq(CompanionAiAnswer.class),
+            any())).willReturn(CompletableFuture.completedFuture(Optional.of(answer)));
+
+        CompanionProductsWithAi result = service(Optional.of(aiPicker)).recommendWithAiLater(MEMBER_ID,
+            VIEWED_PRODUCT_ID, CHILD_ID);
+
+        assertThat(result.ai().join()).isEmpty();
+        assertThat(meterRegistry.get("kidly.recommend.ai.rejected").tag("feature", "bought_together")
+            .counter().count()).isEqualTo(1);
+    }
+
     private CompanionProductService service(Optional<CompanionAiPicker> picker) {
-        return new CompanionProductService(candidateReader, aiResponseService, picker);
+        return new CompanionProductService(candidateReader, aiResponseService, picker, metrics);
     }
 
     @SuppressWarnings("unchecked")

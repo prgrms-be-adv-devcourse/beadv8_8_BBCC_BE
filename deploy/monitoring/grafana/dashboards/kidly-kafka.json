@@ -1,6 +1,6 @@
 {
   "uid": "kidly-kafka",
-  "title": "Kidly Kafka 처리",
+  "title": "6 · Kidly Kafka 처리",
   "tags": [
     "03 상세 진단",
     "kidly"
@@ -450,6 +450,15 @@
       "title": "서비스 상태",
       "type": "link",
       "url": "/d/kidly-http?var-env=${env}&from=${__from}&to=${__to}"
+    },
+    {
+      "title": "AI 분석",
+      "type": "link",
+      "url": "/d/kidly-ai-notes?var-env=${env}&var-analysis_focus=overview",
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "external link",
+      "tooltip": "AI 운영 분석에서 이 화면에 맞는 분석 목적으로 엽니다(실행 · 결과는 한 곳)"
     }
   ]
 }

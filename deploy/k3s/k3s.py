@@ -9,6 +9,7 @@ import base64
 import copy
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -61,10 +62,17 @@ def container_port(service):
     return targets[0] if targets else DEFAULT_PORT
 
 
-def probes(service):
-    """Spring 서비스(healthcheck 가 /actuator/health)는 health 그룹을, 그 밖(kafka-exporter 등)은 포트 연결을 본다"""
+def management_port(service):
+    test = ' '.join(str(part) for part in (service.get('healthcheck') or {}).get('test') or [])
+    match = re.search(r'localhost:(\d+)/actuator/health', test)
+    port = int(match.group(1)) if match else None
+    return port if port != container_port(service) else None
+
+
+def probes(service, port):
+    """Spring 서비스(healthcheck 가 /actuator/health)는 port 의 health 그룹을, 그 밖(kafka-exporter 등)은 포트 연결을 본다"""
     def http(path, period, failures):
-        return {'httpGet': {'path': path, 'port': 'http'}, 'periodSeconds': period, 'failureThreshold': failures}
+        return {'httpGet': {'path': path, 'port': port}, 'periodSeconds': period, 'failureThreshold': failures}
 
     test = ' '.join(str(part) for part in (service.get('healthcheck') or {}).get('test') or [])
     if '/actuator/health' in test:
@@ -120,6 +128,7 @@ def manifest(env, name, node_port, job, service, project_dir):
     # monitoring-agent Alloy 가 이 라벨을 Prometheus job · Loki service_name 으로 쓴다(compose 때와 같은 이름)
     pod_labels = dict(labels, **{'kidly/job': job})
     listen = container_port(service)
+    management = management_port(service)
     port = {'name': 'http', 'port': listen, 'targetPort': 'http'}
     variables = env_vars(service)
     memory = '%dMi' % mebibytes(service['mem_limit'])
@@ -146,12 +155,28 @@ def manifest(env, name, node_port, job, service, project_dir):
                       'limits': {'memory': memory}},
         'volumeMounts': ([{'name': 'logs', 'mountPath': LOG_DIR}] if logs else []) + jwt_mounts,
     }
-    container.update(probes(service))
+    if management is not None:
+        container['ports'].append({'name': 'management', 'containerPort': management})
+    container.update(probes(service, 'management' if management is not None else 'http'))
+    annotations = {'kidly/config-hash': digest}
+    if management is not None:
+        annotations['prometheus.io/port'] = str(management)
     # compose 의 command 는 이미지의 CMD 를 바꾼다. 쿠버네티스에서는 args 가 같은 일을 한다
     if service.get('command'):
         container['args'] = [str(part) for part in service['command']]
     if security_context(service):
         container['securityContext'] = security_context(service)
+    if env == 'dev' and (project_dir / 'operations' / 'tracing-agent' / (name + '.enabled')).is_file():
+        from tracing_agent import HOST_AGENT_JAR, SERVICES, agent_settings
+
+        if name in SERVICES:
+            agent_jar = Path(HOST_AGENT_JAR)
+            if not agent_jar.is_file() or agent_jar.stat().st_size == 0:
+                raise ValueError('트레이싱 Agent JAR 이 준비되지 않았습니다: ' + name)
+            agent_env, agent_mount, agent_volume = agent_settings(name, variables.get('JAVA_TOOL_OPTIONS', ''))
+            container['env'] = agent_env
+            container['volumeMounts'].append(agent_mount)
+            volumes.append(agent_volume)
     items = [
         {'apiVersion': 'v1', 'kind': 'Secret', 'metadata': {'name': name + '-env', 'namespace': ns},
          'type': 'Opaque', 'stringData': variables},
@@ -164,7 +189,7 @@ def manifest(env, name, node_port, job, service, project_dir):
                          {'type': 'RollingUpdate', 'rollingUpdate': {'maxSurge': 1, 'maxUnavailable': 0}},
              'selector': {'matchLabels': labels},
              'template': {
-                 'metadata': {'labels': pod_labels, 'annotations': {'kidly/config-hash': digest}},
+                 'metadata': {'labels': pod_labels, 'annotations': annotations},
                  'spec': {
                      'imagePullSecrets': [{'name': 'ghcr-pull'}],
                      # 앱은 UID/GID 1001(Dockerfile)로 돈다. Secret 파일(0440, root 소유)을 읽을 수 있게 그룹을 1001 로 붙인다
@@ -177,7 +202,7 @@ def manifest(env, name, node_port, job, service, project_dir):
                      'enableServiceLinks': False,
                      'volumes': volumes,
                  }}}},
-        # NodePort 가 있으면 이 서버(compose 의 Gateway · nginx)가 host 주소로 붙는다. 보안 그룹에서 밖으로 열지 않는다(X-Member-* 위조 방지)
+        # NodePort 가 있으면 이 서버의 compose Gateway 가 host 주소로 붙는다. 보안 그룹에서 밖으로 열지 않는다(X-Member-* 위조 방지)
         # 없으면 클러스터 안에서만 <이름>:8080 으로 닿는다
         {'apiVersion': 'v1', 'kind': 'Service', 'metadata': {'name': name, 'namespace': ns, 'labels': labels},
          'spec': dict({'type': 'NodePort', 'ports': [dict(port, nodePort=node_port)]} if node_port else

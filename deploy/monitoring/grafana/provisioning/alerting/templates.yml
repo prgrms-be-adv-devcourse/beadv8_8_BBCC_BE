@@ -31,8 +31,10 @@ templates:
       {{ end -}}
       {{ end -}}
       {{ with index .Alerts.Firing 0 }}<{{ .GeneratorURL }}|규칙 보기> · <{{ .SilenceURL }}|일시정지>
+      {{- with .Annotations.service_url }} · <{{ . }}|서비스 상세>{{ end }}
       {{- with .Annotations.logs_url }} · <{{ . }}|로그 보기>{{ end }}
       {{- with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
+      {{- template "kidly.slack.ai" . }}
       {{- else -}}
       {{ if .Alerts.Resolved -}}
       {{ if (index .Alerts.Resolved 0).Annotations.recovery_summary -}}
@@ -43,8 +45,16 @@ templates:
       {{ else -}}
       정상으로 돌아왔습니다
       {{ end -}}
-      {{ with index .Alerts.Resolved 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
+      {{ with index .Alerts.Resolved 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ with .Annotations.service_url }} · <{{ . }}|서비스 상세>{{ end }}{{ with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
       {{ end -}}
+      {{- end }}
+      {{- end }}
+
+      {{/* 규칙에 ai_prompt가 있으면 AI(kidly_grafana MCP)에 붙여 넣을 질문을 붙인다. 묶인 서비스는 모두 나열하고 시작 시각은 첫 알림 기준 UTC */}}
+      {{ define "kidly.slack.ai" -}}
+      {{ if (index .Alerts.Firing 0).Annotations.ai_prompt }}
+      AI에게 물어보기 (kidly_grafana MCP)
+      ```Kidly {{ .CommonLabels.alertname }} 알림: 대상 job:{{ range .Alerts.Firing }} {{ .Labels.job }}{{ end }}, env={{ .CommonLabels.env }}, 시작 {{ (index .Alerts.Firing 0).StartsAt.UTC.Format "2006-01-02 15:04" }} UTC. {{ (index .Alerts.Firing 0).Annotations.ai_prompt }}. query_prometheus로 시작 시각 기준 1시간 범위를 조회하고 숫자 근거와 함께 원인 후보를 정리해줘. 추측은 가설로 표시해줘.```
       {{- end }}
       {{- end }}
 

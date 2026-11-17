@@ -2,9 +2,11 @@
 import base64
 import importlib.util
 import json
+import sys
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 spec = importlib.util.spec_from_file_location('k3s', Path(__file__).resolve().parents[2] / 'k3s' / 'k3s.py')
 k3s = importlib.util.module_from_spec(spec)
@@ -35,8 +37,8 @@ class K3sManifestTests(unittest.TestCase):
         data.update(extra)
         return data
 
-    def items(self, name='member', service=None):
-        result = k3s.manifest('dev', name, 30204, 'kidly-' + name, service or self.service(), self.project)
+    def items(self, name='member', service=None, env='dev'):
+        result = k3s.manifest(env, name, 30204, 'kidly-' + name, service or self.service(), self.project)
         return {item['kind'] + '/' + item['metadata']['name']: item for item in result['items']}
 
     def test_compose_settings_become_deployment_and_node_port(self):
@@ -49,6 +51,48 @@ class K3sManifestTests(unittest.TestCase):
         self.assertEqual(items['Service/member']['spec']['ports'][0]['nodePort'], 30204)
         self.assertEqual(items['Deployment/member']['metadata']['namespace'], 'kidly-dev')
         self.assertNotIn('HorizontalPodAutoscaler/member', items)
+
+    def test_tracing_agent_only_persists_for_enabled_pilot_services(self):
+        markers = self.project / 'operations' / 'tracing-agent'
+        markers.mkdir(parents=True)
+        for name in ('gateway', 'order', 'payment'):
+            (markers / f'{name}.enabled').touch()
+        jar = self.project / 'opentelemetry-javaagent.jar'
+        jar.write_bytes(b'fixture')
+        agent_spec = importlib.util.spec_from_file_location(
+            'tracing_agent', Path(spec.origin).with_name('tracing_agent.py'))
+        module = importlib.util.module_from_spec(agent_spec)
+        agent_spec.loader.exec_module(module)
+        module.HOST_AGENT_JAR = str(jar)
+        service = self.service(environment={'JAVA_TOOL_OPTIONS': '-Xmx192m'})
+        with mock.patch.dict(sys.modules, {'tracing_agent': module}):
+            for env, name, enabled in (
+                    ('dev', 'gateway', True), ('dev', 'order', True),
+                    ('dev', 'payment', False), ('prod', 'order', False)):
+                with self.subTest(env=env, name=name):
+                    deployment = self.items(env=env, name=name, service=service)[f'Deployment/{name}']
+                    pod = deployment['spec']['template']['spec']
+                    container = pod['containers'][0]
+                    if enabled:
+                        settings = {entry['name']: entry['value'] for entry in container['env']}
+                        self.assertEqual(settings['JAVA_TOOL_OPTIONS'], f'-Xmx192m -javaagent:{module.AGENT_JAR}')
+                        self.assertEqual(settings['OTEL_SERVICE_NAME'], f'kidly-{name}')
+                        self.assertEqual(settings['OTEL_TRACES_SAMPLER_ARG'], '0.05')
+                        self.assertTrue(container['volumeMounts'][-1]['readOnly'])
+                        self.assertEqual(pod['volumes'][-1]['hostPath']['path'], str(jar))
+                    else:
+                        self.assertNotIn('env', container)
+                        self.assertNotIn(module.AGENT_VOLUME, {v['name'] for v in pod['volumes']})
+
+            (markers / 'order.enabled').unlink()
+            self.assertNotIn('env', self.items(name='order', service=service)['Deployment/order']
+                             ['spec']['template']['spec']['containers'][0])
+            jar.write_bytes(b'')
+            with self.assertRaisesRegex(ValueError, 'Agent JAR'):
+                self.items(name='gateway', service=service)
+            jar.unlink()
+            with self.assertRaisesRegex(ValueError, 'Agent JAR'):
+                self.items(name='gateway', service=service)
 
     def test_settlement_has_daily_cronjob_with_deployment_settings(self):
         service = self.service(user='1001:1001', read_only=True, cap_drop=['ALL'],
@@ -158,6 +202,25 @@ class K3sManifestTests(unittest.TestCase):
     def test_spring_service_uses_actuator_health_groups(self):
         container = self.items()['Deployment/member']['spec']['template']['spec']['containers'][0]
         self.assertEqual(container['readinessProbe']['httpGet']['path'], '/actuator/health/readiness')
+
+    def test_separate_management_port_is_used_for_probes_and_metrics(self):
+        service = self.service(healthcheck={'test': ['CMD', 'curl', '-f',
+                                                     'http://localhost:8085/actuator/health']})
+        items = self.items('gateway', service)
+        template = items['Deployment/gateway']['spec']['template']
+        container = template['spec']['containers'][0]
+        self.assertEqual(container['ports'], [{'name': 'http', 'containerPort': 8080},
+                                               {'name': 'management', 'containerPort': 8085}])
+        for probe, group in (('startupProbe', 'liveness'), ('readinessProbe', 'readiness'),
+                             ('livenessProbe', 'liveness')):
+            self.assertEqual(container[probe]['httpGet'], {'path': '/actuator/health/' + group,
+                                                           'port': 'management'})
+        self.assertEqual(template['metadata']['annotations']['prometheus.io/port'], '8085')
+        self.assertEqual(items['Service/gateway']['spec']['ports'],
+                         [{'name': 'http', 'port': 8080, 'targetPort': 'http', 'nodePort': 30204}])
+        ordinary = self.items()['Deployment/member']['spec']['template']
+        self.assertEqual(ordinary['spec']['containers'][0]['ports'], [{'name': 'http', 'containerPort': 8080}])
+        self.assertNotIn('prometheus.io/port', ordinary['metadata']['annotations'])
 
     def test_kafka_exporter_keeps_compose_command_port_and_lockdown(self):
         exporter = {

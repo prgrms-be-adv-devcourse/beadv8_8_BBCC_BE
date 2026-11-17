@@ -47,6 +47,6 @@ public class CartCatalogAdapter implements CartCatalog {
 
     private static ProductOption toOption(ProductOptionView view) {
         return new ProductOption(view.optionId(), view.productId(), view.sellerId(), view.productName(),
-            view.optionName(), view.size(), view.unitPrice(), view.purchasable());
+            view.optionName(), view.size(), view.unitPrice(), view.purchasable(), view.thumbnailUrl());
     }
 }

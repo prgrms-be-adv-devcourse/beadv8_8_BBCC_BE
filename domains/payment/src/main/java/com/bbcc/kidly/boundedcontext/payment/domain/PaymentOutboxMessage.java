@@ -16,7 +16,8 @@ import lombok.NoArgsConstructor;
 /**
  * Kafka로 보낼 결제 이벤트(#550). 이벤트를 발행한 업무 트랜잭션 안에서 저장해, 업무가 롤백되면 메시지도 남지 않는다.
  * 릴레이가 id 순서대로 아직 보내지 않은 메시지를 보내고 보낸 시각을 기록한다. 보낸 메시지는 보관 기간 뒤 지운다.
- * 인덱스(안 보낸 메시지 · 보낸 시각)는 부분 인덱스라 마이그레이션에만 둔다.
+ * 시도 상한을 넘었고 다른 메시지는 보내지는 메시지는 격리한다(#1389). 격리된 메시지와 같은 키의 뒤 메시지는 관리자가 다시 보내기 전까지 보내지 않는다.
+ * 인덱스(안 보낸 메시지 · 보낸 시각 · 격리)는 부분 인덱스라 마이그레이션에만 둔다.
  */
 @Entity
 @Table(schema = "payment", name = "payment_outbox")
@@ -53,6 +54,9 @@ public class PaymentOutboxMessage extends BaseTimeEntity {
 
     private LocalDateTime sentAt;
 
+    // 격리한 시각. null이면 릴레이가 보낸다
+    private LocalDateTime parkedAt;
+
     /**
      * 보내지 않은 메시지(시도 0)를 만든다.
      *
@@ -88,5 +92,29 @@ public class PaymentOutboxMessage extends BaseTimeEntity {
     public void recordFailure(String error) {
         this.attemptCount++;
         this.lastError = error.length() > LAST_ERROR_LENGTH ? error.substring(0, LAST_ERROR_LENGTH) : error;
+    }
+
+    /**
+     * 격리한다. 보낸 메시지는 바꾸지 않는다.
+     */
+    public void park(LocalDateTime now) {
+        if (sentAt != null) {
+            return;
+        }
+        this.parkedAt = now;
+    }
+
+    /**
+     * 관리자가 격리를 풀어 릴레이가 다시 보내게 한다. 시도 상한부터 다시 세도록 시도를 0으로 돌린다(마지막 오류는 남긴다).
+     *
+     * @return 격리돼 있어 풀었으면 true
+     */
+    public boolean release() {
+        if (parkedAt == null || sentAt != null) {
+            return false;
+        }
+        this.parkedAt = null;
+        this.attemptCount = 0;
+        return true;
     }
 }

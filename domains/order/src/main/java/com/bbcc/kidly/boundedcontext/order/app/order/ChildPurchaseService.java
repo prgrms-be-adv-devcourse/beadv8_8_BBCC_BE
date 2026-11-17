@@ -50,7 +50,8 @@ public class ChildPurchaseService {
         Page<ChildPurchaseRow> rows = orderRepository.findChildPurchases(childId, pageable);
         Set<String> shipped = shippedSellers(rows.getContent());
         return rows.map(row -> new ChildPurchase(row.getOrderItemId(), row.getOrderedAt(), row.getProductId(),
-            row.getProductName(), row.getOptionName(), row.getQuantity(), statusOf(row, shipped)));
+            row.getProductName(), row.getOptionName(), row.getQuantity(), statusOf(row, shipped),
+            row.getThumbnailUrl()));
     }
 
     // 발송된 배송의 (주문 ID, 판매자 ID). 아직 배송 완료 전인 주문상품만 필요하다

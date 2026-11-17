@@ -15,6 +15,10 @@ fi
 if ! python3 ai-notes/initialize.py; then
   echo "::warning::AI 메모 상태 초기화 실패. 기존 모니터링 배포는 계속합니다"
 fi
+# AI 분석 자동 실행 알림 웹훅 토큰(Secret ai-analysis-alert). Grafana 가 환경 변수로 읽으므로 apply 전에 맞춘다
+if [[ -f ai-notes/analysis-api.sh ]]; then
+    bash ai-notes/analysis-api.sh token
+fi
 # 대시보드 ConfigMap 이 커서(약 190KB) client-side apply 의 last-applied 주석 한도(256KB)를 넘을 수 있어 server-side 로 넣는다
 # 손으로 바꾼 필드가 있어도 레포 내용으로 되돌린다(--force-conflicts)
 kubectl apply --server-side --force-conflicts -k .
@@ -74,4 +78,36 @@ if [[ "$installed" == "$expected" ]]; then
     echo "Logs Drilldown 앱 $installed"
 else
     echo "::warning::Logs Drilldown 앱이 ${installed:-알 수 없음} 입니다(기대 $expected). 플러그인 저장소에 닿지 못했을 수 있습니다. 기본 열이 보이지 않으면 monitoring-deploy 를 다시 돌리세요"
+fi
+
+# Grafana AI 운영 분석의 "새 분석 실행" 버튼 처리기(노드 프로세스). 실패해도 모니터링 배포는 계속한다
+if [[ -f ai-notes/analysis-api.sh ]]; then
+    if ! bash ai-notes/analysis-api.sh; then
+        echo "::warning::AI 분석 실행 처리기를 띄우지 못했습니다. 기존 모니터링 배포는 계속합니다"
+    fi
+    # 서버가 다시 켜지면(매일 저녁 꺼짐) 처리기도 다시 띄운다. 등록하지 못하면 다음 배포까지 실행 행이 숨는다
+    reboot_line='@reboot bash /opt/app/monitoring/ai-notes/analysis-api.sh > /dev/null 2>&1'
+    if ! command -v crontab > /dev/null; then
+        echo "::warning::crontab 이 없어 서버가 다시 켜진 뒤에는 다음 monitoring-deploy 까지 AI 분석 실행 버튼이 숨습니다"
+    elif ! crontab -l 2>/dev/null | grep -qxF "$reboot_line"; then
+        if ! { crontab -l 2>/dev/null || true; echo "$reboot_line"; } | crontab - 2>/dev/null; then
+            echo "::warning::crontab 에 등록하지 못해 서버가 다시 켜진 뒤에는 다음 monitoring-deploy 까지 AI 분석 실행 버튼이 숨습니다"
+        fi
+    fi
+fi
+
+# 운영 시범 수신 설정은 대시보드 배포가 지우지 않는 operations에서 고른다.
+tempo_profile=tempo
+if [[ -f operations/tempo-private-receiver.enabled ]]; then
+    tempo_profile=tempo/private-receiver
+    if ! k get secret tracing-tempo-server-tls -o name >/dev/null; then
+        echo "::warning::Tempo 수신용 Secret을 확인하지 못해 현재 Tempo 배포를 유지합니다."
+        exit 0
+    fi
+fi
+# Tempo 실패 시 기존 모니터링 배포는 계속한다.
+if ! kubectl apply --server-side --force-conflicts -k "$tempo_profile"; then
+    echo "::warning::Tempo 설정 적용에 실패했습니다 ($tempo_profile)."
+elif ! k rollout status deploy/tempo --timeout 120s; then
+    echo "::warning::Tempo 가 120초 안에 준비되지 않았습니다. 기존 모니터링 배포는 계속합니다."
 fi

@@ -13,6 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface JpaWalletRepository extends JpaRepository<Wallet, Long>, WalletRepository {
 
+    // WalletRepository와 CrudRepository에 같은 메서드가 있어 이 타입으로 부르면 모호해지므로 하나로 정한다
+    @Override
+    Optional<Wallet> findById(Long id);
+
     @Override
     @Transactional
     @Modifying

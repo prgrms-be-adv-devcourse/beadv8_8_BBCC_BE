@@ -3,9 +3,10 @@ package com.bbcc.kidly.boundedcontext.recommend.out.ai;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.AiSizeChooser;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
-import lombok.RequiredArgsConstructor;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
@@ -16,7 +17,6 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Component
 @ConditionalOnProperty(name = "spring.ai.model.chat", havingValue = "openai", matchIfMissing = true)
-@RequiredArgsConstructor
 public class OpenAiSizeChooser implements AiSizeChooser {
 
     private static final String SYSTEM_INSTRUCTION = """
@@ -34,17 +34,30 @@ public class OpenAiSizeChooser implements AiSizeChooser {
           recordMonths와 childSharePercent의 나머지 값(100 − 비중)은 문장에 쓰지 마세요.
           childSharePercent가 0이면 아이 기록 없이 또래 표 값만 쓴 것이니 아이가 실제로 그만큼 자랐다고 쓰지 말고
           또래 기준으로 설명하세요.
-        - wearablePeriods는 사이즈마다 앞으로 입을 수 있는 개월 수입니다. lengthMonths는 권장 키 상한까지, widthMonths는
-          기준 옷보다 넉넉한 너비를 몸이 채울 때까지, months는 둘 중 짧은 값이고 24가 상한입니다. 계산할 수 없으면 null입니다.
-          너무 짧은 사이즈(예: 0 ~ 2개월)는 곧 작아진다는 점을 판단에 쓰세요.
+        - wearablePeriods는 사이즈마다 앞으로 입을 수 있는 개월 수입니다. lengthMonths는 권장 키 상한까지 크는 기간이고,
+          widthMonths는 너비로 입을 수 있는 기간입니다. 지금 잘 맞는 기준 옷과 같은 너비여도 한동안은 입는다고 보고,
+          더 넉넉하면 길게, 더 좁으면 짧게 계산한 값입니다. months는 둘 중 짧은 값이고 24가 상한입니다.
+          계산할 수 없으면 null입니다. months가 3개월 미만인 사이즈는 곧 작아집니다.
+          3개월 이상인 사이즈가 있으면 그 가운데에서 고르세요.
+        - months가 3개월 이상이고 실측으로도 맞는 사이즈가 둘 이상이면 어느 쪽을 골라도 틀리지 않습니다.
+          이때는 child의 preferredFit으로 고르세요. LOOSE이면 한 치수 큰 쪽, SLIM이나 REGULAR이거나 null이면 그 가운데
+          가장 작은 쪽입니다. 기간이 길다는 이유만으로 큰 쪽을 고르지 마세요.
+          기준 옷, 지난 구매, 최근 성장 속도, 상품 핏 성향이 한쪽을 가리키면 그쪽을 먼저 따르세요.
         - purchases는 같은 종류 옷 칸에서 최근 12개월 안에 산 옷입니다(최근 순, 최대 3개). size는 산 사이즈 이름,
           monthsAgo는 산 뒤 지난 개월 수, sameBrand는 지금 상품과 브랜드가 같은지, expectedGrowthCm는 산 뒤 그동안 클 것으로 보는 키(cm)입니다.
           items는 referenceFit과 같은 모양이고, garmentCm가 산 옷 실측, sizes[].diffCm가 「지금 상품 사이즈 실측 - 산 옷 실측」입니다.
-          구매는 반품하지 않았다는 것만 알고, 잘 맞았는지는 모릅니다. 사이즈 이름은 브랜드마다 실제 치수가 달라서
-          이름보다 실측 차이로 비교하세요.
+          reviewFit은 그 구매에 보호자가 남긴 리뷰의 사이즈 핏입니다. SMALL은 그때 산 사이즈가 작았다, TRUE_TO_SIZE는 잘 맞았다,
+          LARGE는 컸다는 뜻입니다. null이면 핏을 남긴 공개 리뷰가 없어 반품하지 않았다는 것만 알고 잘 맞았는지는 모르는 구매입니다.
+          사이즈 이름은 브랜드마다 실제 치수가 달라서 이름보다 실측 차이로 비교하세요.
         - 믿는 순서는 기준 옷(referenceFit)이 가장 믿을 만하고, 다음이 최근 구매, 오래된 구매 순입니다. 같은 브랜드 구매는 더 믿으세요.
           산 뒤 예상 성장량(expectedGrowthCm)만큼 지금은 더 컸다는 점도 함께 보세요.
         - purchases로는 itemJudgements를 쓰지 마세요(itemJudgements는 referenceFit의 항목만 씁니다).
+        - productFitTendency는 이 상품을 산 사람들이 리뷰에 남긴 사이즈 핏의 수입니다. smallCount는 작다, trueToSizeCount는 잘 맞는다,
+          largeCount는 크다고 한 리뷰 수입니다. 작다는 리뷰가 많으면 이 상품이 작게 나온 것이니 한 치수 크게 볼 수 있고,
+          크다는 리뷰가 많으면 반대입니다. 다른 아이들의 의견이니 기준 옷과 이 아이의 구매보다 덜 믿으세요.
+          null이면 리뷰가 적어 성향을 알 수 없는 것이니 무시하세요.
+          상품 핏 성향을 근거로 쓰면 reasons의 type을 MEASUREMENT로 하고, 리뷰 수는 질문에 있는 값이나 세 수의 합계만 쓰세요.
+          비율(%)은 쓰지 마세요.
         - 지난 구매를 근거로 쓰면 reasons의 type을 PURCHASE로 하고, 숫자는 질문에 있는 값만 쓰세요.
         - 성장 속도나 입을 수 있는 기간을 근거로 쓸 때는 reasons의 type을 GROWTH로 하고, detail에 growthSpeed의 tableSource 값을
           출처로 밝히세요(예: "한국아동패널 기준").
@@ -64,15 +77,27 @@ public class OpenAiSizeChooser implements AiSizeChooser {
         - reasons의 detail에 숫자를 쓸 때는 질문에 있는 숫자나 itemJudgements의 여유 범위만 쓰고, 새로 계산한 숫자는 쓰지 마세요.
           차이는 부호 없이 "1cm 작아요"처럼 써도 됩니다.
         - MEASUREMENT 근거는 referenceFit이 있으면 기준 옷과의 차이로 설명하고, 없으면 상품 실측을 자녀의 키, 체형, 선호 핏과
-          견주어 설명하세요.
+          견주어 설명하세요. 상품 핏 성향을 근거로 쓴 MEASUREMENT 근거만은 리뷰 수로 설명하세요.
         """;
 
     private final ChatModel chatModel;
     private final JsonMapper jsonMapper;
+    private final ObservationRegistry observationRegistry;
+
+    public OpenAiSizeChooser(ChatModel chatModel, JsonMapper jsonMapper) {
+        this(chatModel, jsonMapper, ObservationRegistry.NOOP);
+    }
+
+    @Autowired
+    public OpenAiSizeChooser(ChatModel chatModel, JsonMapper jsonMapper, ObservationRegistry observationRegistry) {
+        this.chatModel = chatModel;
+        this.jsonMapper = jsonMapper;
+        this.observationRegistry = observationRegistry;
+    }
 
     @Override
     public AiSizeAnswer choose(SizeAiQuestion question) {
-        return ChatClient.create(chatModel).prompt()
+        return ChatClient.create(chatModel, observationRegistry).prompt()
             .system(SYSTEM_INSTRUCTION)
             .user(jsonMapper.writeValueAsString(question))
             .call()

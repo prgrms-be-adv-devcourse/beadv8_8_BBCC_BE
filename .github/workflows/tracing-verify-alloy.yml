@@ -1,0 +1,46 @@
+name: tracing-verify-alloy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitoring-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/develop'
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v7
+      - name: 전용 Alloy의 합성 요청이 Tempo에 도착하는지 확인
+        env:
+          APP_HOST: ${{ vars.SSH_HOST }}
+          MONITOR_HOST: ${{ vars.MONITORING_SSH_HOST }}
+          APP_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+          MONITOR_KNOWN_HOSTS: ${{ vars.MONITORING_SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          hour=$(TZ=Asia/Seoul date +%H)
+          (( 10#$hour >= 9 && 10#$hour < 18 )) || { echo 'Outside the operating window'; exit 1; }
+          umask 077
+          auth=$(mktemp -d)
+          trap 'rm -rf "$auth"' EXIT
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$auth/key"
+          printf '%s\n' "$APP_KNOWN_HOSTS" "$MONITOR_KNOWN_HOSTS" > "$auth/known_hosts"
+          unset SSH_PRIVATE_KEY
+          trace_id=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
+          remote() {
+            ssh -i "$auth/key" -o UserKnownHostsFile="$auth/known_hosts" \
+              -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 \
+              "deploy@$1" python3 - "$2" "$trace_id" < deploy/tracing-ops/verify-alloy.py
+          }
+          printf 'Synthetic trace ID: %s\n' "$trace_id"
+          remote "$APP_HOST" send
+          remote "$MONITOR_HOST" verify

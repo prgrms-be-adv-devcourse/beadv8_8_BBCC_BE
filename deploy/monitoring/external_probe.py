@@ -57,9 +57,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--environment', choices=('dev', 'prod'), default='dev')
     args = parser.parse_args()
-    host = 'dev-api.kidly.kro.kr' if args.environment == 'dev' else 'api.kidly.kro.kr'
-    rows = [observe(args.environment + '-app-health', 'https://' + host + '/actuator/health', 'status', 'UP'),
-            observe(args.environment + '-gateway-product-read', 'https://' + host + '/api/v1/products?page=0&size=1'),
+    host = 'api.kidly.kro.kr'
+    rows = [observe(args.environment + '-gateway-product-read', 'https://' + host + '/api/v1/products?page=0&size=1'),
             observe('grafana-health', 'https://grafana.kidly.kro.kr/api/health', 'database', 'ok')]
     print(json.dumps({'environment': args.environment, 'observations': rows}, ensure_ascii=False))
     return 0 if all(row['ok'] for row in rows) else 1

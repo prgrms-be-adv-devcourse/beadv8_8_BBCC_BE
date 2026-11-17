@@ -17,4 +17,11 @@ public interface JpaOrderStatusHistoryRepository
     @Query("select h.orderId as orderId, max(h.id) as lastHistoryId from OrderStatusHistory h"
         + " where h.orderId in :orderIds group by h.orderId")
     List<LastHistory> findLastHistoryIds(Collection<Long> orderIds);
+
+    @Override
+    @Query("select h.orderId as orderId, max(h.occurredAt) as cancelledAt from OrderStatusHistory h"
+        + " where h.orderId in :orderIds"
+        + " and h.targetType = com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory.TargetType.ORDER"
+        + " and h.toStatus = 'CANCELLED' group by h.orderId")
+    List<CancelledAt> findOrderCancelledAt(Collection<Long> orderIds);
 }

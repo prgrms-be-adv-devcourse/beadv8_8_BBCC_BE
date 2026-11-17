@@ -19,14 +19,16 @@
 
 ## DB 전체 연결 수
 
-현재 운영은 단일 k3s 환경입니다. 운영 앱의 풀 상한 합계를 해당 PostgreSQL의 max_connections와 비교합니다.
-팀 댓글의 서비스별 기본 풀 10개, 전체 분리 시 110~120개 예상은 계획값입니다. 현재 실제 풀 상한·DB 수치는 별도로 측정하고 풀 크기를 정한 후 경보 기준을 확정합니다.
+develop 배포 설정에서 dev·prod는 PostgreSQL 인스턴스 하나의 별도 논리 DB(`kidly_dev`, `kidly_prod`)를 씁니다. 인스턴스의 `max_connections=120`은 두 DB가 공유합니다. [PostgreSQL 배포 설정](../../postgres/README.md)
+
+앱을 서비스당 한 인스턴스로 계산하면 환경당 50개(8개 × 5 + 상품 10), 두 환경을 함께 띄우면 최대 100개입니다. 이는 설정 기준 계산값입니다. 실제 배포에서 앱 복제본이나 추가 실행 작업이 있으면 연결 예산에 포함하고, 전체 연결 수와 예약 슬롯을 함께 확인합니다.
 
 DB 담당자가 기존 인증 경로로 다음 읽기 전용 SQL을 확인할 수 있습니다. 결과에 원시 SQL·사용자 ID·접속자 주소를 넣지 않습니다.
 
 ```sql
 SELECT current_setting('max_connections')::int AS max_connections,
-       current_setting('superuser_reserved_connections')::int AS reserved_superuser;
+       current_setting('superuser_reserved_connections')::int AS reserved_superuser,
+       current_setting('reserved_connections')::int AS reserved_roles;
 SELECT count(*) AS client_connections,
        count(*) FILTER (WHERE wait_event_type = 'Lock') AS lock_waiting,
        count(*) FILTER (WHERE state = 'idle in transaction') AS idle_in_transaction,
@@ -49,7 +51,7 @@ DB 통계를 정기 수집하려면 기존 Alloy의 PostgreSQL 수집 기능과 
 ## 상시 수집 제안 (승인 전, 미적용)
 
 1. 기존 Alloy의 내장 PostgreSQL exporter를 사용합니다. 새 이미지나 유료 서비스는 추가하지 않습니다. 기본 collector는 끄고 사용자 쿼리로 전체 client backend 건수·max_connections·예약 연결 수만 수집합니다. SQL 본문·접속자·업무 테이블은 수집하지 않습니다.
-2. 환경별 전용 로그인 계정은 연결 1개, 읽기 전용 기본값, 쿼리 제한 2초로 제한합니다. superuser·pg_monitor·업무 테이블 권한은 부여하지 않습니다. dev에서 집계 값이 관리자 읽기 점검과 같은지 먼저 확인합니다. 락·장기 트랜잭션은 제한 권한으로 값이 보이지 않을 수 있어 별도 검토합니다.
+2. 인스턴스 전체 연결 수를 중복 집계하지 않도록 수집 지점을 한 곳으로 정합니다. 검토 중인 전용 로그인 계정은 연결 1개, 읽기 전용 기본값, 쿼리 제한 2초로 제한합니다. superuser·pg_monitor·업무 테이블 권한은 부여하지 않습니다. dev에서 집계 값이 관리자 읽기 점검과 같은지 먼저 확인합니다. 락·장기 트랜잭션은 제한 권한으로 값이 보이지 않을 수 있어 별도 검토합니다.
 3. 비밀번호는 GitHub 환경 Secret으로 주입하고 저장소·PR·지표 라벨에 넣지 않습니다. DB 공개 포트는 추가하지 않습니다.
 4. 화면에서 DB 전체 연결/비관리자 상한, 앱 풀 상한 합계/비관리자 상한을 함께 비교합니다. 연결 예산 경보는 담당자 합의 전 추가하지 않습니다.
 

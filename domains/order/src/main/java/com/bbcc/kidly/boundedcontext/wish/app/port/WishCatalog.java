@@ -45,7 +45,8 @@ public interface WishCatalog {
         String size,
         long unitPrice,
         boolean purchasable,
-        String saleStatus) {
+        String saleStatus,
+        String thumbnailUrl) {
     }
 
     /**

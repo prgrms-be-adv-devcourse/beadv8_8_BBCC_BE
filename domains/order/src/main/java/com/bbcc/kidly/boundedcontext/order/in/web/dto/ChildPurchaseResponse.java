@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
  * (출처는 화면이 조르기 응답의 paidOrderItemIds와 orderItemId를 맞춰 표시한다). 칸은 추가만 한다.
  *
  * @param status PAID · SHIPPING · DELIVERED · CONFIRMED · CANCELLED
+ * @param thumbnailUrl 주문 당시 상품 썸네일(#1328). 없으면 null
  */
 public record ChildPurchaseResponse(
     String orderItemId,
@@ -16,11 +17,12 @@ public record ChildPurchaseResponse(
     String productName,
     String optionName,
     int quantity,
-    String status) {
+    String status,
+    String thumbnailUrl) {
 
     public static ChildPurchaseResponse from(ChildPurchase purchase) {
         return new ChildPurchaseResponse(String.valueOf(purchase.orderItemId()), purchase.orderedAt(),
             purchase.productId() == null ? null : String.valueOf(purchase.productId()), purchase.productName(),
-            purchase.optionName(), purchase.quantity(), purchase.status());
+            purchase.optionName(), purchase.quantity(), purchase.status(), purchase.thumbnailUrl());
     }
 }

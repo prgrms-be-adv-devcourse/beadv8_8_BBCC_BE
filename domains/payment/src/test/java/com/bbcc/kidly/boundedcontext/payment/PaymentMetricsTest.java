@@ -12,6 +12,7 @@ import com.bbcc.kidly.boundedcontext.payment.app.PaymentMetrics.SchedulerTask;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.ChargeStatus;
 import com.bbcc.kidly.boundedcontext.payment.domain.OrderCancellationRetryRepository;
+import com.bbcc.kidly.boundedcontext.payment.domain.OrderItemCancellationRetryRepository;
 import com.bbcc.kidly.boundedcontext.payment.domain.PaymentOutboxRepository;
 import com.bbcc.kidly.shared.payment.domain.PaymentFailureCode;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -41,13 +42,17 @@ class PaymentMetricsTest {
     @Mock
     private OrderCancellationRetryRepository retryRepository;
 
+    @Mock
+    private OrderItemCancellationRetryRepository itemRetryRepository;
+
     private SimpleMeterRegistry registry;
     private PaymentMetrics metrics;
 
     @BeforeEach
     void setUp() {
         registry = new SimpleMeterRegistry();
-        metrics = new PaymentMetrics(registry, outboxRepository, chargeRepository, retryRepository);
+        metrics = new PaymentMetrics(registry, outboxRepository, chargeRepository, retryRepository,
+            itemRetryRepository);
     }
 
     @AfterEach
@@ -164,5 +169,17 @@ class PaymentMetricsTest {
             .counter().count()).isEqualTo(1.0);
         assertThat(registry.get("kidly.payment.dlt.messages").tag("topic", "kidly.order.events")
             .counter().count()).isEqualTo(2.0);
+    }
+
+    @Test
+    @DisplayName("받는 토픽의 DLT 카운터를 0으로 미리 만들어, 첫 DLT도 0에서 1로 늘어난 것으로 보인다")
+    void registerDeadLetterTopics() {
+        metrics.registerDeadLetterTopics(List.of("kidly.member.events", "kidly.order.events"));
+
+        assertThat(registry.get("kidly.payment.dlt.messages").tag("topic", "kidly.member.events")
+            .counter().count()).isZero();
+        metrics.countDeadLetter("kidly.order.events");
+        assertThat(registry.get("kidly.payment.dlt.messages").tag("topic", "kidly.order.events")
+            .counter().count()).isEqualTo(1.0);
     }
 }

@@ -113,6 +113,13 @@ discovery.relabel "kidly_pod_metrics" {
 	}
 
 	rule {
+		source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+		regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+		replacement   = "$1:$2"
+		target_label  = "__address__"
+	}
+
+	rule {
 		source_labels = ["__meta_kubernetes_pod_name"]
 		target_label  = "instance"
 	}

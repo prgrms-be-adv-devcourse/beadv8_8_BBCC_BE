@@ -4,16 +4,16 @@
 
 ## 진행 상태
 - 됨: 모듈, 검색 문서 계산(`domain/SearchProduct`), 상호명(`domain/SearchSeller`), 이벤트 반영(`app/SearchIndexService`), Elasticsearch 저장 · 색인 만들기(`out`), 목록 검색 쿼리(`app/port/ProductSearch` · `out/ElasticsearchProductSearch`), 목록 API(`in/ProductListController` · `app/ProductListService`), 검색 서비스 `apps/search-service` · 로컬 Elasticsearch(nori), Kafka 수신(`in/SearchProductEventListener` · `in/SearchSellerEventListener`), 검색 이벤트 발행(`search.performed`, #611), 의미 검색(관련도순, #797), 검색 결과 클릭 기록(`search.result-clicked`, #1004)
-- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`와 `POST /api/v1/search/clicks`만 search-service로 넘긴다, `apps/gateway`), dev 처음 채우기, prod 설정(`deploy/.env.prod`, main 첫 배포 때 나간다), 장애 대응(#1026: Elasticsearch 시간 제한 · DLT 다시 반영 · 지표 · 알림 · 절차)
-- 남음: prod 처음 채우기(main 배포 뒤 판매자 → 상품 다시 발행 API를 한 번씩, `deploy/search/README.md`)
+- 됨: dev 서버 배포(아래 "서버 배포"), dev 전환(Gateway가 `GET /api/v1/products`와 `POST /api/v1/search/clicks`만 search-service로 넘긴다, `apps/gateway`), dev 처음 채우기, 장애 대응(#1026: Elasticsearch 시간 제한 · DLT 다시 반영 · 지표 · 알림 · 절차), 벡터 다시 채우기(#1339), 브랜드 앞부분 찾기(#1343)
+- prod: 쓰지 않는 prod 배포 경로를 걷어냈다(#1213). dev를 운영 서버로 쓴다. prod를 다시 열면 그 환경에서 판매자 → 상품 다시 발행 API를 한 번씩 불러 채운다(`deploy/search/README.md`)
 - `apps/search-service`로 띄운다. 상품 목록 API 경로는 `GET /api/v1/products`, 클릭 기록은 `POST /api/v1/search/clicks`, 서비스 사이 상품 검색은 `GET /internal/products/search`(#1191)다
 
 ## 서버 배포 (`deploy/`)
-- 별도 서버 없이 기존 EC2의 같은 compose 프로젝트(`-p dev`)에 컨테이너 `elasticsearch` · `search-service`를 더한다. Kafka는 같은 네트워크의 `kafka:9092`를 쓴다
-- compose profile `search`라 `.env`에 `COMPOSE_PROFILES=search`가 있는 환경에서만 뜬다. dev(`deploy/.env.dev`) · prod(`deploy/.env.prod`)다. 환경마다 `SEARCH_PORT`(dev 8082 · prod 8094) · `SEARCH_INDEX_PREFIX` · `KIDLY_SEARCH_URI`를 둔다
-- 이미지: 검색 서비스 `<저장소>-search-service:<커밋 SHA>`, Elasticsearch `<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>`(폴더가 바뀔 때만 빌드). `deploy.yml`이 올린다
-- Elasticsearch는 heap 1g, 포트를 열지 않고 보안(xpack)을 끈다. 검색 서비스는 heap 512m, 서버 `127.0.0.1:<SEARCH_PORT>`에만 연다
-- 검색 서비스의 `/actuator/health`가 Elasticsearch 연결을 보므로 Elasticsearch가 healthy가 된 뒤에 띄운다
+- search-service는 t3.large k3s(namespace `kidly-dev`)에 Deployment · Service `search`로 뜬다(`deploy/k3s/README.md`). Gateway는 `KIDLY_SEARCH_URI=http://search:8080`으로 붙는다. 설정은 `deploy/docker-compose.yml`의 `search-service`(profile `search`, `-Xmx384m`)를 `k3s.py`가 그대로 옮긴다
+- Elasticsearch는 t3.medium k3s(namespace `search`, NodePort 30920, heap 512m, PVC 10Gi)에 있다. 앱 배포 전에 deploy 워크플로가 먼저 올린다(`deploy/search/README.md`). search-service는 VPC 안 사설 IP(`ELASTICSEARCH_URIS`, Environment 변수 `MONITORING_PRIVATE_IP`로 붙인다)로 붙는다
+- `deploy/.env.dev`의 `K3S_PROFILES`에 `search`가 있으면 검색과 Elasticsearch를 함께 배포한다. 색인 이름 앞은 `SEARCH_INDEX_PREFIX`(dev는 `dev`)
+- 이미지: 검색 서비스 `<저장소>-search-service`(digest로 배포), Elasticsearch `<저장소>-elasticsearch:<docker/elasticsearch 트리 해시>`(폴더가 바뀔 때만 빌드). `deploy.yml`이 올린다
+- 검색 서비스의 `/actuator/health`가 Elasticsearch 연결을 본다. Elasticsearch가 뜨지 않으면 검색 Pod가 준비되지 않아 배포가 멈춘다
 - 모니터링: Prometheus job `kidly-search`(앱 job `kidly`의 대시보드 · 알림과 나눈다), Loki `service_name=kidly-search`. 검색 전용 알림은 아래 "장애 대응"
 
 ## 검색 문서 (`domain/SearchProduct`)
@@ -21,7 +21,7 @@
   - 표시 가격: 판매할 수 있는 옵션(ON_SALE · 품절 아님) 중 최저가, 없으면 전체 옵션 중 최저가 (PRICE-05)
   - 품절: 모든 옵션이 품절일 때만 (SALE-07)
   - attributes: 옵션 값 · 상품 정보 값의 값 ID를 항목 code별로 모은다. 직접 입력 항목(값 ID 없음)은 뺀다
-- 브랜드(`brand`)는 받은 값 그대로 옮긴다(#610). 등록하지 않았거나 브랜드 칸이 없는 예전 메시지면 null이다. 설명(`description`)은 의미 검색 문장에만 쓰고 색인에는 저장하지 않는다. 사이즈별 실측은 쓰지 않는다
+- 브랜드(`brand`)는 받은 값 그대로 옮긴다(#610). 등록하지 않았거나 브랜드 칸이 없는 예전 메시지면 null이다. 설명(`description`)은 의미 검색 문장에만 쓰고 따로 저장하지 않는다(벡터 없이 저장할 때만 문장째 `embeddingText`에 남긴다). 사이즈별 실측은 쓰지 않는다
 - 판매 상태로 거르지 않고 모두 저장한다. 판매중(`ON_SALE`)만 보여 주는 건 검색할 때 한다
 - 상호명은 문서에 넣지 않고 `SearchSeller`로 따로 둔다. 판매자 변경 때 그 판매자의 상품 문서를 모두 고치지 않으려는 것이다
 
@@ -60,7 +60,7 @@
   - 카테고리: `categoryId` 일치
   - 검색어: 상품명이나 브랜드에서 찾는다(#610). 아래 둘 중 하나만 맞으면 된다. 앞뒤 공백은 빼고, 공백뿐이면 거르지 않는다
     - 상품명: 검색어 전체를 `match`(nori, `operator: and`)로 찾는다. 모든 형태소가 상품명에 있어야 맞는다. 띄어쓰기 · 조사 · 어순이 달라도 찾고(`원피스 여아용` → `여아 원피스`), 형태소 하나만 맞는 상품까지 넓히지 않는다
-    - 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(`standard`) 중 한 곳에 있어야 맞는다(`키들리 원피스` → 브랜드 키들리 · 상품명 원피스). 브랜드는 단어를 다 써야 찾는다(`꼬마`로 `꼬마숲`은 못 찾음)
+    - 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(`standard`) 중 한 곳에 있어야 맞는다(`키들리 원피스` → 브랜드 키들리 · 상품명 원피스). 브랜드는 단어가 2글자 이상이면 그 단어로 시작하는 브랜드도 맞는다(#1343, `prefix` · 대소문자 무시, `꼬마` → `꼬마숲`). 1글자는 너무 많은 브랜드에 걸려 단어를 다 써야 맞는다. 브랜드 중간 글자(`마숲`)로는 찾지 않는다. 색인은 그대로 두고 검색할 때만 건다
     - 동의어(#1025, `out/SearchSynonyms`): 단어별로 찾을 때 사전에서 넓힌 말이 상품명에 있어도 맞는다(`바지` → `팬츠`). 검색어 전체(상품명 match)는 넓히지 않는다. 브랜드도 넓히지 않는다
     - filter라 점수를 계산하지 않는다. 관련도순만 상품명 점수를 따로 건다(아래 "검색 정확도")
   - 항목 값: 항목마다 `terms`(`attributeValues`, `code:값ID`) 하나. 같은 항목 안의 값은 하나만 맞으면 되고, 항목끼리는 모두 맞아야 한다. 값이 빈 항목은 쓰지 않는다
@@ -91,12 +91,17 @@
 - 임베딩: OpenAI `text-embedding-3-small`(512차원)을 `RestClient`로 부른다(`out/OpenAiTextEmbedder`, 연결 1초 · 응답 2초). 설정 `kidly.search.embedding.*`(`search.yml`), 키는 `OPENAI_API_KEY`
   - 키가 없으면(로컬 · 테스트 · CI) 끈다. 끄거나 API가 실패 · 시간 초과면 `TextEmbedder`가 비워서 돌려주고, 부르는 쪽은 벡터 없이 이어 간다(색인은 벡터 없이 저장, 검색은 키워드로만)
   - 문장(상품 정보 · 검색어)과 응답 본문은 로그에 남기지 않는다. 상태 코드 · 예외 종류만 남긴다. 상품 정보와 검색어가 OpenAI로 나간다
-  - 연속 실패 차단(`out/EmbeddingCircuitBreaker`): 연속 5번 실패(연결 실패 · 시간 초과 · 오류 응답 · 쓸 수 없는 응답(빈 벡터 · 차원 불일치))하면 30초 동안 부르지 않고 바로 비워서 돌려준다. 장애 동안 검색 요청마다 시간 초과(최대 약 3초)를 기다리지 않게 하려는 것이다. 30초 뒤 호출 하나만 시험으로 보내 성공하면 닫고, 실패하면 다시 30초. 열 때 WARN · 닫을 때 INFO 한 번씩만 남긴다. 색인 · 검색이 같은 차단을 쓴다
+  - 연속 실패 차단(`out/EmbeddingCircuitBreaker`): 연속 5번 실패(연결 실패 · 시간 초과 · 오류 응답 · 쓸 수 없는 응답(빈 벡터 · 차원 불일치))하면 30초 동안 부르지 않고 바로 비워서 돌려준다. 장애 동안 검색 요청마다 시간 초과(최대 약 3초)를 기다리지 않게 하려는 것이다. 30초 뒤 호출 하나만 시험으로 보내 성공하면 닫고, 실패하면 다시 30초. 열 때 WARN · 닫을 때 INFO 한 번씩만 남긴다. 색인 · 검색이 같은 차단을 쓴다. 입력 거절(400 · 413 · 422)은 그 문장 하나의 문제라 실패로도 성공으로도 세지 않는다(#1386). 다시 채우기가 거절되는 상품을 연달아 불러 검색의 의미 검색까지 끄지 않게 하려는 것이다. 시험 호출이 입력 거절이면 열린 채로 다음 호출이 다시 시험한다
   - 검색어 기억(`out/KeywordVectorCache`): 같은 검색어의 벡터를 10분 동안 기억해 다시 부르지 않는다(1,000개까지, 오래 안 쓴 것부터 버림 · 약 2MB). 벡터를 얻었을 때만 기억한다. 인스턴스마다 따로 둔다
   - 두 기준값은 상수로 둔다(설정으로 빼지 않음). 매번 다른 검색어로 부르는 호출량은 막지 못한다. 요청 수 제한은 Gateway 몫으로 따로 다룬다
 - 색인(`app/SearchIndexService`): 상품명 · 브랜드 · 설명을 줄로 이은 문장(2,000자까지, `SearchProduct.embeddingText`)을 벡터로 바꿔 문서에 붙인다
   - 저장된 문서의 문장 해시가 같으면(재고 · 가격만 바뀐 이벤트) API를 부르지 않고 저장된 벡터를 쓴다. 이벤트마다 한 번 Elasticsearch 조회(`findEmbedding`)가 더 든다
-  - API를 쓸 수 없어 벡터 없이 저장된 상품은 다음 변경 이벤트(또는 다시 발행) 때 다시 만든다
+  - API를 쓸 수 없으면 벡터 대신 문장을 `embeddingText`(keyword, 색인 안 함 · doc_values로 `exists`만)에 저장한다. 벡터가 있는 문서에는 문장을 저장하지 않고, 목록 검색은 이 필드를 받지 않는다(`_source` excludes)
+  - 다시 채우기(`in/SearchEmbeddingRefillScheduler` → `SearchIndexService.refillMissingEmbeddings`): 1분마다 벡터 없고 문장이 있는 판매중 상품을 상품 ID 순으로 20개 찾아(`findOnSaleWithoutEmbedding`) 벡터를 만든다. 의미 검색을 끈 환경은 찾지 않는다
+    - 직전 주기에 찾은 마지막 상품 ID(커서)보다 큰 것부터 찾고, 20개보다 적게 찾으면(끝까지 감) 다음 주기는 처음부터 찾는다. API가 계속 거절하는 상품(문장 길이 · 콘텐츠 정책 등)이 20개 넘게 쌓여도 앞자리를 차지해 뒤 상품을 막지 않는다. 실패한 상품은 한 바퀴 돈 뒤 다시 한다
+    - 커서는 인스턴스 메모리에 둔다. 다시 뜨면 처음부터 찾고, Pod 두 개가 함께 돌면 각자 돈다(결과는 같다)
+  - 벡터를 붙일 때(`attachEmbedding`) 문서를 다시 읽어 버전이 찾을 때의 `occurredAt`과 같고 문장도 같을 때만 같은 버전으로 다시 저장한다(`version_type=external_gte`). 버전(발생 시각)을 바꾸지 않아 늦은 이벤트 거절이 그대로이고, 그사이 새 이벤트가 저장됐으면 409로 거절돼 건너뛴다. Pod 두 개가 함께 돌아도 같은 값을 같은 버전으로 저장할 뿐이다
+  - 이 기능 전에 문장 없이 벡터 없이 저장된 문서는 찾지 않는다. 다음 변경 이벤트나 상품 다시 발행으로 채운다
 - 검색(`app/ProductListService` → `out/ElasticsearchProductSearch`): 관련도순 + 검색어면 검색어를 벡터로 바꿔 조건(`keywordVector`)에 넘긴다
   - 검색어가 상품명 · 브랜드에 있는 상품은 고정 점수 2(`constant_score`)를 받고, 검색어 형태소가 모두 상품명에 있으면 2를 더 받는다(#1025). 검색어 벡터가 있으면 같은 조건(판매중 · 카테고리 · 항목 값) 안에서 kNN(`k` 100 · 후보 200 · 코사인 유사도 0.3 이상)으로 뜻이 가까운 상품을 더한다. kNN 점수(0.5~1)를 더해 점수 내림차순, 같으면 `productId` 내림차순
   - 그래서 검색어가 있는 상품이 늘 먼저 오고, 그 안과 뒤에서는 뜻이 가까운 순이다. BM25 점수를 쓰지 않는 건 상한이 없어 상품 수에 따라 kNN 점수와 앞뒤가 바뀌기 때문이다
@@ -116,7 +121,8 @@
   |---|---|---|---|---|
   | 고치기 전(사전 없음 · 상품명 점수 없음) | 15/35 | 0.593 | 0.750 | 9 |
   | 동의어만 | 28/35 | 1.000 | 0.971 | 1 |
-  | 동의어 + 상품명 점수(지금) | 35/35 | 1.000 | 0.985 | 1 |
+  | 동의어 + 상품명 점수 | 35/35 | 1.000 | 0.985 | 1 |
+  | + 브랜드 앞부분(지금, #1343, 검색어 37개 · 2026-11-13) | 37/37 | 1.000 | 0.986 | 1 |
   - 0건 1개는 0건이어야 하는 `남아 원피스`다. 상품명 점수는 동의어로만 맞은 상품이 첫 결과로 오던 7개(`원피스` → 드레스 등)를 고쳤다
 - 넣지 않은 것
   - 오타 허용(`fuzziness`): nori가 오타를 다른 형태소로 나눠(`원피수` → 원피 · 수, `맨투멘` → 투 · 멘) `AUTO`로는 평가 세트에서 오타를 하나도 찾지 못했고(얻은 건 사전이 이미 잡는 `가디건` → 카디건뿐), `1`은 2글자 형태소마다 엉뚱한 상품을 붙였다(`코트` → 니트 · 세트 상품). 오타는 의미 검색이 일부 잡는다
@@ -137,7 +143,7 @@
   - Elasticsearch 응답 시간 지표는 두지 않는다. 검색 API 지연(`http_server_requests`)이 거의 Elasticsearch 시간이고, 3초를 넘으면 503이라 5xx 알림이 잡는다
   - DLT 도착 · 미반영은 앱 지표 없이 kafka-exporter(토픽 오프셋 · 그룹 lag)로 본다
 - 알림 `deploy/monitoring/grafana/provisioning/alerting/search.yml`(promtool 테스트 `deploy/monitoring/tests/search.test.yml`): DLT 도착(10분 안에 늘면), DLT 미반영(그룹 `kidly.search` lag가 30분), 임베딩 차단(10분). 벡터 없는 상품은 알림 없이 지표로만 본다. 라벨은 env · topic만
-- 벡터 없는 상품은 색인에 설명이 없어 검색이 혼자 다시 만들 수 없다. 상품 다시 발행으로 채운다(문장이 같은 상품은 저장된 벡터를 써서 API를 부르지 않는다)
+- 벡터 없는 상품은 함께 저장한 문장으로 검색이 1분마다 다시 만든다(위 "의미 검색"). 문장 없이 저장된 예전 문서만 상품 다시 발행으로 채운다
 
 ## 검색 이벤트 발행 (`search.performed`, #611)
 - 추천이 회원의 관심사로 쓴다. 토픽 `kidly.search.events`(파티션 3 · 복제 1, `out/SearchKafkaConfig`가 선언), 키는 회원 ID, 본문은 공통 칸 7개 + `data`

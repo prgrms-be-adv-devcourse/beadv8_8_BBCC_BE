@@ -5,7 +5,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import com.bbcc.kidly.boundedcontext.auth.app.port.outbox.AuthOutboxSender;
 import com.bbcc.kidly.boundedcontext.auth.app.port.outbox.AuthOutboxSendException;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxMessage;
-import com.bbcc.kidly.boundedcontext.auth.out.kafka.KafkaAuthEventSender;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -19,7 +18,7 @@ class KafkaAuthOutboxSender implements AuthOutboxSender, DisposableBean {
 
     @Override
     public void send(AuthOutboxMessage message) {
-        var record = new ProducerRecord<>(KafkaAuthEventSender.TOPIC, message.getMessageKey(), message.getPayload());
+        var record = new ProducerRecord<>(AuthOutboxKafkaConfig.TOPIC, message.getMessageKey(), message.getPayload());
         record.headers().add("eventType", message.getEventType().getBytes(UTF_8))
             .add("eventId", message.getEventId().toString().getBytes(UTF_8));
         try {

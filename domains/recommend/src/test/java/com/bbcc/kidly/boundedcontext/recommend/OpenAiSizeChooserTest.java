@@ -6,7 +6,9 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.size.SizeAiQuestion;
 import com.bbcc.kidly.boundedcontext.recommend.domain.purchase.PurchaseFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.GarmentPart;
 import com.bbcc.kidly.boundedcontext.recommend.domain.referencegarment.ReferenceFit;
+import com.bbcc.kidly.boundedcontext.recommend.domain.replica.ReviewFit;
 import com.bbcc.kidly.boundedcontext.recommend.domain.size.AiSizeAnswer;
+import com.bbcc.kidly.boundedcontext.recommend.domain.size.ProductFitTendency;
 import com.bbcc.kidly.boundedcontext.recommend.out.ai.OpenAiSizeChooser;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -17,6 +19,9 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.ObservationView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -24,13 +29,15 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import tools.jackson.databind.json.JsonMapper;
 
 class OpenAiSizeChooserTest {
 
-    private static final String PROMPT_VERSION_5_SHA_256 =
-        "93c219e4fd9c518f6ade49ecf34c6f68c633e4af2ad0617daabda1a83767695e";
+    private static final String PROMPT_VERSION_7_SHA_256 =
+        "da1e48bcc9613167589c98b394b50dc0064c39db7ed20c5bdc306ee8d7115717";
 
     // 기록이 없어 표 값(만 7세 남아 6.00cm/년 ÷ 12)으로 계산한 성장 속도다
     private static final SizeAiQuestion.GrowthSpeed GROWTH = new SizeAiQuestion.GrowthSpeed(new BigDecimal("0.50"),
@@ -40,7 +47,7 @@ class OpenAiSizeChooserTest {
         new SizeAiQuestion.Child(82, 115.0, 20.0, BodyType.NORMAL, PreferredFit.LOOSE, BodyType.NORMAL),
         List.of(new SizeAiQuestion.SizeLine("110", 105, 115, Map.of("TOTAL_LENGTH", new BigDecimal("42")))),
         new SizeAiQuestion.RuleResult("110", "TIGHT", List.of("110"), List.of()),
-        null, GROWTH, List.of(), List.of());
+        null, GROWTH, List.of(), List.of(), null);
 
     // 상의 기준 옷 가슴단면 35cm와 상품 110의 가슴단면 34cm를 비교한 기준 핏을 담은 질문이다
     private static final SizeAiQuestion QUESTION_WITH_FIT = new SizeAiQuestion(
@@ -48,7 +55,7 @@ class OpenAiSizeChooserTest {
         new ReferenceFit(GarmentPart.TOP, GarmentPart.TOP, List.of(new ReferenceFit.Item("CHEST_WIDTH",
             new BigDecimal("35.0"), List.of(new ReferenceFit.SizeDiff("110", new BigDecimal("34"),
                 new BigDecimal("-1.0")))))),
-        GROWTH, List.of(), List.of());
+        GROWTH, List.of(), List.of(), null);
 
     @Test
     @DisplayName("시스템 지시와 질문 JSON을 모델에 보내고, 모델이 준 JSON을 사이즈 답으로 읽는다")
@@ -107,7 +114,7 @@ class OpenAiSizeChooserTest {
         SizeAiQuestion question = new SizeAiQuestion(QUESTION.child(), QUESTION.sizes(), QUESTION.ruleResult(), null,
             GROWTH, List.of(), List.of(new PurchaseFit("100", 5, true, new BigDecimal("2.5"),
                 List.of(new ReferenceFit.Item("TOTAL_LENGTH", new BigDecimal("40"), List.of(
-                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("2"))))))));
+                    new ReferenceFit.SizeDiff("110", new BigDecimal("42"), new BigDecimal("2"))))), null)), null);
 
         new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(question);
 
@@ -116,6 +123,32 @@ class OpenAiSizeChooserTest {
         assertThat(prompts.getFirst().getUserMessage().getText()).contains("\"purchases\":[",
             "\"size\":\"100\"", "\"monthsAgo\":5", "\"sameBrand\":true", "\"expectedGrowthCm\":2.5",
             "\"garmentCm\":40", "\"diffCm\":2");
+    }
+
+    @Test
+    @DisplayName("FIT-12 · FIT-13 구매의 리뷰 핏과 상품 핏 성향을 reviewFit · productFitTendency 칸으로 보내고, 그 뜻을 지시 글에 적는다")
+    void sendReviewFitAndProductFitTendencyWithInstructedFieldNames() {
+        List<Prompt> prompts = new ArrayList<>();
+        ChatModel model = prompt -> {
+            prompts.add(prompt);
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[],"itemJudgements":[]}
+                """))));
+        };
+        SizeAiQuestion question = new SizeAiQuestion(QUESTION.child(), QUESTION.sizes(), QUESTION.ruleResult(), null,
+            GROWTH, List.of(), List.of(new PurchaseFit("100", 5, true, new BigDecimal("2.5"), List.of(),
+                ReviewFit.SMALL)), new ProductFitTendency(6, 3, 1));
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(question);
+
+        assertThat(prompts.getFirst().getSystemMessage().getText())
+            .contains("reviewFit", "SMALL", "TRUE_TO_SIZE", "LARGE", "productFitTendency", "smallCount",
+                "trueToSizeCount", "largeCount")
+            // 핏 없이 쓴 리뷰나 숨긴 리뷰도 null이고, 리뷰 수 근거는 실측 근거와 설명 방식이 달라 따로 적는다
+            .contains("핏을 남긴 공개 리뷰가 없어", "비율(%)은 쓰지 마세요", "리뷰 수로 설명하세요")
+            .doesNotContain("잘 맞았는지는 모릅니다. 사이즈 이름은");
+        assertThat(prompts.getFirst().getUserMessage().getText()).contains("\"reviewFit\":\"SMALL\"",
+            "\"productFitTendency\":{", "\"smallCount\":6", "\"trueToSizeCount\":3", "\"largeCount\":1");
     }
 
     @Test
@@ -135,7 +168,7 @@ class OpenAiSizeChooserTest {
 
     // 프롬프트 판 번호(SizeRecommendationReader.PROMPT_VERSION)는 AI 답 저장 키에 들어가, 판을 올려야 바뀐 프롬프트의 답이 예전 답과 섞이지 않는다
     @Test
-    @DisplayName("FIT-11 시스템 지시 글은 프롬프트 판 5의 글과 같다. 지시를 고치면 판 번호를 올리고 이 해시를 바꾼다")
+    @DisplayName("FIT-11 시스템 지시 글은 프롬프트 판 7의 글과 같다. 지시를 고치면 판 번호를 올리고 이 해시를 바꾼다")
     void systemInstructionIsPinnedToPromptVersion() throws Exception {
         List<Prompt> prompts = new ArrayList<>();
         ChatModel model = prompt -> {
@@ -149,7 +182,7 @@ class OpenAiSizeChooserTest {
 
         byte[] digest = MessageDigest.getInstance("SHA-256")
             .digest(prompts.getFirst().getSystemMessage().getText().getBytes(StandardCharsets.UTF_8));
-        assertThat(HexFormat.of().formatHex(digest)).isEqualTo(PROMPT_VERSION_5_SHA_256);
+        assertThat(HexFormat.of().formatHex(digest)).isEqualTo(PROMPT_VERSION_7_SHA_256);
     }
 
     @Test
@@ -168,5 +201,81 @@ class OpenAiSizeChooserTest {
         String system = prompts.getFirst().getSystemMessage().getText();
         assertThat(system).contains("growthSpeed", "recentCmPerMonth", "wearablePeriods", "tableSource")
             .doesNotContain("growthSpeed가 null이면 무시하세요");
+    }
+
+    @Test
+    @DisplayName("WEAR-02 · WEAR-05 3개월 미만이면 곧 작아지는 사이즈로 보고, 오래 입는 사이즈가 여럿이면 선호 핏으로 고르라고 지시한다")
+    void instructToChooseByPreferredFitAmongLastingSizes() {
+        List<Prompt> prompts = new ArrayList<>();
+        ChatModel model = prompt -> {
+            prompts.add(prompt);
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[],"itemJudgements":[]}
+                """))));
+        };
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
+
+        String system = prompts.getFirst().getSystemMessage().getText();
+        assertThat(system)
+            .contains("기준 옷과 같은 너비여도 한동안은 입는다고 보고", "months가 3개월 미만인 사이즈는 곧 작아집니다",
+                "LOOSE이면 한 치수 큰 쪽", "기간이 길다는 이유만으로 큰 쪽을 고르지 마세요")
+            .doesNotContain("0 ~ 2개월", "기준 옷보다 넉넉한 너비를 몸이 채울 때까지");
+    }
+
+    @Test
+    @DisplayName("사이즈 AI는 처리 등급(service_tier)을 지정하지 않고, 모델 · 추론 강도 · 최대 토큰 설정은 그대로 둔다")
+    void callWithoutServiceTier() {
+        List<Prompt> prompts = new ArrayList<>();
+        // 실제 OpenAI 모델처럼 기본 옵션이 OpenAI 옵션이어야 모델에 넘어가는 옵션에서 처리 등급을 읽을 수 있다
+        ChatModel model = new ChatModel() {
+            @Override
+            public ChatResponse call(Prompt prompt) {
+                prompts.add(prompt);
+                return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                    {"recommendedSize":"110","fit":"TIGHT","reasons":[]}
+                    """))));
+            }
+
+            @Override
+            public ChatOptions getOptions() {
+                return OpenAiChatOptions.builder().model("gpt-6.1-terra").reasoningEffort("low")
+                    .maxCompletionTokens(2048).build();
+            }
+        };
+
+        new OpenAiSizeChooser(model, JsonMapper.builder().build()).choose(QUESTION);
+
+        assertThat(prompts.getFirst().getOptions()).isInstanceOfSatisfying(OpenAiChatOptions.class,
+            options -> {
+                // 등급을 지정하지 않으면 OpenAI가 표준 등급으로 처리한다
+                assertThat(options.getServiceTier()).isNull();
+                assertThat(options.getModel()).isEqualTo("gpt-6.1-terra");
+                assertThat(options.getReasoningEffort()).isEqualTo("low");
+                assertThat(options.getMaxCompletionTokens()).isEqualTo(2048);
+            });
+    }
+
+    @Test
+    @DisplayName("모델 호출은 앱의 관측 레지스트리로 만든 ChatClient 안에서 돌아, 추천 AI 호출 관측 아래에 놓인다")
+    void callModelUnderRecommendAiObservation() {
+        ObservationRegistry observations = ObservationRegistry.create();
+        observations.observationConfig().observationHandler(context -> true);
+        List<String> currentChain = new ArrayList<>();
+        ChatModel model = prompt -> {
+            ObservationView current = observations.getCurrentObservation();
+            while (current != null) {
+                currentChain.add(current.getContextView().getName());
+                current = current.getContextView().getParentObservation();
+            }
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("""
+                {"recommendedSize":"110","fit":"TIGHT","reasons":[]}
+                """))));
+        };
+
+        Observation.createNotStarted("kidly.recommend.ai.call", observations).observe(
+            () -> new OpenAiSizeChooser(model, JsonMapper.builder().build(), observations).choose(QUESTION));
+
+        assertThat(currentChain).contains("kidly.recommend.ai.call");
     }
 }

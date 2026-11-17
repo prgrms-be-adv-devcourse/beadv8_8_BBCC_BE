@@ -2,6 +2,9 @@ package com.bbcc.kidly.boundedcontext.recommend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.recommend.app.ai.RecommendAiMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import com.bbcc.kidly.boundedcontext.recommend.app.ai.AiResponseService;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiCallQuota;
 import com.bbcc.kidly.boundedcontext.recommend.app.port.ai.AiResponseStore;
@@ -73,7 +76,7 @@ class AiResponseServiceIntegrationTest {
     private AiResponseService fixedClockService() {
         return new AiResponseService(
             store, quota, jsonMapper, CLOCK, 2_000, Map.of(TYPE, Duration.ofSeconds(2)), Duration.ofSeconds(10),
-            Duration.ofHours(24));
+            Duration.ofHours(24), new RecommendAiMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP));
     }
 
     private Integer callCountOn(LocalDate date) {

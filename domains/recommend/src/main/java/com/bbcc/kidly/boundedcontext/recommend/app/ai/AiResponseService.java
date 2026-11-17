@@ -44,6 +44,7 @@ public class AiResponseService {
     private final Map<AiResponseType, Duration> callTimeouts;
     private final Duration asyncWait;
     private final Duration reusePeriod;
+    private final RecommendAiMetrics metrics;
 
     @Autowired
     public AiResponseService(
@@ -57,13 +58,14 @@ public class AiResponseService {
         @Value("${kidly.recommend.ai.call-timeout.size-recommendation:PT3.5S}") Duration sizeRecommendationTimeout,
         // 기다리지 않는 호출(SSE)이 AI 답을 받아 화면에 보낼 수 있는 최대 시간이다. 넘겨서 온 답도 저장해 다음 요청이 쓴다
         @Value("${kidly.recommend.ai.async-wait:PT10S}") Duration asyncWait,
-        @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod
+        @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod,
+        RecommendAiMetrics metrics
     ) {
         this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit,
             Map.of(AiResponseType.HOME_PREVIEW, homePreviewTimeout,
                 AiResponseType.BOUGHT_TOGETHER, boughtTogetherTimeout,
                 AiResponseType.SIZE_RECOMMENDATION, sizeRecommendationTimeout),
-            asyncWait, reusePeriod);
+            asyncWait, reusePeriod, metrics);
     }
 
     public AiResponseService(
@@ -74,7 +76,8 @@ public class AiResponseService {
         int dailyCallLimit,
         Map<AiResponseType, Duration> callTimeouts,
         Duration asyncWait,
-        Duration reusePeriod
+        Duration reusePeriod,
+        RecommendAiMetrics metrics
     ) {
         this.store = store;
         this.quota = quota;
@@ -84,6 +87,7 @@ public class AiResponseService {
         this.callTimeouts = Map.copyOf(callTimeouts);
         this.asyncWait = asyncWait;
         this.reusePeriod = reusePeriod;
+        this.metrics = metrics;
     }
 
     /**
@@ -119,6 +123,7 @@ public class AiResponseService {
         AiResponseKey key = AiResponseKey.of(input);
         Optional<T> stored = findStored(type, key, responseType);
         if (stored.isPresent()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return stored;
         }
         if (!tryAcquireQuietly(type, now)) {
@@ -128,6 +133,7 @@ public class AiResponseService {
         if (result.isEmpty()) {
             return Optional.empty();
         }
+        metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ANSWERED);
         // 저장소가 느려도 화면 응답이 늦어지지 않게 저장은 기다리지 않는다
         T answer = result.get();
         CompletableFuture.runAsync(() -> saveQuietly(type, key, answer), VIRTUAL_THREAD);
@@ -151,16 +157,38 @@ public class AiResponseService {
         AiResponseKey key = AiResponseKey.of(input);
         Optional<T> stored = findStored(type, key, responseType);
         if (stored.isPresent()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return CompletableFuture.completedFuture(stored);
         }
         if (!tryAcquireQuietly(type, now)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
+        CompletableFuture<T> task =
+            CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
         // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
         task.thenAccept(answer -> saveLateAnswer(type, key, answer));
+        return settleWithin(type, task);
+    }
+
+    // 답이 먼저 끝나면 ANSWERED나 ERROR를, 최대 대기가 먼저 끝나면 TIMEOUT을 세고 그 결과로 끝낸다.
+    // orTimeout은 둘 중 먼저 끝난 쪽으로 한 번만 끝나므로 결과도 한 번만 센다. 최대 대기를 넘긴 뒤에 온 답은 세지 않는다
+    private <T> CompletableFuture<Optional<T>> settleWithin(AiResponseType type, CompletableFuture<T> task) {
         return task.handle((answer, error) -> toResult(type, answer, error))
-            .completeOnTimeout(Optional.empty(), asyncWait.toMillis(), TimeUnit.MILLISECONDS);
+            .orTimeout(asyncWait.toMillis(), TimeUnit.MILLISECONDS)
+            .handle((found, timeout) -> recordSettled(type, found, timeout));
+    }
+
+    private <T> Optional<T> recordSettled(AiResponseType type, Optional<T> found, Throwable timeout) {
+        if (timeout != null) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.TIMEOUT);
+            return Optional.empty();
+        }
+        if (found.isPresent()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ANSWERED);
+        } else {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
+        }
+        return found;
     }
 
     // AI 호출이 실패하면 클래스 이름만 남기고 빈 값으로 끝낸다
@@ -176,12 +204,18 @@ public class AiResponseService {
         return Optional.empty();
     }
 
+    // 호출 횟수를 얻지 못하면 그 이유(오류 · 하루 상한)를 요청 결과로 세고 false를 돌려준다
     private boolean tryAcquireQuietly(AiResponseType type, LocalDateTime now) {
         try {
-            return quota.tryAcquire(now.toLocalDate(), dailyCallLimit);
+            if (quota.tryAcquire(now.toLocalDate(), dailyCallLimit)) {
+                return true;
+            }
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.DAILY_LIMIT);
+            return false;
         } catch (RuntimeException e) {
             log.warn("AI 호출 횟수를 세지 못해 호출하지 않습니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
             return false;
         }
     }
@@ -193,11 +227,18 @@ public class AiResponseService {
     ) {
         try {
             Optional<String> json = store.find(type, key);
-            if (json.isEmpty()) {
+            T value = null;
+            if (json.isPresent()) {
+                value = jsonMapper.readValue(json.get(), responseType);
+            }
+            if (value == null) {
+                metrics.recordLookup(type, RecommendAiMetrics.LookupResult.MISS);
                 return Optional.empty();
             }
-            return Optional.ofNullable(jsonMapper.readValue(json.get(), responseType));
+            metrics.recordLookup(type, RecommendAiMetrics.LookupResult.HIT);
+            return Optional.of(value);
         } catch (RuntimeException e) {
+            metrics.recordLookup(type, RecommendAiMetrics.LookupResult.ERROR);
             log.warn("저장된 AI 응답을 읽지 못해 없는 것으로 봅니다. type={}, error={}",
                 type, e.getClass().getSimpleName());
             return Optional.empty();
@@ -215,18 +256,26 @@ public class AiResponseService {
 
     private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, Supplier<T> call) {
         Duration callTimeout = requireNonNull(callTimeouts.get(type), "종류별 제한 시간이 없습니다");
-        CompletableFuture<T> task = CompletableFuture.supplyAsync(call, VIRTUAL_THREAD);
+        CompletableFuture<T> task =
+            CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
         try {
-            return Optional.ofNullable(task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS));
+            T answer = task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (answer == null) {
+                metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
+            }
+            return Optional.ofNullable(answer);
         } catch (InterruptedException e) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
             Thread.currentThread().interrupt();
             task.cancel(true);
             logCallFailure(type, e);
         } catch (TimeoutException e) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.TIMEOUT);
             // 화면에는 규칙 결과가 나가지만, 늦게 온 답은 받는 대로 저장해 같은 입력의 다음 요청이 쓰게 한다
             task.thenAccept(lateAnswer -> saveLateAnswer(type, key, lateAnswer));
             logCallFailure(type, e);
         } catch (ExecutionException e) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
             logCallFailure(type, e.getCause());
         }
         return Optional.empty();

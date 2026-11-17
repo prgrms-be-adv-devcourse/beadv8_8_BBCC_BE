@@ -32,6 +32,7 @@ public record OrderDetail(
      * @param child 자녀를 고르지 않았으면 null
      * @param unavailableReason 재고 차감 실패로 취소됐을 때 이 주문상품을 살 수 없던 사유. 그 밖에는 null
      * @param sellerName 판매자의 지금 상호명(판매자 복사본, 주문상품에 저장하지 않음). 복사본이 없으면 null
+     * @param thumbnailUrl 주문 당시 상품 썸네일(#1328, 스냅샷). 없었거나 칸이 생기기 전 주문상품이면 null
      */
     public record Item(
         Long orderItemId,
@@ -50,7 +51,8 @@ public record OrderDetail(
         String confirmType,
         Child child,
         String unavailableReason,
-        String sellerName) {
+        String sellerName,
+        String thumbnailUrl) {
 
         public static Item from(OrderItem item, String sellerName) {
             OrderItem.ProductSnapshot product = item.getProduct();
@@ -73,7 +75,8 @@ public record OrderDetail(
                 child == null ? null
                     : new Child(child.childId(), child.name(), child.heightCm(), child.weightKg(), child.bodyType()),
                 item.getUnavailableReason(),
-                sellerName);
+                sellerName,
+                product.thumbnailUrl());
         }
     }
 

@@ -13,6 +13,7 @@ import com.google.firebase.ErrorCode;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.MessagingErrorCode;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,29 @@ class FcmPushSenderTest {
     @DisplayName("FCM 고유 코드가 없으면(네트워크 오류 · 서비스 계정 권한) 공통 코드로 정한다")
     void classifyErrorCode(ErrorCode code, PushFailure expected) {
         assertThat(FcmPushSender.classify(null, code)).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("형식이 맞는 서비스 계정 키면 FCM 발송기를 만든다(실행에 필요한 라이브러리가 모두 있다)")
+    void createsSenderFromServiceAccount() throws Exception {
+        // 테스트 안에서 만든 RSA 키라 실제 서비스 계정이 아니다. 발송기를 만들 때는 FCM에 접속하지 않는다
+        var keyPair = KeyPairGenerator.getInstance("RSA").generateKeyPair();
+        var privateKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
+        var json = """
+            {
+              "type": "service_account",
+              "project_id": "kidly-test",
+              "private_key_id": "test-key-id",
+              "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
+              "client_email": "test@kidly-test.iam.gserviceaccount.com",
+              "client_id": "1"
+            }
+            """.formatted(privateKey);
+        var credentials = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+
+        try (var sender = FcmPushSender.fromBase64ServiceAccount(credentials)) {
+            assertThat(sender).isNotNull();
+        }
     }
 
     @Test

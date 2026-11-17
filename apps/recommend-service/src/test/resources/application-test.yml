@@ -28,3 +28,7 @@ kidly:
   kafka:
     producer:
       enabled: false
+  # 테스트는 상품 복사본을 저장한 직후 목록을 조회하므로, 메모리에 보관한 판매중 상품을 요청마다 DB와 맞춘다(운영 기본값은 5초)
+  recommend:
+    on-sale-products:
+      refresh-interval: PT0S

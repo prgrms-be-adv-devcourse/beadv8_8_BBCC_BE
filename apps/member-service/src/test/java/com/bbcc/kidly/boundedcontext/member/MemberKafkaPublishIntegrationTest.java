@@ -49,7 +49,6 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 회원 이벤트가 커밋 뒤 kidly.member.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#548).
  * 받는 쪽이 받는 것은 그 도메인의 테스트가 본다.
- * 탈퇴는 아웃박스 릴레이로 보낸다(#562). 테스트 설정에서 릴레이 주기를 길게 두었으므로 릴레이는 테스트가 직접 부른다.
  * 다른 테스트의 회원 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
  */
 @KafkaIntegrationTest
@@ -139,23 +138,14 @@ class MemberKafkaPublishIntegrationTest {
     }
 
     @Test
-    @DisplayName("탈퇴는 커밋 뒤 바로 보내지 않고, 아웃박스 릴레이가 회원 ID 키로 보내며 보낸 시각이 남는다")
-    void withdrawnViaOutboxRelay() {
+    @DisplayName("탈퇴는 커밋 뒤 회원 ID 키로 보내며 보낸 시각이 남는다")
+    void withdrawnAfterCommit() {
         var member = memberRepository.save(MemberFixture.kakaoMember());
         memberService.withdraw(member.getId());
         var withdrawn = events.stream(MemberWithdrawnEvent.class).findFirst().orElseThrow();
 
-        // 같은 회원 키로 커밋 뒤 바로 보내는 이벤트를 하나 더 보낸다. 같은 파티션이라, 이것이 왔을 때 탈퇴가 아직 없으면
-        // 탈퇴는 커밋 뒤 전송으로 나가지 않은 것이다
-        var changed = new MemberChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new MemberChangedEvent.Data(member.getId(), "확인용닉네임"));
-        transactionTemplate.executeWithoutResult(status -> eventPublisher.publishEvent(changed));
-        awaitRecord(changed);
-        assertThat(findRecord(withdrawn)).isEmpty();
-
-        relayService.relay();
-
         assertSent(withdrawn, "member.withdrawn", member.getId());
+        AsyncWait.until(TIMEOUT, () -> outboxRow(withdrawn.eventId()).get("sent_at") != null);
         assertThat(outboxRow(withdrawn.eventId())).containsEntry("attempt_count", 1)
             .extractingByKey("sent_at").isNotNull();
     }
@@ -170,6 +160,8 @@ class MemberKafkaPublishIntegrationTest {
             failingId, "member.withdrawn", "kidly.member.missing-" + failingId, "1",
             MemberOutboxMessageFixture.PAYLOAD)));
         outboxRepository.save(MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn(afterId)));
+        jdbcTemplate.update("update member.member_outbox set created_at = ? where event_id in (?, ?)",
+            LocalDateTime.now().minusMinutes(6), failingId, afterId);
 
         relayService.relay();
 
@@ -195,7 +187,6 @@ class MemberKafkaPublishIntegrationTest {
         });
         memberService.update(member.getId(), new MemberUpdateRequest("새닉네임"));
 
-        // 키(회원 ID)가 같아 같은 파티션이므로, 뒤에 보낸 것을 받았으면 앞에서 보낸 것은 이미 왔어야 한다
         var committed = events.stream(MemberChangedEvent.class)
             .filter(event -> !event.eventId().equals(rolledBack.eventId()))
             .findFirst().orElseThrow();

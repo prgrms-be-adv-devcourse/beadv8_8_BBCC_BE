@@ -8,12 +8,14 @@ import com.bbcc.kidly.boundedcontext.recommend.domain.replica.RecommendReplicaPr
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.support.IntegrationTest;
 import jakarta.persistence.EntityManagerFactory;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -48,6 +50,9 @@ class RecommendReplicaProductQueryIntegrationTest {
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private JdbcClient jdbcClient;
 
     @Test
     @DisplayName("판매중인 상품 복사본만 읽고 판매 시작 전이거나 판매 중지된 상품 복사본은 읽지 않는다")
@@ -114,6 +119,46 @@ class RecommendReplicaProductQueryIntegrationTest {
         } finally {
             statistics.setStatisticsEnabled(statisticsWasEnabled);
         }
+    }
+
+    @Test
+    @DisplayName("기준 시각 뒤에 고쳐진 상품 복사본만 읽고, 판매중이 아닌 상품 복사본도 함께 읽는다")
+    void findProductsChangedAfter() {
+        replicaProductRepository.save(RecommendFixture.replicaProduct(ON_SALE_PRODUCT_ID, ProductStatus.ON_SALE));
+        // DB에 저장된 수정 시각(마이크로초)을 기준으로 삼아야 시계 정밀도에 흔들리지 않는다
+        LocalDateTime since = replicaProductRepository.findById(ON_SALE_PRODUCT_ID).orElseThrow().getUpdatedAt();
+        replicaProductRepository.save(RecommendFixture.replicaProduct(STOPPED_PRODUCT_ID, ProductStatus.STOPPED));
+        replicaProductRepository.save(
+            RecommendFixture.replicaProduct(OTHER_CATEGORY_PRODUCT_ID, ProductStatus.ON_SALE, OTHER_CATEGORY_ID));
+
+        List<RecommendReplicaProduct> changed = transactionTemplate.execute(
+            status -> replicaProductRepository.findAllChangedAfter(since));
+
+        assertThat(changed)
+            .extracting(RecommendReplicaProduct::getProductId)
+            .containsExactlyInAnyOrder(STOPPED_PRODUCT_ID, OTHER_CATEGORY_PRODUCT_ID);
+    }
+
+    @Test
+    @DisplayName("판매중인 상품 복사본의 수를 센다")
+    void countOnSaleProducts() {
+        saveOnSaleProductsInTwoCategories();
+        replicaProductRepository.save(
+            RecommendFixture.replicaProduct(SALE_PENDING_PRODUCT_ID, ProductStatus.SALE_PENDING));
+        replicaProductRepository.save(RecommendFixture.replicaProduct(STOPPED_PRODUCT_ID, ProductStatus.STOPPED));
+
+        assertThat(replicaProductRepository.countOnSale()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("고쳐진 상품 복사본을 수정 시각으로 찾도록 수정 시각 인덱스가 있다")
+    void updatedAtIndexExists() {
+        List<String> indexDefinitions = jdbcClient.sql(
+                "SELECT indexdef FROM pg_indexes WHERE schemaname = 'recommend' AND tablename = 'replica_product'")
+            .query(String.class)
+            .list();
+
+        assertThat(indexDefinitions).anySatisfy(definition -> assertThat(definition).contains("(updated_at)"));
     }
 
     // 상품 A의 카테고리와 다른 카테고리에 판매중 상품 복사본을 하나씩 저장한다

@@ -1,6 +1,6 @@
 {
   "uid": "kidly-server",
-  "title": "Kidly 서버",
+  "title": "7 · Kidly 서버",
   "tags": [
     "02 원인 조사",
     "kidly",
@@ -9,7 +9,7 @@
   "timezone": "browser",
   "editable": true,
   "schemaVersion": 41,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
   "time": {
     "from": "now-1h",
@@ -361,6 +361,76 @@
       ]
     },
     {
+      "id": 25,
+      "type": "bargauge",
+      "title": "Pod 메모리 제한 대비 사용률",
+      "description": "앱 서버 k3s의 Pod마다 컨테이너의 working set을 그 컨테이너의 메모리 제한(limit)으로 나눈 값입니다. 컨테이너가 여럿이면 가장 높은 값을 보여 줍니다. 100%에 닿으면 커널이 그 Pod의 프로세스를 종료합니다(OOMKilled). 80% 이상은 노랑, 90% 이상은 빨강입니다. 제한이 없는 Pod는 나오지 않습니다. 이름은 Pod 이름에서 뒤의 두 마디를 뗀 것이라, Pod가 여럿인 서비스는 같은 이름이 여러 줄로 나옵니다. 이름이 그 꼴이 아닌 Pod는 Pod 이름 그대로 나옵니다. JVM 서비스는 커진 힙을 바로 돌려주지 않아, 한 번 높아진 값이 잘 줄지 않고 오래 유지될 수 있습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "데이터 없음"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sort_desc(label_replace(label_replace(100 * max by (namespace, pod) (container_memory_working_set_bytes{job=\"integrations/kubelet-cadvisor\", instance=\"$instance\", container!=\"\"} / on (namespace, pod, container) (container_spec_memory_limit_bytes{job=\"integrations/kubelet-cadvisor\", instance=\"$instance\", container!=\"\"} > 0)), \"workload\", \"$1\", \"pod\", \"(.+)\"), \"workload\", \"$1\", \"pod\", \"(.+)-[a-z0-9]+-[a-z0-9]+\"))",
+          "legendFormat": "{{workload}}",
+          "instant": true
+        }
+      ]
+    },
+    {
       "id": 20,
       "type": "row",
       "title": "서버·컨테이너 상세 (필요할 때 펼치기)",
@@ -369,7 +439,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 15
       },
       "panels": [
         {
@@ -385,7 +455,7 @@
             "h": 5,
             "w": 12,
             "x": 0,
-            "y": 6
+            "y": 16
           },
           "fieldConfig": {
             "defaults": {
@@ -464,7 +534,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 6
+            "y": 16
           },
           "fieldConfig": {
             "defaults": {
@@ -517,7 +587,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 14
+            "y": 24
           },
           "fieldConfig": {
             "defaults": {
@@ -608,7 +678,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 14
+            "y": 24
           },
           "fieldConfig": {
             "defaults": {
@@ -682,7 +752,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 22
+            "y": 32
           },
           "fieldConfig": {
             "defaults": {
@@ -756,7 +826,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 22
+            "y": 32
           },
           "fieldConfig": {
             "defaults": {
@@ -808,7 +878,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 30
+            "y": 40
           },
           "fieldConfig": {
             "defaults": {
@@ -858,7 +928,7 @@
           },
           "gridPos": {
             "x": 0,
-            "y": 38,
+            "y": 48,
             "w": 12,
             "h": 8
           },
@@ -892,7 +962,7 @@
           },
           "gridPos": {
             "x": 12,
-            "y": 38,
+            "y": 48,
             "w": 12,
             "h": 8
           },
@@ -928,7 +998,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 46
+            "y": 56
           },
           "fieldConfig": {
             "defaults": {
@@ -980,7 +1050,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 46
+            "y": 56
           },
           "fieldConfig": {
             "defaults": {
@@ -1020,6 +1090,17 @@
           ]
         }
       ]
+    }
+  ],
+  "links": [
+    {
+      "title": "AI 분석",
+      "type": "link",
+      "url": "/d/kidly-ai-notes?var-env=dev&var-analysis_focus=resources",
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "external link",
+      "tooltip": "AI 운영 분석에서 이 화면에 맞는 분석 목적으로 엽니다(실행 · 결과는 한 곳)"
     }
   ]
 }

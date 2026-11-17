@@ -6,7 +6,6 @@ import com.bbcc.kidly.boundedcontext.recommend.in.companion.dto.CompanionProduct
 import com.bbcc.kidly.boundedcontext.recommend.in.support.AiResultStream;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,10 +41,9 @@ public class CompanionProductController {
     public SseEmitter stream(
         @LoginMember AuthMember member,
         @RequestParam Long productId,
-        @RequestParam Long childId,
-        HttpServletResponse response) {
+        @RequestParam Long childId) {
         CompanionProductsWithAi result = companionProductService.recommendWithAiLater(member.id(), productId, childId);
-        return aiResultStream.open(response, CompanionProductsResponse.from(result.rule()),
+        return aiResultStream.open(CompanionProductsResponse.from(result.rule()),
             result.ai().thenApply(found -> found.map(CompanionProductsResponse::from)));
     }
 }

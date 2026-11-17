@@ -60,11 +60,11 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
 
-  # 추천 서비스의 AI 답 저장소(localhost:6379). 서버(deploy/docker-compose.yml)와 같은 이미지 · 메모리 설정이고 디스크에 남기지 않는다
+  # 추천 서비스의 AI 답 저장소 · Gateway 토큰 무효화 목록(localhost:6379). 서버(deploy/docker-compose.yml)와 같은 이미지 · 메모리 설정이고 디스크에 남기지 않는다
   redis:
     image: redis:7.4.12-alpine
     container_name: kidly-redis
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "volatile-lru"]
     ports:
       - "6379:6379"
 
@@ -79,6 +79,7 @@ services:
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
+      action.auto_create_index: "false"
       ES_JAVA_OPTS: -Xms512m -Xmx512m
     ports:
       - "9200:9200"

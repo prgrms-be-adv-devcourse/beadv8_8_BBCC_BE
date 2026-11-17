@@ -6,11 +6,11 @@
 
 ![그림](images/23.svg)
 
-- 요청은 화면 → Nginx(HTTPS) → **API Gateway** → 서비스로 갑니다. Gateway가 토큰 검증 · 무효화 확인 · 역할 검사 · CORS를 하고 검증된 회원 정보를 헤더로 넘깁니다. 서비스는 Gateway 뒤에서만 열린다는 전제입니다.
+- 요청은 화면 → Traefik(HTTPS) → **API Gateway** → 서비스로 갑니다. Gateway가 토큰 검증 · 무효화 확인 · 역할 검사 · CORS를 하고 검증된 회원 정보를 헤더로 넘깁니다. 서비스는 Gateway 뒤에서만 열린다는 전제입니다.
 - Gateway는 경로별로 도메인 서비스에 보냅니다. `GET /api/v1/products`는 search-service가 처리합니다.
 - 도메인 사이는 Kafka 이벤트로만 주고받습니다(토픽은 3.3). 다른 도메인 정보는 이벤트로 받아 둔 복사본을 씁니다 (6.3).
 - 서버는 EC2 2대이고, 서버마다 k3s를 따로 설치해 두 클러스터가 서로 기대지 않습니다(#1028).
-  - t3.large(namespace `kidly-dev`): Gateway · 도메인 서비스 10개 · Redis(캐시). 같은 서버에 Nginx · 인증서 갱신(namespace `edge`)과 Pod 지표 · 로그 수집기 Alloy(namespace `monitoring`)도 k3s로 돕니다(#1142 · #1309 · #1210).
+  - t3.large(namespace `kidly-dev`): Gateway · 도메인 서비스 10개 · Redis(캐시). 같은 서버에 Traefik(HTTPS · 인증서, namespace `edge`)과 Pod 지표 · 로그 수집기 Alloy(namespace `monitoring`)도 k3s로 돕니다(#1142 · #1423 · #1210).
   - t3.medium: PostgreSQL · Kafka(Redpanda) · Elasticsearch · 모니터링(Prometheus · Loki · Grafana). 앱은 사설 IP의 NodePort로 붙고, 보안 그룹은 t3.large에서 오는 것만 받습니다.
   - 상품 이미지는 S3, 배포는 GitHub Actions가 맡습니다.
 - 배포는 소스가 바뀐 서비스만 하나씩 새 Pod가 준비된 뒤 옛 Pod를 내립니다. 추천은 CPU 사용률로 Pod를 1 ~ 2개로 늘리고 줄이고(HPA), 정산 실행은 매일 도는 CronJob입니다. 자세한 것은 `deploy/k3s/README.md`입니다.
@@ -28,7 +28,7 @@
 | 회원 | maruhxn | 로그인 · 가입 · 탈퇴 · 정지, 자녀 프로필, 판매자 승인, 가입 환영 메일 — member · childprofile · seller · notification 모듈. 인증(auth) · 자녀 프로필(childprofile)은 회원 서비스(member-service) 안의 모듈(#686 · #809) |
 | 상품 | heojungseok | 상품 · 옵션 · 재고, 상품 상세, 카테고리 · 상품 유형 · 항목 · 실측 항목 기준 데이터, 이미지 업로드 주소 (목록 · 검색은 검색 모듈로) |
 | 추천 | heojungseok | 사이즈 추천 · AI 상품 추천 · 함께 사면 좋은 상품, 활동 기록 · 선호 점수, 기준 옷 비교(2순위). recommend-service로 분리 중(#704) |
-| 주문 | L2J92 | 장바구니 · 공용 장바구니(조르기), 주문, 배송(택배 조회), 구매확정, 판매자 부분 취소 — order · cart · delivery · wish 4개 컨텍스트(포트로만 연결, ArchUnit으로 고정) |
+| 주문 | L2J92 | 장바구니(주인 회원 · 자녀) · 조르기(구매 요청, 승인 = 결제), 주문, 배송(택배 조회), 구매확정, 판매자 부분 취소, 판매자 탈퇴 대응, 멈춘 주문 AI 진단 · 운영 조회(MCP) — order · cart · delivery · wish 4개 컨텍스트(포트로만 연결, ArchUnit으로 고정) |
 | 결제 | codes-gy | 지갑(동결 포함), 충전 · 충전 취소, 주문 결제 · 환불, 정산금 입금, 토스 웹훅. payment-service로 분리 중 |
 | 검색 | codes-gy | 상품 목록 검색(Elasticsearch), 상품 · 판매자 이벤트로 색인, 검색어 이벤트 발행. search-service로 따로 뜸 |
 | 정산 | baiees | 정산 대상, 영업일 일정산(Spring Batch), 지급 요청 · 결과 반영 (지갑 적립은 결제) |
@@ -57,10 +57,10 @@
 |---|---|---|
 | 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.suspended` → 자녀 프로필 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 인증 · 자녀 프로필 · 커뮤니티 · 회원(배송지) · 알림 · 주문 · 결제 · 추천 · 판매자 |
 | 인증 | `kidly.auth.events` | `auth.tokens-revoked` → Gateway · `child-account.changed` → 자녀 프로필 · 알림 · 주문 |
-| 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 |
-| 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 인증 · 주문 · 추천 · `child.growth-recorded` → 추천 |
+| 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 · 알림 |
+| 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 인증 · 주문 · 추천 · `child.growth-recorded` · `child.growth-record-deleted` → 추천 |
 | 상품 | `kidly.product.events` | `product.changed` → 주문 · 추천 · 검색 · 커뮤니티 · `stock.deducted` · `stock.deduction-failed` → 주문 |
-| 주문 | `kidly.order.events` | `order.created` → 상품 · `order.payment-requested` → 결제 · `order.cancelled` → 상품 · 결제 · `order-item.purchase-confirmed` → 정산 · 추천 · 커뮤니티 · `order-item.cancelled` → 결제 · 상품 · `cart.item-added` · `cart.item-removed` · `wish.sent` · `wish.cancelled` → 추천 |
+| 주문 | `kidly.order.events` | `order.created` → 상품 · `order.payment-requested` → 결제 · `order.paid` → 알림 · `order.cancelled` → 상품 · 결제 · 알림 · `order-item.purchase-confirmed` → 정산 · 추천 · 커뮤니티 · 알림 · `order-item.cancelled` → 결제 · 상품 · 알림 · `delivery.shipped` · `delivery.delivered` → 알림 · `cart.item-added` · `cart.item-removed` → 추천 · `cart.item-purchased` → 주문(조르기) · `wish.sent` → 알림 · 추천 · `wish.paid` · `wish.rejected` · `wish.expired` → 알림 · `wish.cancelled` → 추천 |
 | 결제 | `kidly.payment.events` | `payment.completed` · `payment.failed` → 주문 · `payment.payout-completed` · `payment.payout-failed` → 정산 |
 | 정산 | `kidly.settlement.events` | `settlement.payout-requested` → 결제 (dev 켬, prod는 main 반영 때) |
 | 검색 | `kidly.search.events` | `search.performed` · `search.result-clicked` → 추천 |

@@ -51,6 +51,7 @@ import tools.jackson.databind.json.JsonMapper;
 class ChildPurchaseApiTest {
 
     private static final Long CHILD_ID = 1L;
+    private static final String THUMBNAIL = "https://cdn.kidly.test/products/1/thumb.jpg";
     private static final Long SIBLING_ID = 2L;
     private static final Long ACCOUNT_ID = 100L;
     private static final Long SIBLING_ACCOUNT_ID = 101L;
@@ -101,6 +102,8 @@ class ChildPurchaseApiTest {
     @DisplayName("결제된 적 있는 내 주문상품만 최신순(출처 칸 없음), 결제 뒤 취소는 CANCELLED. 결제대기 · 형제 · 자녀 없는 주문상품은 "
         + "빠진다. 조르기 상세 · 목록의 paidOrderItemIds가 조르기로 산 줄만 가리킨다")
     void listsPaidPurchases() {
+        // 옵션 1 상품에만 썸네일(#1328): 주문상품은 주문 시점 스냅샷, 조르기 줄은 지금 복사본 값
+        jdbcTemplate.update("update orders.replica_product set thumbnail_url = ? where option_id = 1", THUMBNAIL);
         // 조르기로 산 것
         String line = addToCart(child(ACCOUNT_ID), "1");
         String requestId = sendWish(line);
@@ -133,11 +136,15 @@ class ChildPurchaseApiTest {
         assertThat(content.get(2).get("orderedAt").isNull()).isFalse();
         // 가격 · 배송지 · 판매자 · 주문 ID(주문 상세 링크) · 출처는 없다
         content.forEach(row -> assertThat(row.propertyNames()).containsExactly("orderItemId", "orderedAt",
-            "productId", "productName", "optionName", "quantity", "status"));
+            "productId", "productName", "optionName", "quantity", "status", "thumbnailUrl"));
+        assertThat(content.get(0).get("thumbnailUrl").asString()).isEqualTo(THUMBNAIL);
+        assertThat(content.get(1).get("thumbnailUrl").isNull()).as("썸네일 없는 상품").isTrue();
+        assertThat(content.get(2).get("thumbnailUrl").asString()).isEqualTo(THUMBNAIL);
         assertThat(purchases(child(SIBLING_ACCOUNT_ID), "").get("totalElements").asLong()).isOne();
         // 화면 합치기: 조르기 상세 · 목록의 paidOrderItemIds는 조르기로 산 주문상품만 가리킨다
         JsonNode wish = get(WISH_REQUESTS_PATH + "/" + requestId, child(ACCOUNT_ID));
         assertThat(wish.get("paidOrderItemIds")).extracting(JsonNode::asString).containsExactly(itemOf(wishOrder));
+        assertThat(wish.get("items").get(0).get("thumbnailUrl").asString()).as("조르기 줄(#1328)").isEqualTo(THUMBNAIL);
         JsonNode wishes = get(WISH_REQUESTS_PATH, child(ACCOUNT_ID));
         assertThat(wishes).singleElement().satisfies(row -> assertThat(row.get("paidOrderItemIds"))
             .extracting(JsonNode::asString).containsExactly(itemOf(wishOrder)));

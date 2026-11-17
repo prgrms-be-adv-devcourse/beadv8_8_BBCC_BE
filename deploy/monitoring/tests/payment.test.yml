@@ -1,0 +1,99 @@
+rule_files:
+- rules.yml
+evaluation_interval: 1m
+tests:
+- name: payment gauges cross thresholds and ignore other jobs
+  interval: 1m
+  input_series:
+  - series: kidly_payment_outbox_oldest_unsent_age_seconds{job="kidly-payment",env="dev",instance="a"}
+    values: 600 601 0
+  - series: kidly_payment_outbox_oldest_unsent_age_seconds{job="other",env="prod"}
+    values: 9000+0x3
+  - series: kidly_payment_outbox_parked_messages{job="kidly-payment",env="dev",instance="a"}
+    values: 0 1 0
+  - series: kidly_payment_charges_stuck{job="kidly-payment",env="dev",instance="a",status="confirming"}
+    values: 0 1 0
+  - series: kidly_payment_charges_stuck{job="kidly-payment",env="dev",instance="a",status="cancelling"}
+    values: 0 0 0
+  - series: kidly_payment_charges_stuck{job="kidly-payment",env="dev",instance="b",status="confirming"}
+    values: 0 1 0
+  - series: kidly_payment_refund_retry_oldest_age_seconds{job="kidly-payment",env="dev",instance="a"}
+    values: 3600 3601 0
+  - series: kidly_payment_item_refund_retry_pending{job="kidly-payment",env="dev",instance="a"}
+    values: 0 2 0
+  alert_rule_test:
+  - eval_time: 0m
+    alertname: kidly-payment-outbox-delayed
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: kidly-payment-outbox-delayed
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 2m
+    alertname: kidly-payment-outbox-delayed
+    exp_alerts: []
+  - eval_time: 0m
+    alertname: kidly-payment-outbox-parked
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: kidly-payment-outbox-parked
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 1m
+    alertname: kidly-payment-charge-stuck
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 2m
+    alertname: kidly-payment-charge-stuck
+    exp_alerts: []
+  - eval_time: 0m
+    alertname: kidly-payment-order-refund-retry-stuck
+    exp_alerts: []
+  - eval_time: 1m
+    alertname: kidly-payment-order-refund-retry-stuck
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 1m
+    alertname: kidly-payment-item-refund-unresolved
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 2m
+    alertname: kidly-payment-item-refund-unresolved
+    exp_alerts: []
+- name: payment counters alert on recent increase and clear after ten minutes
+  interval: 1m
+  input_series:
+  - series: kidly_payment_dlt_messages_total{job="kidly-payment",env="dev",topic="kidly.order.events"}
+    values: 0+0x5 1+0x20
+  - series: kidly_payment_dlt_messages_total{job="other",env="prod",topic="kidly.order.events"}
+    values: 0+1x25
+  - series: kidly_payment_outbox_send_failures_total{job="kidly-payment",env="dev",event_type="payment.completed"}
+    values: 0+0x5 0+2x10 20+0x15
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: kidly-payment-dead-letter
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: kidly-payment-dead-letter
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 18m
+    alertname: kidly-payment-dead-letter
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: kidly-payment-outbox-send-failing
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: kidly-payment-outbox-send-failing
+    exp_alerts:
+    - exp_labels:
+        env: dev
+  - eval_time: 26m
+    alertname: kidly-payment-outbox-send-failing
+    exp_alerts: []

@@ -19,6 +19,8 @@ import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchCondition;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchItem;
 import com.bbcc.kidly.boundedcontext.search.app.port.ProductSearchSort;
 import com.bbcc.kidly.boundedcontext.search.app.port.SearchUnavailableException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,7 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -42,9 +44,10 @@ import org.springframework.stereotype.Component;
  * 검색어 형태소가 모두 상품명에 있는 상품은 고정 점수 NAME_SCORE를 더 받아, 브랜드 · 동의어로만 맞은 상품보다 먼저 온다(#1025).
  * 다른 정렬(최신순 · 가격순)도 검색어 벡터가 있으면 검색어가 있는 상품에 뜻이 가까운 상품을 더하고, 정한 필드로 정렬한다.
  * 점수를 쓰지 않으므로 kNN을 검색어 조건과 나란히 둔 should(하나만 맞으면 통과)로 건다.
+ * 상호명은 덧붙이는 값이라, 판매자 색인을 쓸 수 없으면 상호명만 비우고 목록은 돌려준다(#1387).
  */
+@Slf4j
 @Component
-@RequiredArgsConstructor
 public class ElasticsearchProductSearch implements ProductSearch {
 
     // Elasticsearch가 from + size로 볼 수 있는 최대 건수(index.max_result_window 기본값). 넘으면 요청이 거절된다
@@ -64,11 +67,28 @@ public class ElasticsearchProductSearch implements ProductSearch {
     static final float KEYWORD_SCORE = 2.0f;
     // 검색어 형태소가 모두 상품명에 있을 때 더하는 점수. kNN 점수(최대 1)보다 커야 상품명이 맞은 상품이 늘 먼저 온다
     static final float NAME_SCORE = 2.0f;
+    // 브랜드를 앞부분으로 찾을 때의 최소 글자 수(#1343). 1글자는 너무 많은 브랜드에 걸린다
+    static final int BRAND_PREFIX_MIN_LENGTH = 2;
 
     private final ElasticsearchClient client;
     private final SearchIndexProperties properties;
     private final SearchEmbeddingProperties embeddingProperties;
     private final SearchSynonyms synonyms;
+    private final Counter sellerLookupFailures;
+
+    // 상호명 없이 목록을 돌려준 횟수다. 늘면 판매자 색인(Elasticsearch) 상태를 본다
+    static final String SELLER_LOOKUP_FAILURE_METRIC = "kidly.search.seller.lookup.failures";
+
+    public ElasticsearchProductSearch(ElasticsearchClient client, SearchIndexProperties properties,
+        SearchEmbeddingProperties embeddingProperties, SearchSynonyms synonyms, MeterRegistry meterRegistry) {
+        this.client = client;
+        this.properties = properties;
+        this.embeddingProperties = embeddingProperties;
+        this.synonyms = synonyms;
+        this.sellerLookupFailures = Counter.builder(SELLER_LOOKUP_FAILURE_METRIC)
+            .description("판매자 색인을 쓸 수 없어 상호명 없이 돌려준 상품 목록 수")
+            .register(meterRegistry);
+    }
 
     @Override
     public Page<ProductSearchItem> search(ProductSearchCondition condition, Pageable pageable) {
@@ -100,7 +120,9 @@ public class ElasticsearchProductSearch implements ProductSearch {
             builder.index(properties.productIndex())
                 .from(from)
                 .size(size)
-                .trackTotalHits(track -> track.enabled(true));
+                .trackTotalHits(track -> track.enabled(true))
+                // 벡터 없는 상품에만 있는 의미 검색 문장(설명 포함, 2,000자까지)은 목록에 쓰지 않아 받지 않는다
+                .source(source -> source.filter(filter -> filter.excludes("embeddingText")));
             if (!byRelevance) {
                 return builder
                     .query(sortedQuery(condition))
@@ -192,7 +214,8 @@ public class ElasticsearchProductSearch implements ProductSearch {
     //    (원피스 여아용 → 여아 원피스), 형태소 하나만 맞는 상품까지 넓히지 않는다
     // 2) 단어별: 공백으로 나눈 단어마다 상품명(nori)이나 브랜드(단어 그대로) 중 한 곳에 있어야 맞는다(키들리 원피스).
     //    브랜드는 고유명사라 nori가 앞뒤 글자에 따라 다르게 나누므로(키들리 → 키 · 들리, 키들리 원피스 → 키 · 리 · 원피스)
-    //    형태소로 나누지 않고 단어로 맞춘다. 그래서 브랜드는 단어를 다 써야 찾는다(꼬마 → 꼬마숲은 못 찾음)
+    //    형태소로 나누지 않고 단어로 맞춘다. 2글자 이상이면 그 단어로 시작하는 브랜드도 맞는다(#1343, 꼬마 → 꼬마숲).
+    //    1글자는 단어를 다 써야 맞는다
     // 3) 동의어(#1025): 단어별로 찾을 때 사전에서 넓힌 말(바지 → 팬츠)이 상품명에 있어도 맞는다. 검색어 전체(1)는 넓히지 않는다
     // 관련도순이 아니면 filter라 점수를 계산하지 않으므로 필드 가중치는 두지 않는다(관련도순의 상품명 점수는 따로 건다)
     private Query keywordFilter(String keyword) {
@@ -201,6 +224,9 @@ public class ElasticsearchProductSearch implements ProductSearch {
             List<Query> either = new ArrayList<>();
             either.add(matchAll("name", word));
             either.add(matchAll("brand", word));
+            if (word.codePointCount(0, word.length()) >= BRAND_PREFIX_MIN_LENGTH) {
+                either.add(brandPrefix(word));
+            }
             for (String synonym : synonyms.expand(word)) {
                 either.add(matchAll("name", synonym));
             }
@@ -209,6 +235,11 @@ public class ElasticsearchProductSearch implements ProductSearch {
         return Query.of(query -> query.bool(bool -> bool
             .should(matchAll("name", keyword), Query.of(byWord -> byWord.bool(all -> all.filter(words))))
             .minimumShouldMatch("1")));
+    }
+
+    // 브랜드는 standard 분석기라 소문자 단어로 색인돼 있다. 대소문자를 무시하고 단어 앞부분을 맞춘다
+    private static Query brandPrefix(String word) {
+        return Query.of(query -> query.prefix(prefix -> prefix.field("brand").value(word).caseInsensitive(true)));
     }
 
     private static Query matchAll(String field, String text) {
@@ -234,7 +265,8 @@ public class ElasticsearchProductSearch implements ProductSearch {
         return SortOptions.of(sort -> sort.field(fieldSort -> fieldSort.field(field).order(order)));
     }
 
-    // 판매자 문서가 없는 판매자는 Map에 넣지 않아 상호명이 null이 된다
+    // 판매자 문서가 없는 판매자는 Map에 넣지 않아 상호명이 null이 된다. 판매자 색인을 쓸 수 없으면 모두 null이다.
+    // 요청을 잘못 만든 버그(그 밖의 4xx)는 숨기지 않고 그대로 던진다
     private Map<Long, String> findBusinessNames(List<ProductDocument> documents) {
         Set<String> sellerIds = new LinkedHashSet<>();
         for (ProductDocument document : documents) {
@@ -248,9 +280,12 @@ public class ElasticsearchProductSearch implements ProductSearch {
             response = client.mget(MgetRequest.of(mget -> mget
                 .index(properties.sellerIndex()).ids(List.copyOf(sellerIds))), SellerDocument.class);
         } catch (IOException e) {
-            throw unavailable("판매자", properties.sellerIndex(), e);
+            return withoutBusinessNames(e);
         } catch (ElasticsearchException e) {
-            throw unavailableOrRethrow("판매자", properties.sellerIndex(), e);
+            if (unavailableOrRethrow("판매자", properties.sellerIndex(), e) == e) {
+                throw e;
+            }
+            return withoutBusinessNames(e);
         }
         Map<Long, String> businessNames = new HashMap<>();
         for (MultiGetResponseItem<SellerDocument> item : response.docs()) {
@@ -260,6 +295,13 @@ public class ElasticsearchProductSearch implements ProductSearch {
             }
         }
         return businessNames;
+    }
+
+    private Map<Long, String> withoutBusinessNames(Exception e) {
+        sellerLookupFailures.increment();
+        log.warn("판매자 색인을 쓸 수 없어 상호명 없이 목록을 돌려줍니다. index={} exception={}",
+            properties.sellerIndex(), e.getClass().getSimpleName());
+        return Map.of();
     }
 
     private static SearchUnavailableException unavailable(String target, String index, IOException e) {
