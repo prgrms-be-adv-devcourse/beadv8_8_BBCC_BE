@@ -332,6 +332,23 @@ class AiResponseServiceConcurrencyLimitTest {
         assertThat(respondOnceSlotIsFree(calls)).contains(new Answer("새 답"));
     }
 
+    @Test
+    @DisplayName("끝난 AI 호출은 자리를 한 번만 돌려놓아, 호출이 끝난 뒤에도 상한이 늘지 않는다")
+    void doNotGrowLimitAfterCallsEnd() {
+        given(store.find(any(), any())).willReturn(Optional.empty());
+        given(quota.tryAcquire(any(), anyInt())).willReturn(true);
+        for (int i = 0; i < MAX_CONCURRENT_CALLS; i++) {
+            assertThat(service.respond(TYPE, INPUT, Answer.class, failingCall(Failure.THROWS))).isEmpty();
+        }
+        holdCallsInBackground(MAX_CONCURRENT_CALLS);
+        AtomicInteger calls = new AtomicInteger();
+
+        Optional<Answer> result = service.respond(TYPE, INPUT, Answer.class, countingCall(calls));
+
+        assertThat(result).isEmpty();
+        assertThat(calls).hasValue(0);
+    }
+
     // 다른 스레드에서 respond를 count번 부르고, 그 AI 호출이 모두 시작돼 답을 기다리는 상태가 될 때까지 기다린다
     private List<CompletableFuture<Optional<Answer>>> holdCallsInBackground(int count) {
         CountDownLatch started = new CountDownLatch(count);

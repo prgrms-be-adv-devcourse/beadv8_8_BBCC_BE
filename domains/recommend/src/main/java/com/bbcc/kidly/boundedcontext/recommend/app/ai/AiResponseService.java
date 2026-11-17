@@ -100,7 +100,10 @@ public class AiResponseService {
      * 받은 답은 다른 스레드에서 저장하므로, 돌려받은 직후에는 아직 저장되지 않았을 수 있다.
      * <ul>
      *   <li>빈 값은 AI 결과가 없다는 뜻이다. 부른 쪽이 규칙 결과로 대신한다.
-     *       호출이 실패하거나 제한 시간을 넘기거나 null을 돌려줘도, 하루 상한에 닿아도 빈 값이다.</li>
+     *       호출이 실패하거나 제한 시간을 넘기거나 null을 돌려줘도, 하루 상한에 닿아도,
+     *       진행 중인 AI 호출이 동시 호출 상한에 닿아 있어도 빈 값이다.</li>
+     *   <li>동시 호출 상한의 자리는 요청이 끝난 때가 아니라 AI 호출이 실제로 끝난 때 돌아온다.
+     *       제한 시간을 넘겨 빈 값을 돌려준 뒤에도 그 호출이 끝날 때까지 자리를 쥔다.</li>
      *   <li>트랜잭션 밖에서 불러야 한다. 안에서 부르면 {@link IllegalStateException}을 던진다.</li>
      *   <li>{@code call}은 다른 스레드에서 돈다. 트랜잭션, 지연 로딩, MDC가 따라가지 않으므로
      *       프롬프트에 쓸 입력은 부르기 전에 모두 읽어 둔다.</li>
@@ -147,7 +150,8 @@ public class AiResponseService {
 
     /**
      * AI 답을 기다리지 않고 바로 돌려준다. 돌려준 결과는 AI 답이 오면 그 답으로, 답을 얻지 못하면 빈 값으로 나중에 끝난다.
-     * 저장한 답이 있으면 이미 끝난 결과다. 그 밖의 규칙(트랜잭션 밖에서 부르기, 하루 상한, 저장)은 {@link #respond}와 같다.
+     * 저장한 답이 있으면 이미 끝난 결과다. 그 밖의 규칙(트랜잭션 밖에서 부르기, 하루 상한, 동시 호출 상한, 저장)은
+     * {@link #respond}와 같다.
      */
     public <T> CompletableFuture<Optional<T>> respondAsync(
         AiResponseType type,
@@ -272,7 +276,6 @@ public class AiResponseService {
         } catch (InterruptedException e) {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
             Thread.currentThread().interrupt();
-            task.cancel(true);
             logCallFailure(type, e);
         } catch (TimeoutException e) {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.TIMEOUT);
