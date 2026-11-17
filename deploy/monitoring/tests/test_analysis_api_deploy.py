@@ -44,5 +44,15 @@ class AnalysisApiDeployTest(unittest.TestCase):
         self.assertIsNone(re.search(r'echo[^\n]*\$\{!key\}|echo[^\n]*\$value', workflow))
 
 
+    def test_each_dashboard_opens_the_single_ai_page_with_matching_focus(self):
+        import json
+        expected = {'kidly-home': 'overview', 'kidly-service': 'overview', 'kidly-http': 'errors', 'kidly-logs': 'errors',
+                    'kidly-db-latency': 'latency', 'kidly-kafka': 'overview', 'kidly-server': 'resources'}
+        for uid, focus in expected.items():
+            dashboard = json.loads((ROOT / 'grafana/dashboards' / (uid + '.json')).read_text())
+            links = [link for link in dashboard['links'] if link['url'].startswith('/d/kidly-ai-notes?')]
+            self.assertEqual(len(links), 1, uid)
+            self.assertTrue(links[0]['url'].endswith('&var-analysis_focus=' + focus), uid)
+
 if __name__ == '__main__':
     unittest.main()
