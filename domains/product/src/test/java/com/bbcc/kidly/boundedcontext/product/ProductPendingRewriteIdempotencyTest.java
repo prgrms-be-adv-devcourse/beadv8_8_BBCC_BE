@@ -23,10 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * 판매대기 상품에 옵션 · 가격 · 실측을 다시 보낼 때 바뀐 것이 있는지 판단하는 동작과 version 확인을 본다.
- * 상품 A는 옵션 네이비 · 110과 네이비 · 120(25,000원, SKU 없음)과 두 사이즈의 상의 실측이 있고, version은 3이다.
- */
 class ProductPendingRewriteIdempotencyTest {
 
     private static final long STALE_VERSION = ProductUpdateFixture.VERSION - 1;
@@ -93,7 +89,6 @@ class ProductPendingRewriteIdempotencyTest {
             clothingPrice(ProductOptionFixture.CLOTHING_PRICE), sizeSpecs);
     }
 
-    // 지금 실측과 같은 길이를 소수점 한 자리까지 적은 실측이다(42 → 42.0)
     private static List<Product.SizeSpecInfo> oneDecimalSizeSpecs(ProductA productA) {
         return productA.currentSizeSpecs().stream()
             .map(spec -> SizeSpecFixture.spec(spec.sizeValue(), spec.minHeightCm(), spec.maxHeightCm(),

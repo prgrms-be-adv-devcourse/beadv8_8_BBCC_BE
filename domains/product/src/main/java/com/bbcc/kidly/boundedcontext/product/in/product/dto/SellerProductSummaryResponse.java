@@ -4,8 +4,6 @@ import com.bbcc.kidly.boundedcontext.product.app.port.product.SellerProductSumma
 import java.time.LocalDateTime;
 
 /**
- * 판매자 내 상품 목록의 한 행.
- *
  * @param thumbnailUrl 없으면 null
  * @param minPrice 옵션이 없으면 null
  */

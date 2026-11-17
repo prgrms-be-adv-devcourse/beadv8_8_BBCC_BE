@@ -1,11 +1,9 @@
 package com.bbcc.kidly.boundedcontext.product.in.type;
 
 import com.bbcc.kidly.boundedcontext.product.app.type.CategoryService;
-import com.bbcc.kidly.boundedcontext.product.app.type.dto.CategoryTreeResult;
 import com.bbcc.kidly.boundedcontext.product.in.type.dto.CategoryInputsResponse;
 import com.bbcc.kidly.boundedcontext.product.in.type.dto.CategoryTreeResponse;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,11 +19,7 @@ public class CategoryController {
 
     @GetMapping("/api/v1/categories")
     public List<CategoryTreeResponse> list(@RequestParam(required = false) Gender gender) {
-        List<CategoryTreeResponse> responses = new ArrayList<>();
-        for (CategoryTreeResult result : categoryService.findTree(gender)) {
-            responses.add(CategoryTreeResponse.from(result));
-        }
-        return responses;
+        return categoryService.findTree(gender).stream().map(CategoryTreeResponse::from).toList();
     }
 
     @GetMapping("/api/v1/categories/{categoryId}/attributes")

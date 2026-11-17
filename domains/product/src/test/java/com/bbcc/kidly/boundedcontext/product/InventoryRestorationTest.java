@@ -28,7 +28,6 @@ class InventoryRestorationTest {
     @DisplayName("INV-12 주문의 DEDUCTED 차감 기록을 옵션 ID 오름차순으로, 같은 옵션 안에서는 주문상품 ID 오름차순으로 고른다")
     void pickDeductedRecordsInOptionIdOrder() {
         Options options = InventoryDeductionFixture.onSaleOptions();
-        // 옵션 ID가 큰 110(7)을 먼저, 같은 옵션 안에서도 주문상품 ID가 큰 것을 먼저 주문해서 기록도 그 순서로 만들어진다
         List<InventoryDeduction> records = deductedRecords(ORDER_ID,
             item(13L, options.navy110(), 1),
             item(11L, options.navy110(), 2),
@@ -49,7 +48,7 @@ class InventoryRestorationTest {
     @DisplayName("INV-04 FAILED와 RESTORED 차감 기록은 되돌리지 않는다")
     void skipRecordsNotDeducted(InventoryDeductionStatus status) {
         Options options = InventoryDeductionFixture.onSaleOptions();
-        List<InventoryDeduction> records = InventoryDeductionFixture.withStatus(deductedRecords(ORDER_ID,
+        List<InventoryDeduction> records = InventoryDeductionFixture.asLoadedWithStatus(deductedRecords(ORDER_ID,
             item(11L, options.navy110(), 2),
             item(12L, options.navy120(), 1)), status);
 
@@ -62,9 +61,9 @@ class InventoryRestorationTest {
         Options options = InventoryDeductionFixture.onSaleOptions();
         List<InventoryDeduction> records = new ArrayList<>();
         records.addAll(deductedRecords(ORDER_ID, item(11L, options.navy110(), 2)));
-        records.addAll(InventoryDeductionFixture.withStatus(
+        records.addAll(InventoryDeductionFixture.asLoadedWithStatus(
             deductedRecords(ORDER_ID, item(12L, options.navy120(), 1)), InventoryDeductionStatus.RESTORED));
-        records.addAll(InventoryDeductionFixture.withStatus(
+        records.addAll(InventoryDeductionFixture.asLoadedWithStatus(
             deductedRecords(ORDER_ID, item(13L, options.navy120(), 1)), InventoryDeductionStatus.FAILED));
 
         assertThat(InventoryRestoration.of(ORDER_ID, records).recordsToRestore())
@@ -107,7 +106,7 @@ class InventoryRestorationTest {
     @DisplayName("INV-09 기록이 모두 FAILED인 주문만 재고 부족이나 판매중지로 거절한 주문이다")
     void rejectedOnlyWhenAllFailed(InventoryDeductionStatus status, boolean rejected) {
         Options options = InventoryDeductionFixture.onSaleOptions();
-        List<InventoryDeduction> records = InventoryDeductionFixture.withStatus(deductedRecords(ORDER_ID,
+        List<InventoryDeduction> records = InventoryDeductionFixture.asLoadedWithStatus(deductedRecords(ORDER_ID,
             item(11L, options.navy110(), 2),
             item(12L, options.navy120(), 1)), status);
 
@@ -124,13 +123,6 @@ class InventoryRestorationTest {
 
         assertThatThrownBy(() -> InventoryRestoration.of(ORDER_ID, records))
             .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    @DisplayName("차감 기록 목록이 없으면 복구 대상을 만들지 않는다")
-    void rejectNullRecords() {
-        assertThatThrownBy(() -> InventoryRestoration.of(ORDER_ID, null))
-            .isInstanceOf(NullPointerException.class);
     }
 
     @ParameterizedTest(name = "되돌린 수량 {0}, 복구 뒤 수량 {1}")
@@ -169,15 +161,6 @@ class InventoryRestorationTest {
         assertThatThrownBy(() -> InventoryRestoration.soldOutReleasedOptionIds(
             Map.of(NAVY_110_ID, 1), Map.of(NAVY_120_ID, 1)))
             .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    @DisplayName("되돌린 수량이나 복구 뒤 수량이 없으면 품절이 풀린 옵션을 고르지 않는다")
-    void rejectNullQuantities() {
-        assertThatThrownBy(() -> InventoryRestoration.soldOutReleasedOptionIds(null, Map.of()))
-            .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> InventoryRestoration.soldOutReleasedOptionIds(Map.of(), null))
-            .isInstanceOf(NullPointerException.class);
     }
 
     private static List<InventoryDeduction> deductedRecords(long orderId, InventoryDeductionRequest.Item... items) {

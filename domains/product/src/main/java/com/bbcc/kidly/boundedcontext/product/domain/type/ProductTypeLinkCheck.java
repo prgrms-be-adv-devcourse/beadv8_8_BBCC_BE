@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.product.domain.type;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * 상품 유형의 연결 목록이 설정 규칙에 맞는지 검사한다(TYPE-02 · 03 · 04 · 06 · 08 · 13).
@@ -19,7 +18,6 @@ final class ProductTypeLinkCheck {
     private ProductTypeLinkCheck() {
     }
 
-    // 규칙에 어긋나면 그 규칙의 오류를 던진다
     static void requireValid(List<ProductType.LinkInfo> links) {
         if (hasDuplicatedAttribute(links)) {
             throw new BusinessException(ProductTypeErrorCode.DUPLICATE_ATTRIBUTE);
@@ -51,10 +49,8 @@ final class ProductTypeLinkCheck {
         if (hasAllowedValueOfOtherAttribute(links)) {
             throw new BusinessException(ProductTypeErrorCode.ALLOWED_VALUE_OF_OTHER_ATTRIBUTE);
         }
-        for (ProductType.LinkInfo link : links) {
-            if (link.attribute().isDeleted()) {
-                throw new BusinessException(ProductTypeErrorCode.DELETED_REFERENCE);
-            }
+        if (hasDeletedAttribute(links)) {
+            throw new BusinessException(ProductTypeErrorCode.DELETED_REFERENCE);
         }
     }
 
@@ -71,16 +67,15 @@ final class ProductTypeLinkCheck {
     }
 
     private static boolean isCurrentlyAllowed(AttributeValue value, List<ProductTypeAllowedValue> currentAllowed) {
-        for (ProductTypeAllowedValue allowed : currentAllowed) {
-            if (allowed.getAttributeValue() == value) {
-                return true;
-            }
-        }
-        return false;
+        return currentAllowed.stream().anyMatch(allowed -> allowed.getAttributeValue() == value);
+    }
+
+    private static boolean hasDeletedAttribute(List<ProductType.LinkInfo> links) {
+        return links.stream().anyMatch(link -> link.attribute().isDeleted());
     }
 
     private static boolean hasDuplicatedAttribute(List<ProductType.LinkInfo> links) {
-        Set<Attribute> attributes = new HashSet<>();
+        var attributes = new HashSet<Attribute>();
         for (ProductType.LinkInfo link : links) {
             if (!attributes.add(link.attribute())) {
                 return true;

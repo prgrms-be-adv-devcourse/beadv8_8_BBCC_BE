@@ -18,11 +18,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.util.List;
 import org.springframework.test.util.ReflectionTestUtils;
 
-/**
- * 상품 수정에서 카테고리와 옵션 · 실측을 바꾸는 테스트가 쓰는 상품과 카테고리다.
- * 상품 A는 판매자 2의 상의(카테고리 1)이고 주요소재는 면, 옵션은 네이비 · 110과 네이비 · 120(25,000원)이며
- * 두 사이즈의 상의 실측과 권장 키가 있다. 마지막으로 읽은 version은 3이다.
- */
 final class ProductUpdateFixture {
 
     static final long VERSION = 3L;
@@ -34,11 +29,6 @@ final class ProductUpdateFixture {
     private ProductUpdateFixture() {
     }
 
-    /**
-     * 상품 A와 바꿀 카테고리들이다. 아우터는 상의와 필수 실측 항목이 같고, 하의는 총장 · 허리단면 · 엉덩이단면 ·
-     * 허벅지단면 · 밑위라 상의 실측으로는 채워지지 않는다. 운동화는 신발 유형이라 상품 A와 유형이 다르다.
-     * 신발 유형도 주요소재를 필수 정보 항목으로 써서, 정보 값을 그대로 보내도 정보 값 검사에는 걸리지 않는다.
-     */
     record ProductA(
         ClothingOptions clothing, Category top, Category outer, Category bottom, Shoes shoes, Product product) {
 
@@ -46,12 +36,10 @@ final class ProductUpdateFixture {
             return shoes.sneakers();
         }
 
-        // 상품 A의 지금 값을 그대로 보내는 수정 값이다
         Product.UpdateInfo sameUpdate() {
             return updateWithCategory(top);
         }
 
-        // 상품 A의 지금 옵션 · 가격 · 실측과 같은 값이다
         Product.SaleInputsInfo currentSaleInputs() {
             return new Product.SaleInputsInfo(List.of(
                 new Product.OptionInfo(List.of(clothing.navy(), clothing.size110()), null),
@@ -59,19 +47,16 @@ final class ProductUpdateFixture {
                 clothingPrice(CLOTHING_PRICE), currentSizeSpecs());
         }
 
-        // 상품 A의 지금 실측(110 · 120의 상의 실측과 권장 키)과 같은 실측 목록이다
         List<Product.SizeSpecInfo> currentSizeSpecs() {
             return List.of(
                 spec(clothing.size110(), 105, 115, top110Measurements()),
                 spec(clothing.size120(), 115, 125, top120Measurements()));
         }
 
-        // 상품 A에서 카테고리만 받은 값으로 바꾸고 나머지는 지금 값 그대로 보내는 수정 값이다
         Product.UpdateInfo updateWithCategory(Category category) {
             return updateWith(VERSION, category, product.getName());
         }
 
-        // 상품 A에서 version · 카테고리 · 상품명만 받은 값으로 바꾸고 나머지는 지금 값 그대로 보내는 수정 값이다
         Product.UpdateInfo updateWith(long version, Category category, String name) {
             return new Product.UpdateInfo(SELLER_ID, version, category, name, product.getBrand(),
                 product.getDescription(), product.getThumbnailUrl(), product.getImageUrls(),
@@ -79,12 +64,10 @@ final class ProductUpdateFixture {
         }
     }
 
-    // 판매대기 상품 A다
     static ProductA salePendingProductA() {
         return productA(false);
     }
 
-    // 판매를 시작한 상품 A다
     static ProductA onSaleProductA() {
         return productA(true);
     }
@@ -122,10 +105,6 @@ final class ProductUpdateFixture {
         return new ProductA(clothing, top, outer, bottom, shoes, product);
     }
 
-    /**
-     * 신발 > 운동화와 신발 유형의 값이다. 신발 유형은 색상 · 신발 사이즈가 옵션 항목이고,
-     * 주요소재(의류와 같은 항목)가 필수 정보 항목이다. 운동화의 필수 실측 항목은 발길이다.
-     */
     record Shoes(Category sneakers, AttributeValue black, AttributeValue size200) {
     }
 

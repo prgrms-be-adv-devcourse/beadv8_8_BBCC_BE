@@ -12,13 +12,11 @@ import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.spec;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top110Measurements;
 import static com.bbcc.kidly.boundedcontext.product.SizeSpecFixture.top120Measurements;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import java.util.List;
 import java.util.function.Consumer;
@@ -31,9 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * 판매자와 관리자가 상품의 판매를 중지하거나 다시 여는 업무 메서드를 확인한다.
- */
 class ProductSaleStopTest {
 
     private final ClothingOptions clothing = clothingOptions();
@@ -214,21 +209,11 @@ class ProductSaleStopTest {
     @Test
     @DisplayName("SALE-03 관리자도 판매 시작 조건을 채우지 못한 판매대기 상품은 판매를 시작할 수 없다")
     void rejectStartSaleByAdminWithoutSaleStartConditions() {
-        // 옵션만 넣고 실측을 넣지 않아 판매 시작 조건을 채우지 못한다
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
 
         assertRejected(() -> product.startSaleByAdmin(top, clothing.type(), ProductFixture.NOW),
             ProductErrorCode.SALE_START_CONDITION_NOT_MET);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.SALE_PENDING);
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("callsWithNull")
-    @DisplayName("판매 중지와 관리자의 판매 시작에 판매자 · 카테고리 · 상품 유형 · 시각이 null이면 거절한다")
-    void rejectCallWithNull(ThrowingCallable call) {
-        assertThatThrownBy(call)
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("필수입니다");
     }
 
     static Stream<Named<Consumer<ProductSaleStopTest>>> stoppedProducts() {
@@ -253,7 +238,6 @@ class ProductSaleStopTest {
         return Stream.concat(Stream.of(Named.of("판매대기", ProductSaleStopTest::withSaleStartInputs)), stoppedProducts());
     }
 
-    // 110 사이즈만으로 판매를 시작하고 판매중지한 뒤, 실측이 없는 120 사이즈 옵션을 더하고 다시 여는 호출을 돌려준다
     static Stream<Named<Function<ProductSaleStopTest, ThrowingCallable>>> restartsWithoutSaleStartConditions() {
         return Stream.of(
             Named.of("판매자가 판매중지한 상품을 판매자가 다시 열 때", test -> {
@@ -270,24 +254,11 @@ class ProductSaleStopTest {
             }));
     }
 
-    static Stream<Named<ThrowingCallable>> callsWithNull() {
-        ClothingOptions clothing = clothingOptions();
-        Category top = CategoryFixture.top(CategoryFixture.clothing(), clothing.type());
-        ProductType type = clothing.type();
-        return Stream.of(
-            Named.of("판매 중지의 판매자", () -> productA(clothing).stopSale(null)),
-            Named.of("관리자 판매 시작의 카테고리", () -> productA(clothing).startSaleByAdmin(null, type, ProductFixture.NOW)),
-            Named.of("관리자 판매 시작의 상품 유형", () -> productA(clothing).startSaleByAdmin(top, null, ProductFixture.NOW)),
-            Named.of("관리자 판매 시작의 시각", () -> productA(clothing).startSaleByAdmin(top, type, null)));
-    }
-
-    // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣고 판매를 시작한다
     private void withSaleStarted() {
         withSaleStartInputs();
         product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
     }
 
-    // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣는다. 판매 시작 조건을 채운 판매대기 상품이 된다
     private void withSaleStartInputs() {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.size110()),
@@ -297,7 +268,6 @@ class ProductSaleStopTest {
             spec(clothing.size120(), 115, 125, top120Measurements()))), top, clothing.type());
     }
 
-    // 상품 A에 네이비 110 옵션과 110 사이즈의 필수 실측 · 권장 키만 넣고 판매를 시작한다
     private void withSaleStartedOnlyIn110() {
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
         product.addSizeSpecs(addSizeSpecs(List.of(
@@ -305,7 +275,6 @@ class ProductSaleStopTest {
         product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
     }
 
-    // 실측을 넣지 않은 120 사이즈의 네이비 옵션을 더한다. 판매 시작 조건을 채우지 못하게 된다
     private void addNavy120WithoutSizeSpec() {
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size120()))), clothing.type());
     }

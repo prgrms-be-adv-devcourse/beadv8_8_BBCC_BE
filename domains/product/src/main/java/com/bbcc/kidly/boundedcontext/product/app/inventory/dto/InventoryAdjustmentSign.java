@@ -8,9 +8,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/**
- * 재고 조정 요청의 증감량이 0이 아니고 사유에 맞는 부호인지 검사한다 (INV-18).
- */
 @Documented
 @Constraint(validatedBy = InventoryAdjustmentSignValidator.class)
 @Target(ElementType.TYPE)

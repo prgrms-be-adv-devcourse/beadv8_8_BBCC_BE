@@ -16,12 +16,13 @@ import com.bbcc.kidly.global.response.PageResponse;
 import com.bbcc.kidly.global.security.AuthMember;
 import com.bbcc.kidly.global.security.LoginMember;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,11 +30,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 판매자 상품 API. 로그인한 판매자 본인의 상품만 다룬다.
- */
 @RestController
 @RequestMapping(SellerProductController.PRODUCTS_PATH)
 @RequiredArgsConstructor
@@ -46,7 +45,6 @@ public class SellerProductController {
     private final ProductUpdateService productUpdateService;
     private final SellerProductService sellerProductService;
 
-    // 정렬은 등록 최신순으로 고정이라 pageable의 sort는 무시된다. status와 lowStock은 서로 독립인 조건이다
     @GetMapping
     public PageResponse<SellerProductSummaryResponse> list(
         @LoginMember AuthMember member,
@@ -58,22 +56,22 @@ public class SellerProductController {
             .map(SellerProductSummaryResponse::from));
     }
 
-    // 판매자 본인의 상품 하나의 상세를 돌려준다
     @GetMapping("/{productId}")
     public SellerProductDetailResponse detail(@LoginMember AuthMember member, @PathVariable Long productId) {
         return SellerProductDetailResponse.from(sellerProductService.findMyProductDetail(member.id(), productId));
     }
 
     @PostMapping
-    public ResponseEntity<ProductRegisterResponse> register(
+    @ResponseStatus(HttpStatus.CREATED)
+    public ProductRegisterResponse register(
         @LoginMember AuthMember member,
-        @Valid @RequestBody ProductRegisterRequest request) {
-        ProductRegisterResponse body = ProductRegisterResponse.from(
-            productRegistrationService.register(member.id(), request));
-        return ResponseEntity.created(URI.create(PRODUCTS_PATH + "/" + body.productId())).body(body);
+        @Valid @RequestBody ProductRegisterRequest request,
+        HttpServletResponse response) {
+        var body = ProductRegisterResponse.from(productRegistrationService.register(member.id(), request));
+        response.setHeader(HttpHeaders.LOCATION, PRODUCTS_PATH + "/" + body.productId());
+        return body;
     }
 
-    // 판매자 본인의 상품 정보를 고친다
     @PutMapping("/{productId}")
     public SellerProductDetailResponse update(
         @LoginMember AuthMember member,
@@ -91,7 +89,6 @@ public class SellerProductController {
             member.id(), productId, ProductStatus.valueOf(request.status())));
     }
 
-    // 판매자가 상품을 더 팔지 않겠다고 등록 취소한다. 판매자는 되돌릴 수 없다
     @PutMapping("/{productId}/delisting")
     public ProductSaleStatusResponse delist(@LoginMember AuthMember member, @PathVariable Long productId) {
         return ProductSaleStatusResponse.from(productSaleService.delist(member.id(), productId));

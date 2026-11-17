@@ -40,12 +40,10 @@ public class CategoryService {
     private final MeasurementItemRepository measurementItemRepository;
     private final ProductRepository productRepository;
 
-    // 카테고리를 만들어 저장한다. 부모가 있으면 먼저 읽고, 상품 유형이 있으면 말단 카테고리로 만든다
     @Transactional
     public CategoryResult create(CategoryCreateRequest request) {
         Category parent = null;
         if (request.parentId() != null) {
-            // 지우는 요청이 커밋되기 전이면 기다렸다가, 지운 것이면 400으로 거절한다(TYPE-10)
             parent = categoryRepository.getByIdForShare(request.parentId());
         }
         // 최상위 카테고리끼리의 이름 중복은 DB UNIQUE가 막지 못하므로 먼저 찾아 본다. 같은 부모 아래 중복은 UNIQUE가 409로 막는다
@@ -58,26 +56,21 @@ public class CategoryService {
         return toResult(category);
     }
 
-    // 말단 카테고리의 상품 유형과 필수 실측 항목을 바꾼다. 받을 수 있는 변경인지는 카테고리가 판단한다
     @Transactional
     public CategoryResult change(Long categoryId, CategoryChangeRequest request) {
-        // 상품 유무를 읽은 뒤 바꾸기 전에 첫 상품 등록이 끼어들지 못하도록 카테고리 행을 먼저 잠근다(TYPE-07)
-        Category category = categoryRepository.getByIdForUpdate(categoryId);
-        ProductType productType = productTypeRepository.getByIdForShare(request.productTypeId());
+        var category = categoryRepository.getByIdForUpdate(categoryId);
+        var productType = productTypeRepository.getByIdForShare(request.productTypeId());
         List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
         category.change(productType, measurementItems, productRepository.existsByCategory(category));
-        // 보일 성별은 상품을 깨지 않는 값이므로 상품이 있어도 바꿀 수 있다.
-        // 이 칸을 모르는 관리자 화면이 실측만 고칠 때 GIRL이 풀리지 않도록, 보내지 않으면 지금 값을 그대로 둔다
         if (request.visibleGender() != null) {
             category.changeVisibleGender(request.visibleGender());
         }
         return toResult(category);
     }
 
-    // 지우지 않은 모든 카테고리를 ID 순서로 평평하게 돌려준다
     @Transactional(readOnly = true)
     public List<CategoryResult> findAll() {
-        List<CategoryResult> results = new ArrayList<>();
+        var results = new ArrayList<CategoryResult>();
         for (Category category : categoryRepository.findAllByDeletedAtIsNullOrderByIdAsc()) {
             results.add(toResult(category));
         }
@@ -88,13 +81,13 @@ public class CategoryService {
         if (request.productTypeId() == null) {
             return Category.createMiddle(request.name(), parent);
         }
-        ProductType productType = productTypeRepository.getByIdForShare(request.productTypeId());
+        var productType = productTypeRepository.getByIdForShare(request.productTypeId());
         List<MeasurementItem> measurementItems = findMeasurementItems(request.measurementItemIds());
         return Category.createLeaf(new Category.LeafInfo(request.name(), parent, productType, measurementItems));
     }
 
     private List<MeasurementItem> findMeasurementItems(List<Long> measurementItemIds) {
-        List<MeasurementItem> measurementItems = new ArrayList<>();
+        var measurementItems = new ArrayList<MeasurementItem>();
         for (Long measurementItemId : measurementItemIds) {
             measurementItems.add(measurementItemRepository.getByIdForShare(measurementItemId));
         }
@@ -104,7 +97,6 @@ public class CategoryService {
     private CategoryResult toResult(Category category) {
         Long parentId = null;
         if (category.getParent() != null) {
-            // 부모는 지연 로딩 프록시이므로 ID만 읽는다
             parentId = category.getParent().getId();
         }
         Long productTypeId = null;
@@ -113,7 +105,7 @@ public class CategoryService {
             productTypeId = category.getProductType().getId();
             productTypeName = category.getProductType().getName();
         }
-        List<MeasurementItemResult> measurementItems = new ArrayList<>();
+        var measurementItems = new ArrayList<MeasurementItemResult>();
         for (CategoryMeasurementItem link : category.getMeasurementItems()) {
             MeasurementItem item = link.getMeasurementItem();
             measurementItems.add(new MeasurementItemResult(
@@ -130,18 +122,14 @@ public class CategoryService {
             measurementItems);
     }
 
-    // 지우지 않은 최상위 카테고리부터 하위 카테고리까지 계층으로 돌려준다. 같은 부모 아래에서는 ID 순서다.
-    // childGender에게 보이지 않는 카테고리는 그 아래 카테고리와 함께 뺀다. childGender가 null이면 모두 돌려준다
     @Transactional(readOnly = true)
     public List<CategoryTreeResult> findTree(Gender childGender) {
-        List<Category> topLevel = new ArrayList<>();
-        Map<Long, List<Category>> childrenByParentId = new HashMap<>();
+        var topLevel = new ArrayList<Category>();
+        var childrenByParentId = new HashMap<Long, List<Category>>();
         for (Category category : categoryRepository.findAllByDeletedAtIsNullOrderByIdAsc()) {
-            // 보이지 않는 카테고리의 하위 카테고리는 붙을 곳이 없어 결과에 들어가지 않는다
             if (!category.isVisibleTo(childGender)) {
                 continue;
             }
-            // 부모는 지연 로딩 프록시이므로 ID만 읽는다. 프록시를 초기화하지 않아 쿼리가 늘지 않는다
             Category parent = category.getParent();
             if (parent == null) {
                 topLevel.add(category);
@@ -154,7 +142,7 @@ public class CategoryService {
 
     private List<CategoryTreeResult> toResults(
         List<Category> categories, Map<Long, List<Category>> childrenByParentId) {
-        List<CategoryTreeResult> results = new ArrayList<>();
+        var results = new ArrayList<CategoryTreeResult>();
         for (Category category : categories) {
             List<Category> children = childrenByParentId.getOrDefault(category.getId(), List.of());
             results.add(new CategoryTreeResult(
@@ -166,18 +154,17 @@ public class CategoryService {
         return results;
     }
 
-    // 말단 카테고리의 상품 등록 입력 항목을 돌려준다. 중간 카테고리이면 도메인이 거절한다
     @Transactional(readOnly = true)
     public CategoryInputsResult findInputs(Long categoryId) {
-        Category category = categoryRepository.getById(categoryId);
+        var category = categoryRepository.getById(categoryId);
         ProductType type = category.productTypeToRegister();
         List<ProductTypeAttribute> links = type.inputAttributes();
         Map<Long, List<AttributeValue>> valuesByAttributeId = selectableValuesByAttributeId(type, links);
-        List<CategoryInputsResult.InputAttribute> attributes = new ArrayList<>();
+        var attributes = new ArrayList<CategoryInputsResult.InputAttribute>();
         for (ProductTypeAttribute link : links) {
             attributes.add(toInputAttribute(link, valuesByAttributeId));
         }
-        List<CategoryInputsResult.Measurement> measurements = new ArrayList<>();
+        var measurements = new ArrayList<CategoryInputsResult.Measurement>();
         for (CategoryMeasurementItem link : category.getMeasurementItems()) {
             MeasurementItem item = link.getMeasurementItem();
             measurements.add(new CategoryInputsResult.Measurement(item.getCode(), item.getName(), item.getUnit()));
@@ -186,16 +173,12 @@ public class CategoryService {
             category.getId(), category.getName(), type.getId(), type.getName(), attributes, measurements);
     }
 
-    // 항목마다 유형에서 고를 수 있는 값을 ID 순서로 묶는다
     private Map<Long, List<AttributeValue>> selectableValuesByAttributeId(
         ProductType type, List<ProductTypeAttribute> links) {
-        List<Attribute> attributes = new ArrayList<>();
-        for (ProductTypeAttribute link : links) {
-            attributes.add(link.getAttribute());
-        }
+        List<Attribute> attributes = links.stream().map(ProductTypeAttribute::getAttribute).toList();
         List<AttributeValue> values = attributeValueRepository.findAllOfAttributes(attributes);
         List<AttributeValue> selectable = type.selectableValues(values);
-        Map<Long, List<AttributeValue>> valuesByAttributeId = new HashMap<>();
+        var valuesByAttributeId = new HashMap<Long, List<AttributeValue>>();
         for (AttributeValue value : selectable) {
             valuesByAttributeId.computeIfAbsent(value.getAttribute().getId(), id -> new ArrayList<>()).add(value);
         }
@@ -205,7 +188,7 @@ public class CategoryService {
     private CategoryInputsResult.InputAttribute toInputAttribute(
         ProductTypeAttribute link, Map<Long, List<AttributeValue>> valuesByAttributeId) {
         Attribute attribute = link.getAttribute();
-        List<CategoryInputsResult.SelectableValue> values = new ArrayList<>();
+        var values = new ArrayList<CategoryInputsResult.SelectableValue>();
         for (AttributeValue value : valuesByAttributeId.getOrDefault(attribute.getId(), List.of())) {
             values.add(new CategoryInputsResult.SelectableValue(value.getId(), value.getName(), value.getColorCode()));
         }
@@ -221,11 +204,9 @@ public class CategoryService {
             values);
     }
 
-    // 카테고리를 지운다. 지우지 않은 하위 카테고리가 있는지는 읽어 넘기고, 지울 수 있는지는 카테고리가 판단한다 (TYPE-10)
     @Transactional
     public void delete(Long categoryId) {
-        // 쓰이는 중인지 읽은 뒤 지우기 전에 다른 요청이 연결하지 못하게 한다(TYPE-10)
-        Category category = categoryRepository.getByIdForUpdate(categoryId);
+        var category = categoryRepository.getByIdForUpdate(categoryId);
         boolean inUse = categoryRepository.existsByParentAndDeletedAtIsNull(category);
         category.delete(LocalDateTime.now(), inUse);
     }

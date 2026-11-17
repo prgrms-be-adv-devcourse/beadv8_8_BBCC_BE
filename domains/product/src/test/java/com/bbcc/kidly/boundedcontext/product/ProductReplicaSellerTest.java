@@ -66,7 +66,6 @@ class ProductReplicaSellerTest {
             .containsExactly("테스트상점", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
     }
 
-    // 이미 반영한 이벤트를 다시 받거나 이전 이벤트가 늦게 도착한 경우다. 값이 비어 있어도 예외 없이 무시해야 한다
     static Stream<Named<ProductReplicaSeller.ChangeInfo>> changesNotLater() {
         LocalDateTime earlier = SELLER_CHANGED_AT.minusMinutes(1);
         return Stream.of(

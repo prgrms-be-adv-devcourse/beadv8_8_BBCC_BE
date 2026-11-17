@@ -17,9 +17,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 상품 유형이 항목 하나를 어떻게 쓰는지 정한 설정이다(역할, 필수 여부, 순서 등).
- */
 @Entity
 @Table(
     schema = "product",
@@ -62,7 +59,7 @@ public class ProductTypeAttribute extends BaseTimeEntity {
     private boolean priceAffecting;
 
     static ProductTypeAttribute create(ProductType productType, ProductType.LinkInfo info, int sortOrder) {
-        ProductTypeAttribute link = new ProductTypeAttribute();
+        var link = new ProductTypeAttribute();
         link.productType = productType;
         link.attribute = info.attribute();
         link.change(info, sortOrder);

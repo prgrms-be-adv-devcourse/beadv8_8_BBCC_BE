@@ -18,9 +18,7 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUrls;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SkuCodes;
-import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeRepository;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,14 +37,11 @@ public class ProductRegistrationService {
     private final InventoryRepository inventoryRepository;
     private final ProductImageStorage imageStorage;
 
-    // 상품 · 옵션 · 실측을 판매대기 상태로 등록하고 옵션마다 초기 재고를 연다
     @Transactional
     public ProductRegisterResult register(Long sellerId, ProductRegisterRequest request) {
-        // 관리자 설정 변경이 커밋되기 전이면 기다렸다가 바뀐 설정으로 검사한다(TYPE-07). 잠금 순서는 카테고리 → 유형이다
-        Category category = categoryRepository.getByIdForShare(request.categoryId());
-        ProductType type = productTypeRepository.getByIdForShare(category.productTypeToRegister().getId());
+        var category = categoryRepository.getByIdForShare(request.categoryId());
+        var type = productTypeRepository.getByIdForShare(category.productTypeToRegister().getId());
         InputLookup lookup = inputReader.readInputs(type);
-        // 썸네일과 이미지 목록은 판매자 본인이 업로드 주소로 올린 이미지만 받는다
         ProductImageUrls.validate(
             request.thumbnailUrl(), request.imageUrls(), imageStorage.ownImageUrlPrefix(sellerId));
 
@@ -59,15 +54,11 @@ public class ProductRegistrationService {
             request.thumbnailUrl(),
             request.imageUrls(),
             inputReader.toInfoValues(request.attributes(), lookup)));
-        // 옵션 · 실측 목록이 비면 추가 메서드가 IllegalArgumentException(500)을 던지므로 부르지 않고,
-        // 빠진 입력은 아래 판매 시작 입력 검사의 400이 알려 준다
         List<ProductOption> options = List.of();
         if (!request.options().isEmpty()) {
             List<OptionInfo> optionInfos = inputReader.toOptionInfos(request.options(), lookup);
             List<PriceInfo> priceInfos = inputReader.toPriceInfos(request.prices(), lookup);
             options = product.addOptions(new AddOptionsInfo(sellerId, optionInfos, priceInfos), type);
-            // 요청 옵션 자체의 검사를 먼저 하고, 다른 상품을 읽어야 하는 SKU 코드 검사는 그 뒤에 한다.
-            // 상품은 아래에서 저장하므로 여기서 거절되면 아무것도 저장되지 않는다
             List<String> skuCodes = options.stream().map(ProductOption::getSkuCode).toList();
             SkuCodes.validateUnique(skuCodes, productRepository.findSkuCodesInUse(sellerId, skuCodes));
         }
@@ -78,7 +69,7 @@ public class ProductRegistrationService {
         product.validateSaleStartInputs(category, type);
         productRepository.save(product);
 
-        List<ProductRegisterResult.Option> results = new ArrayList<>();
+        var results = new ArrayList<ProductRegisterResult.Option>();
         for (int i = 0; i < options.size(); i++) {
             ProductOption option = options.get(i);
             int initialQuantity = request.options().get(i).initialQuantity();

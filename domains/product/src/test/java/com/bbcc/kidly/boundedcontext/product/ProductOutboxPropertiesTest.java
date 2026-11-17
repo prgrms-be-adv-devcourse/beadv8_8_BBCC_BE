@@ -16,7 +16,6 @@ class ProductOutboxPropertiesTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withUserConfiguration(PropertiesConfig.class);
 
-    // 값은 ;로 나눈 설정 줄이다. batch-size가 없으면 0으로 묶인다
     @ParameterizedTest(name = "[{0}]")
     @ValueSource(strings = {
         "kidly.product.outbox.retention=P7D",

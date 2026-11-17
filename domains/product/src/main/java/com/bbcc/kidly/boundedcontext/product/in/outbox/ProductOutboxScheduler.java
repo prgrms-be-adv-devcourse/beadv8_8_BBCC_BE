@@ -8,13 +8,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/**
- * 상품 아웃박스 릴레이와 정리를 주기로 부른다. 서비스 하나씩만 부르고 업무 로직은 두지 않는다.
- * 앱의 스케줄러 스레드는 하나뿐이다. 상품 서비스에서는 이 클래스의 릴레이와 정리만 그 스레드를 쓴다.
- * 브로커가 멈추면 릴레이 한 번이 최대 약 17초 걸려 그만큼 정리 작업이 늦어질 수 있다.
- * kidly.kafka.producer.enabled가 false면 만들지 않는다(Kafka 없이 도는 테스트). 값이 없으면 만든다. 아웃박스 저장은 그때도 한다.
- * 릴레이에는 잠금이 없어 한 프로세스에서만 돌아야 한다. 상품 도메인은 상품 서비스에만 있어 릴레이도 그곳에서만 돈다.
- */
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "kidly.kafka.producer.enabled", havingValue = "true", matchIfMissing = true)
@@ -24,9 +17,6 @@ public class ProductOutboxScheduler {
     private final ProductOutboxRelayService relayService;
     private final ProductOutboxCleanupService cleanupService;
 
-    // fixedDelay는 이전 실행이 끝난 뒤부터 주기를 재므로 릴레이가 겹치지 않는다.
-    // 첫 실행도 한 주기 뒤로 미뤄, 기동 직후 바로 돌지 않게 한다(테스트는 주기를 길게 둬서 돌지 않는다).
-    // DB 오류 메시지에 행 값(본문)이 들어갈 수 있어 예외 종류만 남긴다. 운영 알림(Slack)이 ERROR 건수로 오므로 ERROR로 남긴다.
     @Scheduled(fixedDelayString = "${kidly.product.outbox.relay-interval}",
         initialDelayString = "${kidly.product.outbox.relay-interval}")
     public void relay() {
@@ -37,7 +27,6 @@ public class ProductOutboxScheduler {
         }
     }
 
-    // 릴레이와 같은 이유로 예외 종류만 남긴다.
     @Scheduled(cron = "${kidly.product.outbox.cleanup-cron}", zone = "Asia/Seoul")
     public void cleanUp() {
         try {

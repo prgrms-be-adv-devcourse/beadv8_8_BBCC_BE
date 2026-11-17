@@ -27,9 +27,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
 
-/**
- * 관리자가 카테고리 · 상품 유형을 만들거나 바꿀 때 지운 기준 데이터를 새로 연결하지 못하는지 확인한다.
- */
 class DeletedReferenceDataLinkTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 18, 10, 0);

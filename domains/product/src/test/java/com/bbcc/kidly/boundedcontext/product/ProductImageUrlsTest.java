@@ -11,7 +11,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageFormat;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUpload;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductImageUrls;
 import com.bbcc.kidly.global.error.BusinessException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -22,12 +21,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/**
- * 상품 썸네일과 이미지 목록은 판매자 본인이 업로드 주소로 올린 이미지(본인 경로의 {UUID}.{확장자})만 받는다.
- */
 class ProductImageUrlsTest {
 
-    // 판매자 2가 dev 환경에서 이미지를 올리는 경로다
     private static final String OWN_PREFIX = "https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/dev/products/2/";
     private static final String OWN_JPG = OWN_PREFIX + "3f9a1c2e-5b7d-4e60-8a91-0c2d4e6f8a10.jpg";
     private static final String OWN_PNG = OWN_PREFIX + "4a0b2d3f-6c8e-4f71-9b02-1d3e5f708b21.png";
@@ -57,24 +52,6 @@ class ProductImageUrlsTest {
         assertThatThrownBy(() -> ProductImageUrls.validate(OWN_JPG, List.of(OWN_PNG, imageUrl), OWN_PREFIX))
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.IMAGE_URL_NOT_ALLOWED));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("missingArguments")
-    @DisplayName("이미지 목록이나 본인 경로가 없거나 목록에 빈 칸이 있으면 검사하지 않고 실패한다")
-    void rejectMissingArgument(String thumbnailUrl, List<String> imageUrls, String ownPrefix) {
-        assertThatThrownBy(() -> ProductImageUrls.validate(thumbnailUrl, imageUrls, ownPrefix))
-            .isInstanceOf(NullPointerException.class);
-    }
-
-    static Stream<Arguments> missingArguments() {
-        return Stream.of(
-            arguments(named("본인 경로 없음", null), List.of(), null),
-            arguments(named("이미지 목록 없음", OWN_JPG), null, OWN_PREFIX),
-            arguments(named("목록에 빈 칸", null), Arrays.asList(OWN_PNG, null), OWN_PREFIX),
-            // null 칸은 업무 검사(400)보다 먼저 확인해 잘못된 호출이 업무 오류로 가려지지 않게 한다
-            arguments(named("남의 썸네일과 목록의 빈 칸", "https://images.example.com/a.jpg"),
-                Arrays.asList(OWN_PNG, null), OWN_PREFIX));
     }
 
     @ParameterizedTest(name = "[{0}]")

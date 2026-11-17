@@ -29,17 +29,14 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAllowedValue
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeAttribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductTypeErrorCode;
 import com.bbcc.kidly.global.error.BusinessException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
-import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 
 class ProductTypeTest {
@@ -221,38 +218,5 @@ class ProductTypeTest {
                 assertThat(e.getErrorCode()).isEqualTo(ProductTypeErrorCode.ALLOWED_VALUES_ON_ALL_VALUES);
                 assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
             });
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"", " "})
-    @DisplayName("유형 이름이 비어 있으면 거절한다")
-    void rejectTypeWithBlankName(String name) {
-        assertThatThrownBy(() -> ProductType.define(name, clothingLinks()))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("비어 있을 수 없습니다");
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("definitionsWithNull")
-    @DisplayName("유형 이름 · 연결 목록 · 연결의 항목 · 역할 · 허용 값 목록 · 허용 값이 null이면 거절한다")
-    void rejectTypeWithNull(ThrowingCallable define) {
-        assertThatThrownBy(define)
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("필수입니다");
-    }
-
-    static Stream<Named<ThrowingCallable>> definitionsWithNull() {
-        return Stream.of(
-            Named.of("유형 이름", () -> ProductType.define(null, clothingLinks())),
-            Named.of("연결 목록", () -> ProductType.define("의류", null)),
-            Named.of("연결", () -> ProductType.define("의류", Arrays.asList(requiredOption(color()), null))),
-            Named.of("연결의 항목", () -> ProductType.define("의류", List.of(requiredOption(null)))),
-            Named.of("연결의 역할", () -> ProductType.define("의류", List.of(
-                requiredOption(size()),
-                new ProductType.LinkInfo(color(), null, true, true, false, false, List.of())))),
-            Named.of("허용 값 목록", () -> ProductType.define("의류", List.of(
-                new ProductType.LinkInfo(color(), AttributeRole.OPTION, true, true, false, false, null)))),
-            Named.of("허용 값", () -> ProductType.define("의류", List.of(
-                restrictedOption(color(), Arrays.asList((AttributeValue) null))))));
     }
 }

@@ -17,9 +17,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 주문상품 하나의 재고 차감 기록이다.
- */
 @Entity
 @Table(schema = "product", name = "inventory_deduction")
 @Getter
@@ -30,11 +27,9 @@ public class InventoryDeduction extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 주문 도메인의 ID다. 값으로만 가리킨다
     @Column(nullable = false)
     private Long orderId;
 
-    // 같은 주문 생성됨 이벤트를 다시 받아도 재고를 두 번 차감하지 않도록 주문상품마다 기록을 하나만 둔다 (INV-10)
     @Column(nullable = false, unique = true)
     private Long orderItemId;
 
@@ -50,12 +45,10 @@ public class InventoryDeduction extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private InventoryDeductionStatus status;
 
-    // 다른 애그리거트라 옵션 객체는 열지 않고 ID만 돌려준다. 지연 로딩 프록시여도 ID는 초기화 없이 읽힌다
     public Long getProductOptionId() {
         return productOption.getId();
     }
 
-    // 차감 요청(InventoryDeductionRequest)만 차감 기록을 만든다. 주문상품의 값은 요청이 이미 검증했다
     static InventoryDeduction deducted(long orderId, InventoryDeductionRequest.Item item) {
         return create(orderId, item, InventoryDeductionStatus.DEDUCTED);
     }
@@ -66,7 +59,7 @@ public class InventoryDeduction extends BaseTimeEntity {
 
     private static InventoryDeduction create(
             long orderId, InventoryDeductionRequest.Item item, InventoryDeductionStatus status) {
-        InventoryDeduction deduction = new InventoryDeduction();
+        var deduction = new InventoryDeduction();
         deduction.orderId = orderId;
         deduction.orderItemId = item.orderItemId();
         deduction.productOption = item.option();

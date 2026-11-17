@@ -21,16 +21,6 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
-/**
- * 상품이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT를 만든다.
- * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정을 그대로 받고,
- * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다.
- * 읽지 못한 메시지와 다시 해도 같은 결과인 예외는 재시도 없이 보낸다.
- * 에러 처리기는 빈으로 등록하지 않으므로 Boot 기본 팩토리와 다른 도메인에 영향이 없다.
- * DLT로 보낼 때는 Boot 기본 KafkaTemplate을 쓴다. 전송 실패는 앱 설정이 본문 없이 토픽 · 키 · eventType · eventId로 남긴다.
- * 리스너가 시작할지는 앱 설정 auto-startup이 아니라 리스너 애노테이션의 스위치(kidly.product.kafka.consumer.enabled)가 정한다.
- * 스위치를 false로 두면 Kafka 리스너를 시작하지 않는다.
- */
 @Slf4j
 @Configuration
 public class ProductKafkaListenerConfig {
@@ -51,7 +41,6 @@ public class ProductKafkaListenerConfig {
         return TopicBuilder.name(ORDER_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
     }
 
-    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
     @Bean
     ConcurrentKafkaListenerContainerFactory<Object, Object> productKafkaListenerContainerFactory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
@@ -75,7 +64,6 @@ public class ProductKafkaListenerConfig {
         return errorHandler;
     }
 
-    // 본문과 예외 메시지(읽지 못한 값이 들어 있을 수 있다)는 남기지 않는다
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
         log.error("처리하지 못한 이벤트를 DLT로 보냅니다. topic={} eventType={} eventId={} key={} exception={}",

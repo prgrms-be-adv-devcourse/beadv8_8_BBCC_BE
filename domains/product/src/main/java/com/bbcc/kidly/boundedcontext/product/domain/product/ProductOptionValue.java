@@ -15,9 +15,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 옵션이 옵션 항목 하나에 가진 값 한 개다. 색상 네이비처럼 항목과 목록 값을 함께 담는다.
- */
 @Entity
 @Table(schema = "product", name = "product_option_value")
 @Getter
@@ -42,7 +39,7 @@ public class ProductOptionValue extends BaseTimeEntity {
     private AttributeValue attributeValue;
 
     static ProductOptionValue create(ProductOption productOption, AttributeValue attributeValue) {
-        ProductOptionValue optionValue = new ProductOptionValue();
+        var optionValue = new ProductOptionValue();
         optionValue.productOption = productOption;
         optionValue.attribute = attributeValue.getAttribute();
         optionValue.attributeValue = attributeValue;

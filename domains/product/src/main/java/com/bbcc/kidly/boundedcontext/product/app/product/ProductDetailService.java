@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.product.app.product;
 import com.bbcc.kidly.boundedcontext.product.app.product.dto.ProductDetailResult;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.InventoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.inventory.StockDisplay;
-import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductErrorCode;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductInfoValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
@@ -40,14 +39,13 @@ public class ProductDetailService {
     private final InventoryRepository inventoryRepository;
     private final ProductReplicaSellerRepository replicaSellerRepository;
 
-    // 구매자가 보는 상품 상세를 돌려준다. 엔티티는 트랜잭션 안에서 지연 로딩으로 읽어 결과로 모두 바꾼다
     @Transactional(readOnly = true)
     public ProductDetailResult findDetail(Long productId) {
-        Product product = productRepository.getById(productId);
+        var product = productRepository.getById(productId);
         if (!product.isVisibleToBuyer()) {
             throw new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND);
         }
-        Category category = categoryRepository.getById(product.getCategoryId());
+        var category = categoryRepository.getById(product.getCategoryId());
         ProductType type = category.getProductType();
         List<ProductOption> visibleOptions = visibleOptions(product.getOptions());
         List<ProductDetailResult.Option> options = toOptions(visibleOptions);
@@ -70,41 +68,21 @@ public class ProductDetailService {
             toMeasurements(category));
     }
 
-    // 판매자 상태와 관계없이 상호명을 담는다. 판매자 복사본이 없으면 null이다
     private String findBusinessName(Long sellerId) {
-        ProductReplicaSeller seller = replicaSellerRepository.findById(sellerId).orElse(null);
-        if (seller == null) {
-            return null;
-        }
-        return seller.getBusinessName();
+        return replicaSellerRepository.findById(sellerId).map(ProductReplicaSeller::getBusinessName).orElse(null);
     }
 
-    // 보관 옵션은 상세에 보이지 않으므로 옵션 목록과 옵션 항목의 값에서 뺀다
     private List<ProductOption> visibleOptions(List<ProductOption> options) {
-        List<ProductOption> visible = new ArrayList<>();
-        for (ProductOption option : options) {
-            if (!option.isArchived()) {
-                visible.add(option);
-            }
-        }
-        return visible;
+        return options.stream().filter(option -> !option.isArchived()).toList();
     }
 
-    // 옵션이 없으면 null이다
     private Long minPrice(List<ProductDetailResult.Option> options) {
-        Long min = null;
-        for (ProductDetailResult.Option option : options) {
-            if (min == null || option.price() < min) {
-                min = option.price();
-            }
-        }
-        return min;
+        return options.stream().map(ProductDetailResult.Option::price).min(Long::compare).orElse(null);
     }
 
-    // 항목은 유형에 연결한 순서이고, 값은 옵션에 실제로 쓴 값만 값 ID 순서로 중복 없이 담는다
     private List<ProductDetailResult.OptionAttribute> toOptionAttributes(
         List<ProductOption> options, ProductType type) {
-        Map<Long, Map<Long, AttributeValue>> usedValues = new HashMap<>();
+        var usedValues = new HashMap<Long, Map<Long, AttributeValue>>();
         for (ProductOption option : options) {
             for (ProductOptionValue optionValue : option.getValues()) {
                 AttributeValue value = optionValue.getAttributeValue();
@@ -112,13 +90,13 @@ public class ProductDetailService {
                     .put(value.getId(), value);
             }
         }
-        List<ProductDetailResult.OptionAttribute> results = new ArrayList<>();
+        var results = new ArrayList<ProductDetailResult.OptionAttribute>();
         for (ProductTypeAttribute link : type.getAttributes()) {
             if (link.getRole() != AttributeRole.OPTION) {
                 continue;
             }
             Attribute attribute = link.getAttribute();
-            List<ProductDetailResult.OptionValue> values = new ArrayList<>();
+            var values = new ArrayList<ProductDetailResult.OptionValue>();
             for (AttributeValue value : usedValues.getOrDefault(attribute.getId(), Map.of()).values()) {
                 values.add(new ProductDetailResult.OptionValue(value.getId(), value.getName(), value.getColorCode()));
             }
@@ -129,17 +107,13 @@ public class ProductDetailService {
     }
 
     private List<ProductDetailResult.Option> toOptions(List<ProductOption> options) {
-        List<Long> optionIds = new ArrayList<>();
-        for (ProductOption option : options) {
-            optionIds.add(option.getId());
-        }
+        List<Long> optionIds = options.stream().map(ProductOption::getId).toList();
         Map<Long, Integer> availableQtyByOptionId = inventoryRepository.findAvailableQtyByOptionId(optionIds);
-        List<ProductDetailResult.Option> results = new ArrayList<>();
+        var results = new ArrayList<ProductDetailResult.Option>();
         for (ProductOption option : options) {
-            // 재고 행이 없는 옵션은 판매 가능 수량 0으로 본다
             int availableQty = availableQtyByOptionId.getOrDefault(option.getId(), 0);
             StockDisplay stock = StockDisplay.of(option, availableQty);
-            List<Long> valueIds = new ArrayList<>();
+            var valueIds = new ArrayList<Long>();
             for (ProductOptionValue optionValue : option.getValues()) {
                 valueIds.add(optionValue.getAttributeValue().getId());
             }
@@ -155,9 +129,8 @@ public class ProductDetailService {
         return results;
     }
 
-    // 정보 항목은 유형에 연결한 순서이고, 입력한 값이 없으면 null이다
     private List<ProductDetailResult.Info> toProductInfo(List<ProductInfoValue> infoValues, ProductType type) {
-        List<ProductDetailResult.Info> results = new ArrayList<>();
+        var results = new ArrayList<ProductDetailResult.Info>();
         for (ProductTypeAttribute link : type.getAttributes()) {
             if (link.getRole() != AttributeRole.INFO) {
                 continue;
@@ -169,9 +142,8 @@ public class ProductDetailService {
         return results;
     }
 
-    // 목록 값은 저장된 순서대로 이름을 ", "로 잇고, 직접 입력 값은 글을 그대로 쓴다. 입력한 값이 없으면 null이다
     private String infoText(List<ProductInfoValue> infoValues, Attribute attribute) {
-        List<String> texts = new ArrayList<>();
+        var texts = new ArrayList<String>();
         for (ProductInfoValue infoValue : infoValues) {
             if (!infoValue.getAttribute().getId().equals(attribute.getId())) {
                 continue;
@@ -189,7 +161,7 @@ public class ProductDetailService {
     }
 
     private List<ProductDetailResult.SizeSpec> toSizeSpecs(List<SizeSpec> sizeSpecs) {
-        List<ProductDetailResult.SizeSpec> results = new ArrayList<>();
+        var results = new ArrayList<ProductDetailResult.SizeSpec>();
         for (SizeSpec spec : sizeSpecs) {
             results.add(new ProductDetailResult.SizeSpec(
                 spec.getSizeValue().getName(), spec.getMinHeightCm(), spec.getMaxHeightCm(), spec.getMeasurements()));
@@ -198,7 +170,7 @@ public class ProductDetailService {
     }
 
     private List<ProductDetailResult.Measurement> toMeasurements(Category category) {
-        List<ProductDetailResult.Measurement> results = new ArrayList<>();
+        var results = new ArrayList<ProductDetailResult.Measurement>();
         for (CategoryMeasurementItem link : category.getMeasurementItems()) {
             MeasurementItem item = link.getMeasurementItem();
             results.add(new ProductDetailResult.Measurement(item.getCode(), item.getName(), item.getUnit()));

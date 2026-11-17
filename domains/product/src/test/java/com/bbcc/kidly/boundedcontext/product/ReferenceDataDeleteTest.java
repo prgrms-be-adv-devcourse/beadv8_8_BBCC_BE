@@ -34,9 +34,6 @@ class ReferenceDataDeleteTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 18, 10, 0);
 
-    /**
-     * 지울 기준 데이터와, 그것을 「쓰이는 중인지」와 함께 지우는 방법이다.
-     */
     record Deletion<T extends BaseSoftDeleteEntity>(T target, BiConsumer<T, Boolean> delete) {
 
         void run(boolean inUse) {
@@ -99,7 +96,7 @@ class ReferenceDataDeleteTest {
         ProductUpdateFixture.ProductA productA = ProductUpdateFixture.salePendingProductA();
         productA.top().delete(NOW, false);
 
-        assertThatCode(() -> productA.product().update(productA.sameUpdate())).doesNotThrowAnyException();
+        assertThatCode(() -> productA.product().update(productA.sameUpdate(), null)).doesNotThrowAnyException();
     }
 
     static Stream<Arguments> deletionsInUse() {

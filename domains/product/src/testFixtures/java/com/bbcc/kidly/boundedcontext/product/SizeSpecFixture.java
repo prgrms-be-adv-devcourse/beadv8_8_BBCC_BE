@@ -13,7 +13,6 @@ final class SizeSpecFixture {
     private SizeSpecFixture() {
     }
 
-    // 상의 110 사이즈의 실측 예시 값이다(cm)
     static Map<String, BigDecimal> top110Measurements() {
         return Map.of(
             "TOTAL_LENGTH", new BigDecimal("42"),
@@ -22,7 +21,6 @@ final class SizeSpecFixture {
             "SLEEVE_LENGTH", new BigDecimal("38"));
     }
 
-    // 상의 120 사이즈의 실측 예시 값이다(cm)
     static Map<String, BigDecimal> top120Measurements() {
         return Map.of(
             "TOTAL_LENGTH", new BigDecimal("45"),
@@ -36,12 +34,10 @@ final class SizeSpecFixture {
         return new Product.SizeSpecInfo(sizeValue, minHeightCm, maxHeightCm, measurements);
     }
 
-    // 상품 A의 판매자가 실측을 넣는 요청이다
     static Product.AddSizeSpecsInfo addSizeSpecs(List<Product.SizeSpecInfo> specs) {
         return new Product.AddSizeSpecsInfo(SELLER_ID, specs);
     }
 
-    // 이미 넣은 실측과 이번에 넣으려는 실측이다. existing이 비어 있으면 먼저 넣은 실측이 없다
     record SpecRequests(List<Product.SizeSpecInfo> existing, List<Product.SizeSpecInfo> requested) {
     }
 }

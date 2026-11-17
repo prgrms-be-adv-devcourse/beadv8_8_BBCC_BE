@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product;
 
-import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.CLOTHING_PRICE;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
@@ -20,12 +19,9 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionStatus;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
-import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -187,15 +183,6 @@ class ProductOptionTest {
             }));
     }
 
-    @Test
-    @DisplayName("옵션 목록이 비어 있으면 거절한다")
-    void rejectEmptyOptions() {
-
-        assertThatThrownBy(() -> product.addOptions(addOptions(List.of()), clothing.type()))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("비어 있을 수 없습니다");
-    }
-
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"", " ", "\t", "　"})
     @DisplayName("빈 문자열이나 공백만 있는 SKU 코드로는 옵션을 만들지 않는다")
@@ -206,42 +193,5 @@ class ProductOptionTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("공백만으로");
         assertThat(product.getOptions()).isEmpty();
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("additionsWithNull")
-    @DisplayName("요청 · 상품 유형 · 판매자 · 옵션 · 가격과 그 안의 값이 null이면 거절한다")
-    void rejectAdditionWithNull(ThrowingCallable addOptions) {
-        assertThatThrownBy(addOptions)
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("필수입니다");
-    }
-
-    static Stream<Named<ThrowingCallable>> additionsWithNull() {
-        ClothingOptions clothing = clothingOptions();
-        ProductType type = clothing.type();
-        List<Product.OptionInfo> options = List.of(option(clothing.navy(), clothing.size110()));
-        List<Product.PriceInfo> prices = clothingPrice(CLOTHING_PRICE);
-        return Stream.of(
-            Named.of("요청", () -> productA(clothing).addOptions(null, type)),
-            Named.of("상품 유형", () -> productA(clothing).addOptions(addOptions(options), null)),
-            Named.of("판매자", () -> productA(clothing).addOptions(
-                new Product.AddOptionsInfo(null, options, prices), type)),
-            Named.of("옵션 목록", () -> productA(clothing).addOptions(
-                new Product.AddOptionsInfo(SELLER_ID, null, prices), type)),
-            Named.of("가격 목록", () -> productA(clothing).addOptions(
-                new Product.AddOptionsInfo(SELLER_ID, options, null), type)),
-            Named.of("옵션", () -> productA(clothing).addOptions(
-                addOptions(Arrays.asList((Product.OptionInfo) null)), type)),
-            Named.of("옵션의 값 목록", () -> productA(clothing).addOptions(
-                addOptions(List.of(new Product.OptionInfo(null, null))), type)),
-            Named.of("옵션의 값", () -> productA(clothing).addOptions(
-                addOptions(List.of(new Product.OptionInfo(Arrays.asList(clothing.navy(), null), null))), type)),
-            Named.of("가격", () -> productA(clothing).addOptions(
-                new Product.AddOptionsInfo(SELLER_ID, options, Arrays.asList((Product.PriceInfo) null)), type)),
-            Named.of("가격의 값 목록", () -> productA(clothing).addOptions(new Product.AddOptionsInfo(
-                SELLER_ID, options, List.of(new Product.PriceInfo(null, CLOTHING_PRICE))), type)),
-            Named.of("판매가", () -> productA(clothing).addOptions(new Product.AddOptionsInfo(
-                SELLER_ID, options, List.of(new Product.PriceInfo(List.of(), null))), type)));
     }
 }

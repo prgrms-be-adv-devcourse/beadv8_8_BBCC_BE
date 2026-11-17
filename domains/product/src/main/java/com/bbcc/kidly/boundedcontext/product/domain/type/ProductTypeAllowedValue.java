@@ -14,9 +14,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 상품 유형에서 고를 수 있도록 허용한 목록 값이다. 모든 값 허용이 아닌 항목만 이 값 중에서 고른다.
- */
 @Entity
 @Table(
     schema = "product",
@@ -40,7 +37,7 @@ public class ProductTypeAllowedValue extends BaseTimeEntity {
     private AttributeValue attributeValue;
 
     static ProductTypeAllowedValue create(ProductType productType, AttributeValue attributeValue) {
-        ProductTypeAllowedValue allowedValue = new ProductTypeAllowedValue();
+        var allowedValue = new ProductTypeAllowedValue();
         allowedValue.productType = productType;
         allowedValue.attributeValue = attributeValue;
         return allowedValue;

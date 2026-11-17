@@ -12,7 +12,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOptionValue;
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.product.SizeSpec;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
-import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryRepository;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.util.ArrayList;
@@ -26,9 +25,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 판매자 본인의 상품 조회 유스케이스.
- */
 @Service
 @RequiredArgsConstructor
 public class SellerProductService {
@@ -38,26 +34,22 @@ public class SellerProductService {
     private final InventoryRepository inventoryRepository;
     private final CategoryRepository categoryRepository;
 
-    // 정렬은 등록 최신순으로 고정이라 pageable의 sort는 무시된다
     @Transactional(readOnly = true)
     public Page<SellerProductSummary> findMyProducts(
         Long sellerId, SellerProductFilter filter, Pageable pageable) {
         return sellerProductQuery.findBySeller(sellerId, filter, pageable);
     }
 
-    // 내 상품 상세를 돌려준다. 엔티티는 트랜잭션 안에서 읽어 결과로 모두 바꾼다
     @Transactional(readOnly = true)
     public SellerProductDetailResult findMyProductDetail(Long sellerId, Long productId) {
-        Product product = productRepository.getById(productId);
+        var product = productRepository.getById(productId);
         product.validateViewer(sellerId);
         Map<Long, Integer> availableQtyByOptionId = availableQtyByOptionId(product.getOptions());
-        List<SellerProductDetailResult.Option> options = new ArrayList<>();
+        var options = new ArrayList<SellerProductDetailResult.Option>();
         for (ProductOption option : product.getOptions()) {
-            // 보관 옵션은 판매자 화면에도 보이지 않는다 (SALE-06)
             if (option.isArchived()) {
                 continue;
             }
-            // 재고 행이 없는 옵션은 판매 가능 수량 0으로 본다
             options.add(new SellerProductDetailResult.Option(
                 option.getId(),
                 option.getName(),
@@ -74,10 +66,9 @@ public class SellerProductService {
             prices(product), sizeSpecs(product));
     }
 
-    // 상품의 정보 값을 정보 항목마다 한 칸으로 모은다. 칸은 항목이 처음 나온 순서, 목록 값 ID는 저장된 순서다
     private List<SellerProductDetailResult.Attribute> attributes(Product product) {
-        Map<Long, List<Long>> valueIdsByAttributeId = new LinkedHashMap<>();
-        Map<Long, String> textByAttributeId = new HashMap<>();
+        var valueIdsByAttributeId = new LinkedHashMap<Long, List<Long>>();
+        var textByAttributeId = new HashMap<Long, String>();
         for (ProductInfoValue infoValue : product.getInfoValues()) {
             Long attributeId = infoValue.getAttribute().getId();
             List<Long> valueIds = valueIdsByAttributeId.computeIfAbsent(attributeId, id -> new ArrayList<>());
@@ -88,7 +79,7 @@ public class SellerProductService {
                 textByAttributeId.put(attributeId, infoValue.getTextValue());
             }
         }
-        List<SellerProductDetailResult.Attribute> attributes = new ArrayList<>();
+        var attributes = new ArrayList<SellerProductDetailResult.Attribute>();
         for (Map.Entry<Long, List<Long>> entry : valueIdsByAttributeId.entrySet()) {
             attributes.add(new SellerProductDetailResult.Attribute(
                 entry.getKey(), entry.getValue(), textByAttributeId.get(entry.getKey())));
@@ -96,22 +87,20 @@ public class SellerProductService {
         return attributes;
     }
 
-    // 옵션 값의 ID를 저장된 순서대로 모은다
     private List<Long> optionValueIds(ProductOption option) {
-        List<Long> valueIds = new ArrayList<>();
+        var valueIds = new ArrayList<Long>();
         for (ProductOptionValue value : option.getValues()) {
             valueIds.add(value.getAttributeValue().getId());
         }
         return valueIds;
     }
 
-    // 상품 유형으로 보관하지 않은 옵션의 판매가에서 가격 구분 묶음별 가격을 만든다
     private List<SellerProductDetailResult.Price> prices(Product product) {
-        Category category = categoryRepository.getById(product.getCategoryId());
+        var category = categoryRepository.getById(product.getCategoryId());
         ProductType productType = category.productTypeToRegister();
-        List<SellerProductDetailResult.Price> prices = new ArrayList<>();
+        var prices = new ArrayList<SellerProductDetailResult.Price>();
         for (Product.PriceInfo price : product.currentPrices(productType)) {
-            List<Long> valueIds = new ArrayList<>();
+            var valueIds = new ArrayList<Long>();
             for (AttributeValue value : price.values()) {
                 valueIds.add(value.getId());
             }
@@ -120,9 +109,8 @@ public class SellerProductService {
         return prices;
     }
 
-    // 상품의 실측을 저장된 순서대로 결과로 바꾼다. 실측 값 맵은 복사해서 담는다
     private List<SellerProductDetailResult.SizeSpec> sizeSpecs(Product product) {
-        List<SellerProductDetailResult.SizeSpec> sizeSpecs = new ArrayList<>();
+        var sizeSpecs = new ArrayList<SellerProductDetailResult.SizeSpec>();
         for (SizeSpec sizeSpec : product.getSizeSpecs()) {
             sizeSpecs.add(new SellerProductDetailResult.SizeSpec(
                 sizeSpec.getSizeValue().getId(),
@@ -133,12 +121,8 @@ public class SellerProductService {
         return sizeSpecs;
     }
 
-    // 옵션들의 재고를 한 번에 읽어 옵션 ID별 판매 가능 수량으로 묶는다
     private Map<Long, Integer> availableQtyByOptionId(List<ProductOption> options) {
-        List<Long> optionIds = new ArrayList<>();
-        for (ProductOption option : options) {
-            optionIds.add(option.getId());
-        }
+        List<Long> optionIds = options.stream().map(ProductOption::getId).toList();
         return inventoryRepository.findAvailableQtyByOptionId(optionIds);
     }
 }

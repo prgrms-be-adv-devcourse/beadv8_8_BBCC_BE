@@ -83,9 +83,12 @@ class KafkaProductEventSenderTest {
                 .hasMessageContaining("응답 대기 중 인터럽트");
             assertThat(Thread.currentThread().isInterrupted()).isTrue();
         } finally {
-            // 다음 테스트가 인터럽트된 스레드에서 돌지 않게 표시를 지운다
-            Thread.interrupted();
+            clearInterruptFlag();
         }
+    }
+
+    private static void clearInterruptFlag() {
+        Thread.interrupted();
     }
 
     @Test

@@ -12,9 +12,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 판매자 재고 API. 로그인한 판매자 본인의 옵션만 다룬다.
- */
 @RestController
 @RequiredArgsConstructor
 public class SellerInventoryController {

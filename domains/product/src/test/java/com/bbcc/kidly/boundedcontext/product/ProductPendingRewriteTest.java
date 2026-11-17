@@ -22,10 +22,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * 판매대기 상품을 이어서 쓸 때 옵션 · 가격 · 실측을 받은 값으로 바꿔 넣는 동작을 확인한다.
- * 상품 A는 옵션 네이비 · 110과 네이비 · 120(25,000원, SKU 없음)과 두 사이즈의 상의 실측이 있다.
- */
 class ProductPendingRewriteTest {
 
     @Test

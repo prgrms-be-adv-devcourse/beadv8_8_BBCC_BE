@@ -12,10 +12,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
-/**
- * 상품 아웃박스 스케줄러는 Kafka 보내기 스위치(kidly.kafka.producer.enabled)만 따른다.
- * 두 앱이 함께 돌던 동안 쓰던 릴레이 스위치(kidly.product.outbox.relay.enabled)는 지웠으므로, 그 값을 넣어도 스케줄러를 만든다(#791).
- */
 class ProductOutboxRelaySwitchTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()

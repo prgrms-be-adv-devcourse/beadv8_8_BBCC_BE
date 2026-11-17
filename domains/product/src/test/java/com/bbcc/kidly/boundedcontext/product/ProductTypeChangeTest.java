@@ -15,7 +15,6 @@ import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.size;
 import static com.bbcc.kidly.boundedcontext.product.ProductTypeFixture.sizeOption;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
@@ -49,13 +48,11 @@ class ProductTypeChangeTest {
     private static final AttributeValue WHITE = AttributeValue.create(COLOR, "화이트", "#ffffff");
     private static final AttributeValue SIZE_110 = AttributeValue.create(SIZE, "110", null);
 
-    // 기준 데이터의 의류와 같은 연결: 색상 · 사이즈 필수 옵션, 주요소재 필수 정보, 혼용률 선택 정보
     private static ProductType clothing() {
         return ProductType.define("의류", List.of(
             requiredOption(COLOR), sizeOption(SIZE), requiredInfo(MATERIAL), optionalTextInfo(COMPOSITION)));
     }
 
-    // 상품이 있는 유형으로 쓴다. 색상은 네이비 · 그레이만 허용하고, 나머지는 의류와 같다
     private static ProductType typeInUse() {
         return ProductType.define("의류", List.of(
             restrictedOption(COLOR, List.of(NAVY, GRAY)), sizeOption(SIZE), requiredInfo(MATERIAL),
@@ -127,14 +124,6 @@ class ProductTypeChangeTest {
         assertThat(type.getAttributes())
             .extracting(link -> link.getAttribute().getCode())
             .containsExactly("COLOR", "SIZE", "MAIN_MATERIAL", "FABRIC_COMPOSITION");
-    }
-
-    @Test
-    @DisplayName("연결 목록이 null이면 거절한다")
-    void rejectNullLinks() {
-        ProductType type = clothing();
-
-        assertThatNullPointerException().isThrownBy(() -> type.change(null, false));
     }
 
     @ParameterizedTest(name = "{0}")

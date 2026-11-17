@@ -19,9 +19,6 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * 상품 등록 화면이 받는 입력 항목을 상품 유형이 어떻게 정하는지 확인한다.
- */
 class ProductTypeInputTest {
 
     @Test

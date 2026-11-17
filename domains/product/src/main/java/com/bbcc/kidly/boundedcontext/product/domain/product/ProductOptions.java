@@ -1,8 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
-import static java.util.Objects.requireNonNull;
-
-import com.bbcc.kidly.boundedcontext.product.domain.product.Product.AddOptionsInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.OptionInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.PriceInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
@@ -21,50 +18,27 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * 옵션 목록 전체를 함께 보는 검사와 계산(보관 제외 옵션, 사이즈 값, FREE 판단, 가격 구분 묶음의 가격)을 모은다.
- * Product.addOptions, Product.currentPrices, SaleInputsReplacement, ProductSizeSpecs, SaleStartConditions가 쓴다.
- */
 final class ProductOptions {
 
-    // 세미는 사이즈 무관을 값 글자 "FREE"로 판단한다 (SIZE-02)
     private static final String FREE_SIZE = "FREE";
 
     private ProductOptions() {
     }
 
-    // 사이즈 값이 FREE인지 본다 (SIZE-02)
     static boolean isFreeValue(AttributeValue value) {
         return FREE_SIZE.equals(value.getName());
     }
 
-    // 옵션 목록과 가격 목록, 그 안의 값은 null이면 안 된다. SKU 코드는 null을 허용한다
-    static void requireNonNullValues(AddOptionsInfo info) {
-        requireNonNull(info.options(), "options는 필수입니다");
-        requireNonNull(info.prices(), "prices는 필수입니다");
-        for (OptionInfo option : info.options()) {
-            requireNonNull(option, "option은 필수입니다");
-            requireNonNull(option.values(), "values는 필수입니다");
-            option.values().forEach(value -> requireNonNull(value, "value는 필수입니다"));
-        }
-        for (PriceInfo price : info.prices()) {
-            requireNonNull(price, "price는 필수입니다");
-            requireNonNull(price.values(), "values는 필수입니다");
-            requireNonNull(price.price(), "판매가는 필수입니다");
-            price.values().forEach(value -> requireNonNull(value, "value는 필수입니다"));
-        }
-    }
-
-    // 새 옵션을 다음 순서로 검사한다: 옵션 하나의 값, 기존 옵션과 합친 항목 구성, 중복, 사이즈 무관 규칙, 기존 옵션의 가격
-    static void validateNewOptions(AddOptionsInfo info, List<ProductOption> existing, ProductType productType) {
-        for (OptionInfo option : info.options()) {
+    static void validateNewOptions(List<OptionInfo> requested, List<PriceInfo> prices, List<ProductOption> existing,
+        ProductType productType) {
+        for (OptionInfo option : requested) {
             validateOption(option.values(), productType);
         }
-        List<List<AttributeValue>> valueLists = valueLists(info.options(), existing);
+        List<List<AttributeValue>> valueLists = valueLists(requested, existing);
         validateSameAttributes(valueLists);
         validateNoDuplicate(valueLists);
         validateSizeFree(valueLists, productType);
-        validateExistingPrices(info.prices(), existing, productType);
+        validateExistingPrices(prices, existing, productType);
     }
 
     // 옵션 하나의 값을 검사한다. 값은 모두 유형의 옵션 항목 값이어야 하고, 유형의 필수 옵션 항목은 모두 값이 있어야 한다 (OPT-01)
@@ -93,7 +67,6 @@ final class ProductOptions {
         }
     }
 
-    // 이미 있는 옵션(보관 제외)의 값 목록 뒤에 요청 옵션의 값 목록을 붙인다. OPT-02 · 03과 SIZE-02 검사가 함께 쓴다
     private static List<List<AttributeValue>> valueLists(List<OptionInfo> requested, List<ProductOption> existing) {
         List<List<AttributeValue>> lists = activeValueLists(existing);
         for (OptionInfo option : requested) {
@@ -142,23 +115,16 @@ final class ProductOptions {
         }
     }
 
-    // 보관하지 않은 옵션이 있고 그 옵션이 모두 FREE 사이즈이면 사이즈 무관이다. SIZE-02가 FREE와 숫자가 섞이지 않게 막으므로
-    // 유형 정의 없이 값 글자로 판단한다 (SIZE-02)
     static boolean isSizeFree(List<ProductOption> options) {
         List<List<AttributeValue>> lists = activeValueLists(options);
         for (List<AttributeValue> values : lists) {
-            boolean hasFree = false;
-            for (AttributeValue value : values) {
-                hasFree = hasFree || isFreeValue(value);
-            }
-            if (!hasFree) {
+            if (values.stream().noneMatch(ProductOptions::isFreeValue)) {
                 return false;
             }
         }
         return !lists.isEmpty();
     }
 
-    // 보관하지 않은 옵션이 쓰는 사이즈 값을 옵션에 처음 나온 순서대로 모은다. 같은 사이즈는 한 번만 담는다
     static Set<AttributeValue> activeSizeValues(List<ProductOption> options, ProductType productType) {
         Set<AttributeValue> sizeValues = new LinkedHashSet<>();
         for (List<AttributeValue> values : activeValueLists(options)) {
@@ -171,7 +137,6 @@ final class ProductOptions {
         return sizeValues;
     }
 
-    // 보관하지 않은 옵션이 하나라도 있는지 본다
     static boolean hasActiveOptions(List<ProductOption> options) {
         return !activeOptions(options).isEmpty();
     }
@@ -187,7 +152,6 @@ final class ProductOptions {
         }
     }
 
-    // 이미 있는 옵션(보관 제외)의 값 목록이다
     private static List<List<AttributeValue>> activeValueLists(List<ProductOption> existing) {
         List<List<AttributeValue>> lists = new ArrayList<>();
         for (ProductOption option : activeOptions(existing)) {
@@ -196,7 +160,6 @@ final class ProductOptions {
         return lists;
     }
 
-    // 보관한 옵션은 판매 대상이 아니라서 모든 검사에서 뺀다
     static List<ProductOption> activeOptions(List<ProductOption> existing) {
         List<ProductOption> active = new ArrayList<>();
         for (ProductOption option : existing) {
@@ -230,7 +193,7 @@ final class ProductOptions {
 
     // 옵션의 가격 구분 묶음과 같은 값의 묶음을 가진 가격을 찾아 그 가격을 돌려준다.
     // 없으면 거절하고(PRICE-01), 같은 묶음의 가격이 둘 이상이어도 거절한다(PRICE-03)
-    static long findPrice(List<AttributeValue> optionValues, List<PriceInfo> prices, ProductType productType) {
+    private static long findPrice(List<AttributeValue> optionValues, List<PriceInfo> prices, ProductType productType) {
         Set<AttributeValue> group = priceGroup(optionValues, productType);
         List<PriceInfo> matched = new ArrayList<>();
         for (PriceInfo price : prices) {
@@ -244,15 +207,13 @@ final class ProductOptions {
         return matched.getFirst().price();
     }
 
-    // 받은 옵션 하나로 새 옵션을 만든다. 판매가는 가격 구분 묶음으로 찾고, 옵션 값은 유형의 항목 순서로 늘어놓는다
     static ProductOption newOption(
         Product product, OptionInfo option, List<PriceInfo> prices, ProductType productType) {
         long price = findPrice(option.values(), prices, productType);
         return ProductOption.create(product, price, option.skuCode(), inTypeOrder(option.values(), productType));
     }
 
-    // 옵션 값을 유형–항목 연결의 순서대로 늘어놓는다. 옵션 이름이 이 순서를 쓴다 (OPT-09)
-    static List<AttributeValue> inTypeOrder(List<AttributeValue> values, ProductType productType) {
+    private static List<AttributeValue> inTypeOrder(List<AttributeValue> values, ProductType productType) {
         List<AttributeValue> sorted = new ArrayList<>();
         for (ProductTypeAttribute link : productType.getAttributes()) {
             for (AttributeValue value : values) {
@@ -264,7 +225,6 @@ final class ProductOptions {
         return sorted;
     }
 
-    // 옵션들의 가격 구분 묶음마다 그 묶음의 가격 하나를 만든다. 보관 옵션은 뺀다. 같은 묶음의 옵션은 가격이 같으므로(PRICE-03) 처음 나온 옵션의 가격을 쓴다
     static List<PriceInfo> currentPrices(List<ProductOption> options, ProductType productType) {
         Map<Set<AttributeValue>, PriceInfo> groups = new LinkedHashMap<>();
         for (ProductOption option : activeOptions(options)) {
@@ -274,8 +234,6 @@ final class ProductOptions {
         return new ArrayList<>(groups.values());
     }
 
-    // 옵션의 값 중 값에 따라 가격이 달라지는 항목의 값을 모은다. 가격 구분 항목이 없는 유형은 빈 집합이다.
-    // 옵션 값의 순서(유형의 항목 순서)를 지켜서, 이 묶음으로 만든 가격의 값 순서가 실행마다 같다
     private static Set<AttributeValue> priceGroup(Collection<AttributeValue> optionValues, ProductType productType) {
         Set<AttributeValue> group = new LinkedHashSet<>();
         for (AttributeValue value : optionValues) {

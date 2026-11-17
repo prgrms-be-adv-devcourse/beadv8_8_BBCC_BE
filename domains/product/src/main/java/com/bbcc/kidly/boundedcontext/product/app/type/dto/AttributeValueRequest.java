@@ -5,8 +5,6 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * 항목에 더할 목록 값 하나다.
- *
  * @param colorCode 팔레트 값일 때만 보낸다. 없으면 null이다
  */
 public record AttributeValueRequest(

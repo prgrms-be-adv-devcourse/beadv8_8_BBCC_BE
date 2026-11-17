@@ -27,10 +27,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
-/**
- * 주문 취소됨과 주문 생성됨이 동시에 처리되는 순서 하나를 고정해 확인한다.
- * 실제 스레드로는 취소가 기록을 읽은 뒤 차감이 먼저 커밋하는 순서를 매번 만들 수 없어서 저장소를 대신한다.
- */
 @ExtendWith(MockitoExtension.class)
 class InventoryRestorationServiceTest {
 
@@ -53,15 +49,16 @@ class InventoryRestorationServiceTest {
     @DisplayName("INV-09 차감 기록이 없어 남기려던 FAILED가 그사이 커밋된 차감 기록에 막히면, 기록을 다시 읽어 그 차감을 되돌린다")
     void restoreDeductionCommittedWhileRecordingFailed() {
         Options options = InventoryDeductionFixture.onSaleOptions();
-        List<InventoryDeduction> committed = InventoryDeductionRequest.of(ORDER_ID,
+        List<InventoryDeduction> committedWhileRecordingFailed = InventoryDeductionRequest.of(ORDER_ID,
             List.of(item(11L, options.navy110(), 2))).deductedRecords();
-        given(inventoryDeductionRepository.findAllByOrderItemIdIn(List.of(11L))).willReturn(List.of(), committed);
+        given(inventoryDeductionRepository.findAllByOrderItemIdIn(List.of(11L)))
+            .willReturn(List.of(), committedWhileRecordingFailed);
         given(productRepository.findOptionsWithProduct(List.of(NAVY_110_ID))).willReturn(List.of(options.navy110()));
         willThrow(new DataIntegrityViolationException("주문상품 11의 차감 기록이 이미 있습니다"))
             .given(inventoryDeductionRecorder).recordFailed(any());
 
         inventoryRestorationService.restore(orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 2)));
 
-        then(inventoryRestorer).should().restore(committed);
+        then(inventoryRestorer).should().restore(committedWhileRecordingFailed);
     }
 }

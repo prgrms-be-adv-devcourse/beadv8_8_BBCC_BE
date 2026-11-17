@@ -12,9 +12,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 판매자 상품 이미지 API. 판매자가 이미지를 S3에 직접 올릴 업로드 주소를 발급한다.
- */
 @RestController
 @RequestMapping("/api/v1/seller/product-images")
 @RequiredArgsConstructor

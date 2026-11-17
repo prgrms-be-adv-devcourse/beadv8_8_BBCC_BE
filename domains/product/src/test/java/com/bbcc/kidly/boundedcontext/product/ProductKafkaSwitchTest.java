@@ -10,12 +10,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.kafka.annotation.KafkaListener;
 
-/**
- * 상품이 받는 다른 도메인 이벤트는 Kafka 리스너로만 받는다. 리스너가 시작할지는 수신 스위치가 정한다.
- */
 class ProductKafkaSwitchTest {
 
-    // 테스트 설정은 리스너가 저절로 시작하지 않게 막아 두므로, 스위치를 따르는지는 애노테이션 값으로 확인한다
     @ParameterizedTest
     @ValueSource(classes = {ProductSellerKafkaListener.class, ProductOrderKafkaListener.class})
     @DisplayName("Kafka 리스너는 스위치(kidly.product.kafka.consumer.enabled)가 켜져 있을 때만 시작하고, 구독 그룹은 kidly.product다")

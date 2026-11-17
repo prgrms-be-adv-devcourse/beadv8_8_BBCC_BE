@@ -6,11 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
-/**
- * 상품 유형을 정의하거나 찾을 때 생기는 업무 오류다.
- * 설정 규칙 위반은 관리자가 고른 설정 때문에 생기므로 400으로 알린다.
- * 상품이 있는 유형을 기존 상품과 어긋나게 바꾸는 요청과 카테고리가 가리키는 유형을 지우는 요청은 유형의 현재 상태와 충돌하므로 409로 알린다.
- */
 @Getter
 @Accessors(fluent = true)
 @RequiredArgsConstructor

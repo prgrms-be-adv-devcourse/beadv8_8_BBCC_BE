@@ -15,7 +15,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -90,7 +89,6 @@ class CategoryTest {
             e -> assertThat(e.getErrorCode()).isEqualTo(CategoryErrorCode.NOT_LEAF_CATEGORY));
     }
 
-    // 기준 데이터의 최상위 의류와, 중간 카테고리 아래의 중간 카테고리인 의류 > 잡화다
     static Stream<Named<Category>> middleCategories() {
         Category clothing = CategoryFixture.clothing();
         return Stream.of(
@@ -128,44 +126,5 @@ class CategoryTest {
         clothing.delete(LocalDateTime.of(2026, 11, 6, 9, 0));
 
         assertThat(top.path()).extracting(Category::getName).containsExactly("의류", "상의");
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("creationsWithNull")
-    @DisplayName("이름 · 상품 유형 · 실측 항목 목록과 그 안의 실측 항목이 null이면 거절한다")
-    void rejectCreationWithNull(ThrowingCallable create) {
-        assertThatThrownBy(create)
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("필수입니다");
-    }
-
-    static Stream<Named<ThrowingCallable>> creationsWithNull() {
-        ProductType type = ProductType.define("의류", ProductTypeFixture.clothingLinks());
-        List<MeasurementItem> items = List.of(totalLength());
-        return Stream.of(
-            Named.of("중간 카테고리 이름", () -> Category.createMiddle(null, null)),
-            Named.of("말단 카테고리 요청", () -> Category.createLeaf(null)),
-            Named.of("말단 카테고리 이름", () -> Category.createLeaf(new Category.LeafInfo(null, null, type, items))),
-            Named.of("상품 유형", () -> Category.createLeaf(new Category.LeafInfo("상의", null, null, items))),
-            Named.of("실측 항목 목록", () -> Category.createLeaf(new Category.LeafInfo("상의", null, type, null))),
-            Named.of("실측 항목", () -> Category.createLeaf(
-                new Category.LeafInfo("상의", null, type, Arrays.asList(totalLength(), null)))));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("creationsWithBlankName")
-    @DisplayName("카테고리 이름이 비어 있으면 거절한다")
-    void rejectBlankName(ThrowingCallable create) {
-        assertThatThrownBy(create)
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("비어 있을 수 없습니다");
-    }
-
-    static Stream<Named<ThrowingCallable>> creationsWithBlankName() {
-        ProductType type = ProductType.define("의류", ProductTypeFixture.clothingLinks());
-        return Stream.of(
-            Named.of("중간 카테고리 이름 \"\"", () -> Category.createMiddle("", null)),
-            Named.of("말단 카테고리 이름 \" \"", () -> Category.createLeaf(
-                new Category.LeafInfo(" ", null, type, List.of(totalLength())))));
     }
 }

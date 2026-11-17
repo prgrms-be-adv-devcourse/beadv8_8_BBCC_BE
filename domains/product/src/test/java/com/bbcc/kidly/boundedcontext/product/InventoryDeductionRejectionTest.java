@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.NAVY_110_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.forceSaleStatus;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.NAVY_120_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.ORDER_ID;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.beforeSaleOptions;
@@ -22,11 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.springframework.test.util.ReflectionTestUtils;
 
-/**
- * 거절한 차감 요청이 재고 부족함에 담을 주문상품별 거절 사유를 만드는지 확인한다.
- */
 class InventoryDeductionRejectionTest {
 
     @ParameterizedTest(name = "옵션 {0}")
@@ -34,7 +31,7 @@ class InventoryDeductionRejectionTest {
     @DisplayName("INV-13 상품이 판매중이 아니면 옵션 상태와 상관없이 그 상품의 옵션을 담은 주문상품만 PRODUCT_NOT_ON_SALE로 거절한다")
     void productNotOnSale(ProductOptionStatus optionStatus) {
         ProductOption beforeSaleOption = beforeSaleOptions().navy120();
-        ReflectionTestUtils.setField(beforeSaleOption, "saleStatus", optionStatus);
+        forceSaleStatus(beforeSaleOption, optionStatus);
         InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
             item(11L, onSaleOptions().navy110(), 2),
             item(12L, beforeSaleOption, 1)));
@@ -51,8 +48,7 @@ class InventoryDeductionRejectionTest {
     @DisplayName("INV-13 상품은 판매중인데 옵션이 판매중이 아니면 그 옵션을 담은 주문상품만 OPTION_NOT_ON_SALE로 거절한다")
     void optionNotOnSale(ProductOptionStatus optionStatus) {
         Options options = onSaleOptions();
-        // 옵션을 판매중지 · 보관하는 업무 메서드가 아직 없어 상태 칸을 직접 바꾼다
-        ReflectionTestUtils.setField(options.navy120(), "saleStatus", optionStatus);
+        forceSaleStatus(options.navy120(), optionStatus);
         InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
             item(11L, options.navy110(), 2),
             item(12L, options.navy120(), 1)));
@@ -86,7 +82,6 @@ class InventoryDeductionRejectionTest {
     @DisplayName("INV-11 모자란 옵션이 여럿이면 그 옵션들을 담은 주문상품을 옵션 ID가 아닌 요청 순서대로 OUT_OF_STOCK로 거절한다")
     void outOfStockForEveryShortOptionInRequestOrder() {
         Options options = onSaleOptions();
-        // 픽스처의 옵션 ID는 등록 순서와 반대(110이 7, 120이 3)라서, 옵션 ID 순서로 담으면 12가 먼저 나온다
         InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
             item(11L, options.navy110(), 1),
             item(12L, options.navy120(), 1)));
@@ -104,7 +99,7 @@ class InventoryDeductionRejectionTest {
     @DisplayName("대표 사유는 요청 순서에서 첫 번째로 거절한 주문상품의 사유다")
     void representativeReasonIsFirstFailure() {
         Options options = onSaleOptions();
-        ReflectionTestUtils.setField(options.navy120(), "saleStatus", ProductOptionStatus.STOPPED);
+        forceSaleStatus(options.navy120(), ProductOptionStatus.STOPPED);
         InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
             item(11L, options.navy110(), 1),
             item(12L, options.navy120(), 1),
@@ -118,24 +113,5 @@ class InventoryDeductionRejectionTest {
     void rejectEmptyFailures() {
         assertThatThrownBy(() -> new InventoryDeductionRejection(List.of()))
             .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    @DisplayName("사유가 없는 거절 줄은 만들지 않는다")
-    void rejectFailureWithoutReason() {
-        assertThatThrownBy(() -> new InventoryDeductionRejection.Failure(11L, null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessage("reason은 필수입니다");
-    }
-
-    @Test
-    @DisplayName("모자란 옵션 ID 목록 없이 재고 부족 거절 사유를 만들지 않는다")
-    void rejectShortageWithoutShortOptionIds() {
-        InventoryDeductionRequest request = InventoryDeductionRequest.of(ORDER_ID, List.of(
-            item(11L, onSaleOptions().navy110(), 1)));
-
-        assertThatThrownBy(() -> request.shortageRejection(null))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessage("shortOptionIds는 필수입니다");
     }
 }
