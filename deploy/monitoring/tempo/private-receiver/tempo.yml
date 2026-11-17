@@ -10,6 +10,8 @@ distributor:
             cert_file: /etc/tracing-tls/tls.crt
             key_file: /etc/tracing-tls/tls.key
             client_ca_file: /etc/tracing-tls/ca.crt
+querier:
+  max_concurrent_queries: 2
 compactor:
   compaction:
     block_retention: 2h
