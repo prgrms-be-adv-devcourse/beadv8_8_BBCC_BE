@@ -1230,8 +1230,8 @@
     {
       "id": 22,
       "type": "timeseries",
-      "title": "앱 서버 CPU · steal",
-      "description": "앱 서버(kidly-dev 파드가 있는 노드)의 CPU 사용률과 steal입니다. steal이 오르면 t3 CPU 크레딧이 떨어져 기준 성능으로 묶였을 수 있으니, 결과를 앱 한계로 해석하기 전에 AWS 콘솔 CloudWatch CPUCreditBalance를 같은 시각으로 확인합니다. 사용률이 100%에 붙으면 앱보다 노드가 먼저 한계입니다.",
+      "title": "서버 CPU · steal (앱 · DB)",
+      "description": "앱 서버(서비스 파드)와 DB 서버(Postgres · Kafka · Elasticsearch · 모니터링이 함께 있는 서버)의 CPU 사용률과 steal입니다. 부하 중 DB 서버가 먼저 100%에 붙으면 병목은 앱이 아니라 DB 쪽입니다. steal이 오르면 t3 CPU 크레딧이 떨어졌을 수 있으니 AWS 콘솔 CloudWatch CPUCreditBalance를 같은 시각으로 확인합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1250,7 +1250,7 @@
           },
           "refId": "A",
           "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m]))) and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
-          "legendFormat": "사용률 {{instance}}"
+          "legendFormat": "앱 서버 사용률"
         },
         {
           "datasource": {
@@ -1259,7 +1259,25 @@
           },
           "refId": "B",
           "expr": "100 * avg by (instance) (rate(node_cpu_seconds_total{mode=\"steal\"}[1m])) and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
-          "legendFormat": "steal {{instance}}"
+          "legendFormat": "앱 서버 steal"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m]))) unless on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "legendFormat": "DB 서버 사용률"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "D",
+          "expr": "100 * avg by (instance) (rate(node_cpu_seconds_total{mode=\"steal\"}[1m])) unless on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "legendFormat": "DB 서버 steal"
         }
       ],
       "options": {
@@ -1426,9 +1444,9 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 0,
+        "x": 12,
         "y": 56,
-        "w": 24,
+        "w": 12,
         "h": 8
       },
       "targets": [
@@ -1467,6 +1485,71 @@
             "spanNulls": false
           },
           "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 26,
+      "type": "timeseries",
+      "title": "서버 메모리 여유 (앱 · DB)",
+      "description": "사용 가능한 메모리 비율입니다. DB 서버는 3.8GB에 Postgres · Kafka · Elasticsearch · 모니터링이 함께 있어 여유가 적습니다. 부하 중 10% 아래로 내려가면 DB · 검색 응답이 느려지거나 컨테이너가 메모리 한도로 재시작될 수 있습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "100 * node_memory_MemAvailable_bytes{job=\"integrations/unix\"} / node_memory_MemTotal_bytes{job=\"integrations/unix\"} and on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "legendFormat": "앱 서버"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "100 * node_memory_MemAvailable_bytes{job=\"integrations/unix\"} / node_memory_MemTotal_bytes{job=\"integrations/unix\"} unless on (instance) group by (instance) (container_cpu_usage_seconds_total{namespace=\"kidly-dev\"})",
+          "legendFormat": "DB 서버"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       }
