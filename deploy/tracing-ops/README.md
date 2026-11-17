@@ -51,6 +51,10 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 
 앱 서버의 발신 위치에서 `python3 verify-transport.py <Tempo 사설 IPv4> --ca <CA 인증서> --cert <Alloy 인증서> --key <Alloy 키>`로 Tempo의 TLS 수신기를 점검합니다. Tempo 서버 인증서의 IP SAN에 수신 노드의 사설 IPv4가 들어 있어야 합니다. 인증서가 있을 때 비어 있는 OTLP 요청이 성공하고, 같은 주소에 인증서 없이 접속하면 TLS에서 거절돼야 통과합니다. TCP 재설정처럼 거절 원인을 확인할 수 없으면 실패로 처리합니다. 요청에 span 데이터가 없어 Grafana에 메모나 트레이스를 남기지 않습니다. Alloy Pod의 실제 전송과 운영 요청 추적은 별도 확인 항목입니다.
 
+## Alloy에서 Tempo까지 확인
+
+수신 경로를 준비한 뒤 `tracing-verify-alloy`를 수동 실행합니다. 전용 Alloy에 합성 span 한 개를 넣고 Tempo에서 같은 ID를 조회합니다. 기존 Alloy가 허용하는 Gateway 서비스 이름과 별도 합성 계측 scope를 사용합니다. 검증 실행에 표시된 합성 trace ID는 실제 요청 검증에서 제외합니다. 앱이나 DB는 변경하지 않습니다. 운영 Grafana에서 실제 요청의 Gateway·주문·DB 추적은 Agent 적용 후 확인합니다.
+
 ## 운영 적용·원복 점검
 
 `tracing-preflight`에서 `applied` 또는 `rolled-back`을 선택합니다. Gateway·주문 롤아웃, Agent 설정, 전용 Alloy, Tempo 수신 설정을 읽어서 기대 상태와 다르면 실패합니다. 이 검사는 설정과 Pod 준비 상태를 확인합니다. 실제 전송·사설 접근 차단과 Grafana의 주문 트레이스는 시범 절차에서 각각 확인합니다.
