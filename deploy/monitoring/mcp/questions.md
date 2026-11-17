@@ -27,7 +27,7 @@ AI가 추측하지 않도록 세 가지를 넣습니다.
 |---|---|---|
 | 지금 어느 서비스가 이상해? | `max by (job) (up{env="dev"})` · `sum by (job) (rate(http_server_requests_seconds_count{env="dev",uri!~"/actuator.*",status=~"5.."}[5m]))` · `sum by (job) (increase(logback_events_total{env="dev",level="error"}[5m]))` | 1 · 운영 홈 상태판 |
 | ○○ 서비스에서 어느 API가 오류를 내? | `topk(10, sum by (method, uri, status) (increase(http_server_requests_seconds_count{env="dev",job="kidly-○○",status=~"5..\|4.."}[1h])))` | 3 · 서비스 오류 → 오류가 난 API 표 |
-| ○○ 서비스가 언제부터 느려졌어? | `sum by (uri) (rate(http_server_requests_seconds_sum{env="dev",job="kidly-○○",uri!~"/actuator.*\|/api/v1/(child/)?notifications/stream"}[5m])) / sum by (uri) (rate(http_server_requests_seconds_count{...같은 조건...}[5m]))` (범위 쿼리) | 2 · 서비스 상세 → 경로별 평균 응답 |
+| ○○ 서비스가 언제부터 느려졌어? | `sum by (uri) (rate(http_server_requests_seconds_sum{env="dev",job="kidly-○○",uri!~"/actuator.*\|/api/v1/(child/)?notifications/stream"}[5m])) / sum by (uri) (rate(http_server_requests_seconds_count{env="dev",job="kidly-○○",uri!~"/actuator.*\|/api/v1/(child/)?notifications/stream"}[5m]))` (범위 쿼리) | 2 · 서비스 상세 → 경로별 평균 응답 |
 | 최근에 재시작한 서비스 있어? | `max by (job, instance) (process_start_time_seconds{env="dev"})` (현재 시각과 비교) | 2 · 서비스 상세 → 재시작 표시선 |
 | DB 커넥션이 모자라? | `sum by (job, pool) (hikaricp_connections_pending{env="dev"})` · `hikaricp_connections_active / hikaricp_connections_max` | 2 · 서비스 상세 → DB 커넥션 풀(펼치기) |
 | 메모리 · GC가 문제야? | `sum by (job) (jvm_memory_used_bytes{env="dev",area="heap"})` · `sum by (job) (rate(jvm_gc_pause_seconds_sum{env="dev"}[5m]))` | 2 · 서비스 상세 → JVM(펼치기) |

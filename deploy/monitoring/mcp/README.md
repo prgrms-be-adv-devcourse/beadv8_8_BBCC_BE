@@ -52,6 +52,6 @@ GitHub Actions → **monitoring-deploy → Run workflow**로 재동기화할 수
 
 ## 중단·만료
 
-Codex의 `kidly_grafana`를 끄고 `bootstrap.py revoke-token --token-id <ID>`로 폐기한 뒤 해당 Keychain 항목을 지웁니다. 만료 뒤 자동 재발급하지 않습니다. 다시 승인된 절차로 검증·발급합니다. 조직은 기존 운영 조직과 분리되어 있고 운영 알림은 기존 공간에서 계속 동작합니다.
+Codex의 `kidly_grafana`를 끄거나(enabled=false) Claude Code에서 지우고(`claude mcp remove kidly_grafana --scope user`) `bootstrap.py revoke-token --token-id <ID>`로 폐기한 뒤 해당 Keychain 항목을 지웁니다. 만료 뒤 자동 재발급하지 않습니다. 다시 승인된 절차로 검증·발급합니다. 조직은 기존 운영 조직과 분리되어 있고 운영 알림은 기존 공간에서 계속 동작합니다.
 
 [공식 MCP v2.2.0](https://github.com/grafana/mcp-grafana/releases/tag/v2.2.0) · [Codex MCP 설정](https://developers.openai.com/codex/mcp) · [Claude Code MCP 설정](https://docs.claude.com/en/docs/claude-code/mcp) · [Grafana 서비스 계정 API](https://grafana.com/docs/grafana/latest/developer-resources/api-reference/http-api/serviceaccount/)
