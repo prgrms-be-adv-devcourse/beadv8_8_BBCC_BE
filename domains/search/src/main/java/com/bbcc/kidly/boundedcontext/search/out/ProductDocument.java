@@ -12,7 +12,7 @@ import java.util.TreeMap;
 /**
  * Elasticsearch 상품 색인에 저장하는 문서다. 필드 타입은 resources/elasticsearch/products.json에 정해 둔다.
  *
- * @param attributeValues 항목 code와 값 ID를 code:값ID 한 단어로 묶은 목록(예: color:3). 항목이 늘어도 필드가
+ * @param attributeValues 항목 code와 값 ID를 code:값ID 한 단어로 묶은 목록(예: COLOR:3, code는 대문자 그대로). 항목이 늘어도 필드가
  *     늘지 않게 keyword 필드 하나에 담고, 항목마다 고른 값 중 하나만 맞아도 통과하는 조건으로 거른다
  * @param embedding 의미 검색 벡터(#797). 없으면 칸을 보내지 않는다(dense_vector에 null을 넣지 않는다).
  *     Elasticsearch 9.2부터 검색 · 조회 응답의 _source에 벡터가 빠지므로 목록 검색 결과에서는 늘 null이다

@@ -67,7 +67,8 @@
 - 정렬: `NEWEST` = `productCreatedAt` 내림차순, `PRICE_ASC` · `PRICE_DESC` = `minPrice`. 값이 같으면 `productId` 내림차순. `RELEVANCE`는 아래 "의미 검색"(검색어가 없으면 `NEWEST`와 같다)
 - 상호명: 결과 페이지의 판매자 ID로 판매자 색인을 `mget` 한 번 해서 붙인다(같은 판매자는 한 번). 판매자 문서가 없으면 null. 결과가 없으면 찾지 않는다
 - 전체 개수는 정확히 센다(`track_total_hits: true`). Elasticsearch는 `from + size`가 1만 건(`max_result_window`)을 넘으면 거절하므로, 1만 건 너머 페이지는 빈 목록과 전체 개수를, 걸친 페이지는 1만 건까지만 돌려준다
-- Elasticsearch 쪽 장애만 상품 · 판매자 조회 모두 `app.port.SearchUnavailableException`으로 바꿔 던진다: 연결 실패, 5xx, 과부하(429), 색인 없음(404 `index_not_found_exception`). 다시 하면 될 수 있어 503으로 알린다
+- 상품 조회는 Elasticsearch 쪽 장애만 `app.port.SearchUnavailableException`으로 바꿔 던진다: 연결 실패, 5xx, 과부하(429), 색인 없음(404 `index_not_found_exception`). 다시 하면 될 수 있어 503으로 알린다
+  - 판매자 조회(상호명)는 같은 장애에서 던지지 않고 상호명 없이 목록을 돌려준다. 실패는 `kidly.search.seller.lookup.failures` 카운터로 센다(#1387)
   - 그 밖의 4xx(400 등)는 요청을 잘못 만든 우리 쪽 버그라 `ElasticsearchException` 그대로 던진다(500, 스택 트레이스와 함께 ERROR). 503으로 가리면 원인을 찾기 어렵다
 
 ## 목록 API (`in/ProductListController`, `app/ProductListService`)
@@ -102,7 +103,7 @@
     - 커서는 인스턴스 메모리에 둔다. 다시 뜨면 처음부터 찾고, Pod 두 개가 함께 돌면 각자 돈다(결과는 같다)
   - 벡터를 붙일 때(`attachEmbedding`) 문서를 다시 읽어 버전이 찾을 때의 `occurredAt`과 같고 문장도 같을 때만 같은 버전으로 다시 저장한다(`version_type=external_gte`). 버전(발생 시각)을 바꾸지 않아 늦은 이벤트 거절이 그대로이고, 그사이 새 이벤트가 저장됐으면 409로 거절돼 건너뛴다. Pod 두 개가 함께 돌아도 같은 값을 같은 버전으로 저장할 뿐이다
   - 이 기능 전에 문장 없이 벡터 없이 저장된 문서는 찾지 않는다. 다음 변경 이벤트나 상품 다시 발행으로 채운다
-- 검색(`app/ProductListService` → `out/ElasticsearchProductSearch`): 관련도순 + 검색어면 검색어를 벡터로 바꿔 조건(`keywordVector`)에 넘긴다
+- 검색(`app/ProductListService` → `out/ElasticsearchProductSearch`): 검색어가 있으면 정렬과 관계없이 검색어를 벡터로 바꿔 조건(`keywordVector`)에 넘긴다
   - 검색어가 상품명 · 브랜드에 있는 상품은 고정 점수 2(`constant_score`)를 받고, 검색어 형태소가 모두 상품명에 있으면 2를 더 받는다(#1025). 검색어 벡터가 있으면 같은 조건(판매중 · 카테고리 · 항목 값) 안에서 kNN(`k` 100 · 후보 200 · 코사인 유사도 0.3 이상)으로 뜻이 가까운 상품을 더한다. kNN 점수(0.5~1)를 더해 점수 내림차순, 같으면 `productId` 내림차순
   - 그래서 검색어가 있는 상품이 늘 먼저 오고, 그 안과 뒤에서는 뜻이 가까운 순이다. BM25 점수를 쓰지 않는 건 상한이 없어 상품 수에 따라 kNN 점수와 앞뒤가 바뀌기 때문이다
   - 의미 검색으로 더하는 상품은 100개까지다. 그보다 뒤 페이지는 검색어가 있는 상품만 나온다
