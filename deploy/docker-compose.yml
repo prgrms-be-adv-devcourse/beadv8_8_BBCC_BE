@@ -116,7 +116,9 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?}
       TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: -Xmx128m
+      # TargetSurvivorRatio=90: AI 응답을 기다리는 요청(2 ~ 5초)이 쥔 객체가 Survivor(4.3MiB)에 다 들어가지 못해 Tenured 로 넘어가면, 빈자리가 10MiB 안쪽인 Tenured 가 2초마다 차서 전체 GC 가 이어진다.
+      # 기본값 50 대신 Survivor 를 90% 까지 쓰게 해 넘어가는 양을 줄인다. 힙과 컨테이너 메모리 상한은 그대로다
+      JAVA_TOOL_OPTIONS: -Xmx128m -XX:TargetSurvivorRatio=90
       # 힙 밖 네이티브 메모리가 동시 요청에 따라 커지는 것을 줄인다. 자녀 프로필 서비스와 같은 설정이다
       MALLOC_ARENA_MAX: "2"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:?}
