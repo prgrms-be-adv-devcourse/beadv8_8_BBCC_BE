@@ -1,10 +1,11 @@
 package com.bbcc.kidly.boundedcontext.auth.in;
 
+import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenProperties;
 import com.bbcc.kidly.shared.auth.PrincipalType;
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.server.Cookie;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseCookie.ResponseCookieBuilder;
@@ -18,10 +19,14 @@ public class RefreshTokenCookies {
     public static final String ADMIN_NAME = "admin_refresh_token";
     public static final String CHILD_NAME = "child_refresh_token";
 
-    private final SecurityProperties properties;
+    private static final String NO_STORE = CacheControl.noStore().getHeaderValue();
 
-    public void add(HttpServletResponse response, PrincipalType type, String token, Duration maxAge) {
-        write(response, builder(type, token).maxAge(maxAge));
+    private final SecurityProperties properties;
+    private final RefreshTokenProperties refreshTokenProperties;
+
+    public void issue(HttpServletResponse response, PrincipalType type, String token) {
+        write(response, builder(type, token).maxAge(refreshTokenProperties.validity()));
+        response.setHeader(HttpHeaders.CACHE_CONTROL, NO_STORE);
     }
 
     // 같은 이름 · Path에 Max-Age=0을 보내면 브라우저가 쿠키를 지운다
