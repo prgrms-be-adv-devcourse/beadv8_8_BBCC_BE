@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.delivery.app.port.DeliveryRepository;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -45,7 +45,7 @@ class PaymentMissingIdIntegrationTest {
     private OrderEventDelivery eventDelivery;
 
     @Autowired
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private ProductReplicaRepository productReplicaRepository;
@@ -60,7 +60,7 @@ class PaymentMissingIdIntegrationTest {
     @DisplayName("결제 ID가 없는 결제 완료 → 주문은 PAID(결제 ID 비어 있음) · 판매자 배송 1건 생성, ERROR는 정확히 한 줄(reason=missing-payment-id)")
     void missingPaymentIdStillPaid(CapturedOutput output) {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         LocalDateTime now = LocalDateTime.now();
@@ -136,7 +136,7 @@ class PaymentMissingIdIntegrationTest {
 
     private OrderDetail placeOrder() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
-        return orderService.place(BUYER_ID, new PlaceOrderCommand(
+        return orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
     }

@@ -50,6 +50,9 @@ class SellerUnavailableCleanupIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderPlacementService orderPlacementService;
+
+    @Autowired
     private DeliveryService deliveryService;
 
     @Autowired
@@ -183,7 +186,7 @@ class SellerUnavailableCleanupIntegrationTest {
     }
 
     private OrderDetail place(Long... optionIds) {
-        return orderService.place(BUYER_ID, new PlaceOrderCommand(
+        return orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             java.util.Arrays.stream(optionIds).map(optionId -> new PlaceOrderCommand.Item(optionId, null, 1, PRICE))
                 .toList(),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));

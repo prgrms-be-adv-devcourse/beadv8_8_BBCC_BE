@@ -16,7 +16,8 @@ import com.bbcc.kidly.boundedcontext.wish.out.actor.ParentWishActor;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.OrderFlowEventRecorder;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.outbox.dto.OutboxRelayResult;
@@ -92,7 +93,10 @@ class OrderOutboxKafkaIntegrationTest {
     private KafkaContainer kafka;
 
     @Autowired
-    private OrderService orderService;
+    private OrderConfirmationService orderConfirmationService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private OrderOutboxRelayService relayService;
@@ -158,7 +162,7 @@ class OrderOutboxKafkaIntegrationTest {
         eventDelivery.deliver(stockDeducted(confirmed.orderId()));
         eventDelivery.deliver(paymentCompleted(confirmed));
         deliveredAtSetter.recordDelivered(confirmed.orderId(), SELLER_ID, LocalDateTime.now());
-        orderService.confirmByBuyer(BUYER_ID, confirmed.orderId(), confirmed.items().get(0).orderItemId());
+        orderConfirmationService.confirmByBuyer(BUYER_ID, confirmed.orderId(), confirmed.items().get(0).orderItemId());
         OrderDetail cancelled = place();
         eventDelivery.deliver(stockDeducted(cancelled.orderId()));
         eventDelivery.deliver(paymentFailed(cancelled));
@@ -446,7 +450,7 @@ class OrderOutboxKafkaIntegrationTest {
     }
 
     private OrderDetail place() {
-        return orderService.place(BUYER_ID, new PlaceOrderCommand(
+        return orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
     }

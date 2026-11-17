@@ -11,7 +11,7 @@ import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.OrderDeadLetterService;
 import com.bbcc.kidly.boundedcontext.order.app.deadletter.dto.ReceiveDeadLetterCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -63,7 +63,7 @@ class AdminOrderDeadLetterActionApiTest {
     private OrderDeadLetterService deadLetterService;
 
     @Autowired
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private OrderQueryService orderQueries;
@@ -146,7 +146,7 @@ class AdminOrderDeadLetterActionApiTest {
     @DisplayName("재고 차감됨 처리가 실패해 주문 자체 보관(이벤트 처리 실패 기록)에 넘기면 REPROCESSED. "
         + "재처리는 트랜잭션 없이 원래 처리를 불러야 보관이 남고 응답도 정상이다")
     void reprocessStockDeductedHandedToEventFailure() {
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         Long id = receive(10L, new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),
@@ -349,7 +349,7 @@ class AdminOrderDeadLetterActionApiTest {
      * 결제 요청까지 간 결제대기 주문(재고 차감됨 처리됨).
      */
     private OrderDetail placeAwaitingPayment() {
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         eventDelivery.deliver(new StockDeductedEvent(UUID.randomUUID(), LocalDateTime.now(),

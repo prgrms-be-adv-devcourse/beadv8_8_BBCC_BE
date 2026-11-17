@@ -2,45 +2,26 @@ package com.bbcc.kidly.boundedcontext.order.app.order;
 
 import com.bbcc.kidly.boundedcontext.order.app.OrderActor;
 import com.bbcc.kidly.boundedcontext.order.app.OrderErrorCode;
-import com.bbcc.kidly.boundedcontext.order.app.OrderErrors;
-import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.LostPaymentRecheck;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.MarkPaidCommand;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
-import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
-import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderResult;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.StockDeductionFailedCommand;
-import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderCartLines;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries.CancelledDelivery;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderDeliveries.Delivery;
-import com.bbcc.kidly.boundedcontext.order.app.port.OrderEventOutbox;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderStatusHistoryRepository;
-import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.app.port.SellerReplicaRepository;
-import com.bbcc.kidly.boundedcontext.order.domain.OrderRuleViolationException;
 import com.bbcc.kidly.boundedcontext.order.domain.history.OrderStatusHistory;
 import com.bbcc.kidly.boundedcontext.order.domain.order.Order;
 import com.bbcc.kidly.boundedcontext.order.domain.order.OrderItem;
 import com.bbcc.kidly.boundedcontext.order.domain.order.TransitionResult;
-import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaChild;
-import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaProduct;
-import com.bbcc.kidly.boundedcontext.order.domain.replica.ReplicaSeller;
 import com.bbcc.kidly.global.error.BusinessException;
-import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
-import com.bbcc.kidly.shared.order.event.OrderCreatedEvent;
-import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaidEvent;
 import com.bbcc.kidly.shared.order.event.OrderPaymentRequestedEvent;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -52,7 +33,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 주문 생성 · 결제 반영 · 취소 · 구매확정. 조회는 OrderQueryService가 담당한다.
+ * 결제 요청 · 결제 반영 · 취소. 주문하기는 OrderPlacementService, 구매확정은 OrderConfirmationService(#1508, 하는 일별로 분리),
+ * 조회는 OrderQueryService가 담당한다.
  * 로그: 상태가 바뀌면 INFO, 받은 요청을 무시하면 DEBUG(결과 · 현재 상태), 받은 이벤트의 주문이 없으면 WARN.
  * 개인 정보(배송지 · 연락처 · 자녀 이름 · 키 · 몸무게)는 남기지 않는다.
  */
@@ -63,95 +45,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final ProductReplicaRepository productReplicaRepository;
-    private final ChildReplicaRepository childReplicaRepository;
     private final OrderDeliveries orderDeliveries;
-    private final SellerReplicaRepository sellerReplicaRepository;
     private final OrderStatusHistoryRepository historyRepository;
-    private final EventPublisher eventPublisher;
-    private final OrderEventOutbox outbox;
-    private final Order.Policy orderPolicy;
     private final WaitingRecordCloser waitingRecordCloser;
     private final OrderQueryService orderQueries;
-    private final OrderCartLines orderCartLines;
-
-    /**
-     * 복사본이 없는 옵션 · 자녀는 여기서 404. 나머지 검사(빈 항목 · 중복 · 수량 · 가격 · 판매 중 · 자기 상품 · 자녀)는
-     * Order.place가 한다. 저장 뒤 order.created를 발행한다.
-     */
-    public OrderDetail place(Long memberId, PlaceOrderCommand command) {
-        return create(memberId, command, null, null);
-    }
-
-    /**
-     * 요청 키(Idempotency-Key 헤더, #351)가 있으면 같은 회원 · 같은 키의 주문을 먼저 찾는다. 같은 요청이면 그 주문의 지금 상세를, 다른 요청이면 409.
-     * 없으면 키 · 비교값을 기록해 만든다. 동시에 같은 키로 만들면 한쪽은 유니크 제약에 걸리고 OrderPlacement가 다시 읽는다.
-     */
-    public PlaceOrderResult placeIdempotently(Long memberId, PlaceOrderCommand command, String idempotencyKey,
-        String requestHash) {
-        if (idempotencyKey != null) {
-            Optional<PlaceOrderResult> existing = replay(memberId, idempotencyKey, requestHash);
-            if (existing.isPresent()) {
-                return existing.get();
-            }
-        }
-        return new PlaceOrderResult(create(memberId, command, idempotencyKey, requestHash), true);
-    }
-
-    /**
-     * 같은 회원 · 같은 키로 이미 만든 주문을 읽는다. 비교값이 다르면 IDEMPOTENCY_KEY_REUSED.
-     */
-    @Transactional(readOnly = true)
-    public Optional<PlaceOrderResult> replay(Long memberId, String idempotencyKey, String requestHash) {
-        return orderRepository.findByMemberIdAndIdempotencyKey(memberId, idempotencyKey)
-            .map(order -> {
-                if (!order.getRequestHash().equals(requestHash)) {
-                    throw new BusinessException(OrderErrorCode.IDEMPOTENCY_KEY_REUSED);
-                }
-                log.debug("주문 요청 반복: orderId={} result=same-request", order.getId());
-                return new PlaceOrderResult(orderQueries.detailOf(order.getId(), order), false);
-            });
-    }
-
-    private OrderDetail create(Long memberId, PlaceOrderCommand command, String idempotencyKey, String requestHash) {
-        LocalDateTime now = LocalDateTime.now();
-        // 장바구니 칸으로 사면(#998) 그 칸이 구매자 칸이거나 구매자가 허용된 예약 칸인지 장바구니가 확인한다(아니면 403 · 404)
-        List<OrderCartLines.Line> cartLines = command.items().stream()
-            .filter(item -> item.cartItemId() != null)
-            .map(item -> new OrderCartLines.Line(item.cartItemId(), item.optionId(), item.childId(),
-                item.quantity()))
-            .toList();
-        if (!cartLines.isEmpty()) {
-            orderCartLines.requireOrderable(memberId, cartLines);
-        }
-        List<Order.RequestedItem> requested = command.items().stream().map(this::toRequestedItem).toList();
-        PlaceOrderCommand.ShippingAddress address = command.shippingAddress();
-
-        Order placed;
-        try {
-            placed = Order.place(memberId, requested, new Order.ShippingAddress(
-                address.recipientName(), address.phone(), address.zipCode(), address.address()), orderPolicy, now);
-        } catch (OrderRuleViolationException e) {
-            throw OrderErrors.toBusiness(e);
-        }
-        if (idempotencyKey != null) {
-            placed.recordRequestKey(idempotencyKey, requestHash);
-        }
-        Order order = orderRepository.save(placed);
-        historyRepository.save(OrderActor.buyer(memberId, OrderActor.PLACE)
-            .createdHistory(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(), order.getStatus(), now));
-
-        publish(new OrderCreatedEvent(UUID.randomUUID(), now, new OrderCreatedEvent.Data(
-            order.getId(),
-            order.getMemberId(),
-            order.getItems().stream()
-                .map(item -> new OrderCreatedEvent.Item(
-                    item.getId(), item.getProduct().optionId(), item.getQuantity()))
-                .toList())));
-        log.info("주문 생성: orderId={} itemCount={} totalAmount={}",
-            order.getId(), order.getItems().size(), order.getTotalAmount());
-        return OrderDetail.from(order, List.of(), orderQueries.sellerNamesOf(List.of(order)));
-    }
+    private final OrderEventSupport events;
 
     /**
      * 재고 차감이 끝난 주문의 결제를 요청한다. 주문상품별 금액을 함께 보낸다(결제가 주문상품 단위로 결제 · 환불).
@@ -159,7 +57,7 @@ public class OrderService {
      */
     public void requestPayment(Long orderId) {
         LocalDateTime now = LocalDateTime.now();
-        Order order = findForEvent(orderId, "stock.deducted");
+        Order order = events.findForEvent(orderId, "stock.deducted");
         if (order == null) {
             return;
         }
@@ -170,7 +68,7 @@ public class OrderService {
         }
         // 주문 UPDATE 실패가 커밋 때가 아니라 여기서 나야 리스너가 잡아 이벤트 처리 실패 기록으로 보관한다(관리자 재처리 대상, #449)
         orderRepository.flush();
-        publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
+        events.publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
             new OrderPaymentRequestedEvent.Data(order.getId(), order.getMemberId(), order.getTotalAmount(),
                 order.getItems().stream()
                     .map(item -> new OrderPaymentRequestedEvent.Item(item.getId(), item.getAmount()))
@@ -197,7 +95,7 @@ public class OrderService {
      */
     public boolean markPaid(MarkPaidCommand command, OrderActor actor) {
         LocalDateTime now = LocalDateTime.now();
-        Order order = findForEvent(command.orderId(), "payment.completed");
+        Order order = events.findForEvent(command.orderId(), "payment.completed");
         if (order == null) {
             return false;
         }
@@ -225,8 +123,8 @@ public class OrderService {
      */
     private void publishPaid(Order order, LocalDateTime now) {
         List<OrderPaidEvent.Item> items = order.getItems().stream().map(OrderService::paidItem).toList();
-        publish(new OrderPaidEvent(UUID.randomUUID(), now, new OrderPaidEvent.Data(order.getId(), order.getMemberId(),
-            order.getPaidAt(), order.getTotalAmount(), items)));
+        events.publish(new OrderPaidEvent(UUID.randomUUID(), now, new OrderPaidEvent.Data(order.getId(),
+            order.getMemberId(), order.getPaidAt(), order.getTotalAmount(), items)));
     }
 
     // 상품 스냅샷이 없는 옛 주문상품은 상품 칸이 비어 있다(주문 타임라인과 같은 처리)
@@ -347,53 +245,6 @@ public class OrderService {
     }
 
     /**
-     * 구매자가 직접 구매확정한다. 없거나 남의 주문이면 404. 이미 확정이어도 주문상품을 돌려준다.
-     */
-    public OrderDetail.Item confirmByBuyer(Long memberId, Long orderId, Long orderItemId) {
-        LocalDateTime now = LocalDateTime.now();
-        Order order = orderRepository.findByIdAndMemberId(orderId, memberId)
-            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-        try {
-            confirm(order, orderItemId, "confirm-by-buyer", OrderActor.buyer(memberId, OrderActor.BUYER_CONFIRM),
-                target -> target.confirmItem(orderItemId, now));
-        } catch (OrderRuleViolationException e) {
-            throw OrderErrors.toBusiness(e);
-        }
-        OrderItem item = findItem(order, orderItemId);
-        String sellerName = sellerReplicaRepository.findBySellerId(item.getProduct().sellerId())
-            .map(ReplicaSeller::getBusinessName)
-            .orElse(null);
-        return OrderDetail.Item.from(item, sellerName);
-    }
-
-    /**
-     * 자동 구매확정. 기간이 지났는지는 주문이 직접 확인한다(기간 전 · 이미 확정이면 그대로). 주문이 없으면 무시.
-     */
-    public void confirmAutomatically(Long orderId, Long orderItemId) {
-        LocalDateTime now = LocalDateTime.now();
-        Order order = findForEvent(orderId, "auto-confirm");
-        if (order == null) {
-            return;
-        }
-        confirm(order, orderItemId, "auto-confirm", OrderActor.system(OrderActor.AUTO_CONFIRM),
-            target -> target.autoConfirmItem(orderItemId, orderPolicy, now));
-    }
-
-    /**
-     * 자동 구매확정 대상을 좁힌다: 주문됨이고 (now − 자동 구매확정 기간) 이전(포함)에 배송 완료된 주문상품.
-     * afterId 다음부터 주문상품 ID 오름차순 limit건. now는 스케줄러가 한 실행에 한 번 정해 넘긴다.
-     */
-    @Transactional(readOnly = true)
-    public List<AutoConfirmTarget> findAutoConfirmTargets(LocalDateTime now, Long afterId, int limit) {
-        LocalDateTime deliveredBefore = now.minus(orderPolicy.autoConfirmAfter());
-        return orderRepository.findAutoConfirmTargets(
-                OrderItem.Status.ORDERED, deliveredBefore, afterId, Limit.of(limit))
-            .stream()
-            .map(row -> new AutoConfirmTarget(row.getOrderId(), row.getOrderItemId()))
-            .toList();
-    }
-
-    /**
      * 구매자가 주문을 전체 취소한다(#354). 결제대기 주문, 또는 판매자별 배송이 모두 발송 전인 결제완료 주문만.
      * 주문 취소 · 판매자 배송 취소 · order.cancelled 발행을 한 트랜잭션으로 한다(결제 환불 · 재고 복구는 이벤트를 받은 쪽).
      * 판매자 발송과 동시에 오면 배송 @Version으로 한쪽만 성공한다(진 쪽은 공통 409, 다시 누르면 아래 상태 검사로 409).
@@ -493,7 +344,7 @@ public class OrderService {
     private void cancel(Long orderId, String source, OrderActor actor, WaitingRecord handled,
         Function<Order, TransitionResult> change) {
         LocalDateTime now = LocalDateTime.now();
-        Order order = findForEvent(orderId, source);
+        Order order = events.findForEvent(orderId, source);
         if (order == null) {
             return;
         }
@@ -515,7 +366,7 @@ public class OrderService {
      * 그 주문의 재처리 대기 기록을 같은 트랜잭션에서 닫는다(#598, handled는 빼고).
      */
     private void publishCancelled(Order order, OrderActor actor, WaitingRecord handled, LocalDateTime now) {
-        publish(new OrderCancelledEvent(UUID.randomUUID(), now,
+        events.publish(new OrderCancelledEvent(UUID.randomUUID(), now,
             new OrderCancelledEvent.Data(order.getId(), order.getMemberId(), order.getCancelReason().name(),
                 order.getItems().stream()
                     .map(item -> new OrderCancelledEvent.Item(
@@ -531,101 +382,8 @@ public class OrderService {
         }
     }
 
-    /**
-     * 받은 이벤트(또는 시간 작업)의 주문을 찾는다. 없으면 WARN을 남기고 null.
-     */
-    private Order findForEvent(Long orderId, String event) {
-        return orderRepository.findById(orderId).orElseGet(() -> {
-            log.warn("이벤트의 주문 없음: event={} orderId={}", event, orderId);
-            return null;
-        });
-    }
-
     private void logIgnored(String event, Order order, TransitionResult result) {
         log.debug("이벤트 무시: event={} orderId={} result={} status={}",
             event, order.getId(), result, order.getStatus());
-    }
-
-    /**
-     * 이번에 확정했을 때만 order-item.purchase-confirmed를 발행한다.
-     *
-     * @param source 확정을 일으킨 요청 이름(로그용)
-     * @param actor 상태 이력에 남길 주체
-     * @param change 주문상품을 확정하는 도메인 메서드. 이번에 확정했으면 APPLIED
-     */
-    private void confirm(Order order, Long orderItemId, String source, OrderActor actor,
-        Function<Order, TransitionResult> change) {
-        OrderItem.Status from = order.getItems().stream()
-            .filter(item -> Objects.equals(item.getId(), orderItemId))
-            .map(OrderItem::getStatus)
-            .findFirst()
-            .orElse(null);
-        TransitionResult result = change.apply(order);
-        if (result != TransitionResult.APPLIED) {
-            log.debug("이벤트 무시: event={} orderId={} orderItemId={} result={} status={}",
-                source, order.getId(), orderItemId, result, order.getStatus());
-            return;
-        }
-        OrderItem item = findItem(order, orderItemId);
-        historyRepository.save(actor.history(order.getId(), OrderStatusHistory.TargetType.ORDER_ITEM, item.getId(),
-            from, item.getStatus(), item.getConfirmType().name(), item.getConfirmedAt()));
-        OrderItem.ProductSnapshot product = item.getProduct();
-        publish(new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), item.getConfirmedAt(),
-            new OrderItemPurchaseConfirmedEvent.Data(
-                item.getId(),
-                order.getId(),
-                order.getMemberId(),
-                product.sellerId(),
-                item.getChild() == null ? null : item.getChild().childId(),
-                product.productId(),
-                product.optionId(),
-                product.size(),
-                item.getQuantity(),
-                item.getAmount(),
-                item.getConfirmedAt(),
-                item.getConfirmType().name())));
-        log.info("구매확정: orderId={} orderItemId={} confirmType={}",
-            order.getId(), item.getId(), item.getConfirmType());
-    }
-
-    /**
-     * 이벤트를 Spring 이벤트로 발행하고, 같은 트랜잭션에서 Kafka로 보낼 메시지로도 저장한다(#540, 아웃박스).
-     * 주문이 발행하는 이벤트는 모두 여기로 보낸다.
-     */
-    private void publish(DomainEvent event) {
-        eventPublisher.publish(event);
-        outbox.append(event);
-    }
-
-    private OrderItem findItem(Order order, Long orderItemId) {
-        return order.getItems().stream()
-            .filter(item -> Objects.equals(item.getId(), orderItemId))
-            .findFirst()
-            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_ITEM_NOT_FOUND));
-    }
-
-    private Order.RequestedItem toRequestedItem(PlaceOrderCommand.Item item) {
-        ReplicaProduct product = productReplicaRepository.findByOptionId(item.optionId())
-            .orElseThrow(() -> new BusinessException(OrderErrorCode.PRODUCT_OPTION_NOT_FOUND));
-        Order.RequestedChild child = item.childId() == null ? null : toRequestedChild(item.childId());
-        return new Order.RequestedItem(
-            new OrderItem.ProductSnapshot(product.getProductId(), product.getOptionId(), product.getSellerId(),
-                product.getProductName(), product.getOptionName(), product.getSize(), product.unitPrice(),
-                product.getCategoryId(), product.getThumbnailUrl()),
-            product.isPurchasable(),
-            child,
-            item.quantity(),
-            item.unitPrice(),
-            item.cartItemId());
-    }
-
-    private Order.RequestedChild toRequestedChild(Long childId) {
-        ReplicaChild child = childReplicaRepository.findByChildId(childId)
-            .orElseThrow(() -> new BusinessException(OrderErrorCode.CHILD_NOT_FOUND));
-        return new Order.RequestedChild(
-            new OrderItem.ChildSnapshot(child.getChildId(), child.getName(), child.getHeightCm(), child.getWeightKg(),
-                child.getBodyType()),
-            child.getMemberId(),
-            child.isDeleted());
     }
 }

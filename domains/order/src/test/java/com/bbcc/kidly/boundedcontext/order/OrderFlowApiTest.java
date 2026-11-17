@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
@@ -90,6 +91,9 @@ class OrderFlowApiTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderConfirmationService orderConfirmationService;
 
     // 결제 이벤트 Kafka 리스너가 없어 만료를 늘 허락한다(#561)
     @Autowired
@@ -388,8 +392,8 @@ class OrderFlowApiTest {
      * 시연처럼 짧게: 한 번 조회 2건 · 한 실행 상한 10건. 같은 컨텍스트의 실제 서비스로 돌린다.
      */
     private OrderScheduler smallBatchScheduler() {
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(2, 10), INTERVALS, paymentExpiryGate,
-            jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
+        return new OrderScheduler(orderService, orderConfirmationService, new OrderSchedulerProperties(2, 10),
+            INTERVALS, paymentExpiryGate, jobRunner, new OrderOperationMetrics(new SimpleMeterRegistry()));
     }
 
     @Test

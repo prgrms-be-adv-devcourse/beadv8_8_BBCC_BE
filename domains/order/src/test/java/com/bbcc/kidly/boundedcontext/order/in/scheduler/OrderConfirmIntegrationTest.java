@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.OrderDeliveredAtSetter;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.OrderDetail;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
@@ -43,6 +45,12 @@ class OrderConfirmIntegrationTest {
     private OrderService orderService;
 
     @Autowired
+    private OrderConfirmationService orderConfirmationService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
+
+    @Autowired
     private OrderQueryService orderQueries;
 
     @Autowired
@@ -72,9 +80,9 @@ class OrderConfirmIntegrationTest {
         OrderDetail order = deliveredOrder(LocalDateTime.now());
         Long orderItemId = order.items().get(0).orderItemId();
 
-        OrderDetail.Item first = orderService.confirmByBuyer(BUYER_ID, order.orderId(), orderItemId);
+        OrderDetail.Item first = orderConfirmationService.confirmByBuyer(BUYER_ID, order.orderId(), orderItemId);
         LocalDateTime storedAfterFirst = itemOf(order).confirmedAt();
-        orderService.confirmByBuyer(BUYER_ID, order.orderId(), orderItemId);
+        orderConfirmationService.confirmByBuyer(BUYER_ID, order.orderId(), orderItemId);
         LocalDateTime storedAfterSecond = itemOf(order).confirmedAt();
 
         assertThat(first.status()).isEqualTo("CONFIRMED");
@@ -120,7 +128,7 @@ class OrderConfirmIntegrationTest {
     void domainKeepsBeforePeriod() {
         OrderDetail order = deliveredOrder(LocalDateTime.now().minus(orderPolicy.autoConfirmAfter()).plusMinutes(1));
 
-        orderService.confirmAutomatically(order.orderId(), order.items().get(0).orderItemId());
+        orderConfirmationService.confirmAutomatically(order.orderId(), order.items().get(0).orderItemId());
 
         assertThat(itemOf(order).status()).isEqualTo("ORDERED");
         assertThat(events.stream(OrderItemPurchaseConfirmedEvent.class).toList()).isEmpty();
@@ -130,7 +138,7 @@ class OrderConfirmIntegrationTest {
      * 주문 → 결제완료 → 판매자 배송 완료(deliveredAt). 이벤트 대신 서비스를 바로 불러 상태만 만든다.
      */
     private OrderDetail deliveredOrder(LocalDateTime deliveredAt) {
-        OrderDetail order = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        OrderDetail order = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, 1L, 2, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1")));
         orderService.markPaid(MarkPaidCommands.matching(order, BUYER_ID, 500L));

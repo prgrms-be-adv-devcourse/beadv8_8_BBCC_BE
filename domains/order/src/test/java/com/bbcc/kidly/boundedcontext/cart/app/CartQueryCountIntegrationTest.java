@@ -29,7 +29,7 @@ class CartQueryCountIntegrationTest {
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 10, 15, 9, 0);
 
     @Autowired
-    private CartService cartService;
+    private CartQueryService cartQueryService;
 
     @Autowired
     private CartItemRepository cartItemRepository;
@@ -56,7 +56,7 @@ class CartQueryCountIntegrationTest {
 
         assertThat(manyCount).isEqualTo(singleCount);
         assertThat(singleCount).as("장바구니 줄 1번 + 상품 복사본 1번 + 판매자 상호명 1번").isEqualTo(3);
-        assertThat(cartService.getCart(CartOwners.member(MANY_BUYER_ID)).items())
+        assertThat(cartQueryService.getCart(CartOwners.member(MANY_BUYER_ID)).items())
             .extracting(CartView.Line::sellerId, CartView.Line::sellerName)
             .containsExactly(
                 org.assertj.core.groups.Tuple.tuple(205L, "판매자 5"),
@@ -67,7 +67,7 @@ class CartQueryCountIntegrationTest {
     }
 
     private long countStatements(Long memberId) {
-        return queryCounter.count(() -> cartService.getCart(CartOwners.member(memberId)));
+        return queryCounter.count(() -> cartQueryService.getCart(CartOwners.member(memberId)));
     }
 
     /**

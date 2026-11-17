@@ -18,6 +18,7 @@ import com.bbcc.kidly.boundedcontext.order.ImmediateJobRunner;
 import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderSchedulerProperties;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderConfirmationService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.PaymentExpiryGate;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.AutoConfirmTarget;
@@ -52,6 +53,9 @@ class OrderSchedulerTest {
     private OrderService orderService;
 
     @Mock
+    private OrderConfirmationService orderConfirmationService;
+
+    @Mock
     private PaymentExpiryGate paymentExpiryGate;
 
     private ImmediateJobRunner jobRunner = new ImmediateJobRunner();
@@ -60,7 +64,7 @@ class OrderSchedulerTest {
     @DisplayName("한 서버에서만(#564): 작업 이름은 payment-expiry · auto-confirm, 잠금을 잡은 서버만 실행한다")
     void jobNames() {
         when(orderService.findOverduePaymentOrderIds(any(), anyLong(), anyInt())).thenReturn(List.of());
-        when(orderService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenReturn(List.of());
+        when(orderConfirmationService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenReturn(List.of());
         OrderScheduler scheduler = scheduler(100, 1000);
 
         scheduler.expireOverduePayments();
@@ -79,13 +83,13 @@ class OrderSchedulerTest {
         scheduler.autoConfirm();
 
         verify(paymentExpiryGate, never()).allowsRun();
-        verifyNoInteractions(orderService);
+        verifyNoInteractions(orderService, orderConfirmationService);
     }
 
     @Test
     @DisplayName("마지막 성공 시각(#1067): 끝까지 돌면 갱신, 기동 뒤 성공 전 · 다른 서버가 돎 · 실행 조건으로 건너뜀 · 예외면 NaN 그대로")
     void lastSuccessOnlyOnSuccess() {
-        when(orderService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenReturn(List.of());
+        when(orderConfirmationService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenReturn(List.of());
         MeterRegistry registry = new SimpleMeterRegistry();
         OrderScheduler scheduler = scheduler(100, 1000, registry);
         assertThat(lastSuccess(registry, "auto_confirm")).isNaN();
@@ -122,8 +126,9 @@ class OrderSchedulerTest {
 
     private OrderScheduler scheduler(int batchSize, int maxPerRun, MeterRegistry registry) {
         lenient().when(paymentExpiryGate.allowsRun()).thenReturn(true);
-        return new OrderScheduler(orderService, new OrderSchedulerProperties(batchSize, maxPerRun), INTERVALS,
-            paymentExpiryGate, jobRunner, new OrderOperationMetrics(registry));
+        return new OrderScheduler(orderService, orderConfirmationService,
+            new OrderSchedulerProperties(batchSize, maxPerRun), INTERVALS, paymentExpiryGate, jobRunner,
+            new OrderOperationMetrics(registry));
     }
 
     /**
@@ -300,7 +305,7 @@ class OrderSchedulerTest {
 
             scheduler.autoConfirm();
 
-            verify(orderService).confirmAutomatically(1L, 10L);
+            verify(orderConfirmationService).confirmAutomatically(1L, 10L);
             verify(paymentExpiryGate, never()).allowsRun();
         }
 
@@ -308,7 +313,7 @@ class OrderSchedulerTest {
          * 주문상품 ID 10, 20, …, total×10(주문 ID = 주문상품 ID / 10)이 대상이라고 보고, afterId 다음부터 limit건.
          */
         private void givenTargets(long total) {
-            when(orderService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenAnswer(invocation -> {
+            when(orderConfirmationService.findAutoConfirmTargets(any(), anyLong(), anyInt())).thenAnswer(invocation -> {
                 long afterId = invocation.getArgument(1);
                 int limit = invocation.getArgument(2);
                 List<AutoConfirmTarget> targets = new ArrayList<>();
@@ -330,27 +335,28 @@ class OrderSchedulerTest {
 
             ArgumentCaptor<LocalDateTime> now = ArgumentCaptor.forClass(LocalDateTime.class);
             ArgumentCaptor<Long> afterId = ArgumentCaptor.forClass(Long.class);
-            verify(orderService, times(2)).findAutoConfirmTargets(now.capture(), afterId.capture(), anyInt());
+            verify(orderConfirmationService, times(2))
+                .findAutoConfirmTargets(now.capture(), afterId.capture(), anyInt());
             assertThat(afterId.getAllValues()).containsExactly(0L, 20L);
             assertThat(now.getAllValues()).containsOnly(now.getAllValues().getFirst());
-            verify(orderService).confirmAutomatically(1L, 10L);
-            verify(orderService).confirmAutomatically(2L, 20L);
-            verify(orderService).confirmAutomatically(3L, 30L);
+            verify(orderConfirmationService).confirmAutomatically(1L, 10L);
+            verify(orderConfirmationService).confirmAutomatically(2L, 20L);
+            verify(orderConfirmationService).confirmAutomatically(3L, 30L);
         }
 
         @Test
         @DisplayName("앞쪽 건이 실패해도 건너뛰고 뒤쪽 건을 같은 실행에서 처리하며, max-per-run에서 멈춘다")
         void skipsFailedAndStopsAtMaxPerRun() {
             givenTargets(10);
-            doThrow(new IllegalStateException("동시 변경")).when(orderService).confirmAutomatically(1L, 10L);
+            doThrow(new IllegalStateException("동시 변경")).when(orderConfirmationService).confirmAutomatically(1L, 10L);
 
             scheduler(2, 4).autoConfirm();
 
             // 처리할 대상 조회 두 번 + 상한에 닿아 남은 대상 확인 한 번(#656)
-            verify(orderService, times(3)).findAutoConfirmTargets(any(), anyLong(), anyInt());
-            verify(orderService).confirmAutomatically(2L, 20L);
-            verify(orderService).confirmAutomatically(4L, 40L);
-            verify(orderService, never()).confirmAutomatically(5L, 50L);
+            verify(orderConfirmationService, times(3)).findAutoConfirmTargets(any(), anyLong(), anyInt());
+            verify(orderConfirmationService).confirmAutomatically(2L, 20L);
+            verify(orderConfirmationService).confirmAutomatically(4L, 40L);
+            verify(orderConfirmationService, never()).confirmAutomatically(5L, 50L);
         }
 
         @Test
@@ -363,11 +369,11 @@ class OrderSchedulerTest {
             scheduler.autoConfirm();
 
             ArgumentCaptor<Long> afterId = ArgumentCaptor.forClass(Long.class);
-            verify(orderService, times(7)).findAutoConfirmTargets(any(), afterId.capture(), anyInt());
+            verify(orderConfirmationService, times(7)).findAutoConfirmTargets(any(), afterId.capture(), anyInt());
             // 상한에 닿은 두 실행은 남은 대상 확인 조회(40 · 20)가 한 번씩 더 있다
             assertThat(afterId.getAllValues()).containsExactly(0L, 20L, 40L, 40L, 60L, 0L, 20L);
-            verify(orderService).confirmAutomatically(5L, 50L);
-            verify(orderService).confirmAutomatically(6L, 60L);
+            verify(orderConfirmationService).confirmAutomatically(5L, 50L);
+            verify(orderConfirmationService).confirmAutomatically(6L, 60L);
             assertThat(output).containsPattern(
                 "WARN.*스케줄러 상한 도달: job=auto-confirm targets=4 processed=4 failed=0 batches=2 maxPerRun=4 "
                     + "resumeAfterId=40 interval=PT10M");
@@ -390,8 +396,8 @@ class OrderSchedulerTest {
 
             scheduler(100, 1000).autoConfirm();
 
-            verify(orderService, times(1)).findAutoConfirmTargets(any(), anyLong(), anyInt());
-            verify(orderService, never()).confirmAutomatically(anyLong(), anyLong());
+            verify(orderConfirmationService, times(1)).findAutoConfirmTargets(any(), anyLong(), anyInt());
+            verify(orderConfirmationService, never()).confirmAutomatically(anyLong(), anyLong());
         }
     }
 }

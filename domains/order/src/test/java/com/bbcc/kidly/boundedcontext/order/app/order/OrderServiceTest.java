@@ -107,6 +107,8 @@ class OrderServiceTest {
     private ArgumentCaptor<DomainEvent> published;
 
     private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
+    private OrderConfirmationService orderConfirmationService;
 
     @BeforeEach
     void setUp() {
@@ -118,11 +120,15 @@ class OrderServiceTest {
             });
         OrderQueryService orderQueries = new OrderQueryService(orderRepository,
             new OrderDeliveriesAdapter(delivery, delivery), sellerReplicaRepository, historyRepository);
-        orderService = new OrderService(orderRepository, productReplicaRepository, childReplicaRepository,
-            new OrderDeliveriesAdapter(delivery, delivery),
-            sellerReplicaRepository, historyRepository, eventPublisher, outbox, POLICY,
-            waitingRecordCloser, orderQueries, (memberId, lines) -> {
-            });
+        // 주문하기 · 구매확정은 따로 뺀 서비스(#1508)라 같은 저장소 mock · 발행 도우미로 함께 만든다
+        OrderEventSupport events = new OrderEventSupport(orderRepository, eventPublisher, outbox);
+        orderService = new OrderService(orderRepository, new OrderDeliveriesAdapter(delivery, delivery),
+            historyRepository, waitingRecordCloser, orderQueries, events);
+        orderPlacementService = new OrderPlacementService(orderRepository, productReplicaRepository,
+            childReplicaRepository, historyRepository, POLICY, orderQueries, (memberId, lines) -> {
+            }, events);
+        orderConfirmationService = new OrderConfirmationService(orderRepository, sellerReplicaRepository,
+            historyRepository, POLICY, events);
         // 주문 취소가 닫을 재처리 대기 기록은 없다고 본다(#598, 닫는 동작은 통합 테스트가 본다)
         lenient().when(waitingRecordCloser.closeFor(any(), any(), any(), any()))
             .thenReturn(new WaitingRecordCloser.Closed(List.of(), null));
@@ -139,7 +145,7 @@ class OrderServiceTest {
             givenChild();
             when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-            OrderDetail detail = orderService.place(BUYER_ID, command(25_000L));
+            OrderDetail detail = orderPlacementService.place(BUYER_ID, command(25_000L));
 
             verify(orderRepository).save(any());
             verify(eventPublisher).publish(published.capture());
@@ -186,7 +192,7 @@ class OrderServiceTest {
         }
 
         private void assertPlaceFails(PlaceOrderCommand command, OrderErrorCode expected) {
-            assertThatThrownBy(() -> orderService.place(BUYER_ID, command))
+            assertThatThrownBy(() -> orderPlacementService.place(BUYER_ID, command))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(expected);
             verify(orderRepository, never()).save(any());
@@ -209,7 +215,7 @@ class OrderServiceTest {
             givenChild();
             when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-            PlaceOrderResult result = orderService.placeIdempotently(BUYER_ID, command(25_000L), KEY, HASH);
+            PlaceOrderResult result = orderPlacementService.placeIdempotently(BUYER_ID, command(25_000L), KEY, HASH);
 
             ArgumentCaptor<Order> saved = ArgumentCaptor.forClass(Order.class);
             verify(orderRepository).save(saved.capture());
@@ -229,7 +235,7 @@ class OrderServiceTest {
             when(deliveryRepository.findAllByOrderIdOrderByIdAsc(ORDER_ID))
                 .thenReturn(List.of(Delivery.create(ORDER_ID, SELLER_ID)));
 
-            PlaceOrderResult result = orderService.placeIdempotently(BUYER_ID, command(25_000L), KEY, HASH);
+            PlaceOrderResult result = orderPlacementService.placeIdempotently(BUYER_ID, command(25_000L), KEY, HASH);
 
             assertThat(result.created()).isFalse();
             assertThat(result.detail().orderId()).isEqualTo(ORDER_ID);
@@ -245,7 +251,8 @@ class OrderServiceTest {
             existing.recordRequestKey(KEY, HASH);
             when(orderRepository.findByMemberIdAndIdempotencyKey(BUYER_ID, KEY)).thenReturn(Optional.of(existing));
 
-            assertThatThrownBy(() -> orderService.placeIdempotently(BUYER_ID, command(25_000L), KEY, OTHER_HASH))
+            assertThatThrownBy(() -> orderPlacementService.placeIdempotently(BUYER_ID, command(25_000L), KEY,
+                OTHER_HASH))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.IDEMPOTENCY_KEY_REUSED);
             verify(orderRepository, never()).save(any());
@@ -259,7 +266,7 @@ class OrderServiceTest {
             givenChild();
             when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-            PlaceOrderResult result = orderService.placeIdempotently(BUYER_ID, command(25_000L), null, null);
+            PlaceOrderResult result = orderPlacementService.placeIdempotently(BUYER_ID, command(25_000L), null, null);
 
             ArgumentCaptor<Order> saved = ArgumentCaptor.forClass(Order.class);
             verify(orderRepository).save(saved.capture());
@@ -276,14 +283,14 @@ class OrderServiceTest {
             existing.recordRequestKey(KEY, HASH);
             when(orderRepository.findByMemberIdAndIdempotencyKey(BUYER_ID, KEY)).thenReturn(Optional.of(existing));
 
-            assertThat(orderService.replay(BUYER_ID, KEY, HASH)).hasValueSatisfying(result -> {
+            assertThat(orderPlacementService.replay(BUYER_ID, KEY, HASH)).hasValueSatisfying(result -> {
                 assertThat(result.created()).isFalse();
                 assertThat(result.detail().orderId()).isEqualTo(ORDER_ID);
             });
-            assertThatThrownBy(() -> orderService.replay(BUYER_ID, KEY, OTHER_HASH))
+            assertThatThrownBy(() -> orderPlacementService.replay(BUYER_ID, KEY, OTHER_HASH))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.IDEMPOTENCY_KEY_REUSED);
-            assertThat(orderService.replay(99L, KEY, HASH)).isEmpty();
+            assertThat(orderPlacementService.replay(99L, KEY, HASH)).isEmpty();
         }
     }
 
@@ -531,7 +538,7 @@ class OrderServiceTest {
             Order order = deliveredOrder(LocalDateTime.now().minusDays(1));
             when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
 
-            OrderDetail.Item item = orderService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID);
+            OrderDetail.Item item = orderConfirmationService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID);
 
             assertThat(item.orderItemId()).isEqualTo(ORDER_ITEM_ID);
             assertThat(item.status()).isEqualTo("CONFIRMED");
@@ -559,7 +566,7 @@ class OrderServiceTest {
             order.confirmItem(ORDER_ITEM_ID, LocalDateTime.now().minusHours(1));
             when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
 
-            OrderDetail.Item item = orderService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID);
+            OrderDetail.Item item = orderConfirmationService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID);
 
             assertThat(item.status()).isEqualTo("CONFIRMED");
             verify(eventPublisher, never()).publish(any());
@@ -568,7 +575,7 @@ class OrderServiceTest {
         @Test
         @DisplayName("없거나 남의 주문이면 ORDER_NOT_FOUND")
         void othersOrder() {
-            assertThatThrownBy(() -> orderService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID))
+            assertThatThrownBy(() -> orderConfirmationService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_NOT_FOUND);
             verify(orderRepository).findByIdAndMemberId(ORDER_ID, BUYER_ID);
@@ -582,7 +589,7 @@ class OrderServiceTest {
             setItemId(order.getItems().get(0), ORDER_ITEM_ID);
             when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
 
-            assertThatThrownBy(() -> orderService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID))
+            assertThatThrownBy(() -> orderConfirmationService.confirmByBuyer(BUYER_ID, ORDER_ID, ORDER_ITEM_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.NOT_DELIVERED);
             verify(eventPublisher, never()).publish(any());
@@ -594,7 +601,7 @@ class OrderServiceTest {
             Order order = deliveredOrder(LocalDateTime.now().minusDays(1));
             when(orderRepository.findByIdAndMemberId(ORDER_ID, BUYER_ID)).thenReturn(Optional.of(order));
 
-            assertThatThrownBy(() -> orderService.confirmByBuyer(BUYER_ID, ORDER_ID, 999L))
+            assertThatThrownBy(() -> orderConfirmationService.confirmByBuyer(BUYER_ID, ORDER_ID, 999L))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(OrderErrorCode.ORDER_ITEM_NOT_FOUND);
         }
@@ -605,7 +612,7 @@ class OrderServiceTest {
             Order order = deliveredOrder(LocalDateTime.now().minus(POLICY.autoConfirmAfter()).minusMinutes(1));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            orderService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
+            orderConfirmationService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
 
             assertThat(order.getItems().get(0).getConfirmType()).isEqualTo(OrderItem.ConfirmType.AUTO);
             verify(eventPublisher).publish(published.capture());
@@ -619,7 +626,7 @@ class OrderServiceTest {
             Order order = deliveredOrder(LocalDateTime.now().minus(POLICY.autoConfirmAfter()).plusMinutes(1));
             when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
-            orderService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
+            orderConfirmationService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
 
             assertThat(order.getItems().get(0).getStatus()).isEqualTo(OrderItem.Status.ORDERED);
             verify(eventPublisher, never()).publish(any());
@@ -628,7 +635,7 @@ class OrderServiceTest {
         @Test
         @DisplayName("자동 확정: 주문이 없으면 아무것도 하지 않는다")
         void autoIgnoresMissingOrder() {
-            orderService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
+            orderConfirmationService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
 
             verify(eventPublisher, never()).publish(any());
         }
@@ -641,7 +648,7 @@ class OrderServiceTest {
                 60L, Limit.of(50)))
                 .thenReturn(List.of(row(7L, 70L), row(8L, 80L)));
 
-            List<AutoConfirmTarget> targets = orderService.findAutoConfirmTargets(now, 60L, 50);
+            List<AutoConfirmTarget> targets = orderConfirmationService.findAutoConfirmTargets(now, 60L, 50);
 
             assertThat(targets).isEqualTo(List.of(new AutoConfirmTarget(7L, 70L), new AutoConfirmTarget(8L, 80L)));
         }

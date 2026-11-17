@@ -12,7 +12,7 @@ import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.OrderEventDelivery;
 import com.bbcc.kidly.boundedcontext.order.PaymentEvents;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
-import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.ChildReplicaRepository;
 import com.bbcc.kidly.boundedcontext.order.app.port.ProductReplicaRepository;
@@ -63,7 +63,7 @@ class WishPurchaseIntegrationTest {
     private CartService cartService;
 
     @Autowired
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private OrderQueryService orderQueries;
@@ -318,7 +318,7 @@ class WishPurchaseIntegrationTest {
     void wishFailureDoesNotUndoPayment() {
         Long line = cartLine(1L, 1);
         Long requestId = wishRequestService.send(CHILD, List.of(line), null).requestId();
-        Long orderId = orderService.place(BUYER_ID, new PlaceOrderCommand(
+        Long orderId = orderPlacementService.place(BUYER_ID, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, CHILD_ID, 1, PRICE, line)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시"))).orderId();
         jdbcTemplate.execute("""

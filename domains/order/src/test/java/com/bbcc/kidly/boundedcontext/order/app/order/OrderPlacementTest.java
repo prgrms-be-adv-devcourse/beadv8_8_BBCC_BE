@@ -35,7 +35,7 @@ class OrderPlacementTest {
     private static final String HASH = OrderRequestFingerprint.of(COMMAND);
 
     @Mock
-    private OrderService orderService;
+    private OrderPlacementService orderPlacementService;
 
     @Mock
     private OrderDetail detail;
@@ -44,14 +44,14 @@ class OrderPlacementTest {
 
     @BeforeEach
     void setUp() {
-        orderPlacement = new OrderPlacement(orderService);
+        orderPlacement = new OrderPlacement(orderPlacementService);
     }
 
     @Test
     @DisplayName("키가 있으면 요청 비교값을 만들어 주문하기에 넘기고 그 결과를 돌려준다")
     void passesKeyAndHash() {
         PlaceOrderResult created = new PlaceOrderResult(detail, true);
-        when(orderService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenReturn(created);
+        when(orderPlacementService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenReturn(created);
 
         assertThat(orderPlacement.place(MEMBER_ID, COMMAND, KEY)).isSameAs(created);
     }
@@ -60,7 +60,7 @@ class OrderPlacementTest {
     @DisplayName("키가 없으면 키 · 비교값 없이 주문하기에 넘긴다")
     void passesNullsWithoutKey() {
         PlaceOrderResult created = new PlaceOrderResult(detail, true);
-        when(orderService.placeIdempotently(MEMBER_ID, COMMAND, null, null)).thenReturn(created);
+        when(orderPlacementService.placeIdempotently(MEMBER_ID, COMMAND, null, null)).thenReturn(created);
 
         assertThat(orderPlacement.place(MEMBER_ID, COMMAND, null)).isSameAs(created);
     }
@@ -69,7 +69,7 @@ class OrderPlacementTest {
     @DisplayName("대문자로 쓴 키는 소문자로 바꿔 넘긴다")
     void normalizesKeyToLowerCase() {
         PlaceOrderResult created = new PlaceOrderResult(detail, true);
-        when(orderService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenReturn(created);
+        when(orderPlacementService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenReturn(created);
 
         assertThat(orderPlacement.place(MEMBER_ID, COMMAND, KEY.toUpperCase())).isSameAs(created);
     }
@@ -84,15 +84,15 @@ class OrderPlacementTest {
         assertThatThrownBy(() -> orderPlacement.place(MEMBER_ID, COMMAND, key))
             .isInstanceOf(BusinessException.class)
             .extracting("errorCode").isEqualTo(OrderErrorCode.INVALID_IDEMPOTENCY_KEY);
-        verify(orderService, never()).placeIdempotently(any(), any(), any(), any());
+        verify(orderPlacementService, never()).placeIdempotently(any(), any(), any(), any());
     }
 
     @Test
     @DisplayName("동시에 같은 키로 저장해 요청 키 유니크 제약에 걸리면 새 트랜잭션에서 다시 읽은 결과를 돌려준다")
     void replaysOnKeyConstraintViolation() {
         PlaceOrderResult replayed = new PlaceOrderResult(detail, false);
-        when(orderService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenThrow(keyViolation());
-        when(orderService.replay(MEMBER_ID, KEY, HASH)).thenReturn(Optional.of(replayed));
+        when(orderPlacementService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenThrow(keyViolation());
+        when(orderPlacementService.replay(MEMBER_ID, KEY, HASH)).thenReturn(Optional.of(replayed));
 
         assertThat(orderPlacement.place(MEMBER_ID, COMMAND, KEY)).isSameAs(replayed);
     }
@@ -102,18 +102,18 @@ class OrderPlacementTest {
     void rethrowsOtherViolation() {
         DataIntegrityViolationException other = new DataIntegrityViolationException("could not execute statement",
             new RuntimeException("ERROR: null value in column \"member_id\" violates not-null constraint"));
-        when(orderService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenThrow(other);
+        when(orderPlacementService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenThrow(other);
 
         assertThatThrownBy(() -> orderPlacement.place(MEMBER_ID, COMMAND, KEY)).isSameAs(other);
-        verify(orderService, never()).replay(any(), any(), any());
+        verify(orderPlacementService, never()).replay(any(), any(), any());
     }
 
     @Test
     @DisplayName("요청 키 제약에 걸렸는데 다시 읽은 주문이 없으면 원래 오류를 던진다")
     void rethrowsWhenReplayFindsNothing() {
         DataIntegrityViolationException violation = keyViolation();
-        when(orderService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenThrow(violation);
-        when(orderService.replay(MEMBER_ID, KEY, HASH)).thenReturn(Optional.empty());
+        when(orderPlacementService.placeIdempotently(MEMBER_ID, COMMAND, KEY, HASH)).thenThrow(violation);
+        when(orderPlacementService.replay(MEMBER_ID, KEY, HASH)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderPlacement.place(MEMBER_ID, COMMAND, KEY)).isSameAs(violation);
     }

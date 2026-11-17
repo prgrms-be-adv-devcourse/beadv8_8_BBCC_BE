@@ -11,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.delivery.domain.Delivery;
 import com.bbcc.kidly.boundedcontext.order.ConcurrentCalls;
 import com.bbcc.kidly.boundedcontext.order.MarkPaidCommands;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderQueryService;
+import com.bbcc.kidly.boundedcontext.order.app.order.OrderPlacementService;
 import com.bbcc.kidly.boundedcontext.order.app.order.OrderService;
 import com.bbcc.kidly.boundedcontext.order.app.order.dto.PlaceOrderCommand;
 import com.bbcc.kidly.boundedcontext.order.app.port.OrderRepository;
@@ -45,6 +46,9 @@ class DeliveryShipConcurrencyIntegrationTest {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private OrderPlacementService orderPlacementService;
 
     @Autowired
     private OrderQueryService orderQueries;
@@ -102,7 +106,7 @@ class DeliveryShipConcurrencyIntegrationTest {
 
     private Long placeAndPay(Long buyerId) {
         cartService.addItem(CartOwners.member(buyerId), 1L, null, 1);
-        Long orderId = orderService.place(buyerId, new PlaceOrderCommand(
+        Long orderId = orderPlacementService.place(buyerId, new PlaceOrderCommand(
             List.of(new PlaceOrderCommand.Item(1L, null, 1, 25_000L)),
             new PlaceOrderCommand.ShippingAddress("홍길동", "010-0000-0000", "12345", "서울시 테스트로 1"))).orderId();
         orderService.markPaid(MarkPaidCommands.matching(orderQueries.getOrder(buyerId, orderId), buyerId, 500L));
