@@ -44,7 +44,7 @@ class RecommendAiMetricsTest {
     void registerOnlyKnownCombinations() {
         new RecommendAiMetrics(registry, ObservationRegistry.NOOP);
 
-        assertThat(registry.find("kidly.recommend.ai.requests").counters()).hasSize(15);
+        assertThat(registry.find("kidly.recommend.ai.requests").counters()).hasSize(18);
         assertThat(registry.find("kidly.recommend.ai.store.lookups").counters()).hasSize(9);
         assertThat(registry.find("kidly.recommend.ai.rejected").counters()).hasSize(3);
     }
