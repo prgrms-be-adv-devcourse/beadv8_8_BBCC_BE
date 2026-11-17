@@ -40,6 +40,16 @@ class AnalysisRequestsTest(unittest.TestCase):
         self.assertEqual(handler.request(is_operator=True)[0], 202)
         self.assertEqual(self.wait_for(handler, 'failed')['published_at'], 200)
 
+    def test_unexpected_runner_error_ends_as_failed_and_allows_next_request(self):
+        def run(*, focus):
+            raise KeyError('ok')
+
+        handler = AnalysisRequests(run, lambda: 0, clock=lambda: 200)
+        self.assertEqual(handler.request(is_operator=True)[0], 202)
+        self.wait_for(handler, 'failed')
+        self.assertEqual(handler.request(is_operator=True)[0], 202)
+        self.wait_for(handler, 'failed')
+
     def test_manual_attempt_enforces_persistent_cooldown(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)

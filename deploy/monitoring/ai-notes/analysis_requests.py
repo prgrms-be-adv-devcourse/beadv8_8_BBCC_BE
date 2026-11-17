@@ -101,7 +101,8 @@ class AnalysisRequests:
     def _run(self, runner, focus):
         try:
             result = runner(focus=focus)
-        except (OSError, subprocess.SubprocessError, ValueError):
+        except Exception:
+            # Any runner failure must leave "running"; otherwise every later request stays 409 until restart.
             result = 'failed'
         with self.lock:
             self.status = result
