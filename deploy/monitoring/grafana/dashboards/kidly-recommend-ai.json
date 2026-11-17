@@ -348,7 +348,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "고른 기간 동안 규칙 결과로 나간 요청 수입니다. timeout(AI 대기 초과) · error(호출 실패 · null 답 · 횟수 세기 오류) · daily_limit(하루 상한) · rejected(검증에서 버림).",
+      "description": "고른 기간 동안 규칙 결과로 나간 요청 수입니다. timeout(AI 대기 초과) · error(호출 실패 · null 답 · 횟수 세기 오류) · daily_limit(하루 상한) · busy(동시 호출 상한) · rejected(검증에서 버림).",
       "gridPos": {
         "x": 0,
         "y": 13,
@@ -362,7 +362,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (feature, result) (increase(kidly_recommend_ai_requests_total{env=\"$env\", job=\"kidly-recommend\", result=~\"timeout|error|daily_limit\"}[$__range]))",
+          "expr": "sum by (feature, result) (increase(kidly_recommend_ai_requests_total{env=\"$env\", job=\"kidly-recommend\", result=~\"timeout|error|daily_limit|busy\"}[$__range]))",
           "instant": true,
           "legendFormat": "{{feature}} {{result}}"
         },

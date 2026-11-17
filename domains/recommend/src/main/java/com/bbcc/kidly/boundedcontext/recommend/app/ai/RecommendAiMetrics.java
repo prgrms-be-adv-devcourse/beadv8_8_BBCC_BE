@@ -35,9 +35,9 @@ public class RecommendAiMetrics {
     static final String DAILY_CALLS = "kidly.recommend.ai.daily.calls";
 
     /**
-     * AI 요청의 결과: 저장한 답을 씀 · AI가 답함 · 기다리다 시간 초과 · 오류 · 하루 상한에 걸림.
+     * AI 요청의 결과: 저장한 답을 씀 · AI가 답함 · 기다리다 시간 초과 · 오류 · 하루 상한에 걸림 · 동시 호출 상한에 걸림.
      */
-    public enum RequestResult { STORED, ANSWERED, TIMEOUT, ERROR, DAILY_LIMIT }
+    public enum RequestResult { STORED, ANSWERED, TIMEOUT, ERROR, DAILY_LIMIT, BUSY }
 
     /**
      * 저장한 답 조회 결과: 있음 · 없음 · 오류.

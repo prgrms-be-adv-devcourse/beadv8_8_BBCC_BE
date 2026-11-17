@@ -28,7 +28,7 @@ class RecommendAiMetricsTest {
     void registerZeroCountersOnStart(String feature) {
         new RecommendAiMetrics(registry, ObservationRegistry.NOOP);
 
-        for (String result : new String[] {"stored", "answered", "timeout", "error", "daily_limit"}) {
+        for (String result : new String[] {"stored", "answered", "timeout", "error", "daily_limit", "busy"}) {
             assertThat(registry.get("kidly.recommend.ai.requests").tag("feature", feature).tag("result", result)
                 .counter().count()).isZero();
         }
@@ -44,7 +44,7 @@ class RecommendAiMetricsTest {
     void registerOnlyKnownCombinations() {
         new RecommendAiMetrics(registry, ObservationRegistry.NOOP);
 
-        assertThat(registry.find("kidly.recommend.ai.requests").counters()).hasSize(15);
+        assertThat(registry.find("kidly.recommend.ai.requests").counters()).hasSize(18);
         assertThat(registry.find("kidly.recommend.ai.store.lookups").counters()).hasSize(9);
         assertThat(registry.find("kidly.recommend.ai.rejected").counters()).hasSize(3);
     }

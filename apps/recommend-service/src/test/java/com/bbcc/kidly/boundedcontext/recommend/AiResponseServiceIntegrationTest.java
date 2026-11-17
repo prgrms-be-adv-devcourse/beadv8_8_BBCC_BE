@@ -75,7 +75,8 @@ class AiResponseServiceIntegrationTest {
 
     private AiResponseService fixedClockService() {
         return new AiResponseService(
-            store, quota, jsonMapper, CLOCK, 2_000, Map.of(TYPE, Duration.ofSeconds(2)), Duration.ofSeconds(10),
+            store, quota, jsonMapper, CLOCK, 2_000, 100, Map.of(TYPE, Duration.ofSeconds(2)),
+            Duration.ofSeconds(10),
             Duration.ofHours(24), new RecommendAiMetrics(new SimpleMeterRegistry(), ObservationRegistry.NOOP));
     }
 

@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -41,6 +42,7 @@ public class AiResponseService {
     private final JsonMapper jsonMapper;
     private final Clock clock;
     private final int dailyCallLimit;
+    private final Semaphore inFlightCalls;
     private final Map<AiResponseType, Duration> callTimeouts;
     private final Duration asyncWait;
     private final Duration reusePeriod;
@@ -52,6 +54,7 @@ public class AiResponseService {
         AiCallQuota quota,
         JsonMapper jsonMapper,
         @Value("${kidly.recommend.ai.daily-call-limit:2000}") int dailyCallLimit,
+        @Value("${kidly.recommend.ai.max-concurrent-calls:6}") int maxConcurrentCalls,
         // 화면이 아래쪽에 있어 늦게 보여도 되는 기능일수록 길게 기다린다. Gateway의 추천 경로 제한 시간보다 짧아야 한다
         @Value("${kidly.recommend.ai.call-timeout.home-preview:PT3S}") Duration homePreviewTimeout,
         @Value("${kidly.recommend.ai.call-timeout.bought-together:PT4S}") Duration boughtTogetherTimeout,
@@ -61,7 +64,7 @@ public class AiResponseService {
         @Value("${kidly.recommend.ai.response-reuse-period:PT24H}") Duration reusePeriod,
         RecommendAiMetrics metrics
     ) {
-        this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit,
+        this(store, quota, jsonMapper, Clock.system(ZoneId.of("Asia/Seoul")), dailyCallLimit, maxConcurrentCalls,
             Map.of(AiResponseType.HOME_PREVIEW, homePreviewTimeout,
                 AiResponseType.BOUGHT_TOGETHER, boughtTogetherTimeout,
                 AiResponseType.SIZE_RECOMMENDATION, sizeRecommendationTimeout),
@@ -74,6 +77,7 @@ public class AiResponseService {
         JsonMapper jsonMapper,
         Clock clock,
         int dailyCallLimit,
+        int maxConcurrentCalls,
         Map<AiResponseType, Duration> callTimeouts,
         Duration asyncWait,
         Duration reusePeriod,
@@ -84,6 +88,7 @@ public class AiResponseService {
         this.jsonMapper = jsonMapper;
         this.clock = clock;
         this.dailyCallLimit = dailyCallLimit;
+        this.inFlightCalls = new Semaphore(maxConcurrentCalls);
         this.callTimeouts = Map.copyOf(callTimeouts);
         this.asyncWait = asyncWait;
         this.reusePeriod = reusePeriod;
@@ -95,7 +100,10 @@ public class AiResponseService {
      * 받은 답은 다른 스레드에서 저장하므로, 돌려받은 직후에는 아직 저장되지 않았을 수 있다.
      * <ul>
      *   <li>빈 값은 AI 결과가 없다는 뜻이다. 부른 쪽이 규칙 결과로 대신한다.
-     *       호출이 실패하거나 제한 시간을 넘기거나 null을 돌려줘도, 하루 상한에 닿아도 빈 값이다.</li>
+     *       호출이 실패하거나 제한 시간을 넘기거나 null을 돌려줘도, 하루 상한에 닿아도,
+     *       진행 중인 AI 호출이 동시 호출 상한에 닿아 있어도 빈 값이다.</li>
+     *   <li>동시 호출 상한의 자리는 요청이 끝난 때가 아니라 AI 호출이 실제로 끝난 때 돌아온다.
+     *       제한 시간을 넘겨 빈 값을 돌려준 뒤에도 그 호출이 끝날 때까지 자리를 쥔다.</li>
      *   <li>트랜잭션 밖에서 불러야 한다. 안에서 부르면 {@link IllegalStateException}을 던진다.</li>
      *   <li>{@code call}은 다른 스레드에서 돈다. 트랜잭션, 지연 로딩, MDC가 따라가지 않으므로
      *       프롬프트에 쓸 입력은 부르기 전에 모두 읽어 둔다.</li>
@@ -126,7 +134,7 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return stored;
         }
-        if (!tryAcquireQuietly(type, now)) {
+        if (!tryStartCall(type, now)) {
             return Optional.empty();
         }
         Optional<T> result = callWithTimeout(type, key, call);
@@ -142,7 +150,8 @@ public class AiResponseService {
 
     /**
      * AI 답을 기다리지 않고 바로 돌려준다. 돌려준 결과는 AI 답이 오면 그 답으로, 답을 얻지 못하면 빈 값으로 나중에 끝난다.
-     * 저장한 답이 있으면 이미 끝난 결과다. 그 밖의 규칙(트랜잭션 밖에서 부르기, 하루 상한, 저장)은 {@link #respond}와 같다.
+     * 저장한 답이 있으면 이미 끝난 결과다. 그 밖의 규칙(트랜잭션 밖에서 부르기, 하루 상한, 동시 호출 상한, 저장)은
+     * {@link #respond}와 같다.
      */
     public <T> CompletableFuture<Optional<T>> respondAsync(
         AiResponseType type,
@@ -160,11 +169,11 @@ public class AiResponseService {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.STORED);
             return CompletableFuture.completedFuture(stored);
         }
-        if (!tryAcquireQuietly(type, now)) {
+        if (!tryStartCall(type, now)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         CompletableFuture<T> task =
-            CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
+            CompletableFuture.supplyAsync(releasingWhenDone(metrics.observeCall(type, call)), VIRTUAL_THREAD);
         // 답이 오는 대로 저장한다. 최대 시간을 넘겨 화면에 보내지 못한 답도 저장해 다음 요청이 쓴다
         task.thenAccept(answer -> saveLateAnswer(type, key, answer));
         return settleWithin(type, task);
@@ -257,7 +266,7 @@ public class AiResponseService {
     private <T> Optional<T> callWithTimeout(AiResponseType type, AiResponseKey key, Supplier<T> call) {
         Duration callTimeout = requireNonNull(callTimeouts.get(type), "종류별 제한 시간이 없습니다");
         CompletableFuture<T> task =
-            CompletableFuture.supplyAsync(metrics.observeCall(type, call), VIRTUAL_THREAD);
+            CompletableFuture.supplyAsync(releasingWhenDone(metrics.observeCall(type, call)), VIRTUAL_THREAD);
         try {
             T answer = task.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
             if (answer == null) {
@@ -267,7 +276,6 @@ public class AiResponseService {
         } catch (InterruptedException e) {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.ERROR);
             Thread.currentThread().interrupt();
-            task.cancel(true);
             logCallFailure(type, e);
         } catch (TimeoutException e) {
             metrics.recordRequest(type, RecommendAiMetrics.RequestResult.TIMEOUT);
@@ -279,6 +287,28 @@ public class AiResponseService {
             logCallFailure(type, e.getCause());
         }
         return Optional.empty();
+    }
+
+    private boolean tryStartCall(AiResponseType type, LocalDateTime now) {
+        if (!inFlightCalls.tryAcquire()) {
+            metrics.recordRequest(type, RecommendAiMetrics.RequestResult.BUSY);
+            return false;
+        }
+        if (tryAcquireQuietly(type, now)) {
+            return true;
+        }
+        inFlightCalls.release();
+        return false;
+    }
+
+    private <T> Supplier<T> releasingWhenDone(Supplier<T> call) {
+        return () -> {
+            try {
+                return call.get();
+            } finally {
+                inFlightCalls.release();
+            }
+        };
     }
 
     private <T> void saveLateAnswer(AiResponseType type, AiResponseKey key, T lateAnswer) {
