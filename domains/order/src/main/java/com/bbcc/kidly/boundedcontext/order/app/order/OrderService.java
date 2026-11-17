@@ -84,7 +84,7 @@ public class OrderService {
     }
 
     /**
-     * 요청 키(#351)가 있으면 같은 회원 · 같은 키의 주문을 먼저 찾는다. 같은 요청이면 그 주문의 지금 상세를, 다른 요청이면 409.
+     * 요청 키(Idempotency-Key 헤더, #351)가 있으면 같은 회원 · 같은 키의 주문을 먼저 찾는다. 같은 요청이면 그 주문의 지금 상세를, 다른 요청이면 409.
      * 없으면 키 · 비교값을 기록해 만든다. 동시에 같은 키로 만들면 한쪽은 유니크 제약에 걸리고 OrderPlacement가 다시 읽는다.
      */
     public PlaceOrderResult placeIdempotently(Long memberId, PlaceOrderCommand command, String idempotencyKey,
@@ -169,7 +169,7 @@ public class OrderService {
             logIgnored("stock.deducted", order, result);
             return;
         }
-        // 주문 UPDATE 실패가 커밋 때가 아니라 여기서 나야 리스너가 잡아 보관한다(#449)
+        // 주문 UPDATE 실패가 커밋 때가 아니라 여기서 나야 리스너가 잡아 이벤트 처리 실패 기록으로 보관한다(관리자 재처리 대상, #449)
         orderRepository.flush();
         publish(new OrderPaymentRequestedEvent(UUID.randomUUID(), now,
             new OrderPaymentRequestedEvent.Data(order.getId(), order.getMemberId(), order.getTotalAmount(),
@@ -504,7 +504,7 @@ public class OrderService {
             logIgnored(source, order, result);
             return;
         }
-        // 주문 UPDATE 실패가 커밋 때가 아니라 여기서 나야 리스너가 잡아 보관한다(#449)
+        // 주문 UPDATE 실패가 커밋 때가 아니라 여기서 나야 리스너가 잡아 이벤트 처리 실패 기록으로 보관한다(관리자 재처리 대상, #449)
         orderRepository.flush();
         historyRepository.save(actor.history(orderId, OrderStatusHistory.TargetType.ORDER, orderId, from,
             order.getStatus(), order.getCancelReason().name(), now));

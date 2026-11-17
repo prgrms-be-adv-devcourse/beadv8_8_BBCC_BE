@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
 @Table(schema = "orders", name = "order_item", indexes = {
     @Index(name = "idx_order_item_order_id", columnList = "order_id"),
     @Index(name = "idx_order_item_status_delivered_at", columnList = "status, delivered_at"),
-    // 판매자 미종결 주문상품 수(#1120, V202611101300)
+    // 판매자의 미종결 주문상품 수를 세는 서비스 사이 조회(판매자 탈퇴 확인)용 인덱스(#1120, V202611101300)
     @Index(name = "idx_order_item_seller_status", columnList = "seller_id, status")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -90,7 +90,7 @@ public class OrderItem extends OrderTimeEntity {
         String thumbnailUrl) {
 
         /**
-         * 썸네일 없이(#1328 전 모양). 썸네일은 null.
+         * 썸네일 칸이 생기기 전 모양(#1328). 썸네일은 null.
          */
         public ProductSnapshot(Long productId, Long optionId, Long sellerId, String productName, String optionName,
             String size, long unitPrice, Long categoryId) {
