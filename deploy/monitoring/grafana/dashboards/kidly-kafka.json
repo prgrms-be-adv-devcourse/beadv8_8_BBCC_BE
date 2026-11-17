@@ -452,6 +452,15 @@
       "url": "/d/kidly-http?var-env=${env}&from=${__from}&to=${__to}"
     },
     {
+      "title": "서비스 상세",
+      "type": "link",
+      "url": "/d/kidly-service?var-env=${env}&${__url_time_range}",
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "dashboard",
+      "tooltip": "서비스 하나의 상세(HTTP · JVM · DB · Kafka)로 이동"
+    },
+    {
       "title": "AI 분석",
       "type": "link",
       "url": "/d/kidly-ai-notes?var-env=${env}&var-analysis_focus=overview",

@@ -36,6 +36,15 @@
       "url": "/d/kidly-logs?var-env=dev&${__url_time_range}",
       "includeVars": false,
       "keepTime": false
+    },
+    {
+      "title": "서비스 상세",
+      "type": "link",
+      "url": "/d/kidly-service?var-env=dev&${__url_time_range}",
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "dashboard",
+      "tooltip": "서비스 하나의 상세(HTTP · JVM · DB · Kafka)로 이동"
     }
   ],
   "annotations": {
@@ -834,7 +843,13 @@
             "fillOpacity": 10,
             "showPoints": "never",
             "spanNulls": false
-          }
+          },
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }
@@ -888,7 +903,13 @@
             "fillOpacity": 10,
             "showPoints": "never",
             "spanNulls": false
-          }
+          },
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }
@@ -942,7 +963,13 @@
             "fillOpacity": 10,
             "showPoints": "never",
             "spanNulls": false
-          }
+          },
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }
@@ -996,7 +1023,13 @@
             "fillOpacity": 10,
             "showPoints": "never",
             "spanNulls": false
-          }
+          },
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }
@@ -1050,7 +1083,13 @@
             "fillOpacity": 10,
             "showPoints": "never",
             "spanNulls": false
-          }
+          },
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }
@@ -1104,7 +1143,13 @@
             "fillOpacity": 10,
             "showPoints": "never",
             "spanNulls": false
-          }
+          },
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }
@@ -1158,7 +1203,13 @@
             "fillOpacity": 10,
             "showPoints": "never",
             "spanNulls": false
-          }
+          },
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }
@@ -1292,7 +1343,13 @@
             "spanNulls": false
           },
           "decimals": 2,
-          "min": 0
+          "min": 0,
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }
@@ -1348,7 +1405,13 @@
             "spanNulls": false
           },
           "decimals": 0,
-          "min": 0
+          "min": 0,
+          "links": [
+            {
+              "title": "이 서비스 상세 보기",
+              "url": "/d/kidly-service?var-env=dev&var-service=${__field.labels.job}&${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       }

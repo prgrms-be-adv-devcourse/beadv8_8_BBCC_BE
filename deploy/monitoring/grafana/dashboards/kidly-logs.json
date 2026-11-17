@@ -33,6 +33,15 @@
       "targetBlank": false
     },
     {
+      "title": "서비스 상세",
+      "type": "link",
+      "url": "/d/kidly-service?var-env=${env}&var-service=${service}&${__url_time_range}",
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "dashboard",
+      "tooltip": "서비스 하나의 상세(HTTP · JVM · DB · Kafka)로 이동"
+    },
+    {
       "title": "AI 분석",
       "type": "link",
       "url": "/d/kidly-ai-notes?var-env=${env}&var-analysis_focus=errors",
@@ -179,6 +188,23 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "서비스"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 서비스 상세 보기",
+                    "url": "/d/kidly-service?var-env=${env}&var-service=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -299,7 +325,25 @@
               "unit": "ms",
               "decimals": 0
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "서비스"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "이 서비스 상세 보기",
+                        "url": "/d/kidly-service?var-env=${env}&var-service=${__value.raw}&${__url_time_range}"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
           },
           "options": {
             "showHeader": true,
