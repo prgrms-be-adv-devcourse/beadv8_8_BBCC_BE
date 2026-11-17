@@ -109,7 +109,8 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
         self.assertEqual(history['panels'][0]['targets'][0]['maxLines'], 15)
         self.assertIn(['X-Kidly-AI-Focus', '${analysis_focus:raw}'],
                       run['fieldConfig']['overrides'][0]['properties'][1]['value'][0]['fetch']['headers'])
-        self.assertEqual(priority['gridPos']['y'], 0)
+        # Run button and status sit right under the provider/focus selectors, the priority note below them.
+        self.assertEqual((run['gridPos']['y'], status['gridPos']['y'], priority['gridPos']['y']), (0, 0, 3))
         self.assertIn('{{if .priority}}{{.priority}}{{else}}{{.headline}}',
                       priority['targets'][0]['expr'])
         self.assertTrue(details['collapsed'])
