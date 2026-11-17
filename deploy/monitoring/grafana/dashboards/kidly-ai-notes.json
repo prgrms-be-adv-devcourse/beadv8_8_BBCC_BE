@@ -57,12 +57,168 @@
   },
   "panels": [
     {
+      "id": 201,
+      "type": "table",
+      "title": "운영 AI 분석 실행",
+      "description": "groq는 무료, openai는 과금될 수 있습니다. 사용할 제공자 행에서 실행하세요.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace((max by(provider) (kidly_ai_analysis_provider_enabled == 1)), \"analysis_env\", \"dev\", \"__name__\", \".*\") and on (analysis_env) label_replace(vector(1), \"analysis_env\", \"${env:raw}\", \"__name__\", \".*\") and on() (time() - max(kidly_ai_analysis_heartbeat_seconds) < 45)",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "analysis_env": true
+            },
+            "indexByName": {
+              "provider": 0,
+              "Value": 1
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "provider"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "제공자"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "actions"
+                }
+              },
+              {
+                "id": "actions",
+                "value": [
+                  {
+                    "type": "fetch",
+                    "title": "새 분석 실행",
+                    "confirmation": "선택한 제공자로 운영 분석을 1회 실행합니다. OpenAI를 선택했다면 사용량이 청구될 수 있습니다.",
+                    "fetch": {
+                      "url": "/kidly-ai-analysis/run",
+                      "method": "POST",
+                      "body": "{}",
+                      "headers": [
+                        [
+                          "X-Kidly-AI-Provider",
+                          "${__data.fields[\"provider\"]}"
+                        ],
+                        [
+                          "X-Kidly-AI-Confirm-Paid",
+                          "true"
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 202,
+      "type": "stat",
+      "title": "분석 실행 상태",
+      "gridPos": {
+        "x": 14,
+        "y": 0,
+        "w": 10,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace((max(kidly_ai_analysis_state)), \"analysis_env\", \"dev\", \"__name__\", \".*\") and on (analysis_env) label_replace(vector(1), \"analysis_env\", \"${env:raw}\", \"__name__\", \".*\") and on() (time() - max(kidly_ai_analysis_heartbeat_seconds) < 45)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "실행 기능 준비 전",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "대기 중"
+                },
+                "1": {
+                  "text": "분석 중"
+                },
+                "2": {
+                  "text": "게시 완료"
+                },
+                "3": {
+                  "text": "호출 간격 제한"
+                },
+                "4": {
+                  "text": "실행 실패"
+                },
+                "5": {
+                  "text": "다른 실행 진행 중"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "value",
+        "colorMode": "none"
+      }
+    },
+    {
       "id": 4,
       "type": "text",
       "title": "AI에게 분석 맡기기 · 메모 읽는 법",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 5,
         "w": 24,
         "h": 10
       },
@@ -77,7 +233,7 @@
       "title": "최신 AI 분석 메모",
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 15,
         "w": 24,
         "h": 14
       },
@@ -111,7 +267,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 29,
         "w": 24,
         "h": 1
       },
@@ -122,7 +278,7 @@
           "title": "게시된 메모의 관측 경과 · 서비스 정상 여부 아님",
           "gridPos": {
             "x": 0,
-            "y": 25,
+            "y": 30,
             "w": 12,
             "h": 5
           },
@@ -189,7 +345,7 @@
           "title": "미전송 메모 · 실패 시 AI 재호출하지 않음",
           "gridPos": {
             "x": 12,
-            "y": 25,
+            "y": 30,
             "w": 12,
             "h": 5
           },

@@ -75,6 +75,7 @@ class AnalysisRequests:
             except (OSError, sqlite3.Error):
                 return 503, {'state': 'unavailable'}
             if next_at > self.clock():
+                self.status = 'limited'
                 return 429, {'state': 'limited', 'next_at': next_at}
             self.status = 'running'
             self.provider = provider

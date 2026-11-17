@@ -2,6 +2,7 @@ import io
 import json
 from pathlib import Path
 import sys
+import tempfile
 import time
 import unittest
 from unittest.mock import Mock
@@ -9,7 +10,7 @@ from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).parents[1] / 'ai-notes'))
 from analysis_requests import AnalysisRequests
-from grafana_analysis_api import ACTION_PATH, STATUS_PATH, AnalysisAPI, GrafanaAuthorization
+from grafana_analysis_api import ACTION_PATH, STATUS_PATH, AnalysisAPI, GrafanaAuthorization, write_dashboard_status
 
 
 ORIGIN = 'https://grafana.example.test'
@@ -76,3 +77,33 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
         self.assertEqual((result['state'], result['provider']), ('failed', 'openai'))
         openai.assert_called_once()
         groq.assert_not_called()
+
+    def test_grafana_empty_json_action_and_dashboard_status_metrics(self):
+        api, _ = self.setup_api([{'orgId': 1, 'role': 'Admin'}])
+        headers = {'Origin': ORIGIN, 'Cookie': 'grafana_session=fixture', 'Content-Length': '2'}
+        self.assertEqual(api.dispatch('POST', ACTION_PATH, headers, b'[]')[0], 400)
+        self.assertEqual(api.dispatch('POST', ACTION_PATH, headers, b'{}')[0], 202)
+        with tempfile.TemporaryDirectory() as directory:
+            metrics = Path(directory) / 'status.prom'
+            write_dashboard_status(metrics, {'state': 'running', 'providers': ['groq']}, 100)
+            self.assertEqual(metrics.read_text().splitlines(), [
+                'kidly_ai_analysis_heartbeat_seconds 100',
+                'kidly_ai_analysis_state 1',
+                'kidly_ai_analysis_provider_enabled{provider="groq"} 1',
+            ])
+            write_dashboard_status(metrics, {'state': 'published', 'providers': ['groq', 'openai'],
+                                             'published_at': 101}, 102)
+            self.assertIn('kidly_ai_analysis_provider_enabled{provider="openai"} 1', metrics.read_text())
+            self.assertIn('kidly_ai_analysis_published_seconds 101', metrics.read_text())
+            self.assertNotIn('kidly_ai_analysis_state 1', metrics.read_text())
+
+    def test_dashboard_uses_existing_prometheus_and_same_origin_post(self):
+        dashboard_path = Path(__file__).parents[1] / 'grafana/dashboards/kidly-ai-notes.json'
+        panels = json.loads(dashboard_path.read_text())['panels']
+        run, status = panels[:2]
+        self.assertEqual((run['datasource']['uid'], status['datasource']['uid']), ('prometheus', 'prometheus'))
+        action = run['fieldConfig']['overrides'][1]['properties'][1]['value'][0]
+        self.assertIn('청구', action['confirmation'])
+        self.assertEqual((action['fetch']['url'], action['fetch']['method']), (ACTION_PATH, 'POST'))
+        self.assertIn('kidly_ai_analysis_provider_enabled', run['targets'][0]['expr'])
+        self.assertIn('kidly_ai_analysis_heartbeat_seconds', status['targets'][0]['expr'])
