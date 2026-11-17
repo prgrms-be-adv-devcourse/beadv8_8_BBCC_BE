@@ -33,11 +33,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 상품 수정으로 바꾼 상품을 저장할 때의 매핑을 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않고,
- * 저장한 뒤의 상태는 다른 트랜잭션에서 JdbcTemplate으로 읽는다.
- * 상품 A는 판매대기 상의이고 옵션 네이비 · 110과 네이비 · 120, 두 사이즈의 실측, 주요소재 면이 있다.
- */
 @IntegrationTest
 class ProductUpdateIntegrationTest {
 
@@ -71,7 +66,7 @@ class ProductUpdateIntegrationTest {
             Product product = productRepository.findById(productId).orElseThrow();
             Attribute mainMaterial = entityManager.find(Attribute.class, clothing.mainMaterial().getId());
             product.update(sameBasicsWith(product, List.of(
-                new Product.InfoValueInfo(mainMaterial, List.of(managed(linen)), null))));
+                new Product.InfoValueInfo(mainMaterial, List.of(managed(linen)), null))), null);
         });
 
         assertThat(version(productId)).isGreaterThan(before);
@@ -182,7 +177,6 @@ class ProductUpdateIntegrationTest {
         assertThat(inUse).containsExactly("B-110");
     }
 
-    // 상품 A의 옵션 · 실측을 네이비 · 110 하나로 바꿔 넣는 값이다
     private Product.SaleInputsInfo onlyNavy110() {
         return new Product.SaleInputsInfo(
             List.of(option(managed(clothing.navy()), managed(clothing.size110()))),
@@ -190,7 +184,6 @@ class ProductUpdateIntegrationTest {
             List.of(spec(managed(clothing.size110()), 105, 115, top110Measurements())));
     }
 
-    // 상품 A와 같은 판매자 · 카테고리의 상품 B를 SKU 코드가 있는 네이비 · 110 옵션 하나와 함께 저장한다
     private void savedProductBWithSku(String skuCode) {
         inTransaction(() -> {
             Product productB = Product.register(ProductFixture.productAWithRequired(
@@ -203,14 +196,12 @@ class ProductUpdateIntegrationTest {
         });
     }
 
-    // 상품 A의 기본 정보와 카테고리는 그대로 두고 정보 값만 받은 값으로 보내는 수정 값이다
     private Product.UpdateInfo sameBasicsWith(Product product, List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, product.getVersion(), managedCategory(), product.getName(),
             product.getBrand(), product.getDescription(), product.getThumbnailUrl(), product.getImageUrls(),
             infoValues);
     }
 
-    // 상품 A의 지금 정보 값(주요소재 면)과 같은 값이다
     private List<Product.InfoValueInfo> currentInfoValues() {
         Attribute mainMaterial = entityManager.find(Attribute.class, clothing.mainMaterial().getId());
         return List.of(new Product.InfoValueInfo(mainMaterial, List.of(managed(clothing.cotton())), null));
@@ -221,8 +212,6 @@ class ProductUpdateIntegrationTest {
             "select id from product.product_option where product_id = ? order by id", Long.class, productId);
     }
 
-    // 판매대기 상품 A를 옵션 · 실측과 함께 저장하고 ID를 돌려준다.
-    // 항목 · 목록 값 · 유형 · 카테고리 · 실측 항목은 cascade되지 않아 먼저 저장한다
     private Long savedProductA() {
         Product.RegisterInfo info = ProductFixture.productAWith(clothing.type(), List.of(
             new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
@@ -258,7 +247,6 @@ class ProductUpdateIntegrationTest {
         entityManager.persist(category);
     }
 
-    // 카테고리와 목록 값은 객체 동일성으로 비교하므로, 상품을 읽은 트랜잭션에서 다시 읽은 객체를 넘긴다
     private Category managedCategory() {
         return entityManager.find(Category.class, category.getId());
     }

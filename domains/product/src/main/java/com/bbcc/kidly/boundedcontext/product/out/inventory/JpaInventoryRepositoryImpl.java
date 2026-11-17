@@ -10,7 +10,6 @@ class JpaInventoryRepositoryImpl {
 
     private final EntityManager entityManager;
 
-    // 재고 행과 초기 재고 기록을 호출한 쪽의 트랜잭션 안에서 함께 저장한다
     public void saveOpening(InventoryOpening opening) {
         entityManager.persist(opening.inventory());
         for (InventoryAdjustmentRecord record : opening.adjustmentRecords()) {
@@ -18,7 +17,6 @@ class JpaInventoryRepositoryImpl {
         }
     }
 
-    // 판매자가 조정한 재고 조정 기록을 호출한 쪽의 트랜잭션 안에서 저장한다
     public void saveAdjustmentRecord(InventoryAdjustmentRecord record) {
         entityManager.persist(record);
     }

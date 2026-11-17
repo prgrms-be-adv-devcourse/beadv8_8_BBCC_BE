@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.forceSaleStatus;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
@@ -8,7 +9,6 @@ import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothin
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.ClothingOptions;
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product;
@@ -21,9 +21,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.test.util.ReflectionTestUtils;
 
 class ProductOptionPriceTest {
 
@@ -81,19 +78,6 @@ class ProductOptionPriceTest {
         assertThat(product.getOptions()).hasSize(1);
     }
 
-    @ParameterizedTest(name = "{0}원")
-    @ValueSource(longs = {0, -1})
-    @DisplayName("PRICE-02 판매가가 0 이하이면 거절한다")
-    void rejectNonPositivePrice(long price) {
-        Product.AddOptionsInfo info = new Product.AddOptionsInfo(
-            SELLER_ID, List.of(option(clothing.navy(), clothing.size110())), clothingPrice(price));
-
-        assertThatThrownBy(() -> product.addOptions(info, clothing.type()))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("0보다 커야");
-        assertThat(product.getOptions()).isEmpty();
-    }
-
     @Test
     @DisplayName("PRICE-03 같은 가격 구분 묶음의 가격이 두 번 오면 거절한다")
     void rejectTwoPricesForSamePriceGroup() {
@@ -130,9 +114,8 @@ class ProductOptionPriceTest {
     @DisplayName("SALE-06 보관한 옵션의 가격 구분 묶음은 만들지 않는다")
     void currentPricesSkipArchivedOptions() {
         Product colorPricedProduct = colorPricedProductWithOptions();
-        // 보관하는 업무 메서드가 아직 없어서 오트밀 · 110 옵션의 상태를 직접 바꾼다
         ProductOption oatmeal110 = colorPricedProduct.getOptions().get(1);
-        ReflectionTestUtils.setField(oatmeal110, "saleStatus", ProductOptionStatus.ARCHIVED);
+        forceSaleStatus(oatmeal110, ProductOptionStatus.ARCHIVED);
 
         assertThat(colorPricedProduct.currentPrices(colorPriced))
             .containsExactly(new Product.PriceInfo(List.of(navy), 25_000L));
@@ -158,7 +141,6 @@ class ProductOptionPriceTest {
         Attribute material = ProductTypeFixture.mainMaterial();
         AttributeValue cotton = AttributeValue.create(material, "면", null);
         AttributeValue polyester = AttributeValue.create(material, "폴리에스테르", null);
-        // 색상과 소재에 따라 가격이 달라지는 유형이다. 항목 순서는 색상, 소재, 사이즈다
         ProductType colorMaterialPriced = ProductType.define("색상 · 소재별 가격 의류", List.of(
             ProductTypeFixture.priceAffectingOption(color),
             ProductTypeFixture.priceAffectingOption(material),
@@ -175,7 +157,6 @@ class ProductOptionPriceTest {
             new Product.PriceInfo(List.of(oatmeal, polyester), 27_000L));
     }
 
-    // 색상에 따라 가격이 달라지는 유형의 상품에 네이비 · 110(25,000원), 오트밀 · 110(27,000원), 네이비 · 120(25,000원)을 넣는다
     private Product colorPricedProductWithOptions() {
         Product colorPricedProduct = Product.register(ProductFixture.productAWith(colorPriced, List.of()));
         colorPricedProduct.addOptions(new Product.AddOptionsInfo(SELLER_ID,

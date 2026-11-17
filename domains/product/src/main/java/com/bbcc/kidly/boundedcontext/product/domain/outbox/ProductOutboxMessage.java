@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product.domain.outbox;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,10 +13,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * Kafka로 보낼 상품 이벤트를 업무 트랜잭션 안에서 먼저 저장해 두는 아웃박스 메시지다.
- * 업무가 롤백되면 메시지도 남지 않고, 아직 보내지 않은 메시지는 sentAt이 비어 있다.
- */
 @Entity
 @Table(schema = "product", name = "product_outbox")
 @Getter
@@ -58,17 +52,13 @@ public class ProductOutboxMessage extends BaseTimeEntity {
     public record CreateInfo(UUID eventId, String eventType, String topic, String messageKey, String payload) {
     }
 
-    /**
-     * 아직 보내지 않은 메시지(시도 0회)를 만든다.
-     */
     public static ProductOutboxMessage create(CreateInfo info) {
-        requireNonNull(info, "info는 필수입니다");
-        ProductOutboxMessage message = new ProductOutboxMessage();
-        message.eventId = requireNonNull(info.eventId(), "eventId는 필수입니다");
-        message.eventType = requireNonNull(info.eventType(), "eventType은 필수입니다");
-        message.topic = requireNonNull(info.topic(), "topic은 필수입니다");
-        message.messageKey = requireNonNull(info.messageKey(), "messageKey는 필수입니다");
-        message.payload = requireNonNull(info.payload(), "payload는 필수입니다");
+        var message = new ProductOutboxMessage();
+        message.eventId = info.eventId();
+        message.eventType = info.eventType();
+        message.topic = info.topic();
+        message.messageKey = info.messageKey();
+        message.payload = info.payload();
         return message;
     }
 
@@ -77,7 +67,6 @@ public class ProductOutboxMessage extends BaseTimeEntity {
      * 이미 보낸 메시지는 바꾸지 않으므로, 같은 객체에 두 번 불러도 처음 기록이 남는다.
      */
     public void markSent(LocalDateTime now) {
-        requireNonNull(now, "now는 필수입니다");
         if (sentAt != null) {
             return;
         }
@@ -90,7 +79,6 @@ public class ProductOutboxMessage extends BaseTimeEntity {
      * 오류가 칸 길이보다 길면 앞부분만 남긴다. 길이를 넘기면 이 기록을 저장하는 UPDATE가 실패하기 때문이다.
      */
     public void recordFailure(String error) {
-        requireNonNull(error, "error는 필수입니다");
         this.attemptCount++;
         if (error.length() > LAST_ERROR_LENGTH) {
             this.lastError = error.substring(0, LAST_ERROR_LENGTH);

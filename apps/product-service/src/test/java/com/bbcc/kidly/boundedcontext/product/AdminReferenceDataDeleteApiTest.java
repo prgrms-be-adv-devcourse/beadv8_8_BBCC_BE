@@ -25,10 +25,6 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 관리자가 기준 데이터를 지우는 API를 HTTP 요청부터 응답까지 확인한다.
- * 의류 유형 · 항목 · 의류 > 상의는 {@link ClothingTopSaver}가 저장한다. 지운 행이 목록에서 빠지는지는 통합 테스트가 본다.
- */
 @FunctionalTest
 class AdminReferenceDataDeleteApiTest {
 
@@ -47,9 +43,6 @@ class AdminReferenceDataDeleteApiTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    /**
-     * 지울 대상, 그 대상을 지우는 경로, 먼저 지워 두어 대상이 쓰이지 않게 할 것이다.
-     */
     record Deletion(
         Function<SavedClothingTop, BaseSoftDeleteEntity> target,
         Function<SavedClothingTop, String> path,
@@ -123,7 +116,6 @@ class AdminReferenceDataDeleteApiTest {
             .exchange();
     }
 
-    // 엔티티를 읽는 트랜잭션에서 다시 읽은 객체를 돌려준다
     private BaseSoftDeleteEntity managed(BaseSoftDeleteEntity entity) {
         Object id = entityManager.getEntityManagerFactory().getPersistenceUnitUtil().getIdentifier(entity);
         return entityManager.find(entity.getClass(), id);

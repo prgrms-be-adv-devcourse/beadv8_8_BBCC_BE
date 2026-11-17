@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.forceSaleStatus;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.option;
@@ -23,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.test.util.ReflectionTestUtils;
 
 class StockDisplayTest {
 
@@ -73,15 +73,13 @@ class StockDisplayTest {
     @DisplayName("SALE-04 판매중지 옵션은 판매 가능 수량이 남아 있어도 살 수 없다")
     void notPurchasableWhenOptionStopped() {
         ProductOption option = optionOnSale();
-        // 옵션을 판매중지하는 업무 메서드가 아직 없어서 상태를 리플렉션으로 바꾼다
-        ReflectionTestUtils.setField(option, "saleStatus", ProductOptionStatus.STOPPED);
+        forceSaleStatus(option, ProductOptionStatus.STOPPED);
 
         StockDisplay display = StockDisplay.of(option, 8);
 
         assertThat(display.purchasable()).isFalse();
     }
 
-    // 판매를 시작한 상품 A의 네이비 110 옵션을 돌려준다
     private ProductOption optionOnSale() {
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
         product.addSizeSpecs(addSizeSpecs(List.of(spec(clothing.size110(), 105, 115, top110Measurements()))),

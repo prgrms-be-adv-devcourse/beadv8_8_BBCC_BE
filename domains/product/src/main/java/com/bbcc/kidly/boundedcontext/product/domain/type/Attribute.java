@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.Column;
@@ -17,10 +15,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 색상 · 사이즈 · 주요소재 같은 항목이다. 코드는 검색 키로 쓰이므로 바꾸지 않는다.
- * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
- */
 @Entity
 @Table(schema = "product", name = "attribute")
 @Getter
@@ -42,16 +36,7 @@ public class Attribute extends BaseSoftDeleteEntity {
     private AttributeInputType inputType;
 
     public static Attribute create(String name, String code, AttributeInputType inputType) {
-        requireNonNull(name, "name은 필수입니다");
-        requireNonNull(code, "code는 필수입니다");
-        requireNonNull(inputType, "inputType은 필수입니다");
-        if (name.isBlank()) {
-            throw new IllegalArgumentException("항목 이름은 비어 있을 수 없습니다");
-        }
-        if (code.isBlank()) {
-            throw new IllegalArgumentException("항목 코드는 비어 있을 수 없습니다");
-        }
-        Attribute attribute = new Attribute();
+        var attribute = new Attribute();
         attribute.name = name;
         attribute.code = code;
         attribute.inputType = inputType;
@@ -60,7 +45,6 @@ public class Attribute extends BaseSoftDeleteEntity {
 
     // 지우지 않은 상품 유형에 연결된 항목(inUse)은 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
     public void delete(LocalDateTime now, boolean inUse) {
-        requireNonNull(now, "now는 필수입니다");
         if (inUse) {
             throw new BusinessException(AttributeErrorCode.ATTRIBUTE_IN_USE);
         }

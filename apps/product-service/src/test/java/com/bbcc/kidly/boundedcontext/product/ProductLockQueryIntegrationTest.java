@@ -20,13 +20,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 품절 전환 때 옵션이 속한 상품 행을 잠그는 쿼리를 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class ProductLockQueryIntegrationTest {
 
-    // PostgreSQL이 NOWAIT로 잠금을 얻지 못했을 때 돌려주는 SQLState다
     private static final String LOCK_NOT_AVAILABLE = "55P03";
 
     @Autowired
@@ -70,8 +66,6 @@ class ProductLockQueryIntegrationTest {
         });
     }
 
-    // 테스트 스레드의 트랜잭션과 다른 연결을 쓰도록, 다른 스레드에서 기다리지 않고(NOWAIT) 상품 행을 잠가 본다.
-    // 그 스레드는 트랜잭션이 없어 잠금이 문장 하나가 끝나면 바로 풀린다
     private void lockFromOtherConnection(long productId) throws Exception {
         try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
             executor.submit(() -> jdbcTemplate.queryForObject(

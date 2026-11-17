@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product.domain.product;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.boundedcontext.product.domain.product.Product.InfoValueInfo;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
 import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeInputType;
@@ -16,27 +14,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * 상품을 등록할 때 받은 정보 값을 검사하고 정보 값 행으로 만든다. Product.register만 쓴다.
- */
 final class ProductInfoValues {
 
     private ProductInfoValues() {
     }
 
-    // 정보 값의 항목과 값 목록, 목록 안의 값은 null이면 안 된다. 직접 입력한 글(text)은 null을 허용한다
-    static void requireNonNullValues(List<InfoValueInfo> infoValues) {
-        for (InfoValueInfo infoValue : infoValues) {
-            requireNonNull(infoValue, "infoValue는 필수입니다");
-            requireNonNull(infoValue.attribute(), "attribute는 필수입니다");
-            requireNonNull(infoValue.values(), "values는 필수입니다");
-            for (AttributeValue value : infoValue.values()) {
-                requireNonNull(value, "value는 필수입니다");
-            }
-        }
-    }
-
-    // 목록 값마다 한 행을, 직접 입력한 글이 있으면 그 항목의 한 행을 입력 순서대로 만든다
     static List<ProductInfoValue> create(Product product, List<InfoValueInfo> infoValues) {
         List<ProductInfoValue> rows = new ArrayList<>();
         for (InfoValueInfo infoValue : infoValues) {
@@ -50,7 +32,6 @@ final class ProductInfoValues {
         return rows;
     }
 
-    // 받은 값으로 만들 행이 지금 행과 순서까지 모두 같은지 본다. 비교용 행은 create로 만들기만 하고 상품에 붙이지 않는다
     static boolean sameAs(Product product, List<ProductInfoValue> current, List<InfoValueInfo> infoValues) {
         List<ProductInfoValue> received = create(product, infoValues);
         if (received.size() != current.size()) {
@@ -64,7 +45,6 @@ final class ProductInfoValues {
         return true;
     }
 
-    // 정보 값 규칙을 차례로 검사한다. 정보 항목인지를 먼저 봐야 뒤 검사가 유형의 연결을 믿고 쓸 수 있다
     static void validate(List<InfoValueInfo> infoValues, ProductType productType) {
         validateInfoAttributes(infoValues, productType);
         validateInputTypes(infoValues);
@@ -119,10 +99,7 @@ final class ProductInfoValues {
     private static void validateAllowedInfoValues(List<InfoValueInfo> infoValues, ProductType productType) {
         for (InfoValueInfo infoValue : infoValues) {
             for (AttributeValue value : infoValue.values()) {
-                if (value.getAttribute() != infoValue.attribute()) {
-                    throw new BusinessException(ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
-                }
-                if (!productType.allows(value)) {
+                if (value.getAttribute() != infoValue.attribute() || !productType.allows(value)) {
                     throw new BusinessException(ProductErrorCode.INFO_VALUE_NOT_ALLOWED);
                 }
             }
@@ -140,18 +117,15 @@ final class ProductInfoValues {
         }
     }
 
-    // 목록 항목은 values가, 직접 입력 항목은 text가 비어 있지 않아야 값이 있는 것이다
     private static boolean hasValue(List<InfoValueInfo> infoValues, Attribute attribute) {
         for (InfoValueInfo infoValue : infoValues) {
-            if (infoValue.attribute() != attribute) {
-                continue;
+            if (infoValue.attribute() == attribute) {
+                return !infoValue.values().isEmpty() || hasText(infoValue.text());
             }
-            return !infoValue.values().isEmpty() || hasText(infoValue.text());
         }
         return false;
     }
 
-    // 직접 입력한 글이 있는지 판단하는 기준이다. 공백만 있는 글은 없는 것으로 본다. 값 저장과 필수 항목 검사가 같은 기준을 쓴다
     private static boolean hasText(String text) {
         return text != null && !text.isBlank();
     }

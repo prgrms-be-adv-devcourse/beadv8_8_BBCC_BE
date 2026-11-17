@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.product;
 
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
+import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.forceSaleStatus;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.CLOTHING_PRICE;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.clothingOptions;
@@ -30,10 +31,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-/**
- * 상품 정보 변경됨에 담을 값을 상품 애그리거트와 옵션별 판매 가능 수량으로 만드는지 확인한다.
- * 저장하지 않은 엔티티라 ID와 등록 시각은 테스트에서 직접 넣는다.
- */
 class ProductChangedDataTest {
 
     private static final long PRODUCT_ID = 1L;
@@ -69,7 +66,6 @@ class ProductChangedDataTest {
         ProductChangedEvent.Data data = ProductChangedData.of(product, top,
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 0));
 
-        // 옵션 값 · 상품 정보 값 · 브랜드 · 설명 · 사이즈별 실측 · 카테고리 경로 · 판매 시작 시각은 다른 테스트가 확인하므로 여기서는 비교하지 않는다
         assertThat(data).usingRecursiveComparison()
             .ignoringFields("infoValues", "options.values", "brand", "description", "sizeSpecs", "categoryPath",
                 "saleStartedAt")
@@ -161,7 +157,6 @@ class ProductChangedDataTest {
     @Test
     @DisplayName("SIZE-06 실측 행이 없으면 사이즈별 실측을 빈 목록으로 옮긴다")
     void carryEmptySizeSpecsWithoutSizeSpecRows() {
-        // 실측 행이 없는 실제 경우는 사이즈 역할 항목이 없는 유형의 상품인데, 그런 유형의 픽스처가 없어 옮기는 동작만 확인한다
         product.addOptions(addOptions(List.of(option(clothing.navy(), clothing.size110()))), clothing.type());
         ReflectionTestUtils.setField(product.getOptions().get(0), "id", OPTION_110_ID);
 
@@ -175,9 +170,8 @@ class ProductChangedDataTest {
     void skipArchivedAndCarryStoppedOptions() {
         withOptionsAndSizeSpecs110And120();
         product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW);
-        // 옵션 상태를 바꾸는 업무 메서드가 아직 없어 칸을 직접 바꾼다
-        ReflectionTestUtils.setField(product.getOptions().get(0), "saleStatus", ProductOptionStatus.ARCHIVED);
-        ReflectionTestUtils.setField(product.getOptions().get(1), "saleStatus", ProductOptionStatus.STOPPED);
+        forceSaleStatus(product.getOptions().get(0), ProductOptionStatus.ARCHIVED);
+        forceSaleStatus(product.getOptions().get(1), ProductOptionStatus.STOPPED);
 
         ProductChangedEvent.Data data = ProductChangedData.of(product, top,
             Map.of(OPTION_110_ID, 10, OPTION_120_ID, 10));
@@ -201,7 +195,6 @@ class ProductChangedDataTest {
         ProductChangedEvent.Data data = ProductChangedData.of(product, top, Map.of());
 
         assertThat(data.sizeFree()).isTrue();
-        // 판매 가능 수량을 하나도 넘기지 않았으므로, 재고 행이 없는 옵션은 살 수 없어 둘 다 품절이다
         assertThat(data.options())
             .extracting(ProductChangedEvent.Option::size, ProductChangedEvent.Option::minHeightCm,
                 ProductChangedEvent.Option::maxHeightCm, ProductChangedEvent.Option::soldOut)
@@ -255,7 +248,6 @@ class ProductChangedDataTest {
         assertThat(ProductChangedData.of(product, top, Map.of()).stoppedByAdmin()).isTrue();
     }
 
-    // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 실측 · 권장 키를 넣고, 옵션 ID를 정해 둔다
     private void withOptionsAndSizeSpecs110And120() {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.size110()),

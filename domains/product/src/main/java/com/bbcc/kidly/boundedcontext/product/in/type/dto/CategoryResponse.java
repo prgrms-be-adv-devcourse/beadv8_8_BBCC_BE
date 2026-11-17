@@ -38,7 +38,6 @@ public record CategoryResponse(
             measurementItems);
     }
 
-    // 없는 ID가 문자열 "null"이 되지 않게 null로 둔다
     private static String idOrNull(Long id) {
         if (id == null) {
             return null;

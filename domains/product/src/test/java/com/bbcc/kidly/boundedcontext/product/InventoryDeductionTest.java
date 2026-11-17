@@ -6,7 +6,7 @@ import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.OR
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.beforeSaleOptions;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.item;
 import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.onSaleOptions;
-import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.withStatus;
+import static com.bbcc.kidly.boundedcontext.product.InventoryDeductionFixture.asLoadedWithStatus;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
@@ -111,7 +111,8 @@ class InventoryDeductionTest {
     @EnumSource(InventoryDeductionStatus.class)
     @DisplayName("INV-10 모든 주문상품의 기존 차감 기록이 옵션 · 수량까지 같으면 상태와 상관없이 이미 처리한 요청이다")
     void alreadyHandledWhenAllRecordsMatch(InventoryDeductionStatus status) {
-        List<InventoryDeduction> firstRecords = withStatus(twoItemOrder(onSaleOptions()).deductedRecords(), status);
+        List<InventoryDeduction> firstRecords =
+            asLoadedWithStatus(twoItemOrder(onSaleOptions()).deductedRecords(), status);
 
         assertThat(twoItemOrder(options).isAlreadyHandled(firstRecords)).isTrue();
     }
@@ -124,7 +125,6 @@ class InventoryDeductionTest {
             .isInstanceOf(IllegalArgumentException.class);
     }
 
-    // 같은 주문상품 ID로 처음 받았던 주문 생성됨의 차감 기록인데, 지금 요청과 어긋난 경우들이다
     static Stream<Arguments> mismatchedFirstRecords() {
         Options first = onSaleOptions();
         return Stream.of(
@@ -155,13 +155,6 @@ class InventoryDeductionTest {
     }
 
     @Test
-    @DisplayName("옵션이 없는 주문상품은 차감 요청에 받지 않는다")
-    void rejectItemWithoutOption() {
-        assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of(item(11L, null, 1))))
-            .isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
     @DisplayName("INV-01 같은 옵션의 수량 합계가 int 범위를 넘으면 차감 요청을 만들지 않는다")
     void rejectQtySumOverflow() {
         assertThatThrownBy(() -> InventoryDeductionRequest.of(ORDER_ID, List.of(
@@ -170,7 +163,6 @@ class InventoryDeductionTest {
             .isInstanceOf(IllegalArgumentException.class);
     }
 
-    // 주문상품 11(네이비 110, 2개)과 12(네이비 120, 1개)로 만든 차감 요청이다
     private static InventoryDeductionRequest twoItemOrder(Options options) {
         return InventoryDeductionRequest.of(ORDER_ID, List.of(
             item(11L, options.navy110(), 2),

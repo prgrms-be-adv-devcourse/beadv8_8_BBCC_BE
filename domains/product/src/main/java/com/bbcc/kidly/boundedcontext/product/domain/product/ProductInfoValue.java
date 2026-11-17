@@ -17,9 +17,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 상품이 정보 항목 하나에 입력한 값 한 개다. 목록 항목이면 고른 목록 값을, 직접 입력 항목이면 입력한 글을 담는다.
- */
 @Entity
 @Table(schema = "product", name = "product_info_value")
 @Getter
@@ -39,33 +36,29 @@ public class ProductInfoValue extends BaseTimeEntity {
     @JoinColumn(name = "attribute_id")
     private Attribute attribute;
 
-    // 직접 입력 항목이면 null이다
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "attribute_value_id")
     private AttributeValue attributeValue;
 
-    // 직접 입력 항목의 값이다. 목록 항목이면 null이다
     @Column(columnDefinition = "TEXT")
     private String textValue;
 
     static ProductInfoValue create(Product product, Attribute attribute, AttributeValue attributeValue) {
-        ProductInfoValue infoValue = new ProductInfoValue();
+        var infoValue = new ProductInfoValue();
         infoValue.product = product;
         infoValue.attribute = attribute;
         infoValue.attributeValue = attributeValue;
         return infoValue;
     }
 
-    // 직접 입력 항목의 값 한 행을 만든다
     static ProductInfoValue createText(Product product, Attribute attribute, String textValue) {
-        ProductInfoValue infoValue = new ProductInfoValue();
+        var infoValue = new ProductInfoValue();
         infoValue.product = product;
         infoValue.attribute = attribute;
         infoValue.textValue = textValue;
         return infoValue;
     }
 
-    // 다른 행과 항목, 목록 값, 직접 입력한 글이 모두 같은지 본다. 항목과 목록 값은 같은 영속성 컨텍스트의 객체라 ==로 비교한다
     boolean sameAs(ProductInfoValue other) {
         return attribute == other.attribute
             && attributeValue == other.attributeValue

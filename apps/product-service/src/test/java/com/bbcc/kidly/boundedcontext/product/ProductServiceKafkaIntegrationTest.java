@@ -32,11 +32,6 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 상품 서비스가 구독 그룹(kidly.product)으로 Kafka에 붙어 받은 메시지를 반영하는지 본다(#791).
- * 받는 종류마다의 처리는 상품 수신 테스트(ProductKafkaReceiveIntegrationTest 등)가 확인하고, 여기서는 서비스가 Kafka에 붙는지만 판매자 메시지 하나로 본다.
- * Kafka 보내기가 켜진 컨텍스트에서는 이 서비스가 상품 아웃박스 릴레이 스케줄러를 만든다(릴레이는 이 서비스에서만 돈다).
- */
 @KafkaIntegrationTest
 class ProductServiceKafkaIntegrationTest {
 
@@ -61,8 +56,6 @@ class ProductServiceKafkaIntegrationTest {
 
     private MessageListenerContainer sellerListener;
 
-    // 리스너는 ProductKafkaListenerTestGuard가 레지스트리에서 빼 들고 있어 이 테스트 안에서만 켠다.
-    // 읽기 시작 위치가 latest라 파티션을 배정받은 뒤에 보내야 받는다
     @BeforeEach
     void startListener() {
         sellerListener = ProductKafkaMessages.startListener(listenerGuard, ProductSellerKafkaListener.ID);
@@ -77,7 +70,6 @@ class ProductServiceKafkaIntegrationTest {
     @Test
     @DisplayName("판매자 정보 변경됨을 상품 그룹으로 받아 판매자 복사본에 저장한다")
     void saveSellerReplica() throws Exception {
-        // 같은 토픽에 다른 테스트의 메시지가 쌓여 있을 수 있으므로 판매자 ID를 새로 만든다
         Long sellerId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
 
         send(new SellerChangedEvent(UUID.randomUUID(), CHANGED_AT,
@@ -95,7 +87,6 @@ class ProductServiceKafkaIntegrationTest {
         assertThat(context.getBeansOfType(ProductOutboxScheduler.class)).hasSize(1);
     }
 
-    // 회원 서비스가 보내는 형식 그대로다: 키는 correlationId, 헤더 eventType · eventId, 본문은 공통 칸 7개 + data
     private void send(SellerChangedEvent event) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("eventId", event.eventId());

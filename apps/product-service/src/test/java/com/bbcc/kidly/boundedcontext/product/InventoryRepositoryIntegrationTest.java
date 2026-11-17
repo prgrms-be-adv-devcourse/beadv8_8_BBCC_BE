@@ -29,10 +29,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 재고 리포지토리를 실제 DB로 확인한다. 리포지토리는 서비스 트랜잭션 안에서 불리므로, 테스트도 호출을 트랜잭션으로 감싼다.
- * 재고를 열 옵션은 ProductOptionSaver로 상품과 함께 저장한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class InventoryRepositoryIntegrationTest {
 
@@ -141,7 +137,6 @@ class InventoryRepositoryIntegrationTest {
 
         inTransaction(() -> {
             ProductOption managed = entityManager.find(ProductOption.class, option.getId());
-            // 옵션 값을 바꾸는 업무 메서드가 아직 없어서, 아직 DB에 쓰지 않은 변경을 리플렉션으로 만든다
             ReflectionTestUtils.setField(managed, "price", 30_000L);
             inventoryRepository.deductIfAvailable(option.getId(), 1, NOW);
         });
@@ -175,7 +170,6 @@ class InventoryRepositoryIntegrationTest {
         assertThat(availableQty(option)).isEqualTo(stock);
     }
 
-    // 판매 가능 수량 stock으로 재고를 연 옵션을 돌려준다
     private ProductOption openedOption(int stock) {
         ProductOption option = productOptionSaver.saveNavy110();
         inTransaction(() -> inventoryRepository.saveOpening(InventoryOpening.open(option, stock, SELLER_ID)));

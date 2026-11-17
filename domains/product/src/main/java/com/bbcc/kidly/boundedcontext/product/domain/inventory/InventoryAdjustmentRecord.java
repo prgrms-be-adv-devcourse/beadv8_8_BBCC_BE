@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.boundedcontext.product.domain.product.ProductOption;
 import com.bbcc.kidly.global.entity.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -19,9 +17,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 재고를 조정한 내역이다. 만든 뒤에는 바꾸지 않는다.
- */
 @Entity
 @Table(schema = "product", name = "inventory_adjustment_record")
 @Getter
@@ -44,16 +39,13 @@ public class InventoryAdjustmentRecord extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private InventoryAdjustmentReason reason;
 
-    // 조정한 판매자 회원 ID다. 다른 도메인의 ID라 값으로만 가리킨다
     @Column(nullable = false)
     private Long adjustedBy;
 
     public record AdjustInfo(ProductOption option, int deltaQty, InventoryAdjustmentReason reason, Long adjustedBy) {
     }
 
-    // 판매자가 옵션의 재고를 증감량과 사유로 조정한 기록을 만든다
     public static InventoryAdjustmentRecord adjust(AdjustInfo info) {
-        requireNonNull(info, "info는 필수입니다");
         // INITIAL 기록은 옵션을 등록할 때 서버만 남긴다. 판매자가 INITIAL로 재고를 더하면 초기 재고와 입고를 구분할 수 없다 (INV-19)
         if (info.reason() == InventoryAdjustmentReason.INITIAL) {
             throw new IllegalArgumentException("재고 조정에 쓸 수 없는 사유입니다: INITIAL");
@@ -61,17 +53,13 @@ public class InventoryAdjustmentRecord extends BaseTimeEntity {
         return create(info.option(), info.deltaQty(), info.reason(), info.adjustedBy());
     }
 
-    // 조정 뒤 판매 가능 수량을 받아, 이 조정으로 옵션의 품절 여부가 바뀌었는지 판단한다 (SALE-08)
-    // 조정 전 수량은 조정 뒤 수량에서 증감량을 빼서 구한다. 판매 가능 수량이 0 이하면 품절이다
     public boolean changesSoldOut(int availableQtyAfter) {
         int availableQtyBefore = availableQtyAfter - deltaQty;
         return (availableQtyBefore <= 0) != (availableQtyAfter <= 0);
     }
 
-    // 재고를 열 때(InventoryOpening)와 판매자가 조정할 때 만든다. 어느 쪽이든 기록 값은 여기서 검사한다
     static InventoryAdjustmentRecord create(
             ProductOption productOption, int deltaQty, InventoryAdjustmentReason reason, Long adjustedBy) {
-        requireNonNull(reason, "reason은 필수입니다");
         // 수량이 바뀌지 않는 조정은 기록하지 않는다 (INV-18)
         if (deltaQty == 0) {
             throw new IllegalArgumentException("증감량은 0이 아니어야 합니다");
@@ -80,11 +68,11 @@ public class InventoryAdjustmentRecord extends BaseTimeEntity {
         if (!reason.allows(deltaQty)) {
             throw new IllegalArgumentException("사유 " + reason + "에 맞지 않는 증감량입니다: " + deltaQty);
         }
-        InventoryAdjustmentRecord record = new InventoryAdjustmentRecord();
-        record.productOption = requireNonNull(productOption, "productOption은 필수입니다");
+        var record = new InventoryAdjustmentRecord();
+        record.productOption = productOption;
         record.deltaQty = deltaQty;
         record.reason = reason;
-        record.adjustedBy = requireNonNull(adjustedBy, "adjustedBy는 필수입니다");
+        record.adjustedBy = adjustedBy;
         return record;
     }
 }

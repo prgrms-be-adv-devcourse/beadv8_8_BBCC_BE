@@ -24,11 +24,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * 재고 차감 서비스가 주문 생성됨의 차감을 거절하면 재고 부족함을 보내는지 실제 PostgreSQL로 확인한다.
- * 서비스는 트랜잭션을 직접 열고 커밋하므로, 서비스를 부르고 나면 결과를 바로 읽을 수 있다.
- * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다.
- */
 @IntegrationTest
 class ProductStockDeductionFailedIntegrationTest {
 
@@ -102,7 +97,6 @@ class ProductStockDeductionFailedIntegrationTest {
     @Test
     @DisplayName("INV-11 모자란 옵션 뒤의 옵션은 재고가 충분하면 재고 부족함에 담지 않고, 줄였던 수량도 모두 되돌린다")
     void excludeEnoughOptionAfterShortOption() {
-        // 옵션 ID는 navy110이 더 작아서 navy110(모자람) 다음에 navy120(충분)을 줄여 본다
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 10);
 
         inventoryDeductionService.deduct(orderCreated(ORDER_ID,
@@ -179,7 +173,6 @@ class ProductStockDeductionFailedIntegrationTest {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
         OrderCreatedEvent event = orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 2));
 
-        // 차감 기록 표를 잠근 채 두 처리를 출발시켜, 둘 다 거절한 뒤 FAILED 기록을 넣으려다 함께 기다리게 한다.
         // 모자란 수량은 UPDATE 조건에 맞지 않아 재고 행 잠금을 기다리지 않으므로 재고 행 대신 이 표를 잠근다
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockDeductionTable(), List.of(
             () -> inventoryDeductionService.deduct(event),

@@ -24,10 +24,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
-/**
- * 판매자가 등록한 상품의 고칠 수 있는 칸을 받은 값으로 바꿔 넣는 동작을 확인한다.
- * 상품 A는 판매자 2의 상의이고 주요소재는 면이며, 마지막으로 읽은 version은 3이다.
- */
 class ProductUpdateTest {
 
     private static final long VERSION = 3L;
@@ -47,7 +43,7 @@ class ProductUpdateTest {
     void updateBasicInfo() {
         Product.UpdateResult result = product.update(new Product.UpdateInfo(SELLER_ID, VERSION, category, "상품 A 새 이름",
             "새 브랜드", "새 설명", null, List.of("https://…/a-2.jpg", "https://…/a-3.jpg"),
-            List.of(cottonMaterial(clothing))));
+            List.of(cottonMaterial(clothing))), null);
 
         assertThat(result.changed()).isTrue();
         assertThat(product.getName()).isEqualTo("상품 A 새 이름");
@@ -63,7 +59,7 @@ class ProductUpdateTest {
         Product.UpdateResult result = product.update(sameBasicsWith(List.of(
             new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.linen()), null),
             new Product.InfoValueInfo(clothing.feature(), List.of(clothing.brushed(), clothing.stretch()), null),
-            new Product.InfoValueInfo(clothing.fabricComposition(), List.of(), "면 95%, 폴리우레탄 5%"))));
+            new Product.InfoValueInfo(clothing.fabricComposition(), List.of(), "면 95%, 폴리우레탄 5%"))), null);
 
         assertThat(result.changed()).isTrue();
         assertThat(product.getInfoValues())
@@ -81,7 +77,7 @@ class ProductUpdateTest {
     void keepWhenNothingChanged() {
         List<ProductInfoValue> infoValuesBefore = List.copyOf(product.getInfoValues());
 
-        Product.UpdateResult result = product.update(sameBasicsWith(List.of(cottonMaterial(clothing))));
+        Product.UpdateResult result = product.update(sameBasicsWith(List.of(cottonMaterial(clothing))), null);
 
         assertThat(result.changed()).isFalse();
         assertThat(product.getInfoValues()).containsExactlyElementsOf(infoValuesBefore);
@@ -94,7 +90,7 @@ class ProductUpdateTest {
             registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
             List.of(cottonMaterial(clothing)));
 
-        assertThatThrownBy(() -> product.update(stale)).isInstanceOfSatisfying(BusinessException.class,
+        assertThatThrownBy(() -> product.update(stale, null)).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.PRODUCT_VERSION_MISMATCH));
         assertThat(product.getName()).isEqualTo(registered.name());
     }
@@ -106,7 +102,7 @@ class ProductUpdateTest {
             registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
             List.of(cottonMaterial(clothing)));
 
-        assertThat(product.update(retried).changed()).isFalse();
+        assertThat(product.update(retried, null).changed()).isFalse();
     }
 
     @ParameterizedTest(name = "상품명 {0}")
@@ -117,7 +113,7 @@ class ProductUpdateTest {
             registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
             List.of(cottonMaterial(clothing)));
 
-        assertThatThrownBy(() -> product.update(fromOtherSeller)).isInstanceOfSatisfying(BusinessException.class,
+        assertThatThrownBy(() -> product.update(fromOtherSeller, null)).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.NOT_PRODUCT_OWNER));
         assertThat(product.getName()).isEqualTo(registered.name());
     }
@@ -129,7 +125,7 @@ class ProductUpdateTest {
             registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
             List.of());
 
-        assertThatThrownBy(() -> product.update(withoutMaterial)).isInstanceOfSatisfying(BusinessException.class,
+        assertThatThrownBy(() -> product.update(withoutMaterial, null)).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.REQUIRED_INFO_MISSING));
         assertThat(product.getName()).isEqualTo(registered.name());
     }
@@ -140,58 +136,10 @@ class ProductUpdateTest {
         Product.UpdateInfo twoMaterials = sameBasicsWith(List.of(
             new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton(), clothing.linen()), null)));
 
-        assertThatThrownBy(() -> product.update(twoMaterials)).isInstanceOfSatisfying(BusinessException.class,
+        assertThatThrownBy(() -> product.update(twoMaterials, null)).isInstanceOfSatisfying(BusinessException.class,
             e -> assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.MULTIPLE_VALUES_NOT_ALLOWED));
         assertThat(product.getInfoValues()).extracting(ProductInfoValue::getAttributeValue)
             .containsExactly(clothing.cotton());
-    }
-
-    @ParameterizedTest(name = "상품명 [{0}]")
-    @ValueSource(strings = {"", "   "})
-    @DisplayName("상품명이 비어 있으면 고치지 않는다")
-    void rejectBlankName(String name) {
-        Product.UpdateInfo blankName = new Product.UpdateInfo(SELLER_ID, VERSION, category, name,
-            registered.brand(), registered.description(), registered.thumbnailUrl(), registered.imageUrls(),
-            List.of(cottonMaterial(clothing)));
-
-        assertThatThrownBy(() -> product.update(blankName)).isInstanceOf(IllegalArgumentException.class);
-        assertThat(product.getName()).isEqualTo(registered.name());
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("updatesWithNull")
-    @DisplayName("수정 값 · 판매자 ID · version · 카테고리 · 상품명 · 이미지 목록 · 정보 값이 null이면 코드가 잘못 호출된 것이라 고치지 않는다")
-    void rejectUpdateWithNull(Function<ProductUpdateTest, Product.UpdateInfo> updateWithNull) {
-        Product.UpdateInfo info = updateWithNull.apply(this);
-
-        assertThatThrownBy(() -> product.update(info))
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("필수입니다");
-        assertThat(product.getName()).isEqualTo(registered.name());
-    }
-
-    static Stream<Named<Function<ProductUpdateTest, Product.UpdateInfo>>> updatesWithNull() {
-        return Stream.of(
-            Named.of("수정 값", test -> null),
-            Named.of("판매자 ID", test -> test.updateWith(null, VERSION, test.category, "새 이름", List.of(),
-                List.of(cottonMaterial(test.clothing)))),
-            Named.of("version", test -> test.updateWith(SELLER_ID, null, test.category, "새 이름", List.of(),
-                List.of(cottonMaterial(test.clothing)))),
-            Named.of("카테고리", test -> test.updateWith(SELLER_ID, VERSION, null, "새 이름", List.of(),
-                List.of(cottonMaterial(test.clothing)))),
-            Named.of("상품명", test -> test.updateWith(SELLER_ID, VERSION, test.category, null, List.of(),
-                List.of(cottonMaterial(test.clothing)))),
-            Named.of("이미지 목록", test -> test.updateWith(SELLER_ID, VERSION, test.category, "새 이름", null,
-                List.of(cottonMaterial(test.clothing)))),
-            Named.of("정보 값", test -> test.updateWith(SELLER_ID, VERSION, test.category, "새 이름", List.of(),
-                null)));
-    }
-
-    // 브랜드 · 설명 · 썸네일은 상품 A의 값으로 두고 필수 값만 받아 수정 값을 만든다
-    private Product.UpdateInfo updateWith(Long sellerId, Long version, Category category, String name,
-        List<String> imageUrls, List<Product.InfoValueInfo> infoValues) {
-        return new Product.UpdateInfo(sellerId, version, category, name, registered.brand(),
-            registered.description(), registered.thumbnailUrl(), imageUrls, infoValues);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -201,8 +149,8 @@ class ProductUpdateTest {
         Product detailed = detailedProduct();
         Product.UpdateInfo info = changeOneField.apply(this);
 
-        assertThat(detailed.update(info).changed()).isTrue();
-        assertThat(detailed.update(info).changed()).isFalse();
+        assertThat(detailed.update(info, null).changed()).isTrue();
+        assertThat(detailed.update(info, null).changed()).isFalse();
     }
 
     static Stream<Named<Function<ProductUpdateTest, Product.UpdateInfo>>> singleFieldChanges() {
@@ -221,7 +169,6 @@ class ProductUpdateTest {
                 BRAND, DESCRIPTION, THUMBNAIL_URL, TWO_IMAGES, test.clothing.cotton(), "면 95%, 폴리우레탄 5%")));
     }
 
-    // 브랜드 · 설명 · 썸네일 · 이미지 2장 · 주요소재 · 혼용률을 모두 채운 상품이다. 칸 하나만 바꾼 수정을 확인할 때 쓴다
     private Product detailedProduct() {
         Product detailed = Product.register(new Product.RegisterInfo(SELLER_ID, category, "상품 A", BRAND,
             DESCRIPTION, THUMBNAIL_URL, TWO_IMAGES, detailedInfoValues(clothing.cotton(), COMPOSITION)));
@@ -241,13 +188,11 @@ class ProductUpdateTest {
             new Product.InfoValueInfo(clothing.fabricComposition(), List.of(), composition));
     }
 
-    // 등록한 상품 A와 기본 정보는 같고 정보 값만 바꾼 수정 값이다
     private Product.UpdateInfo sameBasicsWith(List<Product.InfoValueInfo> infoValues) {
         return new Product.UpdateInfo(SELLER_ID, VERSION, category, registered.name(), registered.brand(),
             registered.description(), registered.thumbnailUrl(), registered.imageUrls(), infoValues);
     }
 
-    // 저장하지 않은 상품은 version이 없으므로 마지막으로 읽은 값을 넣어 둔다
     private Product registeredProduct() {
         Product registeredProduct = Product.register(registered);
         ReflectionTestUtils.setField(registeredProduct, "version", VERSION);

@@ -24,9 +24,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 등록 취소한 상품을 판매 상태 변경 · 상품 수정 · 재고 조정으로 바꾸려 하면 409로 거절하는지 HTTP 요청부터 응답까지 확인한다.
- */
 @FunctionalTest
 class ProductDelistedRejectApiTest {
 
@@ -163,7 +160,6 @@ class ProductDelistedRejectApiTest {
             "select min(id) from product.product_option where product_id = ?", Long.class, Long.valueOf(productId));
     }
 
-    // 옵션을 등록할 때 남긴 INITIAL 기록을 뺀, 판매자가 조정한 기록 수다
     private int sellerAdjustmentCount(long optionId) {
         return jdbcTemplate.queryForObject(
             "select count(*) from product.inventory_adjustment_record"

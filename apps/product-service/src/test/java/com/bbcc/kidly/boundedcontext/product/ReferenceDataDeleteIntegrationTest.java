@@ -44,10 +44,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 기준 데이터를 지울 때 쓰는 조회와 지운 행의 저장 동작을 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- * 의류 유형 · 항목 · 의류 > 상의는 {@link ClothingTopSaver}가 저장한다.
- */
 @IntegrationTest
 class ReferenceDataDeleteIntegrationTest {
 
@@ -86,9 +82,6 @@ class ReferenceDataDeleteIntegrationTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    /**
-     * 「쓰이는 중인지」 찾는 조회와, 그 조회가 true가 되게 하는 쪽(가리키는 유형 · 카테고리)이다.
-     */
     record InUse(
         BiFunction<ReferenceDataDeleteIntegrationTest, SavedClothingTop, Boolean> query,
         Function<SavedClothingTop, BaseSoftDeleteEntity> owner) {
@@ -215,7 +208,6 @@ class ReferenceDataDeleteIntegrationTest {
             .containsExactly("색상: 네이비 / 사이즈: 110");
     }
 
-    // 엔티티를 바꾸는 트랜잭션에서 다시 읽은 객체를 돌려준다
     private BaseSoftDeleteEntity managed(BaseSoftDeleteEntity entity) {
         Object id = entityManager.getEntityManagerFactory().getPersistenceUnitUtil().getIdentifier(entity);
         return entityManager.find(entity.getClass(), id);

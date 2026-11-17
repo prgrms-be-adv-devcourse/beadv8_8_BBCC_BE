@@ -35,10 +35,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 판매자가 상품 A를 등록하는 API를 HTTP 요청부터 응답까지 확인한다.
- * 상품 유형과 카테고리는 매 테스트 전에 저장하고, 요청의 ID는 저장한 엔티티에서 꺼낸다.
- */
 @FunctionalTest
 class ProductRegistrationApiTest {
 
@@ -46,7 +42,6 @@ class ProductRegistrationApiTest {
 
     private static final long SELLER_ID = 7L;
 
-    // 어느 표에도 저장하지 않은 ID다
     private static final String UNKNOWN_ID = "999999";
 
     @Autowired
@@ -55,7 +50,6 @@ class ProductRegistrationApiTest {
     @Autowired
     private ClothingTopSaver clothingTopSaver;
 
-    // 응답에 없는 재고 행 · 재고 조정 기록과, 실패한 요청이 아무것도 저장하지 않았는지를 확인할 때 쓴다
     @Autowired
     private EntityManager entityManager;
 
@@ -323,7 +317,6 @@ class ProductRegistrationApiTest {
                 body -> body.put("imageUrls", List.of("https://cdn.kidly.test/a-1.jpg")))));
     }
 
-    // 실패 응답이 ProblemDetail 5칸을 모두 담는지 확인한다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
         response
             .expectStatus().isEqualTo(status)

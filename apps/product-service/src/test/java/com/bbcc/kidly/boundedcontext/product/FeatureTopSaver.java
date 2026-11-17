@@ -18,11 +18,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 기능 테스트용: 의류 > 상의 옆에 특징(다중 선택)과 혼용률(직접 입력) 정보 항목이 있는 유형의 말단 카테고리를 저장한다.
- * 색상 · 사이즈 · 주요소재 항목과 실측 항목은 {@link ClothingTopSaver}가 저장한 것을 쓴다.
- * 테스트 클래스패스의 컴포넌트 스캔에 잡혀 모든 통합 · 기능 테스트 컨텍스트에 똑같이 등록된다.
- */
 @Component
 class FeatureTopSaver {
 
@@ -34,14 +29,10 @@ class FeatureTopSaver {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    /**
-     * 요청에 넣을 ID를 꺼낼 수 있게 저장한 말단 카테고리와 특징 · 혼용률 항목, 특징의 값이다.
-     */
     record FeatureTop(
         Category category, Attribute feature, AttributeValue brushed, AttributeValue stretch, Attribute composition) {
     }
 
-    // 새 트랜잭션에서 저장하고 커밋한다. 이미 저장한 항목 · 카테고리 · 실측 항목은 ID로 참조만 한다
     FeatureTop save(SavedClothingTop saved) {
         return transactionTemplate.execute(status -> {
             ClothingOptions clothing = saved.clothing();

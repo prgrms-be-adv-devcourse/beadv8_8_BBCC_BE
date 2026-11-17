@@ -36,7 +36,6 @@ final class ProductTypeFixture {
         return Attribute.create("계절", "SEASON", AttributeInputType.LIST);
     }
 
-    // 기준 데이터의 의류: 색상 · 사이즈는 필수 옵션 항목, 주요소재는 필수 정보 항목, 혼용률은 선택 정보 항목
     static List<ProductType.LinkInfo> clothingLinks() {
         return List.of(
             requiredOption(color()),
@@ -57,12 +56,10 @@ final class ProductTypeFixture {
         return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, true, true, false, List.of());
     }
 
-    // 모든 값 허용이 아니어서 allowedValues에 넣은 값만 고를 수 있는 옵션 항목
     static ProductType.LinkInfo restrictedOption(Attribute attribute, List<AttributeValue> allowedValues) {
         return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, false, false, false, allowedValues);
     }
 
-    // 사이즈 역할이면서 allowedValues에 넣은 사이즈 값만 고를 수 있는 옵션 항목
     static ProductType.LinkInfo restrictedSizeOption(Attribute attribute, List<AttributeValue> allowedValues) {
         return new ProductType.LinkInfo(attribute, AttributeRole.OPTION, true, false, true, false, allowedValues);
     }
@@ -83,7 +80,6 @@ final class ProductTypeFixture {
         return new ProductType.LinkInfo(attribute, AttributeRole.INFO, true, true, false, false, List.of());
     }
 
-    // 직접 입력 항목은 고를 값이 없어서 모든 값 허용을 false로 두고 허용 값도 연결하지 않는다
     static ProductType.LinkInfo optionalTextInfo(Attribute attribute) {
         return new ProductType.LinkInfo(attribute, AttributeRole.INFO, false, false, false, false, List.of());
     }

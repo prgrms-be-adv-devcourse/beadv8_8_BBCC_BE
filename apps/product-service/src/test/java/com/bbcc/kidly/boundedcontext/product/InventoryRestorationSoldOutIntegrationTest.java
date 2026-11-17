@@ -30,11 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * 주문 취소됨으로 재고를 되돌릴 때 품절이 풀린 옵션의 상품 정보 변경됨이 나가는지 실제 PostgreSQL로 확인한다.
- * 차감은 서비스를 직접 불러 준비하고, 차감이 보낸 이벤트는 지운 뒤 복구 서비스를 직접 부른다.
- * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class InventoryRestorationSoldOutIntegrationTest {
 
@@ -75,7 +70,6 @@ class InventoryRestorationSoldOutIntegrationTest {
     void sendProductChangedWhenRestoreReleasesSoldOut(String status) {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(2, 5);
         deductAndClearEvents(orderItem(11L, options.navy110(), 2));
-        // 차감한 뒤에 판매중지돼도 주문이 취소되면 재고를 되돌린다 (INV-14)
         if (status.equals("STOPPED")) {
             inventoryDeductionDb.stopSale(options.navy110());
         }
@@ -132,8 +126,6 @@ class InventoryRestorationSoldOutIntegrationTest {
             deliveries.add(() -> inventoryRestorationService.restore(event));
         }
 
-        // 재고 행을 잠가 다섯 스레드가 모두 DEDUCTED 기록을 읽은 뒤 복구에서 겹치게 한다.
-        // 한 스레드는 그 재고 행을, 나머지 넷은 그 스레드가 바꾼 차감 기록 행을 기다린다
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()), deliveries);
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(2);
@@ -147,7 +139,6 @@ class InventoryRestorationSoldOutIntegrationTest {
         deductAndClearEvents(orderItem(11L, options.navy110(), 1), orderItem(12L, options.navy120(), 1));
         ProductOption first = firstInOptionIdOrder(options);
         ProductOption second = first == options.navy110() ? options.navy120() : options.navy110();
-        // 나중에 되돌리는 옵션의 수량을 int 최댓값으로 두어, 더하는 UPDATE가 DB의 정수 범위를 넘어 실패하게 한다
         setAvailableQty(second, Integer.MAX_VALUE);
         try {
             assertThatThrownBy(() -> inventoryRestorationService.restore(orderCancelled(ORDER_ID,
@@ -158,7 +149,6 @@ class InventoryRestorationSoldOutIntegrationTest {
             assertThat(inventoryDeductionDb.countByStatus("DEDUCTED")).isEqualTo(2);
             assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
         } finally {
-            // 단언이 실패해도 끝난 뒤 재고 불변식을 확인할 수 있게 바꾼 수량을 되돌린다
             setAvailableQty(second, 0);
         }
     }
@@ -173,7 +163,6 @@ class InventoryRestorationSoldOutIntegrationTest {
         OrderCancelledEvent first = orderCancelled(ORDER_ID, cancelledItem(11L, options.navy110(), 1));
         OrderCancelledEvent second = orderCancelled(OTHER_ORDER_ID, cancelledItem(21L, options.navy110(), 1));
 
-        // 재고 행을 잠가 두 주문이 모두 차감 기록을 RESTORED로 바꾼 뒤 같은 재고 행에서 겹치게 한다
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()), List.of(
             () -> inventoryRestorationService.restore(first),
             () -> inventoryRestorationService.restore(second)));
@@ -187,13 +176,11 @@ class InventoryRestorationSoldOutIntegrationTest {
                     tuple(options.navy120().getId(), false)));
     }
 
-    // 주문 생성됨으로 차감하고, 차감이 보낸 이벤트는 지워 주문 취소됨이 보낸 이벤트만 남게 한다
     private void deductAndClearEvents(OrderCreatedEvent.Item... items) {
         inventoryDeductionService.deduct(orderCreated(ORDER_ID, items));
         eventRecorder.clear();
     }
 
-    // 복구는 옵션 ID 오름차순이라 ID가 작은 옵션의 재고 행을 먼저 바꾼다
     private static ProductOption firstInOptionIdOrder(OnSaleOptions options) {
         if (options.navy110().getId() < options.navy120().getId()) {
             return options.navy110();

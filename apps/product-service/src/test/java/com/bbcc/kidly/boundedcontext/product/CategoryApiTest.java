@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.product.domain.type.Attribute;
@@ -21,10 +22,6 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 상품 등록 화면이 부르는 카테고리 조회 API를 HTTP 요청부터 응답까지 확인한다.
- * 카테고리 · 상품 유형 · 항목 · 실측 항목은 리포지토리 없이 EntityManager로 저장한다.
- */
 @FunctionalTest
 class CategoryApiTest {
 
@@ -125,7 +122,6 @@ class CategoryApiTest {
                 ProductTypeFixture.requiredInfo(mainMaterial),
                 ProductTypeFixture.restrictedSizeOption(size, List.of(size120, size110)),
                 ProductTypeFixture.optionalTextInfo(fabricComposition))));
-            // 실측 항목은 연결 순서와 반대로 저장해, 실측 항목 ID 순서가 연결 순서와 다르게 한다
             List<MeasurementItem> items = List.of(CategoryFixture.totalLength(), CategoryFixture.shoulderWidth(),
                 CategoryFixture.chestWidth(), CategoryFixture.sleeveLength());
             for (int i = items.size() - 1; i >= 0; i--) {
@@ -194,18 +190,8 @@ class CategoryApiTest {
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(String path, HttpStatus status, String title, String detail) {
-        client.get().uri(path)
-            .exchange()
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(path);
+        assertProblem(client.get().uri(path).exchange(), status, title, detail, path);
     }
 
     private void expectAllCategories(String path) {
@@ -216,12 +202,10 @@ class CategoryApiTest {
             .jsonPath("$[*].name").isEqualTo(List.of("의류", "여아 전용관"))
             .jsonPath("$[0].children[*].name").isEqualTo(List.of("바지", "원피스"))
             .jsonPath("$[1].children[*].name").isEqualTo(List.of("블라우스"))
-            // 보일 성별은 관리자만 정하는 내부 값이라 공개 목록에 내지 않는다
             .jsonPath("$[0].visibleGender").doesNotExist()
             .jsonPath("$[0].children[1].visibleGender").doesNotExist();
     }
 
-    // 의류 아래에 바지(ALL) · 원피스(GIRL)를, 최상위에 GIRL 중간 카테고리 「여아 전용관」과 그 아래 ALL 말단을 저장한다
     private void saveCategoriesWithGirlOnes() {
         inTransaction(() -> {
             ProductType clothingType = savedClothingType();
@@ -238,7 +222,6 @@ class CategoryApiTest {
         });
     }
 
-    // 색상만 옵션 항목으로 둔 의류 유형을 저장한다. 항목은 cascade되지 않아 먼저 저장한다
     private ProductType savedClothingType() {
         Attribute color = persist(ProductTypeFixture.color());
         return persist(ProductType.define("의류", List.of(ProductTypeFixture.requiredOption(color))));

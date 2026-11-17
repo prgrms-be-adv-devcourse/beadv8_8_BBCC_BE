@@ -20,10 +20,6 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/**
- * 상품의 사이즈 값 하나에 대한 실측과 권장 키 범위다. 상품과 사이즈 값마다 한 행이다.
- * 이 행을 동시에 바꾸는 일은 상품의 version이 막으므로 이 행에는 version을 두지 않는다.
- */
 @Entity
 @Table(schema = "product", name = "size_spec")
 @Getter
@@ -43,19 +39,17 @@ public class SizeSpec extends BaseTimeEntity {
     @JoinColumn(name = "attribute_value_id")
     private AttributeValue sizeValue;
 
-    // 권장 키는 판매 시작 전까지 비어 있을 수 있고, 사이즈 무관(FREE) 행은 판매 중에도 없을 수 있어 null을 허용한다
     private Integer minHeightCm;
 
     private Integer maxHeightCm;
 
-    // 키는 실측 항목 코드이고 값은 cm다
     @Getter(AccessLevel.NONE)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false)
     private Map<String, BigDecimal> measurements;
 
     static SizeSpec create(Product product, Product.SizeSpecInfo info) {
-        SizeSpec sizeSpec = new SizeSpec();
+        var sizeSpec = new SizeSpec();
         sizeSpec.product = product;
         sizeSpec.sizeValue = info.sizeValue();
         sizeSpec.minHeightCm = info.minHeightCm();
@@ -64,14 +58,12 @@ public class SizeSpec extends BaseTimeEntity {
         return sizeSpec;
     }
 
-    // 판매대기 상품의 실측을 바꿔 넣을 때 사이즈 값이 같은 실측을 그대로 두고 권장 키와 실측 값만 받은 값으로 바꿔 넣는다
     void replaceValues(Integer minHeightCm, Integer maxHeightCm, Map<String, BigDecimal> measurements) {
         this.minHeightCm = minHeightCm;
         this.maxHeightCm = maxHeightCm;
         this.measurements = Map.copyOf(measurements);
     }
 
-    // DB에서 읽은 맵도 밖에서 바꾸지 못하게 읽기 전용으로 돌려준다
     public Map<String, BigDecimal> getMeasurements() {
         return Collections.unmodifiableMap(measurements);
     }

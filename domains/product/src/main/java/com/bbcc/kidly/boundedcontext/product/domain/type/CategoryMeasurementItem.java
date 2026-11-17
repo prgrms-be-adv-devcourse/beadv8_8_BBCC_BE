@@ -15,9 +15,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 말단 카테고리가 필수로 받는 실측 항목 하나와 그 순서다.
- */
 @Entity
 @Table(
     schema = "product",
@@ -44,7 +41,7 @@ public class CategoryMeasurementItem extends BaseTimeEntity {
     private int sortOrder;
 
     static CategoryMeasurementItem create(Category category, MeasurementItem measurementItem, int sortOrder) {
-        CategoryMeasurementItem link = new CategoryMeasurementItem();
+        var link = new CategoryMeasurementItem();
         link.category = category;
         link.measurementItem = measurementItem;
         link.sortOrder = sortOrder;

@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
-import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
 
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
@@ -30,15 +29,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 상품을 분류하는 카테고리다. 카테고리는 계층을 이루며, 말단 카테고리만 상품 유형과 필수 실측 항목을 가지고
- * 중간 카테고리는 둘 다 없다.
- * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
- */
 @Entity
 @Table(schema = "product", name = "category")
-// 같은 부모 아래의 이름 중복은 지우지 않은 행끼리만 막는다. 마이그레이션이 부분 UNIQUE 인덱스를 만든다
-// 최상위 카테고리(parent_id가 null)끼리의 이름 중복은 이 인덱스가 막지 못한다. UNIQUE는 null끼리 같은 값으로 보지 않는다
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Category extends BaseSoftDeleteEntity {
@@ -68,7 +60,6 @@ public class Category extends BaseSoftDeleteEntity {
     @JoinColumn(name = "product_type_id")
     private ProductType productType;
 
-    // 이 카테고리를 보여 줄 자녀 성별이다. 정하지 않으면 ALL이다
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private CategoryVisibleGender visibleGender = CategoryVisibleGender.ALL;
@@ -78,27 +69,19 @@ public class Category extends BaseSoftDeleteEntity {
     private List<CategoryMeasurementItem> measurementItems = new ArrayList<>();
 
     public static Category createMiddle(String name, Category parent) {
-        requireNonNull(name, "name은 필수입니다");
-        rejectBlankName(name);
         rejectLeafParent(parent);
         rejectDeletedReferences(parent, null, List.of());
-        Category category = new Category();
+        var category = new Category();
         category.name = name;
         category.parent = parent;
         return category;
     }
 
     public static Category createLeaf(LeafInfo info) {
-        requireNonNull(info, "info는 필수입니다");
-        requireNonNull(info.name(), "name은 필수입니다");
-        requireNonNull(info.productType(), "productType은 필수입니다");
-        requireNonNull(info.measurementItems(), "measurementItems는 필수입니다");
-        info.measurementItems().forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
         rejectDuplicatedMeasurementItems(info.measurementItems());
-        rejectBlankName(info.name());
         rejectLeafParent(info.parent());
         rejectDeletedReferences(info.parent(), info.productType(), info.measurementItems());
-        Category category = new Category();
+        var category = new Category();
         category.name = info.name();
         category.parent = info.parent();
         category.productType = info.productType();
@@ -109,21 +92,15 @@ public class Category extends BaseSoftDeleteEntity {
         return category;
     }
 
-    // 보일 성별을 바꾼다. null이면 ALL이다
     public void changeVisibleGender(CategoryVisibleGender visibleGender) {
         this.visibleGender = requireNonNullElse(visibleGender, CategoryVisibleGender.ALL);
     }
 
-    // 자녀 성별로 이 카테고리를 보여 줄지 본다. 남아에게만 GIRL 카테고리를 숨기고, 성별을 모르면(null) 모두 보여 준다
     public boolean isVisibleTo(Gender childGender) {
         return !(childGender == Gender.MALE && visibleGender == CategoryVisibleGender.GIRL);
     }
 
-    // 상품 유형과 필수 실측 항목을 받은 값으로 바꾼다. 상품이 있으면 기존 상품을 깨지 않는 변경만 받는다. 실측 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
     public void change(ProductType productType, List<MeasurementItem> measurementItems, boolean hasProducts) {
-        requireNonNull(productType, "productType은 필수입니다");
-        requireNonNull(measurementItems, "measurementItems는 필수입니다");
-        measurementItems.forEach(item -> requireNonNull(item, "measurementItem은 필수입니다"));
         rejectDuplicatedMeasurementItems(measurementItems);
         // 중간 카테고리는 상품 유형과 필수 실측 항목을 가지지 않으므로 바꿀 것이 없다 (TYPE-01)
         if (!isLeaf()) {
@@ -133,7 +110,7 @@ public class Category extends BaseSoftDeleteEntity {
         if (hasProducts && breaksProducts(productType, measurementItems)) {
             throw new BusinessException(CategoryErrorCode.CHANGE_BREAKS_PRODUCTS);
         }
-        List<CategoryMeasurementItem> changed = new ArrayList<>();
+        var changed = new ArrayList<CategoryMeasurementItem>();
         for (int i = 0; i < measurementItems.size(); i++) {
             changed.add(changeOrCreateMeasurementItem(measurementItems.get(i), i + 1));
         }
@@ -147,12 +124,7 @@ public class Category extends BaseSoftDeleteEntity {
         if (newType != productType) {
             return true;
         }
-        for (MeasurementItem item : newItems) {
-            if (findLink(item) == null) {
-                return true;
-            }
-        }
-        return false;
+        return newItems.stream().anyMatch(item -> findLink(item) == null);
     }
 
     private CategoryMeasurementItem findLink(MeasurementItem item) {
@@ -176,12 +148,6 @@ public class Category extends BaseSoftDeleteEntity {
     private static void rejectDuplicatedMeasurementItems(List<MeasurementItem> items) {
         if (new HashSet<>(items).size() != items.size()) {
             throw new BusinessException(CategoryErrorCode.DUPLICATE_MEASUREMENT_ITEM);
-        }
-    }
-
-    private static void rejectBlankName(String name) {
-        if (name.isBlank()) {
-            throw new IllegalArgumentException("카테고리 이름은 비어 있을 수 없습니다");
         }
     }
 
@@ -210,7 +176,6 @@ public class Category extends BaseSoftDeleteEntity {
         }
     }
 
-    // 말단 카테고리인지 본다. 말단 카테고리만 상품 유형을 가진다 (TYPE-01)
     public boolean isLeaf() {
         return getProductType() != null;
     }
@@ -225,7 +190,7 @@ public class Category extends BaseSoftDeleteEntity {
 
     // 부모는 지연 로딩 프록시일 수 있으므로 필드가 아니라 getter로 따라간다
     public List<Category> path() {
-        List<Category> path = new ArrayList<>();
+        var path = new ArrayList<Category>();
         for (Category current = this; current != null; current = current.getParent()) {
             path.add(current);
         }
@@ -239,7 +204,6 @@ public class Category extends BaseSoftDeleteEntity {
 
     // 지우지 않은 하위 카테고리가 있는 카테고리(inUse)는 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
     public void delete(LocalDateTime now, boolean inUse) {
-        requireNonNull(now, "now는 필수입니다");
         if (inUse) {
             throw new BusinessException(CategoryErrorCode.CATEGORY_IN_USE);
         }

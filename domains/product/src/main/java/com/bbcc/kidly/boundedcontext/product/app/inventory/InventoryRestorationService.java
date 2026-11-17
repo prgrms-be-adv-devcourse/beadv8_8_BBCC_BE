@@ -13,19 +13,11 @@ import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
-/**
- * 주문 취소됨과 판매자 부분 취소(주문상품 취소됨)를 받아 차감한 재고를 되돌리는 흐름이다. 규칙 판단은 InventoryRestoration이 하고,
- * 서비스는 읽기와 호출 순서만 맡는다. 트랜잭션은 InventoryRestorer와 InventoryDeductionRecorder가 각자 새로 열어서
- * 이 클래스에는 붙이지 않는다. 바깥 트랜잭션 없이 불러야 한다(Kafka 리스너도 트랜잭션을 열지 않는다).
- * 바깥 트랜잭션에서 쓰기나 잠금을 하면 안 된다.
- * 바깥 트랜잭션이 잡은 잠금을 같은 스레드의 안쪽 새 트랜잭션이 기다리면 PostgreSQL이 교착으로 감지하지 못하고 멈추기 때문이다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -43,7 +35,6 @@ public class InventoryRestorationService {
         OrderCancelledEvent.Data data = event.data();
         InventoryRestoration restoration = readRestoration(data.orderId(), orderItemIds(data), ORDER_CANCELLED);
         if (restoration != null && restoration.isCancelledBeforeCreated()) {
-            // 주문 취소됨이 주문 생성됨보다 먼저 온 경우라, 주문상품마다 FAILED를 남겨 나중에 온 주문 생성됨을 차감하지 않게 한다 (INV-09)
             restoration = recordFailedOrReread(data);
         }
         if (restoration == null) {
@@ -57,7 +48,6 @@ public class InventoryRestorationService {
         inventoryRestorer.restore(targets);
     }
 
-    // 판매자가 취소한 주문상품의 차감 기록 중 DEDUCTED인 것만 되돌린다. 취소한 몫이 아닌 주문상품은 건드리지 않는다
     public void restore(OrderItemCancelledEvent event) {
         OrderItemCancelledEvent.Data data = event.data();
         List<Long> orderItemIds = orderItemIds(data);
@@ -66,20 +56,16 @@ public class InventoryRestorationService {
             return;
         }
         if (restoration.isCancelledBeforeCreated()) {
-            // 판매자 취소는 결제가 끝난 주문에서만 되므로 차감 기록이 없을 수 없다. 도메인 사이 버그라 FAILED를 남기지 않는다
-            // 다시 받아도 같으므로 재시도하지 않는다
             log.error("차감 기록이 없는 주문상품 취소됨이라 처리하지 않습니다. orderId={}, cancellationId={}",
                 data.orderId(), data.cancellationId());
             return;
         }
         List<Long> missing = restoration.orderItemIdsWithoutRecord(orderItemIds);
         if (!missing.isEmpty()) {
-            // 같은 이유로 일부 주문상품만 기록이 없어도 도메인 사이 버그다. 기록이 있는 주문상품은 실제로 줄인 재고라 그대로 되돌린다
             log.error("차감 기록이 없는 주문상품이 든 주문상품 취소됨이라 그 주문상품은 되돌리지 않습니다. "
                 + "orderId={}, cancellationId={}, orderItemIds={}", data.orderId(), data.cancellationId(), missing);
         }
         if (restoration.isRejected()) {
-            // 거절한 주문은 결제 요청까지 가지 못하므로 판매자가 취소할 수 없다. 도메인 사이 버그라 ERROR로 알린다
             log.error("거절한 주문상품의 주문상품 취소됨이라 처리하지 않습니다. orderId={}, cancellationId={}",
                 data.orderId(), data.cancellationId());
             return;
@@ -93,20 +79,16 @@ public class InventoryRestorationService {
         inventoryRestorer.restore(targets);
     }
 
-    // 주문상품의 기존 차감 기록을 읽는다. 다른 주문의 기록이 섞여 있으면 ERROR 로그를 남기고 null을 돌려준다
     private InventoryRestoration readRestoration(Long orderId, List<Long> orderItemIds, String eventName) {
         List<InventoryDeduction> records = inventoryDeductionRepository.findAllByOrderItemIdIn(orderItemIds);
         try {
             return InventoryRestoration.of(orderId, records);
         } catch (IllegalArgumentException e) {
-            // 주문 쪽 오류다. 다시 받아도 결과가 같으므로 재시도하지 않는다
             log.error("다른 주문의 차감 기록이 든 {}이라 처리하지 않습니다. orderId={}", eventName, orderId, e);
             return null;
         }
     }
 
-    // 취소가 먼저 온 주문의 FAILED 기록을 새 트랜잭션으로 저장한다
-    // 저장했거나 더 할 일이 없으면 null을, 그사이 커밋된 기록에 막혔으면 다시 읽은 기록을 돌려준다
     private InventoryRestoration recordFailedOrReread(OrderCancelledEvent.Data data) {
         InventoryDeductionRequest request = createRequest(data);
         if (request == null) {
@@ -125,7 +107,6 @@ public class InventoryRestorationService {
                 log.error("FAILED 차감 기록 저장이 제약을 어겨 처리하지 않습니다. orderId={}", data.orderId(), e);
                 return null;
             }
-            // 차감이 먼저 커밋했으면 되돌리고, 같은 취소가 FAILED를 먼저 남겼으면 되돌릴 것이 없다
             log.info("FAILED 차감 기록이 같은 주문상품의 기존 기록에 막혀 그 기록으로 이어 갑니다. orderId={}", data.orderId());
             return reread;
         }
@@ -139,22 +120,17 @@ public class InventoryRestorationService {
         log.info("이미 되돌린 주문 취소됨이라 건너뜁니다. orderId={}", data.orderId());
     }
 
-    // 이벤트의 옵션을 읽어 차감 요청을 만든다. 요청을 만들 수 없으면 ERROR 로그를 남기고 null을 돌려준다
     private InventoryDeductionRequest createRequest(OrderCancelledEvent.Data data) {
-        List<Long> optionIds = new ArrayList<>();
-        for (OrderCancelledEvent.Item item : data.items()) {
-            optionIds.add(item.optionId());
-        }
-        Map<Long, ProductOption> optionById = new HashMap<>();
+        List<Long> optionIds = data.items().stream().map(OrderCancelledEvent.Item::optionId).toList();
+        var optionById = new HashMap<Long, ProductOption>();
         for (ProductOption option : productRepository.findOptionsWithProduct(optionIds)) {
             optionById.put(option.getId(), option);
         }
 
-        List<InventoryDeductionRequest.Item> items = new ArrayList<>();
+        var items = new ArrayList<InventoryDeductionRequest.Item>();
         for (OrderCancelledEvent.Item item : data.items()) {
             ProductOption option = optionById.get(item.optionId());
             if (option == null) {
-                // 옵션은 지우지 않고 보관하므로 없는 옵션 ID는 도메인 사이 버그다. 다시 받아도 같으므로 재시도하지 않는다
                 log.error("없는 옵션이 든 주문 취소됨이라 처리하지 않습니다. orderId={}, optionId={}",
                     data.orderId(), item.optionId());
                 return null;
@@ -164,25 +140,16 @@ public class InventoryRestorationService {
         try {
             return InventoryDeductionRequest.of(data.orderId(), items);
         } catch (IllegalArgumentException e) {
-            // 주문상품 ID가 겹치는 등 주문 쪽 오류라 요청을 만들 수 없다. 다시 받아도 같으므로 재시도하지 않는다
             log.error("차감 요청을 만들 수 없는 주문 취소됨이라 처리하지 않습니다. orderId={}", data.orderId(), e);
             return null;
         }
     }
 
     private List<Long> orderItemIds(OrderCancelledEvent.Data data) {
-        List<Long> orderItemIds = new ArrayList<>();
-        for (OrderCancelledEvent.Item item : data.items()) {
-            orderItemIds.add(item.orderItemId());
-        }
-        return orderItemIds;
+        return data.items().stream().map(OrderCancelledEvent.Item::orderItemId).toList();
     }
 
     private List<Long> orderItemIds(OrderItemCancelledEvent.Data data) {
-        List<Long> orderItemIds = new ArrayList<>();
-        for (OrderItemCancelledEvent.Item item : data.items()) {
-            orderItemIds.add(item.orderItemId());
-        }
-        return orderItemIds;
+        return data.items().stream().map(OrderItemCancelledEvent.Item::orderItemId).toList();
     }
 }

@@ -7,18 +7,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 상품 등록 API 테스트가 보내는 요청 본문을 만들고, 테스트마다 일부를 고칠 수 있게 꺼내 준다.
- */
 final class ProductRegisterRequestFixture {
 
     private ProductRegisterRequestFixture() {
     }
 
-    /**
-     * 기획서 7.1 상품 A의 등록 요청이다. 네이비 110(초기 재고 10, SKU 있음) · 네이비 120(초기 재고 0, SKU 없음) 옵션과
-     * 두 사이즈의 실측 · 권장 키를 담는다. 테스트마다 고칠 수 있게 바꿀 수 있는 Map으로 만든다.
-     */
     static Map<String, Object> productA(SavedClothingTop saved) {
         ClothingOptions clothing = saved.clothing();
         Map<String, Object> body = new LinkedHashMap<>();
@@ -27,7 +20,6 @@ final class ProductRegisterRequestFixture {
         body.put("categoryId", id(saved.top().getId()));
         body.put("description", "상품 설명");
         body.put("thumbnailUrl", null);
-        // 이미지는 등록한 판매자 본인 경로만 받으므로, 판매자가 테스트마다 달라도 되게 비워 둔다. 이미지 검사 테스트는 ownImageUrl로 넣는다
         body.put("imageUrls", new ArrayList<>());
         body.put("attributes", new ArrayList<>(List.of(attribute(clothing.mainMaterial().getId(),
             List.of(id(clothing.cotton().getId()))))));
@@ -41,9 +33,6 @@ final class ProductRegisterRequestFixture {
         return body;
     }
 
-    /**
-     * 판매자가 업로드 주소로 올린 이미지의 공개 주소다. 테스트 프로필은 key 경로가 test다.
-     */
     static String ownImageUrl(long sellerId) {
         return "https://team04-kidly-s3.s3.ap-northeast-2.amazonaws.com/test/products/" + sellerId
             + "/0b8c1e2a-3d4f-4a5b-9c6d-7e8f9a0b1c2d.jpg";
@@ -112,7 +101,6 @@ final class ProductRegisterRequestFixture {
         return spec;
     }
 
-    // 응답과 같이 요청의 ID도 문자열로 보낸다
     static String id(Long id) {
         return String.valueOf(id);
     }

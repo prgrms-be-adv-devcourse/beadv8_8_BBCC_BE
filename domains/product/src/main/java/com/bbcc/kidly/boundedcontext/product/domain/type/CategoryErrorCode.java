@@ -6,11 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
-/**
- * 카테고리에서 생기는 업무 오류다.
- * 상품이 있는 카테고리를 기존 상품과 어긋나게 바꾸는 요청과 하위 카테고리가 있는 카테고리를 지우는 요청은 카테고리의 현재 상태와 충돌하므로 409로 알린다.
- * domain.product가 domain.type을 참조하므로, 반대 방향 참조를 만들지 않으려고 ProductErrorCode와 따로 둔다.
- */
 @Getter
 @Accessors(fluent = true)
 @RequiredArgsConstructor

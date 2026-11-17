@@ -1,7 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product.domain.type;
 
-import static java.util.Objects.requireNonNull;
-
 import com.bbcc.kidly.global.entity.BaseSoftDeleteEntity;
 import com.bbcc.kidly.global.error.BusinessException;
 import jakarta.persistence.CascadeType;
@@ -22,19 +20,12 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/**
- * 상품 유형이다. 의류처럼 종류마다 옵션 항목과 정보 항목을 정해 둔다.
- * {@code @SQLRestriction}을 붙이지 않는다. 지운 값 · 카테고리를 이미 쓰는 상품이 그대로 읽혀야 한다(TYPE-09).
- */
 @Entity
 @Table(schema = "product", name = "product_type")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProductType extends BaseSoftDeleteEntity {
 
-    /**
-     * 유형에 항목 하나를 연결하는 설정이다. allowedValues는 allValuesAllowed가 false일 때 고를 수 있는 값이다.
-     */
     public record LinkInfo(
         Attribute attribute,
         AttributeRole role,
@@ -49,7 +40,6 @@ public class ProductType extends BaseSoftDeleteEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 지우지 않은 유형끼리만 이름이 겹치지 않는다. 마이그레이션이 부분 UNIQUE 인덱스를 만든다 (TYPE-11)
     @Column(nullable = false)
     private String name;
 
@@ -61,26 +51,20 @@ public class ProductType extends BaseSoftDeleteEntity {
     private List<ProductTypeAllowedValue> allowedValues = new ArrayList<>();
 
     public static ProductType define(String name, List<LinkInfo> links) {
-        requireNonNull(name, "name은 필수입니다");
-        if (name.isBlank()) {
-            throw new IllegalArgumentException("유형 이름은 비어 있을 수 없습니다");
-        }
-        ProductType type = new ProductType();
+        var type = new ProductType();
         type.name = name;
         type.change(links, false);
         return type;
     }
 
-    // 연결 목록을 받은 목록으로 바꾼다. 상품이 있는 유형은 기존 상품을 깨지 않는 변경만 받는다. 연결 행은 지우고 다시 넣지 않고 그 자리에서 고친다
     public void change(List<LinkInfo> links, boolean hasProducts) {
-        requireNonNullLinks(links);
         ProductTypeLinkCheck.requireValid(links);
         ProductTypeLinkCheck.requireNoNewDeletedAllowedValue(links, allowedValues);
         if (hasProducts && ProductTypeChangeCheck.breaksProducts(this, links)) {
             throw new BusinessException(ProductTypeErrorCode.CHANGE_BREAKS_PRODUCTS);
         }
-        List<ProductTypeAttribute> changedAttributes = new ArrayList<>();
-        List<ProductTypeAllowedValue> changedAllowedValues = new ArrayList<>();
+        var changedAttributes = new ArrayList<ProductTypeAttribute>();
+        var changedAllowedValues = new ArrayList<ProductTypeAllowedValue>();
         for (int i = 0; i < links.size(); i++) {
             LinkInfo link = links.get(i);
             changedAttributes.add(changeOrCreateLink(link, i + 1));
@@ -112,24 +96,6 @@ public class ProductType extends BaseSoftDeleteEntity {
         return ProductTypeAllowedValue.create(this, value);
     }
 
-    private static void requireNonNullLinks(List<LinkInfo> links) {
-        requireNonNull(links, "links는 필수입니다");
-        for (LinkInfo link : links) {
-            requireNonNullValues(link);
-        }
-    }
-
-    private static void requireNonNullValues(LinkInfo link) {
-        requireNonNull(link, "link는 필수입니다");
-        requireNonNull(link.attribute(), "attribute는 필수입니다");
-        requireNonNull(link.role(), "role은 필수입니다");
-        requireNonNull(link.allowedValues(), "allowedValues는 필수입니다");
-        for (AttributeValue value : link.allowedValues()) {
-            requireNonNull(value, "allowedValue는 필수입니다");
-        }
-    }
-
-    // 이 유형에서 그 항목의 연결을 찾는다. 유형에 연결되지 않은 항목이면 비어 있다
     public Optional<ProductTypeAttribute> findLink(Attribute attribute) {
         for (ProductTypeAttribute link : attributes) {
             if (link.getAttribute() == attribute) {
@@ -139,23 +105,14 @@ public class ProductType extends BaseSoftDeleteEntity {
         return Optional.empty();
     }
 
-    // 이 유형에 사이즈 역할 항목이 있는지 본다
     public boolean hasSizeRole() {
-        for (ProductTypeAttribute link : attributes) {
-            if (link.isSizeRole()) {
-                return true;
-            }
-        }
-        return false;
+        return attributes.stream().anyMatch(ProductTypeAttribute::isSizeRole);
     }
 
-    // 값이 이 유형의 사이즈 역할 항목의 값인지 본다
     public boolean isSizeValue(AttributeValue value) {
-        Optional<ProductTypeAttribute> link = findLink(value.getAttribute());
-        return link.isPresent() && link.get().isSizeRole();
+        return findLink(value.getAttribute()).filter(ProductTypeAttribute::isSizeRole).isPresent();
     }
 
-    // 목록 값을 이 유형에서 고를 수 있는지 본다. 모든 값 허용 항목이면 그 항목의 값은 모두 고를 수 있고, 아니면 허용 값만 고를 수 있다
     public boolean allows(AttributeValue value) {
         // 지운 값은 새 등록 · 수정에서 고를 수 없다 (TYPE-09)
         if (value.isDeleted()) {
@@ -168,17 +125,11 @@ public class ProductType extends BaseSoftDeleteEntity {
         if (link.get().isAllValuesAllowed()) {
             return true;
         }
-        for (ProductTypeAllowedValue allowed : allowedValues) {
-            if (allowed.getAttributeValue() == value) {
-                return true;
-            }
-        }
-        return false;
+        return allowedValues.stream().anyMatch(allowed -> allowed.getAttributeValue() == value);
     }
 
-    // 등록 화면이 받는 입력 항목이다. 옵션 항목을 먼저, 정보 항목을 다음에 두고, 각 역할 안에서는 연결 순서를 따른다 (OPT-09)
     public List<ProductTypeAttribute> inputAttributes() {
-        List<ProductTypeAttribute> inputs = new ArrayList<>();
+        var inputs = new ArrayList<ProductTypeAttribute>();
         for (AttributeRole role : List.of(AttributeRole.OPTION, AttributeRole.INFO)) {
             for (ProductTypeAttribute link : attributes) {
                 if (link.getRole() == role) {
@@ -189,9 +140,8 @@ public class ProductType extends BaseSoftDeleteEntity {
         return inputs;
     }
 
-    // 받은 목록 값 중 이 유형에서 고를 수 있는 값만 받은 순서대로 돌려준다 (TYPE-06)
     public List<AttributeValue> selectableValues(List<AttributeValue> values) {
-        List<AttributeValue> selectable = new ArrayList<>();
+        var selectable = new ArrayList<AttributeValue>();
         for (AttributeValue value : values) {
             if (allows(value)) {
                 selectable.add(value);
@@ -210,7 +160,6 @@ public class ProductType extends BaseSoftDeleteEntity {
 
     // 지우지 않은 카테고리가 가리키는 유형(inUse)은 지울 수 없다(TYPE-10: 쓰이는 중인 기준 데이터는 지우지 않는다)
     public void delete(LocalDateTime now, boolean inUse) {
-        requireNonNull(now, "now는 필수입니다");
         if (inUse) {
             throw new BusinessException(ProductTypeErrorCode.PRODUCT_TYPE_IN_USE);
         }

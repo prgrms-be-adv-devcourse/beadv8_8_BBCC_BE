@@ -9,7 +9,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-// 판매자 초기 데이터(3)의 판매자 2가 샘플 상품을 판다. 샘플 상품이 기준 데이터를 쓰므로 기준 데이터를 먼저 넣는다
 @InitialData
 @Component
 @Order(4)

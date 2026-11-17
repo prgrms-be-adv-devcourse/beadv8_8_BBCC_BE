@@ -5,7 +5,6 @@ import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.shoulderWidt
 import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.sleeveLength;
 import static com.bbcc.kidly.boundedcontext.product.CategoryFixture.totalLength;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
@@ -15,7 +14,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.CategoryMeasurementItem
 import com.bbcc.kidly.boundedcontext.product.domain.type.MeasurementItem;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import com.bbcc.kidly.global.error.BusinessException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -34,11 +32,9 @@ class CategoryChangeTest {
     private static final MeasurementItem CHEST_WIDTH = chestWidth();
     private static final MeasurementItem SLEEVE_LENGTH = sleeveLength();
 
-    /** 카테고리에 넘길 새 설정이다. */
     record Change(ProductType productType, List<MeasurementItem> measurementItems) {
     }
 
-    // 상의처럼 의류 유형과 총장 · 어깨너비 · 가슴단면 필수 실측을 가진 말단 카테고리
     private static Category top() {
         return Category.createLeaf(new Category.LeafInfo("상의", CategoryFixture.clothing(), CLOTHING_TYPE,
             List.of(TOTAL_LENGTH, SHOULDER_WIDTH, CHEST_WIDTH)));
@@ -112,23 +108,6 @@ class CategoryChangeTest {
                 assertThat(e.getErrorCode().status()).isEqualTo(HttpStatus.BAD_REQUEST);
             });
         assertThat(clothing.getProductType()).isNull();
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("nullArguments")
-    @DisplayName("상품 유형 · 필수 실측 목록 · 그 안의 항목이 null이면 거절한다")
-    void rejectNullArguments(Change change) {
-        Category category = top();
-
-        assertThatNullPointerException()
-            .isThrownBy(() -> category.change(change.productType(), change.measurementItems(), false));
-    }
-
-    static Stream<Named<Change>> nullArguments() {
-        return Stream.of(
-            Named.of("상품 유형", new Change(null, List.of(TOTAL_LENGTH))),
-            Named.of("필수 실측 목록", new Change(GOODS_TYPE, null)),
-            Named.of("필수 실측 항목", new Change(GOODS_TYPE, Arrays.asList(TOTAL_LENGTH, null))));
     }
 
     @Test

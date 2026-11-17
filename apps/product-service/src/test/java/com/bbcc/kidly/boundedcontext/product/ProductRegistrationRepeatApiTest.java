@@ -24,17 +24,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 같은 상품 등록 요청을 여러 번 보내도 상품마다 옵션별 재고 행과 초기 재고 기록이 한 벌씩만 생기는지 확인한다.
- * 등록은 멱등하지 않으므로 요청 수만큼 상품이 생기는 것이 맞다. 같은 판매자의 SKU 코드가 겹치면 두 번째 요청부터
- * 409로 거절되므로(OPT-07), 요청에서 SKU 코드를 뺀다.
- */
 @FunctionalTest
 class ProductRegistrationRepeatApiTest {
 
-    /**
-     * 재고 행마다 판매 가능 수량과 그 옵션의 재고 조정 기록 증감량 합(기록이 없으면 0)을 읽는다.
-     */
     static final String AVAILABLE_AND_RECORDED_QTY = "select i.availableQty, "
         + "(select coalesce(sum(r.deltaQty), 0) from InventoryAdjustmentRecord r "
         + "where r.productOption = i.productOption) "
@@ -62,7 +54,6 @@ class ProductRegistrationRepeatApiTest {
         saved = clothingTopSaver.save();
     }
 
-    // INV-02 판매 가능 수량은 재고 조정 기록 증감량의 합이다
     static void assertAvailableEqualsRecorded(Object[] row) {
         assertThat(((Number) row[0]).longValue()).isEqualTo(((Number) row[1]).longValue());
     }
@@ -103,7 +94,6 @@ class ProductRegistrationRepeatApiTest {
         expectOneSetPerProduct(CONCURRENT_REQUESTS);
     }
 
-    // 상품 A는 옵션 둘(초기 재고 10 · 0)이라, 상품마다 재고 행 둘과 INITIAL 기록 하나가 생긴다
     private void expectOneSetPerProduct(int products) {
         assertThat(count("select count(p) from Product p")).isEqualTo(products);
         assertThat(count("select count(o) from ProductOption o")).isEqualTo(products * 2L);
@@ -114,7 +104,6 @@ class ProductRegistrationRepeatApiTest {
             .allSatisfy(ProductRegistrationRepeatApiTest::assertAvailableEqualsRecorded);
     }
 
-    // 옵션의 SKU 코드를 모두 비운 요청이다
     private static Map<String, Object> withoutSkuCodes(Map<String, Object> body) {
         options(body).forEach(option -> option.put("skuCode", null));
         return body;

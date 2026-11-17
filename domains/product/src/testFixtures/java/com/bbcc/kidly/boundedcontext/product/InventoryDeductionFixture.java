@@ -29,19 +29,13 @@ final class InventoryDeductionFixture {
     private InventoryDeductionFixture() {
     }
 
-    /**
-     * 상품 A의 네이비 · 110과 네이비 · 120 옵션이다. 차감 서비스가 DB에서 읽은 옵션처럼 ID가 있다.
-     * 옵션 ID는 등록 순서와 반대(110이 7, 120이 3)라서 옵션 ID 오름차순을 확인할 수 있다.
-     */
     record Options(ProductOption navy110, ProductOption navy120) {
     }
 
-    // 판매를 시작한 상품의 옵션이다. 두 옵션 모두 살 수 있다
     static Options onSaleOptions() {
         return options(true);
     }
 
-    // 판매를 시작하기 전(판매대기) 상품의 옵션이다. 두 옵션 모두 살 수 없다
     static Options beforeSaleOptions() {
         return options(false);
     }
@@ -50,15 +44,14 @@ final class InventoryDeductionFixture {
         return new InventoryDeductionRequest.Item(orderItemId, option, qty);
     }
 
-    // 차감 서비스가 DB에서 읽은 기존 차감 기록처럼 상태를 맞춘다. 복구는 조건부 UPDATE로 해서 상태를 바꾸는 엔티티 메서드가 없다
-    static List<InventoryDeduction> withStatus(List<InventoryDeduction> records, InventoryDeductionStatus status) {
+    static List<InventoryDeduction> asLoadedWithStatus(
+        List<InventoryDeduction> records, InventoryDeductionStatus status) {
         for (InventoryDeduction record : records) {
             ReflectionTestUtils.setField(record, "status", status);
         }
         return records;
     }
 
-    // 상품 A에 네이비 110 · 120 옵션과 두 사이즈의 필수 실측 · 권장 키를 넣고, startSale이면 판매를 시작한다
     private static Options options(boolean startSale) {
         ClothingOptions clothing = clothingOptions();
         Product product = productA(clothing);

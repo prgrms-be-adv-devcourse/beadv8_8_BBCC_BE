@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -31,10 +32,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.test.web.servlet.client.RestTestClient.ResponseSpec;
 
-/**
- * 판매자가 옵션 하나의 재고를 증감량과 사유로 조정하는 API를 HTTP 요청부터 응답까지 확인한다.
- * 옵션은 판매를 시작한 상품의 옵션으로 저장하고 재고를 연다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @FunctionalTest
 class InventoryAdjustmentApiTest {
 
@@ -79,7 +76,6 @@ class InventoryAdjustmentApiTest {
         assertThat(sellerAdjustments(option)).containsExactly(tuple(reason, deltaQuantity, SELLER_ID));
     }
 
-    // -1000000은 요청 검증의 범위 안이라 400이 아니라 판매 가능 수량 검사까지 간다
     @ParameterizedTest(name = "{0}")
     @ValueSource(ints = {-6, -1_000_000})
     @DisplayName("INV-03 판매 가능 수량 5인 옵션을 5보다 많이 줄이면 409로 거절하고 판매 가능 수량과 재고 조정 기록이 그대로다")
@@ -139,7 +135,6 @@ class InventoryAdjustmentApiTest {
     @CsvSource({"product, SALE_PENDING", "product, STOPPED", "product_option, STOPPED", "product_option, ARCHIVED"})
     @DisplayName("판매를 시작하기 전이거나 판매를 멈춘 상품, 판매를 멈추거나 보관한 옵션도 재고를 조정할 수 있다")
     void adjustOptionNotOnSale(String table, String status) {
-        // 판매 상태를 이렇게 바꾸는 기능이 아직 없어서 상품이나 옵션의 판매 상태를 DB에서 직접 바꾼다
         if (table.equals("product")) {
             jdbcTemplate.update("update product.product set status = ?"
                 + " where id = (select product_id from product.product_option where id = ?)", status, option.getId());
@@ -176,7 +171,6 @@ class InventoryAdjustmentApiTest {
             arguments(named("증감량 -1000001", Map.of("deltaQuantity", -1_000_001, "reason", "LOST")), range));
     }
 
-    // 400으로 거절하고 판매 가능 수량과 재고 조정 기록을 바꾸지 않았는지 본다
     private void expectBadRequest(Map<String, Object> body, String detail) {
         expectProblem(adjust(TestMembers.seller(SELLER_ID), option.getId(), body),
             HttpStatus.BAD_REQUEST, "잘못된 요청입니다", detail, option.getId());
@@ -185,17 +179,8 @@ class InventoryAdjustmentApiTest {
         assertThat(sellerAdjustments(option)).isEmpty();
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(ResponseSpec response, HttpStatus status, String title, String detail, long optionId) {
-        response
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(adjustmentsPath(optionId));
+        assertProblem(response, status, title, detail, adjustmentsPath(optionId));
     }
 
     private ResponseSpec adjust(Consumer<HttpHeaders> login, long optionId, Map<String, Object> body) {
@@ -210,7 +195,6 @@ class InventoryAdjustmentApiTest {
         return "/api/v1/seller/options/" + optionId + "/inventory-adjustments";
     }
 
-    // 옵션을 등록할 때 남긴 INITIAL 기록을 빼고, 판매자가 조정한 기록을 (사유, 증감량, 조정한 판매자)로 읽는다
     private List<Tuple> sellerAdjustments(ProductOption option) {
         return jdbcTemplate.query(
             "select reason, delta_qty, adjusted_by from product.inventory_adjustment_record"

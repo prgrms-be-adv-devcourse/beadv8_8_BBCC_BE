@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 판매자가 보는 내 상품 상세.
- *
  * @param brand 없으면 null
  * @param description 없으면 null
  * @param thumbnailUrl 없으면 null

@@ -33,7 +33,6 @@ public class ProductTypeService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
 
-    // 항목과 허용 값을 읽어 유형을 만든다. 유형 규칙의 검사는 도메인이 한다
     @Transactional
     public ProductTypeResult create(ProductTypeCreateRequest request) {
         List<ProductType.LinkInfo> links = toLinkInfos(request.attributes());
@@ -41,20 +40,17 @@ public class ProductTypeService {
         return toResult(productType);
     }
 
-    // 상품 유형의 연결을 받은 목록으로 바꾼다. 받을 수 있는 변경인지는 유형이 판단한다
     @Transactional
     public ProductTypeResult change(Long productTypeId, ProductTypeChangeRequest request) {
-        // 상품 유무를 읽은 뒤 바꾸기 전에 첫 상품 등록이 끼어들지 못하도록 유형 행을 먼저 잠근다(TYPE-07)
-        ProductType productType = productTypeRepository.getByIdForUpdate(productTypeId);
+        var productType = productTypeRepository.getByIdForUpdate(productTypeId);
         List<ProductType.LinkInfo> links = toLinkInfos(request.attributes());
         productType.change(links, productRepository.existsByCategoryProductType(productType));
         return toResult(productType);
     }
 
-    // 지우지 않은 모든 상품 유형을 ID 순서로 돌려준다
     @Transactional(readOnly = true)
     public List<ProductTypeResult> findAll() {
-        List<ProductTypeResult> results = new ArrayList<>();
+        var results = new ArrayList<ProductTypeResult>();
         for (ProductType productType : productTypeRepository.findAllByDeletedAtIsNullOrderByIdAsc()) {
             results.add(toResult(productType));
         }
@@ -62,7 +58,7 @@ public class ProductTypeService {
     }
 
     private List<ProductType.LinkInfo> toLinkInfos(List<ProductTypeCreateRequest.Link> requestLinks) {
-        List<ProductType.LinkInfo> links = new ArrayList<>();
+        var links = new ArrayList<ProductType.LinkInfo>();
         for (ProductTypeCreateRequest.Link link : requestLinks) {
             links.add(toLinkInfo(link));
         }
@@ -70,9 +66,8 @@ public class ProductTypeService {
     }
 
     private ProductType.LinkInfo toLinkInfo(ProductTypeCreateRequest.Link link) {
-        // 지우는 요청이 커밋되기 전이면 기다렸다가, 지운 것이면 400으로 거절한다(TYPE-10)
-        Attribute attribute = attributeRepository.getByIdForShare(link.attributeId());
-        List<AttributeValue> allowedValues = new ArrayList<>();
+        var attribute = attributeRepository.getByIdForShare(link.attributeId());
+        var allowedValues = new ArrayList<AttributeValue>();
         for (Long valueId : link.allowedValueIds()) {
             allowedValues.add(attributeValueRepository.getById(valueId));
         }
@@ -86,9 +81,8 @@ public class ProductTypeService {
             allowedValues);
     }
 
-    // 연결은 연결 순서대로, 허용 값은 그 연결의 항목 값만 값 ID 순서로 담는다
     private ProductTypeResult toResult(ProductType productType) {
-        List<ProductTypeResult.Link> links = new ArrayList<>();
+        var links = new ArrayList<ProductTypeResult.Link>();
         for (ProductTypeAttribute link : productType.getAttributes()) {
             Attribute attribute = link.getAttribute();
             links.add(new ProductTypeResult.Link(
@@ -107,7 +101,7 @@ public class ProductTypeService {
     }
 
     private List<AttributeResult.Value> allowedValuesOf(ProductType productType, Attribute attribute) {
-        List<AttributeValue> values = new ArrayList<>();
+        var values = new ArrayList<AttributeValue>();
         for (ProductTypeAllowedValue allowed : productType.getAllowedValues()) {
             AttributeValue value = allowed.getAttributeValue();
             if (value.getAttribute().getId().equals(attribute.getId())) {
@@ -115,18 +109,16 @@ public class ProductTypeService {
             }
         }
         values.sort(Comparator.comparing(AttributeValue::getId));
-        List<AttributeResult.Value> results = new ArrayList<>();
+        var results = new ArrayList<AttributeResult.Value>();
         for (AttributeValue value : values) {
             results.add(new AttributeResult.Value(value.getId(), value.getName(), value.getColorCode()));
         }
         return results;
     }
 
-    // 상품 유형을 지운다. 지우지 않은 카테고리가 가리키는지는 읽어 넘기고, 지울 수 있는지는 유형이 판단한다 (TYPE-10)
     @Transactional
     public void delete(Long productTypeId) {
-        // 쓰이는 중인지 읽은 뒤 지우기 전에 다른 요청이 연결하지 못하게 한다(TYPE-10)
-        ProductType productType = productTypeRepository.getByIdForUpdate(productTypeId);
+        var productType = productTypeRepository.getByIdForUpdate(productTypeId);
         boolean inUse = categoryRepository.existsByProductTypeAndDeletedAtIsNull(productType);
         productType.delete(LocalDateTime.now(), inUse);
     }

@@ -15,9 +15,8 @@ public class ProductImageUploadService {
 
     private final ProductImageStorage imageStorage;
 
-    // DB를 쓰지 않으므로 트랜잭션을 열지 않는다
     public List<ProductImageUploadUrl> issue(long sellerId, ProductImageUploadUrlRequest request) {
-        List<ProductImageUploadUrl> issued = new ArrayList<>();
+        var issued = new ArrayList<ProductImageUploadUrl>();
         for (ProductImageUploadUrlRequest.FileInput file : request.files()) {
             ProductImageUpload upload = ProductImageUpload.of(file.contentType(), file.contentLength());
             issued.add(imageStorage.issueUploadUrl(upload, sellerId));

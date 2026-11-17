@@ -20,10 +20,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 통합 테스트용: 동시성 테스트가 {@link ClothingTopSaver}로 저장한 의류 > 상의 옆에 더 저장할 기준 데이터와 요청을 만든다.
- * 테스트 클래스패스의 컴포넌트 스캔에 잡혀 모든 통합 · 기능 테스트 컨텍스트에 똑같이 등록된다.
- */
 @Component
 class ReferenceDataLockSaver {
 
@@ -35,7 +31,6 @@ class ReferenceDataLockSaver {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    // 상의 카테고리의 의류 유형과 다른 유형을 저장한다. 색상만 필수 옵션 항목이라 의류 상품의 정보 값 · 사이즈와 맞지 않는다
     ProductType saveOtherType(SavedClothingTop saved) {
         return transactionTemplate.execute(status -> {
             Attribute color = entityManager.find(Attribute.class, saved.clothing().navy().getAttribute().getId());
@@ -45,12 +40,10 @@ class ReferenceDataLockSaver {
         });
     }
 
-    // 상의와 같은 의류 유형 · 필수 실측을 쓰는 의류 > 아우터를 저장한다. 상품을 옮겨 갈 카테고리다
     Category saveOuter(SavedClothingTop saved) {
         return saveOuter(saved, saved.clothing().type().getId());
     }
 
-    // 상의와 같은 필수 실측에 주어진 유형을 쓰는 의류 > 아우터를 저장한다
     Category saveOuter(SavedClothingTop saved, Long productTypeId) {
         return transactionTemplate.execute(status -> {
             Category top = entityManager.find(Category.class, saved.top().getId());
@@ -65,7 +58,6 @@ class ReferenceDataLockSaver {
         });
     }
 
-    // 정보 항목으로 연결할 「계절」 목록 항목을 저장한다
     Attribute saveSeason() {
         return save(ProductTypeFixture.season());
     }
@@ -75,14 +67,12 @@ class ReferenceDataLockSaver {
         return entity;
     }
 
-    // 유형의 지금 연결을 그대로 두고 연결 하나를 끝에 더하는 변경 요청이다
     ProductTypeChangeRequest linksPlus(Long productTypeId, ProductTypeCreateRequest.Link extra) {
         List<ProductTypeCreateRequest.Link> links = linksOf(productTypeId);
         links.add(extra);
         return new ProductTypeChangeRequest(links);
     }
 
-    // 유형의 지금 연결을 요청에 쓰는 연결 목록으로 옮긴다. 돌려준 목록에 연결을 더할 수 있다
     List<ProductTypeCreateRequest.Link> linksOf(Long productTypeId) {
         return transactionTemplate.execute(status -> {
             ProductType type = entityManager.find(ProductType.class, productTypeId);
@@ -106,7 +96,6 @@ class ReferenceDataLockSaver {
         return new ProductTypeCreateRequest.Link(attribute.getId(), "INFO", required, true, false, false, List.of());
     }
 
-    // 의류 > 상의에 네이비 · 110 옵션 하나와 110 실측을 채운 판매대기 상품 등록 요청이다
     static ProductRegisterRequest registerRequest(SavedClothingTop saved) {
         Long size110 = saved.clothing().size110().getId();
         return new ProductRegisterRequest("데일리 맨투맨", "BBCC", saved.top().getId(), null, null, List.of(),

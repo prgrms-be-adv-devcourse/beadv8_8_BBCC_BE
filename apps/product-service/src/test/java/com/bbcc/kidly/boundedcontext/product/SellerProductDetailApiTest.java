@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.attribute;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.attributes;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
@@ -30,9 +31,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 판매자 내 상품 상세 API를 HTTP 요청부터 응답까지 확인한다. 상품은 등록 API로 만든다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @FunctionalTest
 class SellerProductDetailApiTest {
 
@@ -62,7 +60,6 @@ class SellerProductDetailApiTest {
     @Test
     @DisplayName("판매대기 상품도 상품 정보와 옵션별 옵션 이름 · 판매가 · 판매 가능 수량 · 판매 상태 · SKU 코드를 돌려준다")
     void detailOfPendingProduct() {
-        // 상품 A는 네이비 110(초기 재고 10, SKU A-NV-110) · 네이비 120(초기 재고 0, SKU 없음) 옵션이고 판매가는 25,000원이다
         ProductRegisterResponse registered = register(productA(saved));
 
         detail(TestMembers.seller(SELLER_ID), registered.productId())
@@ -159,8 +156,6 @@ class SellerProductDetailApiTest {
     @Test
     @DisplayName("상품을 고칠 때 다시 보낼 옵션 값 · 가격 구분 묶음 · 실측을 수정 요청과 같은 모양으로 돌려준다")
     void detailHasSaleInputsInRequestShape() {
-        // 상품 A는 네이비 110 · 네이비 120 옵션이고, 의류는 가격 구분 항목이 없어 가격 구분 묶음은 빈 값 목록 하나(25,000원)다.
-        // 실측은 110이 권장 키 105 ~ 115cm · 총장 42 · 어깨너비 30 · 가슴단면 34 · 소매길이 38, 120이 115 ~ 125cm · 45 · 32 · 36 · 41이다
         ClothingOptions clothing = saved.clothing();
         ProductRegisterResponse registered = register(productA(saved));
 
@@ -191,7 +186,6 @@ class SellerProductDetailApiTest {
     @Test
     @DisplayName("SALE-06 보관 옵션은 상세에 보이지 않고, 판매중지 옵션은 STOPPED로 보인다")
     void detailHidesArchivedOptions() {
-        // 상품 A에 오트밀 110 옵션을 더해 옵션 세 개로 등록하고, 네이비 120은 판매중지, 오트밀 110은 보관으로 바꾼다
         ClothingOptions clothing = saved.clothing();
         Map<String, Object> body = productA(saved);
         options(body).add(
@@ -234,7 +228,6 @@ class SellerProductDetailApiTest {
             .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
-    // 등록 API로 판매자 7의 판매대기 상품을 만든다
     private ProductRegisterResponse register(Map<String, Object> body) {
         return client.post().uri(PRODUCTS_PATH)
             .headers(TestMembers.seller(SELLER_ID))
@@ -246,29 +239,18 @@ class SellerProductDetailApiTest {
             .getResponseBody();
     }
 
-    // 실측 값은 소수점 표기와 상관없이 같은 cm인지 본다
     private static void assertCm(Object actual, String expectedCm) {
         assertThat(new BigDecimal(String.valueOf(actual))).isEqualByComparingTo(expectedCm);
     }
 
-    // 옵션의 판매 상태를 바꾸는 업무 메서드가 아직 없어 표를 직접 고친다
     private void changeSaleStatus(String optionId, String saleStatus) {
         jdbcTemplate.update("update product.product_option set sale_status = ? where id = ?",
             saleStatus, Long.valueOf(optionId));
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(
         RestTestClient.ResponseSpec response, String productId, HttpStatus status, String title, String detail) {
-        response
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId);
+        assertProblem(response, status, title, detail, PRODUCTS_PATH + "/" + productId);
     }
 
     private RestTestClient.ResponseSpec detail(Consumer<HttpHeaders> login, String productId) {

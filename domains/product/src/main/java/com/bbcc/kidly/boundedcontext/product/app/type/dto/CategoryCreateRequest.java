@@ -25,7 +25,6 @@ public record CategoryCreateRequest(
     List<@NotNull(message = "실측 항목 ID를 넣어 주세요.") Long> measurementItemIds,
     CategoryVisibleGender visibleGender) {
 
-    // 중간 카테고리는 실측 항목을 갖지 않는다. 목록이 null이면 위의 @NotNull이 따로 거절한다
     @AssertTrue(message = "실측 항목은 상품 유형을 고른 카테고리에만 넣어 주세요.")
     public boolean isMeasurementItemsOnlyForLeaf() {
         return productTypeId != null || measurementItemIds == null || measurementItemIds.isEmpty();

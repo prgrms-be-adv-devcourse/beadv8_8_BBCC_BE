@@ -1,19 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="false">
 
-    <!-- Spring Boot 기본 CONSOLE_LOG_PATTERN, FILE_LOG_PATTERN, 색상 컨버터(%clr) 사용 -->
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
     <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
     <property name="LOG_FILE_NAME" value="kidly-product"/>
 
-    <!-- 요청 추적용 traceId(MDC)를 포함한 로그 패턴 (콘솔: 색상 포함 / 파일: 색상 미포함) -->
     <property name="CONSOLE_LOG_PATTERN"
               value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr([%X{traceId:-N/A}]){yellow} %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
     <property name="FILE_LOG_PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{traceId:-N/A}] ${PID:- } --- [%15.15t] %-40.40logger{39} : %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
 
-    <!-- 로컬 · 테스트 등 운영이 아닌 프로필: 콘솔(텍스트)만 -->
     <springProfile name="!(dev | prod)">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
@@ -27,7 +24,6 @@
         </root>
     </springProfile>
 
-    <!-- 운영(dev · prod 서버): 콘솔은 ECS JSON 한 줄(Loki 수집용), 파일은 텍스트(일반/에러 분리, 비동기) -->
     <springProfile name="dev | prod">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">

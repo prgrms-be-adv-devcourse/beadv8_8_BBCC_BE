@@ -24,9 +24,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 상품 유형 · 카테고리 설정을 바꿨을 때의 저장 동작을 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class ReferenceDataChangeIntegrationTest {
 
@@ -143,12 +140,10 @@ class ReferenceDataChangeIntegrationTest {
         });
     }
 
-    // 모든 값 허용이 아니어서 allowedValues에 넣은 값만 고를 수 있는 필수 정보 항목
     private static ProductType.LinkInfo restrictedInfo(Attribute attribute, List<AttributeValue> allowedValues) {
         return new ProductType.LinkInfo(attribute, AttributeRole.INFO, true, false, false, false, allowedValues);
     }
 
-    // 엔티티는 객체 동일성으로 비교하므로, 바꾸는 트랜잭션에서 다시 읽은 객체를 넘긴다
     @SuppressWarnings("unchecked")
     private <T> T managed(T entity) {
         return (T) entityManager.find(entity.getClass(), entityManager.getEntityManagerFactory()

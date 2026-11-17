@@ -13,10 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * 정리 서비스가 실제 DB에서 자기 트랜잭션으로 벌크 DELETE를 실행하는지 본다.
- * 테스트 설정에서 정리 스케줄을 껐으므로 서비스를 직접 부른다.
- */
 @IntegrationTest
 class ProductOutboxCleanupIntegrationTest {
 

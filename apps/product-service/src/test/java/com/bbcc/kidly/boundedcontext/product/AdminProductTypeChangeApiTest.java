@@ -27,10 +27,6 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 관리자가 상품 유형 설정을 바꾸는 API를 HTTP 요청부터 응답까지 확인한다.
- * 기준 데이터와 상품은 리포지토리 없이 EntityManager로 저장한다.
- */
 @FunctionalTest
 class AdminProductTypeChangeApiTest {
 
@@ -53,7 +49,6 @@ class AdminProductTypeChangeApiTest {
     private AttributeValue size48;
     private ProductType hatType;
 
-    // 의류 유형과 모자 유형(색상 필수 옵션, 모자 사이즈 사이즈 역할 옵션)을 저장한다
     @BeforeEach
     void saveReferenceData() {
         clothing = ProductFixture.clothing();
@@ -134,7 +129,6 @@ class AdminProductTypeChangeApiTest {
             link(clothing.color().getId(), "SIZE", true, true, false, List.of())))), HttpStatus.BAD_REQUEST);
     }
 
-    // 의류 유형을 쓰는 의류 > 상의 카테고리에 상품 A를 저장한다
     private void saveProductOfClothingType() {
         Product.RegisterInfo info = ProductFixture.productA(clothing);
         Category top = info.category();
@@ -146,7 +140,6 @@ class AdminProductTypeChangeApiTest {
         });
     }
 
-    // 의류 유형의 두 번째 연결이 사이즈 항목이다
     private static Attribute sizeOf(ProductFixture.Clothing clothing) {
         return clothing.type().getAttributes().get(1).getAttribute();
     }
@@ -155,7 +148,7 @@ class AdminProductTypeChangeApiTest {
         return "/api/v1/admin/product-types/" + type.getId();
     }
 
-    // 가격 구분은 이 테스트에서 쓰지 않아 늘 false로 보낸다. ID가 null인 연결도 만들 수 있게 HashMap을 쓴다
+    // ID가 null인 연결도 만들 수 있게 HashMap을 쓴다
     private static Map<String, Object> link(Long attributeId, String role, boolean required,
         boolean allValuesAllowed, boolean sizeRole, List<Long> allowedValueIds) {
         Map<String, Object> link = new HashMap<>();

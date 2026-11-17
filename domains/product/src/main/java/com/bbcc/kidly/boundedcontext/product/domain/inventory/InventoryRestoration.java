@@ -1,20 +1,13 @@
 package com.bbcc.kidly.boundedcontext.product.domain.inventory;
 
-import static java.util.Objects.requireNonNull;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeSet;
 
-/**
- * 주문 취소됨 하나로 되돌릴 재고 복구 대상이다. 주문상품의 차감 기록으로 취소가 먼저 온 주문인지, 거절한 주문인지,
- * 되돌릴 기록이 무엇인지를 판단한다. 되돌린 뒤에는 복구로 품절이 풀린 옵션이 무엇인지도 판단한다.
- */
 public final class InventoryRestoration {
 
     private final List<InventoryDeduction> records;
@@ -25,7 +18,7 @@ public final class InventoryRestoration {
 
     public static InventoryRestoration of(long orderId, List<InventoryDeduction> records) {
         // 받은 뒤 밖에서 목록을 바꿔도 그대로 남도록 복사한다. null 기록도 여기서 거절된다
-        List<InventoryDeduction> copied = List.copyOf(requireNonNull(records, "records는 필수입니다"));
+        List<InventoryDeduction> copied = List.copyOf(records);
         for (InventoryDeduction record : copied) {
             // 주문상품은 한 주문에만 속하므로 다른 주문의 기록이 나오면 주문 쪽 오류다
             if (record.getOrderId() != orderId) {
@@ -36,19 +29,16 @@ public final class InventoryRestoration {
         return new InventoryRestoration(copied);
     }
 
-    // 주문 취소됨이 주문 생성됨보다 먼저 온 주문이라 주문상품마다 FAILED를 남겨야 한다 (INV-09)
     public boolean isCancelledBeforeCreated() {
         return records.isEmpty();
     }
 
-    // 요청한 주문상품 중 차감 기록이 없는 주문상품 ID를 오름차순으로 돌려준다
-    // 차감 기록은 주문상품마다 한 행이므로, 기록이 없는 주문상품은 상품이 차감을 판단한 적이 없는 주문상품이다
     public List<Long> orderItemIdsWithoutRecord(Collection<Long> requestedOrderItemIds) {
-        Set<Long> recorded = new HashSet<>();
+        var recorded = new HashSet<Long>();
         for (InventoryDeduction record : records) {
             recorded.add(record.getOrderItemId());
         }
-        List<Long> missing = new ArrayList<>();
+        var missing = new ArrayList<Long>();
         for (Long orderItemId : new TreeSet<>(requestedOrderItemIds)) {
             if (!recorded.contains(orderItemId)) {
                 missing.add(orderItemId);
@@ -57,7 +47,6 @@ public final class InventoryRestoration {
         return missing;
     }
 
-    // 재고 부족이나 판매중지로 거절해 줄인 재고가 없는 주문이다
     public boolean isRejected() {
         if (records.isEmpty()) {
             return false;
@@ -70,11 +59,8 @@ public final class InventoryRestoration {
         return true;
     }
 
-    // 차감한 기록(DEDUCTED)만 되돌린다. 거절한 기록(FAILED)은 줄인 재고가 없고, 복구한 기록(RESTORED)은 이미 되돌렸다 (INV-04)
-    // 재고 행을 옵션 ID 오름차순으로 바꿔야 두 작업이 서로의 행을 기다리는 교착이 생기지 않는다 (INV-12)
-    // 같은 옵션 안의 순서도 주문상품 ID 오름차순으로 정해야, 같은 주문을 동시에 되돌릴 때 기록 행을 서로 다른 순서로 잠그지 않는다
     public List<InventoryDeduction> recordsToRestore() {
-        List<InventoryDeduction> targets = new ArrayList<>();
+        var targets = new ArrayList<InventoryDeduction>();
         for (InventoryDeduction record : records) {
             if (record.getStatus() == InventoryDeductionStatus.DEDUCTED) {
                 targets.add(record);
@@ -85,13 +71,9 @@ public final class InventoryRestoration {
         return targets;
     }
 
-    // 되돌린 수량을 받아, 복구 전에 품절(판매 가능 수량 0 이하)이었다가 복구로 품절이 풀린 옵션 ID를 오름차순으로 돌려준다 (SALE-08)
-    // 복구 전 수량은 복구 뒤 수량에서 되돌린 수량을 빼서 구한다. 되돌린 옵션마다 복구 뒤 수량이 있어야 한다
     public static List<Long> soldOutReleasedOptionIds(
             Map<Long, Integer> restoredQtyByOptionId, Map<Long, Integer> availableQtyByOptionId) {
-        requireNonNull(restoredQtyByOptionId, "restoredQtyByOptionId는 필수입니다");
-        requireNonNull(availableQtyByOptionId, "availableQtyByOptionId는 필수입니다");
-        List<Long> optionIds = new ArrayList<>();
+        var optionIds = new ArrayList<Long>();
         for (Map.Entry<Long, Integer> entry : restoredQtyByOptionId.entrySet()) {
             Integer availableQtyAfter = availableQtyByOptionId.get(entry.getKey());
             if (availableQtyAfter == null) {

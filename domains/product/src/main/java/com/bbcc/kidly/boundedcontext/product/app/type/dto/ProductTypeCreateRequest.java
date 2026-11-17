@@ -20,8 +20,6 @@ public record ProductTypeCreateRequest(
     List<@Valid @NotNull(message = "연결할 항목 설정을 넣어 주세요.") Link> attributes) {
 
     /**
-     * 유형에 항목 하나를 연결하는 설정이다.
-     *
      * @param role 항목의 역할 이름(OPTION 또는 INFO). 정해지지 않은 값도 같은 400으로 거절하려고 글자로 받는다
      * @param allowedValueIds 모든 값 허용이 아닐 때 고를 수 있는 목록 값 ID다. 없으면 빈 목록을 보낸다
      */

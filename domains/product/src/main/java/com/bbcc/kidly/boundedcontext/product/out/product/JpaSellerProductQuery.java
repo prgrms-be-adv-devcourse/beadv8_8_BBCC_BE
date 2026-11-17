@@ -19,7 +19,6 @@ import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.util.ArrayList;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,7 +31,6 @@ public class JpaSellerProductQuery implements SellerProductQuery {
 
     private final JPAQueryFactory queryFactory;
 
-    // 정렬은 등록 최신순(id 내림차순)으로 고정한다. 보관 옵션은 조인에서 빼서 옵션 수 · 재고 합계 · 최저가에 들어가지 않는다
     @Override
     public Page<SellerProductSummary> findBySeller(Long sellerId, SellerProductFilter filter, Pageable pageable) {
         NumberExpression<Long> optionCount = productOption.id.count();
@@ -43,7 +41,7 @@ public class JpaSellerProductQuery implements SellerProductQuery {
         NumberExpression<Long> soldOutCount = countIf(onSale.and(quantity.eq(0)));
         NumberExpression<Long> lowStockCount = countIf(onSale.and(quantity.gt(0))
             .and(quantity.loe(StockDisplay.LOW_STOCK_THRESHOLD)));
-        List<Tuple> rows = queryFactory
+        var rows = queryFactory
             .select(product.id, product.name, product.thumbnailUrl, product.status, product.createdAt,
                 optionCount, availableQuantity, soldOutCount, lowStockCount, minPrice)
             .from(product)
@@ -56,7 +54,7 @@ public class JpaSellerProductQuery implements SellerProductQuery {
             .offset(pageable.getOffset())
             .limit(pageable.getPageSize())
             .fetch();
-        List<SellerProductSummary> content = new ArrayList<>();
+        var content = new ArrayList<SellerProductSummary>();
         for (Tuple row : rows) {
             content.add(new SellerProductSummary(
                 row.get(product.id),
@@ -77,14 +75,12 @@ public class JpaSellerProductQuery implements SellerProductQuery {
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
     }
 
-    // 조건에 맞는 옵션 행의 수를 센다. 옵션이 없는 상품은 옵션 칸이 null인 행 하나가 생기지만 조건이 거짓이라 0이 된다
     private NumberExpression<Long> countIf(BooleanExpression condition) {
         return new CaseBuilder().when(condition).then(1L).otherwise(0L).sumLong();
     }
 
-    // 목록과 전체 건수가 같은 조건을 쓰도록 한 곳에서 만든다
     private BooleanBuilder conditions(Long sellerId, SellerProductFilter filter) {
-        BooleanBuilder where = new BooleanBuilder(product.sellerId.eq(sellerId));
+        var where = new BooleanBuilder(product.sellerId.eq(sellerId));
         if (filter.status() != null) {
             where.and(product.status.eq(filter.status()));
         }
@@ -94,10 +90,9 @@ public class JpaSellerProductQuery implements SellerProductQuery {
         return where;
     }
 
-    // 판매중 옵션 가운데 판매 가능 수량이 기준 이하인 것이 하나라도 있는지 본다. 재고 행이 없는 옵션은 0으로 본다
     private BooleanExpression hasLowStockOption() {
-        QProductOption lowOption = new QProductOption("lowOption");
-        QInventory lowInventory = new QInventory("lowInventory");
+        var lowOption = new QProductOption("lowOption");
+        var lowInventory = new QInventory("lowInventory");
         return JPAExpressions.selectOne()
             .from(lowOption)
             .leftJoin(lowInventory).on(lowInventory.productOption.eq(lowOption))

@@ -52,22 +52,6 @@ class SkuCodesTest {
             Arguments.of(Named.of("대소문자만 다른 코드", List.of("a-nv-110")), Set.of("A-NV-110")));
     }
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("nullLists")
-    @DisplayName("새 코드 목록이나 이미 쓰는 코드 목록이 null이면 거절한다")
-    void rejectNullLists(ThrowingCallable validate) {
-        assertThatThrownBy(validate)
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("필수입니다");
-    }
-
-    static Stream<Named<ThrowingCallable>> nullLists() {
-        return Stream.of(
-            Named.of("새 코드 목록", () -> SkuCodes.validateUnique(null, Set.of())),
-            Named.of("이미 쓰는 코드 목록", () -> SkuCodes.validateUnique(List.of("A-NV-110"), null)));
-    }
-
-    // 409 오류 코드로 거절하고 detail 끝에 겹친 코드를 적는지 확인한다
     private static void assertDuplicated(ThrowingCallable call, String codes) {
         assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> {
             assertThat(e.getErrorCode()).isEqualTo(ProductErrorCode.DUPLICATE_SKU_CODE);

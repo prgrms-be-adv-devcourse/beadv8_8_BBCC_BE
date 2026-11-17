@@ -10,11 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-/**
- * 아웃박스에 쌓인 메시지를 받은 순서대로 브로커에 보낸다.
- * relay()에는 트랜잭션을 걸지 않는다. 브로커가 멈추면 메시지 하나에 최대 약 17초를 기다리는데, 그동안 DB 연결을 쥐고 있지 않기 위해서다.
- * 보낸 결과는 메시지마다 save로 저장하고, Spring Data의 save가 자기 트랜잭션을 열어 그 메시지의 결과만 바로 커밋한다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,25 +32,18 @@ public class ProductOutboxRelayService {
                 sent++;
             }
         } finally {
-            // 보낸 메시지가 있을 때만 남긴다. 보낼 것이 없는 실행은 짧은 주기(relay-interval)로 계속 돌기 때문이다.
-            // 저장이 DB 오류로 끝나 예외가 스케줄러로 넘어가도 그때까지 보낸 건수는 남긴다.
             if (sent > 0) {
                 log.info("상품 아웃박스 메시지를 보냈습니다. sent={}", sent);
             }
         }
     }
 
-    // 보내지 못하면 실패를 기록하고 그 자리에서 멈춘다. 순서가 뒤집히지 않게 뒤 메시지는 보내지 않는다.
-    // sent_at이 비어 있으므로 다음 실행의 findUnsent가 같은 메시지부터 다시 가져온다.
-    // 예외 메시지에 eventType · eventId · 키 · 원인이 이미 있으므로 따로 반복하지 않고, 같은 장애가 반복되므로 스택 트레이스는 남기지 않는다.
-    // 전송이 멈추면 뒤의 상품 이벤트가 모두 멈추므로 ERROR로 남긴다. 운영 알림(Slack)은 ERROR 건수로 온다.
     private boolean send(ProductOutboxMessage message) {
         try {
             sender.send(message);
             return true;
         } catch (ProductEventSendException e) {
             message.recordFailure(e.getMessage());
-            // 실패 기록을 저장하다 DB 오류가 나도 Kafka 실패 원인이 남도록 저장보다 먼저 남긴다
             log.error("상품 아웃박스 전송 실패로 이번 릴레이를 멈춥니다. attempt={} {}", message.getAttemptCount(), e.getMessage());
             outboxRepository.save(message);
             return false;

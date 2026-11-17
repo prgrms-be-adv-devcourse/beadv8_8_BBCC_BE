@@ -80,7 +80,6 @@ class ProductOutboxRelayServiceTest {
         given(outboxRepository.findUnsent(100)).willReturn(List.of(first, failing, after));
         String error = "상품 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. eventType=product.changed eventId="
             + failing.getEventId() + " key=1 reason=broker down";
-        // 다른 메시지를 보낼 때 이 스텁과 인자가 달라도 정상이다(엄격 스텁이 인자 불일치로 보지 않게)
         lenient().doThrow(new ProductEventSendException(error, new IllegalStateException("broker down")))
             .when(sender).send(failing);
 
@@ -120,7 +119,6 @@ class ProductOutboxRelayServiceTest {
         ProductOutboxMessage first = message();
         ProductOutboxMessage second = message();
         given(outboxRepository.findUnsent(100)).willReturn(List.of(first, second));
-        // 첫 메시지를 저장할 때 이 스텁과 인자가 달라도 정상이다(엄격 스텁이 인자 불일치로 보지 않게)
         lenient().doThrow(new IllegalStateException("DB 연결 실패")).when(outboxRepository).save(second);
 
         assertThatThrownBy(() -> relayService().relay()).isInstanceOf(IllegalStateException.class);

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -176,7 +175,6 @@ class ProductSaleStartTest {
     @Test
     @DisplayName("SALE-03 사이즈 역할 항목이 없는 유형의 상품은 실측 없이 판매를 시작한다")
     void startSaleOfTypeWithoutSizeRole() {
-        // 용기처럼 색상만 옵션 항목으로 두고 사이즈 역할 항목이 없는 유형이다
         Attribute color = ProductTypeFixture.color();
         AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
         ProductType container = ProductType.define("용기", List.of(ProductTypeFixture.requiredOption(color)));
@@ -233,28 +231,6 @@ class ProductSaleStartTest {
                 + "110 사이즈에 소매길이가 없습니다. 110 사이즈에 권장 키가 없습니다."));
     }
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("callsWithNull")
-    @DisplayName("판매 시작과 등록 입력 검사에 판매자 · 카테고리 · 상품 유형이 null이면 거절한다")
-    void rejectCallWithNull(ThrowingCallable call) {
-        assertThatThrownBy(call)
-            .isInstanceOf(NullPointerException.class)
-            .hasMessageContaining("필수입니다");
-    }
-
-    static Stream<Named<ThrowingCallable>> callsWithNull() {
-        ClothingOptions clothing = clothingOptions();
-        Category top = CategoryFixture.top(CategoryFixture.clothing(), clothing.type());
-        ProductType type = clothing.type();
-        return Stream.of(
-            Named.of("판매 시작의 판매자", () -> productA(clothing).startSale(null, top, type, ProductFixture.NOW)),
-            Named.of("판매 시작의 카테고리", () -> productA(clothing).startSale(SELLER_ID, null, type, ProductFixture.NOW)),
-            Named.of("판매 시작의 상품 유형", () -> productA(clothing).startSale(SELLER_ID, top, null, ProductFixture.NOW)),
-            Named.of("판매 시작의 시각", () -> productA(clothing).startSale(SELLER_ID, top, type, null)),
-            Named.of("입력 검사의 카테고리", () -> productA(clothing).validateSaleStartInputs(null, type)),
-            Named.of("입력 검사의 상품 유형", () -> productA(clothing).validateSaleStartInputs(top, null)));
-    }
-
     @Test
     @DisplayName("SALE-03 빠진 항목이 여럿이면 옵션에 처음 나온 사이즈 순서로 모두 적는다")
     void rejectStartSaleWithAllMissingItems() {
@@ -264,7 +240,6 @@ class ProductSaleStartTest {
             + "110 사이즈에 소매길이가 없습니다. 110 사이즈에 권장 키가 없습니다.");
     }
 
-    // 상품 A에 네이비 110 · 120 옵션과, 두 사이즈의 필수 실측 · 권장 키를 모두 넣는다
     private void withOptionsAndSizeSpecs110And120() {
         withOptions110And120();
         product.addSizeSpecs(addSizeSpecs(List.of(
@@ -272,7 +247,6 @@ class ProductSaleStartTest {
             spec(clothing.size120(), 115, 125, top120Measurements()))), top, clothing.type());
     }
 
-    // 판매 시작이 409로 거절되고 빠진 항목이 detail에 적히며, 상품은 판매대기로 남는지 확인한다
     private void assertSaleStartRejected(String detail) {
         assertThatThrownBy(() -> product.startSale(SELLER_ID, top, clothing.type(), ProductFixture.NOW))
             .isInstanceOfSatisfying(BusinessException.class, e -> {
@@ -283,21 +257,18 @@ class ProductSaleStartTest {
         assertThat(product.getSaleStartedAt()).isNull();
     }
 
-    // 상품 A에 네이비 110 · 120 옵션을 붙인다
     private void withOptions110And120() {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.size110()),
             option(clothing.navy(), clothing.size120()))), clothing.type());
     }
 
-    // 상품 A에 네이비 · 오트밀 FREE 옵션을 붙인다(사이즈 무관 상품)
     private void withFreeOptions() {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.sizeFree()),
             option(clothing.oatmeal(), clothing.sizeFree()))), clothing.type());
     }
 
-    // 옵션은 120 · 110 순서로 넣고, 110 실측은 소매길이와 권장 키 없이 넣고, 120 실측은 넣지 않는다
     private void withSeveralMissingInputs() {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.size120()),

@@ -64,7 +64,7 @@ class ProductDelistedGuardTest {
     void rejectSameValueUpdateOfDelisted() {
         product.delist(SELLER_ID);
 
-        assertRejected(() -> product.update(productA.sameUpdate()), ProductErrorCode.PRODUCT_DELISTED);
+        assertRejected(() -> product.update(productA.sameUpdate(), null), ProductErrorCode.PRODUCT_DELISTED);
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DELISTED);
     }
 
@@ -84,7 +84,7 @@ class ProductDelistedGuardTest {
         return Stream.of(
             Named.of("판매 시작", a -> () -> a.product().startSale(OTHER_SELLER_ID, a.top(), a.clothing().type(), NOW)),
             Named.of("판매 중지", a -> () -> a.product().stopSale(OTHER_SELLER_ID)),
-            Named.of("상품 수정", a -> () -> a.product().update(updateFromOtherSeller(a.sameUpdate()))),
+            Named.of("상품 수정", a -> () -> a.product().update(updateFromOtherSeller(a.sameUpdate()), null)),
             Named.of("옵션 추가", a -> () -> a.product().addOptions(new Product.AddOptionsInfo(OTHER_SELLER_ID,
                 List.of(option(a.clothing().oatmeal(), a.clothing().size110())), clothingPrice(CLOTHING_PRICE)),
                 a.clothing().type())),
@@ -104,7 +104,7 @@ class ProductDelistedGuardTest {
             Named.of("관리자의 판매 시작", a -> () -> a.product().startSaleByAdmin(a.top(), a.clothing().type(), NOW)),
             Named.of("관리자의 판매중지", a -> () -> a.product().stopSaleByAdmin()),
             Named.of("상품 정보 수정", a -> () -> a.product().update(
-                a.updateWith(ProductUpdateFixture.VERSION, a.top(), "새 상품명"))),
+                a.updateWith(ProductUpdateFixture.VERSION, a.top(), "새 상품명"), null)),
             Named.of("옵션 · 가격 · 실측을 함께 보낸 수정", a -> () -> a.product().update(
                 a.sameUpdate(), a.currentSaleInputs())),
             Named.of("옵션 추가", a -> () -> a.product().addOptions(addOptions(List.of(

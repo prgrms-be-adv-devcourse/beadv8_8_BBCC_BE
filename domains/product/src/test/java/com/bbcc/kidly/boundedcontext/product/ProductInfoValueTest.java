@@ -236,8 +236,6 @@ class ProductInfoValueTest {
                 clothing.color(), List.of(AttributeValue.create(clothing.color(), "네이비", "#2f3e5c")), null)));
     }
 
-    // 사례마다 쓰는 유형이 다르다. 린넨은 면 · 기타만 허용한 유형에서, 기모는 모든 값을 허용한 유형에서 확인한다.
-    // 기모를 허용 값이 제한된 유형에서 확인하면 허용 값 검사가 대신 거절해서, 항목이 다른 값을 거르는 검사를 확인하지 못한다
     record NotAllowedMaterial(Clothing clothing, AttributeValue material) {
     }
 
@@ -249,7 +247,6 @@ class ProductInfoValueTest {
             Named.of("주요소재에 다른 항목(특징)의 값 기모", new NotAllowedMaterial(allAllowed, allAllowed.brushed())));
     }
 
-    // 정보 값은 테스트가 만든 유형의 항목 객체로 만들어야 하므로, 의류를 받아 정보 값을 만드는 함수를 넘긴다
     static Stream<Named<Function<Clothing, List<InfoValueInfo>>>> duplicatedInfoValues() {
         return Stream.of(
             Named.of("다중 선택 목록에 같은 값 두 번", clothing -> List.of(

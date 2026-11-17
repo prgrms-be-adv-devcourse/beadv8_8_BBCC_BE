@@ -31,10 +31,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * 관리자의 기준 데이터 삭제와 연결(카테고리 · 유형 생성 · 변경)이 동시에 겹칠 때 뒤의 요청이 앞의 커밋을 기다리는지
- * {@link TransactionRace}로 실제 스레드 두 개를 겹쳐 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class ReferenceDataDeleteLockIntegrationTest {
 
@@ -59,9 +55,6 @@ class ReferenceDataDeleteLockIntegrationTest {
     @Autowired
     private MeasurementItemService measurementItemService;
 
-    /**
-     * 앞의 작업과 그 커밋을 기다리는 뒤의 작업이다.
-     */
     record Overlap(Runnable first, Runnable second) {
     }
 

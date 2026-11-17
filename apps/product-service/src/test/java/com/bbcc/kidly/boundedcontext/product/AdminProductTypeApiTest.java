@@ -24,10 +24,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 상품 유형을 만들고 조회하는 API를 HTTP 요청부터 응답까지 확인한다.
- * 유형에 연결할 항목과 목록 값은 관리자 항목 API로 만든다.
- */
 @FunctionalTest
 class AdminProductTypeApiTest {
 
@@ -45,7 +41,6 @@ class AdminProductTypeApiTest {
         CreatedAttribute size = createAttribute("SIZE", "LIST", List.of("110", "120"));
         AtomicReference<String> location = new AtomicReference<>();
 
-        // 연결은 항목 ID 순서와 다르게 사이즈를 먼저 넘기고, 허용 값은 ID가 큰 오트밀을 먼저 넘긴다
         post(TestAdmins.of(ADMIN_ID), Map.of(
             "name", "의류",
             "attributes", List.of(
@@ -110,7 +105,6 @@ class AdminProductTypeApiTest {
         assertProblem(post(TestAdmins.of(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
     }
 
-    // 요청 검증에서 막히므로 항목 ID는 실제로 없는 값이어도 된다
     static Stream<Named<Map<String, Object>>> invalidRequests() {
         Map<String, Object> validLink = link("1", "OPTION", true, true, false, false, List.of());
         return Stream.of(
@@ -202,7 +196,6 @@ class AdminProductTypeApiTest {
         return type;
     }
 
-    // 유형에 연결할 항목 하나의 설정이다
     private static Map<String, Object> link(String attributeId, String role, boolean required,
         boolean allValuesAllowed, boolean sizeRole, boolean priceAffecting, List<String> allowedValueIds) {
         Map<String, Object> link = new HashMap<>();
@@ -216,11 +209,6 @@ class AdminProductTypeApiTest {
         return link;
     }
 
-    /**
-     * 관리자 항목 API로 만든 항목과 그 값의 ID다.
-     *
-     * @param valueIds 값 이름별 값 ID
-     */
     private record CreatedAttribute(String id, Map<String, String> valueIds) {
 
         String valueId(String name) {
@@ -228,7 +216,6 @@ class AdminProductTypeApiTest {
         }
     }
 
-    // 항목을 이름이 코드와 같게 만든다. 팔레트 항목의 값에는 넣은 순서대로 색 코드 #000001, #000002 …를 붙인다
     private CreatedAttribute createAttribute(String code, String inputType, List<String> valueNames) {
         List<Map<String, Object>> values = new ArrayList<>();
         for (int i = 0; i < valueNames.size(); i++) {

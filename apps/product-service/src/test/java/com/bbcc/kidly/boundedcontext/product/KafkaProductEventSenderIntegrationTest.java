@@ -33,11 +33,6 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.testcontainers.kafka.KafkaContainer;
 
-/**
- * 상품 아웃박스 메시지가 실제 브로커의 kidly.product.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다.
- * 다른 테스트의 메시지도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
- * 실패하면 본문 없이 알리는지와, 프로듀서 지표에 상품 전송기 이름(kidly-product-outbox)이 남는지도 본다.
- */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class KafkaProductEventSenderIntegrationTest {
@@ -89,7 +84,6 @@ class KafkaProductEventSenderIntegrationTest {
     @Test
     @DisplayName("없는 토픽으로 보내면 몇 초 안에 전송 예외가 나고, 로그와 예외 메시지에 본문을 남기지 않는다")
     void failFastWithoutBodyInLogs(CapturedOutput output) {
-        // 브로커의 토픽 자동 생성이 꺼져 있어 선언하지 않은 토픽에는 보내지 못한다
         UUID eventId = UUID.randomUUID();
         ProductOutboxMessage message = ProductOutboxMessage.create(new ProductOutboxMessage.CreateInfo(
             eventId, "product.changed", "kidly.product.missing-" + eventId, "1", ProductOutboxMessageFixture.PAYLOAD));
@@ -98,7 +92,6 @@ class KafkaProductEventSenderIntegrationTest {
             () -> productEventSender.send(message))
             .isInstanceOf(ProductEventSendException.class)
             .hasMessageContaining("eventId=" + eventId)
-            // 사유는 Spring이 감싼 문구가 아니라 Kafka 클라이언트가 알려 준 원인이어야 한다(문구는 브로커 상태에 따라 다르다)
             .hasMessageNotContaining("reason=Send failed")
             .hasMessageNotContaining("reason=Failed to send")
             .hasMessageNotContaining(ProductOutboxMessageFixture.PAYLOAD));
@@ -111,7 +104,6 @@ class KafkaProductEventSenderIntegrationTest {
         productEventSender.send(
             ProductOutboxMessage.create(ProductOutboxMessageFixture.productChanged(UUID.randomUUID())));
 
-        // Spring Kafka가 클라이언트 이름 뒤에 -번호를 붙인다(kidly-product-outbox-1)
         ObjectName producerMetrics =
             new ObjectName("kafka.producer:type=producer-metrics,client-id=kidly-product-outbox-*");
         assertThat(ManagementFactory.getPlatformMBeanServer().queryNames(producerMetrics, null)).isNotEmpty();

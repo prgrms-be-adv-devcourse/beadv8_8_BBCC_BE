@@ -29,10 +29,6 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 관리자가 카테고리 설정을 바꾸는 API를 HTTP 요청부터 응답까지 확인한다.
- * 기준 데이터와 상품은 리포지토리 없이 EntityManager로 저장한다.
- */
 @FunctionalTest
 class AdminCategoryChangeApiTest {
 
@@ -56,7 +52,6 @@ class AdminCategoryChangeApiTest {
     private Category goods;
     private Category hat;
 
-    // 의류 유형, 모자 유형(색상 · 모자 사이즈), 잡화 > 모자(의류 유형, 필수 실측 머리둘레)를 저장한다
     @BeforeEach
     void saveReferenceData() {
         clothing = ProductFixture.clothing();
@@ -157,7 +152,6 @@ class AdminCategoryChangeApiTest {
             HttpStatus.BAD_REQUEST);
     }
 
-    // 상품 A(의류 > 상의, 의류 유형)를 저장하고 그 카테고리를 돌려준다
     private Category savedProductCategory() {
         Product.RegisterInfo info = ProductFixture.productA(clothing);
         Category top = info.category();

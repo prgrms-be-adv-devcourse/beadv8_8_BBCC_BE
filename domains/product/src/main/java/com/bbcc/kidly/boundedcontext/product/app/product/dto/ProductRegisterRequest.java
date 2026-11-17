@@ -17,12 +17,10 @@ import java.util.Map;
  * @param categoryId 상품을 등록할 말단 카테고리
  * @param thumbnailUrl 업로드 주소 발급 API가 돌려준 판매자 본인의 imageUrl만 그대로 받는다. 썸네일이 없으면 null을 보낸다
  * @param imageUrls 업로드 주소 발급 API가 돌려준 판매자 본인의 imageUrl만 그대로 받는다. 이미지가 없으면 빈 목록이다
- * @param attributes 상품 정보 항목에 입력한 값
  * @param prices 가격 구분 묶음마다 하나씩이다. 가격 구분 항목이 없는 유형은 valueIds가 빈 목록인 하나만 보낸다
  * @param sizeSpecs 사이즈 값마다 하나씩이다. 사이즈가 없는 상품은 빈 목록이다
  */
 public record ProductRegisterRequest(
-    // 주문 도메인의 상품 복사본이 상품명을 100자 칸에 저장하므로 100자까지만 받는다. 255자는 DB 기본 varchar(255) 칸이라서다
     @NotBlank(message = "상품명을 입력해 주세요.")
     @Size(max = 100, message = "상품명은 100자 이하로 입력해 주세요.")
     String name,
@@ -30,7 +28,6 @@ public record ProductRegisterRequest(
     String brand,
     @NotNull(message = "카테고리를 골라 주세요.")
     Long categoryId,
-    // 설명은 상품 정보 변경됨 본문에 그대로 실려 Kafka로 나가므로, 메시지 크기 한도(1MB)에 닿지 않게 길이를 제한한다
     @Size(max = 5000, message = "상품 설명은 5000자 이하로 입력해 주세요.")
     String description,
     String thumbnailUrl,
@@ -61,8 +58,6 @@ public record ProductRegisterRequest(
         @PositiveOrZero(message = "초기 재고는 0 이상이어야 합니다.")
         int initialQuantity,
         @Size(max = 255, message = "SKU 코드는 255자 이하로 입력해 주세요.")
-        // 없는 코드는 null로만 받는다. null은 통과하고, 빈 문자열이나 공백만 있는 값은 거절한다.
-        // (?U)는 전각 공백도 공백으로 보고 (?s)는 줄바꿈이 든 값도 끝까지 보아, domain의 isBlank()와 같은 기준으로 판단한다
         @Pattern(regexp = "(?sU).*\\S.*", message = "SKU 코드는 공백만으로 넣을 수 없습니다.")
         String skuCode) {
     }

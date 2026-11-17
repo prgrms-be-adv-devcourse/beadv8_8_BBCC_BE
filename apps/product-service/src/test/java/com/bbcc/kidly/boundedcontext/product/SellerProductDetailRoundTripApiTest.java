@@ -18,10 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 판매자가 내 상품 상세 응답을 그대로 상품 수정 요청에 넣어 보낼 수 있는지 HTTP 요청부터 응답까지 확인한다.
- * 테스트에 @Transactional을 붙이지 않는다.
- */
 @FunctionalTest
 class SellerProductDetailRoundTripApiTest {
 
@@ -59,7 +55,6 @@ class SellerProductDetailRoundTripApiTest {
         startSale(registered.productId());
         Map<String, Object> before = detail(registered.productId());
         Map<String, Object> body = updateBodyFrom(before);
-        // 옵션 · 가격 · 실측은 판매대기 상품에서만 바꿀 수 있어 판매중 상품은 셋 다 보내지 않는다
         body.put("options", null);
         body.put("prices", null);
         body.put("sizeSpecs", null);
@@ -69,7 +64,6 @@ class SellerProductDetailRoundTripApiTest {
         assertThat(after).isEqualTo(before);
     }
 
-    // 상세 응답에서 수정 요청이 받는 칸만 옮긴다. 옵션의 초기 재고는 판매 가능 수량으로 넣는다
     private static Map<String, Object> updateBodyFrom(Map<String, Object> detail) {
         Map<String, Object> body = new LinkedHashMap<>();
         for (String key : List.of("version", "name", "brand", "categoryId", "description", "thumbnailUrl",
@@ -93,7 +87,6 @@ class SellerProductDetailRoundTripApiTest {
         return (List<Map<String, Object>>) value;
     }
 
-    // 등록 API로 판매자 7의 판매대기 상품을 만든다
     private ProductRegisterResponse register(Map<String, Object> body) {
         return client.post().uri(PRODUCTS_PATH)
             .headers(TestMembers.seller(SELLER_ID))

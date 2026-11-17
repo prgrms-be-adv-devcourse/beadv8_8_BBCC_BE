@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
@@ -41,10 +42,6 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 판매자가 판매대기 상품의 판매를 시작하는 API를 HTTP 요청부터 응답까지 확인한다.
- * 상품은 등록 API로 판매대기로 만들고, 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @FunctionalTest
 class ProductSaleStartApiTest {
 
@@ -102,8 +99,6 @@ class ProductSaleStartApiTest {
         assertThat(events).singleElement().satisfies(event -> {
             assertThat(event.data().productId()).isEqualTo(Long.valueOf(productId));
             assertThat(event.data().status()).isEqualTo(ProductStatus.ON_SALE);
-            // 등록 요청의 초기 재고가 110은 10개, 120은 0개라 120만 품절이다.
-            // 권장 키는 DB에서 읽은 옵션과 실측의 사이즈 값이 같은 객체여야 채워지므로, 저장한 상품으로 다시 확인한다
             assertThat(event.data().options())
                 .extracting(ProductChangedEvent.Option::size, ProductChangedEvent.Option::minHeightCm,
                     ProductChangedEvent.Option::maxHeightCm, ProductChangedEvent.Option::soldOut,
@@ -118,7 +113,6 @@ class ProductSaleStartApiTest {
     void startSaleEventCarriesAttributeValues() {
         startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
 
-        // 항목은 지연 로딩이라, 판매 시작 트랜잭션 안에서 항목 코드와 값 ID를 읽는지 저장한 상품으로 확인한다
         ClothingOptions clothing = saved.clothing();
         ProductChangedEvent.Data data = eventRecorder.events(ProductChangedEvent.class).getFirst().data();
         assertThat(data.options()).satisfiesExactly(
@@ -137,7 +131,6 @@ class ProductSaleStartApiTest {
     void startSaleEventCarriesBrandDescriptionAndSizeSpecs() {
         startSale(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
 
-        // 실측은 JSONB로 저장했다가 판매 시작 트랜잭션에서 다시 읽은 값이다. 숫자 자릿수와 상관없이 값으로 비교한다
         ProductChangedEvent.Data data = eventRecorder.events(ProductChangedEvent.class).getFirst().data();
         assertThat(data.brand()).isEqualTo("키들리");
         assertThat(data.description()).isEqualTo("상품 설명");
@@ -192,7 +185,6 @@ class ProductSaleStartApiTest {
         assertThat(published.saleStartedAt()).isEqualTo(stored);
         JsonNode payloadData = jsonMapper.readTree(
             jdbcTemplate.queryForObject("select payload from product.product_outbox", String.class)).get("data");
-        // 본문은 Jackson 기본 형식이라 소수점 끝의 0 을 지운다(...59.90598). toString()(...59.905980)과 문자열로 비교하지 않고 시각으로 비교한다
         assertThat(LocalDateTime.parse(payloadData.get("saleStartedAt").asString())).isEqualTo(stored);
     }
 
@@ -248,7 +240,6 @@ class ProductSaleStartApiTest {
     @Test
     @DisplayName("SALE-03 판매 시작 조건을 채우지 못하면 빠진 항목을 적어 409로 거절하고, 상태는 판매대기로 남고 이벤트도 나가지 않는다")
     void rejectWhenSaleStartConditionNotMet() {
-        // 등록할 때 같은 검사를 하므로, 등록한 뒤 120 사이즈의 실측을 지워 조건을 못 채우게 한다
         jdbcTemplate.update("delete from product.size_spec where product_id = ? and attribute_value_id = "
             + "(select id from product.attribute_value where name = '120')", Long.valueOf(productId));
 
@@ -292,7 +283,6 @@ class ProductSaleStartApiTest {
     void concurrentStartSaleChangesOnce() throws Exception {
         int requestCount = 5;
         var login = TestMembers.seller(SELLER_ID);
-        // 모든 요청이 준비된 뒤 같은 순간에 출발하게 한다
         CountDownLatch ready = new CountDownLatch(requestCount);
         CountDownLatch go = new CountDownLatch(1);
         List<Callable<Integer>> requests = new ArrayList<>();
@@ -332,20 +322,10 @@ class ProductSaleStartApiTest {
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
-        response
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId + "/sale-status");
+        assertProblem(response, status, title, detail, PRODUCTS_PATH + "/" + productId + "/sale-status");
     }
 
-    // 등록 요청의 실측 값(총장 · 어깨너비 · 가슴단면 · 소매길이, cm)을 실측 항목 코드 맵으로 만든다
     private static Map<String, BigDecimal> measurements(int totalLength, int shoulderWidth, int chestWidth,
         int sleeveLength) {
         return Map.of(

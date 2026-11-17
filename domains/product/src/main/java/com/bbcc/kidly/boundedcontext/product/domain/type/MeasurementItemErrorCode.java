@@ -6,10 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
-/**
- * 실측 항목에서 생기는 업무 오류다.
- * 카테고리가 필수로 연결한 실측 항목을 지우려는 요청은 실측 항목의 현재 상태와 충돌하므로 409로 알린다.
- */
 @Getter
 @Accessors(fluent = true)
 @RequiredArgsConstructor

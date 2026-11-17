@@ -23,10 +23,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 차감 기록 리포지토리를 실제 DB로 확인한다. 리포지토리는 서비스 트랜잭션 안에서 불리므로, 테스트도 호출을 트랜잭션으로 감싼다.
- * 차감할 옵션은 ProductOptionSaver로 상품과 함께 저장한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class InventoryDeductionRepositoryIntegrationTest {
 

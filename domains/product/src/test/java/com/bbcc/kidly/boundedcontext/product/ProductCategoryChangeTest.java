@@ -22,9 +22,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * 상품을 고치면서 카테고리를 바꾸는 동작을 확인한다.
- */
 class ProductCategoryChangeTest {
 
     static Stream<Named<Function<ProductA, Category>>> otherCategories() {
@@ -41,7 +38,7 @@ class ProductCategoryChangeTest {
         ProductA productA = ProductUpdateFixture.onSaleProductA();
         List<ProductOption> optionsBefore = List.copyOf(productA.product().getOptions());
 
-        assertRejected(() -> productA.product().update(productA.updateWithCategory(newCategory.apply(productA))),
+        assertRejected(() -> productA.product().update(productA.updateWithCategory(newCategory.apply(productA)), null),
             ProductErrorCode.CATEGORY_CHANGE_NOT_ALLOWED);
         assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
         assertThat(productA.product().getOptions()).containsExactlyElementsOf(optionsBefore);
@@ -53,7 +50,7 @@ class ProductCategoryChangeTest {
     void rejectPendingCategoryChangeWithoutSaleInputs(Function<ProductA, Category> newCategory) {
         ProductA productA = ProductUpdateFixture.salePendingProductA();
 
-        assertRejected(() -> productA.product().update(productA.updateWithCategory(newCategory.apply(productA))),
+        assertRejected(() -> productA.product().update(productA.updateWithCategory(newCategory.apply(productA)), null),
             ProductErrorCode.SALE_INPUTS_REQUIRED_FOR_CATEGORY_CHANGE);
         assertThat(productA.product().getCategoryId()).isEqualTo(ProductUpdateFixture.TOP_ID);
     }

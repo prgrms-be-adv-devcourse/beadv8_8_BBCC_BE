@@ -7,7 +7,6 @@ import java.util.List;
 /**
  * 관리자가 말단 카테고리의 설정을 바꿀 때 보내는 요청이다. JSON의 문자열 ID("123")도 Long으로 받는다.
  *
- * @param productTypeId 바꿀 상품 유형 ID다
  * @param measurementItemIds 바꿀 필수 실측 항목 ID다. 넣은 순서가 실측 항목 순서가 된다. 없으면 빈 목록을 보낸다
  * @param visibleGender 바꿀 보일 성별이다. 보내지 않으면 지금 값을 그대로 둔다
  */

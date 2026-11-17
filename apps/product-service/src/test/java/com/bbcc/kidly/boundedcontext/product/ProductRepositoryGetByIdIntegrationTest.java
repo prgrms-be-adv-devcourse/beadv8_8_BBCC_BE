@@ -24,7 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 
 /**
- * 상품 도메인 리포지토리의 getById가 없는 ID에 그 대상의 404 오류를 던지는지 실제 PostgreSQL로 확인한다.
  * JpaRepository에도 같은 이름의 getById(프록시를 돌려줌)가 있어, Jpa 구현이 도메인 쪽 메서드를 고르는지 함께 확인한다.
  */
 @IntegrationTest

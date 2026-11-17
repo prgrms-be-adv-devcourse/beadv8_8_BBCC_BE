@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.product;
 
-import static com.bbcc.kidly.boundedcontext.product.ProductFixture.SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.OTHER_SELLER_ID;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.addOptions;
 import static com.bbcc.kidly.boundedcontext.product.ProductOptionFixture.assertRejected;
@@ -25,7 +24,6 @@ import com.bbcc.kidly.boundedcontext.product.domain.type.AttributeValue;
 import com.bbcc.kidly.boundedcontext.product.domain.type.Category;
 import com.bbcc.kidly.boundedcontext.product.domain.type.ProductType;
 import java.math.BigDecimal;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,7 +150,6 @@ class ProductSizeSpecTest {
     @DisplayName("SIZE-04 상품 카테고리에 없는 실측 항목은 받지 않는다")
     void rejectMeasurementItemNotInCategory() {
         withOptions110And120();
-        // 상의의 필수 실측 항목에 하의의 허리단면을 더한다
         Map<String, BigDecimal> withWaist = new HashMap<>(top110Measurements());
         withWaist.put("WAIST_WIDTH", new BigDecimal("25"));
 
@@ -165,7 +162,6 @@ class ProductSizeSpecTest {
     @Test
     @DisplayName("SIZE-06 사이즈 역할 항목이 없는 유형의 상품에는 실측을 받지 않는다")
     void rejectSizeSpecForTypeWithoutSizeRole() {
-        // 용기처럼 색상만 옵션 항목으로 두고 사이즈 역할 항목이 없는 유형이다
         Attribute color = ProductTypeFixture.color();
         AttributeValue navy = AttributeValue.create(color, "네이비", "#2f3e5c");
         ProductType container = ProductType.define("용기", List.of(ProductTypeFixture.requiredOption(color)));
@@ -208,19 +204,6 @@ class ProductSizeSpecTest {
         assertThat(product.getSizeSpecs()).isEmpty();
     }
 
-    @ParameterizedTest(name = "{0} ~ {1}")
-    @CsvSource({"0, 115", "-5, 115"})
-    @DisplayName("SIZE-03 권장 키가 0 이하이면 거절한다")
-    void rejectNonPositiveHeight(Integer minHeightCm, Integer maxHeightCm) {
-        withOptions110And120();
-
-        assertThatThrownBy(() -> product.addSizeSpecs(addSizeSpecs(List.of(
-            spec(clothing.size110(), minHeightCm, maxHeightCm, top110Measurements()))), top, clothing.type()))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("0보다 커야 합니다");
-        assertThat(product.getSizeSpecs()).isEmpty();
-    }
-
     @ParameterizedTest(name = "총장 {0}")
     @ValueSource(strings = {"0", "-1"})
     @DisplayName("SIZE-04 실측 값이 0 이하이면 거절한다")
@@ -249,38 +232,11 @@ class ProductSizeSpecTest {
         ClothingOptions clothing = clothingOptions();
         Category top = CategoryFixture.top(CategoryFixture.clothing(), clothing.type());
         ProductType type = clothing.type();
-        List<Product.SizeSpecInfo> specs = List.of(spec(clothing.size110(), 105, 115, top110Measurements()));
-        Map<String, BigDecimal> nullLength = new HashMap<>(top110Measurements());
-        nullLength.put("TOTAL_LENGTH", null);
         return Stream.of(
-            Named.of("요청", () -> productA(clothing).addSizeSpecs(null, top, type)),
-            Named.of("카테고리", () -> productA(clothing).addSizeSpecs(addSizeSpecs(specs), null, type)),
-            Named.of("상품 유형", () -> productA(clothing).addSizeSpecs(addSizeSpecs(specs), top, null)),
-            Named.of("판매자", () -> productA(clothing).addSizeSpecs(
-                new Product.AddSizeSpecsInfo(null, specs), top, type)),
-            Named.of("실측 목록", () -> productA(clothing).addSizeSpecs(
-                new Product.AddSizeSpecsInfo(SELLER_ID, null), top, type)),
-            Named.of("실측", () -> productA(clothing).addSizeSpecs(
-                addSizeSpecs(Arrays.asList((Product.SizeSpecInfo) null)), top, type)),
-            Named.of("사이즈 값", () -> productA(clothing).addSizeSpecs(
-                addSizeSpecs(List.of(spec(null, 105, 115, top110Measurements()))), top, type)),
             Named.of("실측 값 묶음", () -> productA(clothing).addSizeSpecs(
-                addSizeSpecs(List.of(spec(clothing.size110(), 105, 115, null))), top, type)),
-            Named.of("실측 값", () -> productA(clothing).addSizeSpecs(
-                addSizeSpecs(List.of(spec(clothing.size110(), 105, 115, nullLength))), top, type)));
+                addSizeSpecs(List.of(spec(clothing.size110(), 105, 115, null))), top, type)));
     }
 
-    @Test
-    @DisplayName("실측 목록이 비어 있으면 거절한다")
-    void rejectEmptySizeSpecs() {
-        withOptions110And120();
-
-        assertThatThrownBy(() -> product.addSizeSpecs(addSizeSpecs(List.of()), top, clothing.type()))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("비어 있을 수 없습니다");
-    }
-
-    // 상품 A에 네이비 110 · 120 옵션을 붙인다
     private void withOptions110And120() {
         product.addOptions(addOptions(List.of(
             option(clothing.navy(), clothing.size110()),

@@ -14,10 +14,6 @@ import org.assertj.core.groups.Tuple;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/**
- * 통합 테스트용: 재고 차감 결과를 DB에서 직접 읽고, 아직 기능이 없는 판매 중지 · 입고를 DB에서 직접 만든다.
- * 테스트 클래스패스의 컴포넌트 스캔에 잡혀 모든 통합 · 기능 테스트 컨텍스트에 똑같이 등록된다.
- */
 @Component
 class InventoryDeductionDb {
 
@@ -34,7 +30,6 @@ class InventoryDeductionDb {
             "select available_qty from product.inventory where product_option_id = ?", Integer.class, option.getId());
     }
 
-    // 차감 기록을 (주문 ID, 주문상품 ID, 옵션 ID, 수량, 상태)로 읽는다
     List<Tuple> records() {
         return jdbcTemplate.query(
             "select order_id, order_item_id, product_option_id, qty, status from product.inventory_deduction",
@@ -42,7 +37,6 @@ class InventoryDeductionDb {
                 rs.getLong("product_option_id"), rs.getInt("qty"), rs.getString("status")));
     }
 
-    // 한 주문의 차감 기록만 (주문 ID, 주문상품 ID, 옵션 ID, 수량, 상태)로 읽는다. 다른 테스트가 남긴 기록과 섞이지 않는다
     List<Tuple> records(long orderId) {
         return jdbcTemplate.query(
             "select order_id, order_item_id, product_option_id, qty, status from product.inventory_deduction"
@@ -56,14 +50,11 @@ class InventoryDeductionDb {
             "select count(*) from product.inventory_deduction where status = ?", Long.class, status);
     }
 
-    // 판매 중지 기능이 아직 없어서, 옵션이 속한 상품의 판매 상태를 DB에서 직접 판매중지로 바꾼다
     void stopSale(ProductOption option) {
         jdbcTemplate.update("update product.product set status = 'STOPPED'"
             + " where id = (select product_id from product.product_option where id = ?)", option.getId());
     }
 
-    // 재고 조정 기능이 아직 없어서, 입고를 DB에서 직접 만든다. 판매 가능 수량과 입고 기록을 함께 늘려,
-    // 판매 가능 수량 + 차감 수량이 재고 조정 기록 증감량 합과 같게 유지한다
     void restock(ProductOption option, int addedQty) {
         jdbcTemplate.update(
             "update product.inventory set available_qty = available_qty + ? where product_option_id = ?",
@@ -73,7 +64,6 @@ class InventoryDeductionDb {
             + " values (?, ?, 'RESTOCK', ?, now(), now())", option.getId(), addedQty, ProductFixture.SELLER_ID);
     }
 
-    // 옵션의 재고 행을 테스트가 연 트랜잭션에서 잠가 둔다. 차감 스레드들은 기존 기록 확인을 지난 뒤 차감 UPDATE에서 기다린다
     HeldLock lockInventoryRow(ProductOption option) throws SQLException {
         Connection connection = openTransaction();
         try (PreparedStatement statement = connection.prepareStatement(
@@ -84,8 +74,6 @@ class InventoryDeductionDb {
         return new HeldLock(connection);
     }
 
-    // 옵션이 속한 상품 행을 테스트가 연 트랜잭션에서 잠가 둔다.
-    // 재고를 바꿔 품절 여부가 바뀐 작업들은 상품 정보 변경됨을 보내기 전에 상품 행 잠금에서 기다린다
     HeldLock lockProductRow(ProductOption option) throws SQLException {
         Connection connection = openTransaction();
         try (PreparedStatement statement = connection.prepareStatement("select id from product.product"
@@ -96,8 +84,6 @@ class InventoryDeductionDb {
         return new HeldLock(connection);
     }
 
-    // 옵션이 속한 상품을 판매대기로 되돌려 커밋한 뒤, 테스트가 연 트랜잭션에서 판매중으로 바꾸고 커밋하지 않은 채 쥔다.
-    // 판매 시작이 상품 행을 바꾸고 아직 커밋하지 않은 때를 만든다. 닫으면 판매 시작이 커밋된다
     HeldLock holdUncommittedSaleStart(ProductOption option) throws SQLException {
         String changeStatus = "update product.product set status = ?"
             + " where id = (select product_id from product.product_option where id = ?)";
@@ -120,7 +106,6 @@ class InventoryDeductionDb {
         return new HeldLock(connection);
     }
 
-    // 잠금을 기다리는 DB 연결이 count개가 될 때까지 기다린다. 10초 안에 모이지 않으면 실패한다
     void awaitLockWaiters(int count) throws InterruptedException {
         long deadline = System.currentTimeMillis() + 10_000;
         while (System.currentTimeMillis() < deadline) {
@@ -140,7 +125,6 @@ class InventoryDeductionDb {
         return connection;
     }
 
-    // 테스트가 쥔 잠금이다. 닫으면 트랜잭션을 커밋해 잠금을 풀고 연결을 돌려준다
     static final class HeldLock implements AutoCloseable {
 
         private final Connection connection;
@@ -159,11 +143,6 @@ class InventoryDeductionDb {
         }
     }
 
-    /**
-     * 차감이 끝난 뒤 재고 불변식을 모든 옵션에서 확인한다.
-     * INV-02 판매 가능 수량 + DEDUCTED 수량 합 = 재고 조정 기록 증감량 합, INV-01 판매 가능 수량은 0 이상,
-     * INV-10 주문상품마다 차감 기록은 한 줄이다.
-     */
     void assertInvariants() {
         List<OptionStock> stocks = jdbcTemplate.query("""
             select i.product_option_id, i.available_qty,
@@ -183,7 +162,6 @@ class InventoryDeductionDb {
             + " group by order_item_id having count(*) > 1", Long.class)).as("INV-10 주문상품마다 기록 한 줄").isEmpty();
     }
 
-    // 옵션 하나의 판매 가능 수량, DEDUCTED 차감 수량 합, 재고 조정 기록 증감량 합이다
     private record OptionStock(long optionId, int availableQty, int deductedQty, int adjustedQty) {
     }
 }

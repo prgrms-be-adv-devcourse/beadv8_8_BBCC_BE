@@ -14,7 +14,6 @@ final class ProductTypeChangeCheck {
     private ProductTypeChangeCheck() {
     }
 
-    // 새 연결 목록이 기존 상품을 깨면 true를 돌려준다
     static boolean breaksProducts(ProductType type, List<ProductType.LinkInfo> links) {
         for (ProductTypeAttribute link : type.getAttributes()) {
             ProductType.LinkInfo info = findInfo(links, link.getAttribute());
@@ -31,15 +30,14 @@ final class ProductTypeChangeCheck {
         return reordersOptions(type.getAttributes(), links);
     }
 
-    // 옵션 항목끼리의 상대 순서가 바뀌었는지 본다. 정보 항목의 위치는 보지 않는다
     private static boolean reordersOptions(List<ProductTypeAttribute> current, List<ProductType.LinkInfo> links) {
-        List<Attribute> currentOptions = new ArrayList<>();
+        var currentOptions = new ArrayList<Attribute>();
         for (ProductTypeAttribute link : current) {
             if (link.getRole() == AttributeRole.OPTION) {
                 currentOptions.add(link.getAttribute());
             }
         }
-        List<Attribute> newOptions = new ArrayList<>();
+        var newOptions = new ArrayList<Attribute>();
         for (ProductType.LinkInfo info : links) {
             if (info.role() == AttributeRole.OPTION) {
                 newOptions.add(info.attribute());

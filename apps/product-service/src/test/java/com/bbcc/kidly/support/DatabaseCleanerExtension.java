@@ -12,11 +12,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-/**
- * 테스트마다 상품 스키마의 테이블을 비운다. 롤백 대신 커밋하므로 AFTER_COMMIT 이벤트 리스너도 실제처럼 실행된다.
- * 비우기 전에 @Async 작업(applicationTaskExecutor)이 끝나기를 기다린다. ID가 RESTART IDENTITY로 1부터 다시 시작하므로,
- * 이전 테스트의 비동기 작업이 늦게 돌면 다음 테스트의 같은 ID 행을 건드릴 수 있다.
- */
 class DatabaseCleanerExtension implements AfterEachCallback {
 
     private static final String FIND_TABLES = """
@@ -39,7 +34,6 @@ class DatabaseCleanerExtension implements AfterEachCallback {
         }
     }
 
-    // 실행 중인 작업 없음 + 큐 비어 있음. 제한 시간 안에 안 되면 실패한다(그래도 테이블은 비운다)
     private static void awaitAsyncIdle(ThreadPoolTaskExecutor executor) {
         long deadline = System.nanoTime() + ASYNC_TIMEOUT.toNanos();
         while (executor.getActiveCount() > 0 || !executor.getThreadPoolExecutor().getQueue().isEmpty()) {

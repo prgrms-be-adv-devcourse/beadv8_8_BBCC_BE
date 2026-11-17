@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-/** 재고 차감 테스트가 받을 주문 생성됨을 만든다. */
 final class OrderCreatedFixture {
 
     static final long MEMBER_ID = 1L;
