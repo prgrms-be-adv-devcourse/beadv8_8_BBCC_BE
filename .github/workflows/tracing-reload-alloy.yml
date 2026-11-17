@@ -29,8 +29,6 @@ jobs:
       - name: 전용 Alloy 설정 다시 읽기
         run: |
           set -euo pipefail
-          hour=$(TZ=Asia/Seoul date +%H)
-          (( 10#$hour >= 9 && 10#$hour < 18 )) || { echo 'Outside the operating window'; exit 1; }
           tar -C deploy/tracing-ops -cf - reload-alloy.sh app-alloy/otlp.alloy |
             ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 "deploy@$SSH_HOST" '
               set -eu
