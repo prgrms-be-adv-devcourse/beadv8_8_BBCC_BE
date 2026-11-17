@@ -19,7 +19,7 @@ public class FakeIdentityVerificationClient implements IdentityVerificationClien
 
     public static final String READY_ID = "ready";
     public static final String UNDERAGE_ID = "underage";
-    public static final LocalDateTime VERIFIED_AT = LocalDateTime.of(2026, 11, 5, 10, 49);
+    private static final LocalDateTime VERIFIED_AT = LocalDateTime.of(2026, 11, 5, 10, 49);
 
     @Override
     public VerifiedIdentity verify(String identityVerificationId) {

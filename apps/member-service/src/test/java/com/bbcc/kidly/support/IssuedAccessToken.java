@@ -1,8 +1,9 @@
 package com.bbcc.kidly.support;
 
+import com.bbcc.kidly.member.support.security.TestAdmins;
+import com.bbcc.kidly.member.support.security.TestChildren;
 import com.bbcc.kidly.member.support.security.TestMembers;
 import com.bbcc.kidly.shared.auth.AccessTokenClaims;
-import com.bbcc.kidly.shared.auth.PrincipalHeaders;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.Role;
 import java.io.IOException;
@@ -34,20 +35,18 @@ public record IssuedAccessToken(PrincipalId principal, String nickname, List<Rol
         var jwt = DECODER.decode(token);
         var roles = Optional.ofNullable(jwt.getClaimAsStringList(AccessTokenClaims.ROLES)).orElse(List.of())
             .stream().map(Role::valueOf).toList();
+        var guardianId = Optional.ofNullable((Number) jwt.getClaim(AccessTokenClaims.GUARDIAN_ID))
+            .map(Number::longValue)
+            .orElse(null);
         return new IssuedAccessToken(PrincipalId.parseSubject(jwt.getSubject()),
-            jwt.getClaimAsString(AccessTokenClaims.NICKNAME), roles, jwt.getExpiresAt(),
-            Optional.ofNullable((Number) jwt.getClaim(AccessTokenClaims.GUARDIAN_ID))
-                .map(Number::longValue).orElse(null));
+            jwt.getClaimAsString(AccessTokenClaims.NICKNAME), roles, jwt.getExpiresAt(), guardianId);
     }
 
     public Consumer<HttpHeaders> headers() {
         return switch (principal.type()) {
             case MEMBER -> TestMembers.of(principal.id(), nickname, roles.toArray(Role[]::new));
-            case ADMIN -> headers -> headers.set(PrincipalHeaders.ADMIN_ID, String.valueOf(principal.id()));
-            case CHILD -> headers -> {
-                headers.set(PrincipalHeaders.CHILD_ACCOUNT_ID, String.valueOf(principal.id()));
-                headers.set(PrincipalHeaders.CHILD_GUARDIAN_ID, String.valueOf(guardianId));
-            };
+            case ADMIN -> TestAdmins.of(principal.id());
+            case CHILD -> TestChildren.of(principal.id(), guardianId);
         };
     }
 

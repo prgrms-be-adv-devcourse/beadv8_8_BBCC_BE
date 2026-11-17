@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.member.app.MemberInitialDataService;
 import com.bbcc.kidly.boundedcontext.member.app.ShippingAddressService;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberStatus;
+import com.bbcc.kidly.shared.auth.Role;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.stream.LongStream;
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +34,7 @@ class MemberInitialDataServiceIntegrationTest {
             .mapToObj(id -> memberRepository.getById(id).getNickname())
             .toList();
         assertThat(nicknames).containsExactly("테스트보호자", "테스트판매자", "테스트관리자", "정지회원", "신청대기회원", "신청거절회원");
-        assertThat(memberRepository.getById(3L).roles()).containsExactly(com.bbcc.kidly.shared.auth.Role.BUYER);
+        assertThat(memberRepository.getById(3L).roles()).containsExactly(Role.BUYER);
         assertThat(memberRepository.getById(4L).getStatus()).isEqualTo(MemberStatus.SUSPENDED);
         assertThat(shippingAddressService.getAddresses(1L)).singleElement().satisfies(address -> {
             assertThat(address.id()).isEqualTo(1L);

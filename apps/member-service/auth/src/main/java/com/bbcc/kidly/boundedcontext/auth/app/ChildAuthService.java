@@ -55,7 +55,8 @@ public class ChildAuthService {
 
     private ChildAccount matchWithoutLock(ChildLoginRequest request) {
         var found = accounts.findByLoginId(request.loginId());
-        var matches = encoder.matches(request.password(), found.map(ChildAccount::getPasswordHash).orElse(dummyHash));
+        var passwordHash = found.map(ChildAccount::getPasswordHash).orElse(dummyHash);
+        var matches = encoder.matches(request.password(), passwordHash);
         if (found.isEmpty()) {
             throw rejected("unknown-login-id");
         }

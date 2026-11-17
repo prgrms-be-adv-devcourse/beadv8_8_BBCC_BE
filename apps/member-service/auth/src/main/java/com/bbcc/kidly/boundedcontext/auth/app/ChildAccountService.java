@@ -32,12 +32,15 @@ public class ChildAccountService {
 
     @Transactional(readOnly = true)
     public List<ChildAccountResult> list(Long guardianId) {
-        return accounts.findAllByGuardianIdOrderByIdAsc(guardianId).stream().map(ChildAccountResult::from).toList();
+        return accounts.findAllByGuardianIdOrderByIdAsc(guardianId).stream()
+            .map(ChildAccountResult::from)
+            .toList();
     }
 
     @Transactional
     public ChildAccountResult create(Long guardianId, ChildAccountCreateRequest request) {
-        replicas.findByIdForUpdate(request.childProfileId()).filter(r -> r.getGuardianId().equals(guardianId))
+        replicas.findByIdForUpdate(request.childProfileId())
+            .filter(replica -> replica.getGuardianId().equals(guardianId))
             .orElseThrow(() -> new BusinessException(AuthErrorCode.CHILD_PROFILE_NOT_FOUND));
         if (accounts.existsByChildProfileId(request.childProfileId())) {
             throw new BusinessException(AuthErrorCode.CHILD_ACCOUNT_ALREADY_EXISTS);
@@ -46,8 +49,8 @@ public class ChildAccountService {
             throw new BusinessException(AuthErrorCode.CHILD_LOGIN_ID_TAKEN);
         }
         var password = new ChildPassword(request.password());
-        var account = ChildAccount.create(request.loginId(), passwordEncoder.encode(password.value()), guardianId,
-            request.childProfileId());
+        var passwordHash = passwordEncoder.encode(password.value());
+        var account = ChildAccount.create(request.loginId(), passwordHash, guardianId, request.childProfileId());
         var saved = accounts.saveAccount(account);
         appendChange(saved, false);
         return ChildAccountResult.from(saved);
@@ -78,13 +81,14 @@ public class ChildAccountService {
     }
 
     private void appendChange(ChildAccount account, boolean deleted) {
-        outbox.append(new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new ChildAccountChangedEvent.Data(account.getId(), account.getChildProfileId(), account.getGuardianId(),
-                deleted)));
+        var data = new ChildAccountChangedEvent.Data(
+            account.getId(), account.getChildProfileId(), account.getGuardianId(), deleted);
+        outbox.append(new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.now(), data));
     }
 
     private ChildAccount ownedAccount(Long guardianId, Long accountId) {
-        return accounts.findByIdForUpdate(accountId).filter(a -> a.getGuardianId().equals(guardianId))
+        return accounts.findByIdForUpdate(accountId)
+            .filter(account -> account.getGuardianId().equals(guardianId))
             .orElseThrow(() -> new BusinessException(AuthErrorCode.CHILD_ACCOUNT_NOT_FOUND));
     }
 

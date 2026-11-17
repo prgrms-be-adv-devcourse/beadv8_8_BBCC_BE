@@ -20,6 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class ChildAuthController {
+
+    private static final String NO_STORE = CacheControl.noStore().getHeaderValue();
+
     private final ChildAuthService service;
     private final RefreshTokenCookies cookies;
     private final RefreshTokenProperties properties;
@@ -28,7 +31,7 @@ public class ChildAuthController {
     public LoginResponse login(@Valid @RequestBody ChildLoginRequest request, HttpServletResponse response) {
         var tokens = service.login(request);
         cookies.add(response, PrincipalType.CHILD, tokens.refreshToken(), properties.validity());
-        response.setHeader(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue());
+        response.setHeader(HttpHeaders.CACHE_CONTROL, NO_STORE);
         return new LoginResponse(tokens.accessToken());
     }
 
@@ -37,7 +40,7 @@ public class ChildAuthController {
         HttpServletResponse response) {
         var tokens = service.reissue(token);
         cookies.add(response, PrincipalType.CHILD, tokens.refreshToken(), properties.validity());
-        response.setHeader(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue());
+        response.setHeader(HttpHeaders.CACHE_CONTROL, NO_STORE);
         return new LoginResponse(tokens.accessToken());
     }
 

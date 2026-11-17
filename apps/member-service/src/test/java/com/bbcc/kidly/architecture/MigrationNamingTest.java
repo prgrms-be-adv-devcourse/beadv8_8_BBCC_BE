@@ -48,8 +48,12 @@ class MigrationNamingTest {
     void childProfileVersionsAreUnique() throws IOException {
         var names = migrationFileNames("childprofile-migration");
         assertThat(names).isNotEmpty().allMatch(name -> VERSIONED.matcher(name).matches());
-        assertThat(names.stream().map(VERSIONED::matcher).filter(Matcher::matches)
-            .map(matcher -> matcher.group(1)).toList()).doesNotHaveDuplicates();
+        var versions = names.stream()
+            .map(VERSIONED::matcher)
+            .filter(Matcher::matches)
+            .map(matcher -> matcher.group(1))
+            .toList();
+        assertThat(versions).doesNotHaveDuplicates();
     }
 
     private static List<String> migrationFileNames(String location) throws IOException {

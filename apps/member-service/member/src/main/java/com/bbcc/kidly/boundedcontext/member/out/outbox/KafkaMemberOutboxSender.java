@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.NestedExceptionUtils;
@@ -19,15 +20,11 @@ import org.springframework.kafka.core.KafkaTemplate;
  * 헤더는 eventType과 eventId 두 개만 붙인다.
  * 릴레이가 결과를 보고 보낸 기록이나 실패 기록을 남기므로, 브로커 응답을 sendTimeout까지 기다린다.
  */
+@RequiredArgsConstructor
 public class KafkaMemberOutboxSender implements MemberOutboxSender, DisposableBean {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final Duration sendTimeout;
-
-    public KafkaMemberOutboxSender(KafkaTemplate<String, String> kafkaTemplate, Duration sendTimeout) {
-        this.kafkaTemplate = kafkaTemplate;
-        this.sendTimeout = sendTimeout;
-    }
 
     @Override
     public void send(MemberOutboxMessage message) {

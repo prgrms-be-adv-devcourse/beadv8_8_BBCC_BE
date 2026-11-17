@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.member;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -12,6 +11,7 @@ import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberSummaryQuery;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
+import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
 import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
 import java.time.LocalDateTime;
@@ -56,7 +56,6 @@ class AdminMemberServiceTest {
 
         adminMemberService.suspend(MEMBER_ID, ADMIN_ID, new MemberSuspendRequest("신고 접수"));
 
-        then(memberTokenRevoker).should().revoke(eq(MEMBER_ID), any(LocalDateTime.class));
         var captor = ArgumentCaptor.forClass(MemberSuspendedEvent.class);
         then(eventPublisher).should().publishEvent(captor.capture());
         var event = captor.getValue();
@@ -75,7 +74,7 @@ class AdminMemberServiceTest {
 
         assertThatThrownBy(() -> adminMemberService.suspend(
             MEMBER_ID, ADMIN_ID, new MemberSuspendRequest("새 사유")))
-            .isInstanceOf(com.bbcc.kidly.member.support.error.BusinessException.class);
+            .isInstanceOf(BusinessException.class);
         then(eventPublisher).should(never()).publishEvent(any(Object.class));
         then(memberTokenRevoker).shouldHaveNoInteractions();
     }

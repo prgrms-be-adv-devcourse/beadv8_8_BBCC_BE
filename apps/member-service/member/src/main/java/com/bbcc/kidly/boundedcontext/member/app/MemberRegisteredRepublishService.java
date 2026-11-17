@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.member.app;
 
-import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import java.time.LocalDateTime;
@@ -26,13 +25,12 @@ public class MemberRegisteredRepublishService {
 
     @Transactional
     public int republishAll() {
-        int publishedCount = 0;
-        for (Member member : memberRepository.findByEmailIsNotNull()) {
+        var members = memberRepository.findByEmailIsNotNull();
+        for (var member : members) {
             eventPublisher.publishEvent(new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
                 new MemberRegisteredEvent.Data(member.getId(), member.getEmail(), true)));
-            publishedCount++;
         }
-        log.info("회원 가입 이벤트 다시 발행: publishedCount={}", publishedCount);
-        return publishedCount;
+        log.info("회원 가입 이벤트 다시 발행: publishedCount={}", members.size());
+        return members.size();
     }
 }

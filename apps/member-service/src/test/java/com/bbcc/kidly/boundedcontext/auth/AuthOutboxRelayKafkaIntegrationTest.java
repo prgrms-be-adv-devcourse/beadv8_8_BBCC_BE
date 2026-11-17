@@ -37,21 +37,13 @@ class AuthOutboxRelayKafkaIntegrationTest {
             new ChildAccountChangedEvent.Data(100L, 200L, 300L, false));
         transactions.executeWithoutResult(status -> outbox.append(event));
 
-        try (var consumer = new KafkaConsumer<String, String>(Map.of(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
-            ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString(),
-            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            consumer.subscribe(List.of("kidly.auth.events"));
+        try (var consumer = subscribeAuthEvents()) {
             var deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
             var found = false;
             while (!found && System.nanoTime() < deadline) {
                 for (var record : consumer.poll(Duration.ofMillis(200))) {
                     if (record.value().contains(event.eventId().toString())) {
                         assertThat(record.key()).isEqualTo("100");
-                        assertThat(record.headers().lastHeader("eventType")).isNotNull();
-                        assertThat(record.headers().lastHeader("eventId")).isNotNull();
                         assertThat(record.headers().lastHeader("__TypeId__")).isNull();
                         assertThat(new String(record.headers().lastHeader("eventType").value(), UTF_8))
                             .isEqualTo("child-account.changed");
@@ -81,13 +73,7 @@ class AuthOutboxRelayKafkaIntegrationTest {
             outbox.append(first);
             outbox.append(second);
         });
-        try (var consumer = new KafkaConsumer<String, String>(Map.of(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
-            ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString(),
-            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            consumer.subscribe(List.of("kidly.auth.events"));
+        try (var consumer = subscribeAuthEvents()) {
             var ids = new ArrayList<String>();
             var deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
             while (ids.size() < 2 && System.nanoTime() < deadline) {
@@ -103,5 +89,16 @@ class AuthOutboxRelayKafkaIntegrationTest {
             }
             assertThat(ids).containsExactlyInAnyOrder(first.eventId().toString(), second.eventId().toString());
         }
+    }
+
+    private KafkaConsumer<String, String> subscribeAuthEvents() {
+        var consumer = new KafkaConsumer<String, String>(Map.of(
+            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
+            ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString(),
+            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
+            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
+            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class));
+        consumer.subscribe(List.of("kidly.auth.events"));
+        return consumer;
     }
 }

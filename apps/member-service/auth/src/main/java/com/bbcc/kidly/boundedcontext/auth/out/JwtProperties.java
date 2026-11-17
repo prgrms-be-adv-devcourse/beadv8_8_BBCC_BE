@@ -27,7 +27,7 @@ public record JwtProperties(Resource publicKey, Resource privateKey, Duration ac
     }
 
     private static <T> T read(Resource resource, Converter<InputStream, T> converter) {
-        try (InputStream inputStream = resource.getInputStream()) {
+        try (var inputStream = resource.getInputStream()) {
             return converter.convert(inputStream);
         } catch (IOException e) {
             throw new UncheckedIOException("JWT 키를 읽지 못했습니다: " + resource, e);

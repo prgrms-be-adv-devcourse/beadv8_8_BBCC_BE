@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.seller.app;
 
-import com.bbcc.kidly.boundedcontext.seller.domain.Seller;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
@@ -26,13 +25,12 @@ public class SellerChangedRepublishService {
     // 활성 · 정지 판매자 모두 보낸다. 받는 쪽 복사본이 정지 상태까지 맞아야 한다
     @Transactional
     public int republishAll() {
-        int publishedCount = 0;
-        for (Seller seller : sellerRepository.findAll()) {
+        var sellers = sellerRepository.findAll();
+        for (var seller : sellers) {
             eventPublisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
                 new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
-            publishedCount++;
         }
-        log.info("판매자 변경 이벤트 다시 발행: publishedCount={}", publishedCount);
-        return publishedCount;
+        log.info("판매자 변경 이벤트 다시 발행: publishedCount={}", sellers.size());
+        return sellers.size();
     }
 }

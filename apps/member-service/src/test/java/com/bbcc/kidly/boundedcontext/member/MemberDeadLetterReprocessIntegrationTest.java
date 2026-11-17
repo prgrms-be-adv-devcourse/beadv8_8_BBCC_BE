@@ -46,8 +46,8 @@ class MemberDeadLetterReprocessIntegrationTest {
     @DisplayName("두 관리자가 동시에 재처리해도 처리기는 한 번만 돌고 둘 다 REPROCESSED를 받는다")
     void reprocessesOnceConcurrently(CapturedOutput output) throws Exception {
         shippingAddressRepository.save(ShippingAddressFixture.address(MEMBER_ID));
-        var payload = jsonMapper.writeValueAsString(new MemberWithdrawnEvent(UUID.randomUUID(), MemberFixture.NOW, new
-            MemberWithdrawnEvent.Data(MEMBER_ID)));
+        var payload = jsonMapper.writeValueAsString(new MemberWithdrawnEvent(UUID.randomUUID(), MemberFixture.NOW,
+            new MemberWithdrawnEvent.Data(MEMBER_ID)));
         var id = deadLetterRepository.save(new MemberDeadLetterMessage("kidly.member.events.member.dlt", 0, 1L,
             "kidly.member.events", 0, 1L, String.valueOf(MEMBER_ID), "member.withdrawn", UUID.randomUUID().toString(),
             payload, "tools.jackson.core.JacksonException").toDeadLetter()).getId();

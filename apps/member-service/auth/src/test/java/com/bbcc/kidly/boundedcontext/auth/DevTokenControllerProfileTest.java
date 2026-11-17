@@ -7,6 +7,8 @@ import com.bbcc.kidly.boundedcontext.auth.app.DevTokenService;
 import com.bbcc.kidly.boundedcontext.auth.in.DevTokenController;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class DevTokenControllerProfileTest {
@@ -15,24 +17,11 @@ class DevTokenControllerProfileTest {
         .withBean(DevTokenService.class, () -> mock(DevTokenService.class))
         .withUserConfiguration(DevTokenController.class);
 
-    @Test
-    @DisplayName("local 프로필에서는 테스트 토큰 API가 등록된다")
-    void registeredInLocal() {
-        runner.withPropertyValues("spring.profiles.active=local")
-            .run(context -> assertThat(context).hasSingleBean(DevTokenController.class));
-    }
-
-    @Test
-    @DisplayName("test 프로필에서는 테스트 토큰 API가 등록된다")
-    void registeredInTest() {
-        runner.withPropertyValues("spring.profiles.active=test")
-            .run(context -> assertThat(context).hasSingleBean(DevTokenController.class));
-    }
-
-    @Test
-    @DisplayName("dev 서버(dev 프로필)에서는 테스트 토큰 API가 등록된다")
-    void registeredInDev() {
-        runner.withPropertyValues("spring.profiles.active=dev")
+    @ParameterizedTest
+    @ValueSource(strings = {"local", "test", "dev"})
+    @DisplayName("local · test · dev 프로필에서는 테스트 토큰 API가 등록된다")
+    void registeredInDevelopmentProfiles(String profile) {
+        runner.withPropertyValues("spring.profiles.active=" + profile)
             .run(context -> assertThat(context).hasSingleBean(DevTokenController.class));
     }
 

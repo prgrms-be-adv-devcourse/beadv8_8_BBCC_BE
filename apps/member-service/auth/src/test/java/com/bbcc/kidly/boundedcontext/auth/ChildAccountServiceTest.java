@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,14 +52,14 @@ class ChildAccountServiceTest {
     void resetRejectsMissingOrOtherGuardianAndInvalidPassword() {
         assertThatThrownBy(() -> service.resetPassword(2L, 1L, "password"))
             .isInstanceOfSatisfying(BusinessException.class,
-                e -> org.assertj.core.api.Assertions.assertThat(e.getErrorCode())
+                e -> assertThat(e.getErrorCode())
                     .isEqualTo(AuthErrorCode.CHILD_ACCOUNT_NOT_FOUND));
         when(accounts.findByIdForUpdate(1L)).thenReturn(Optional.of(ChildAccount.create("child", "hash", 3L, 4L)));
         assertThatThrownBy(() -> service.resetPassword(2L, 1L, "password"))
             .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.resetPassword(3L, 1L, "short"))
             .isInstanceOfSatisfying(BusinessException.class,
-                e -> org.assertj.core.api.Assertions.assertThat(e.getErrorCode())
+                e -> assertThat(e.getErrorCode())
                     .isEqualTo(AuthErrorCode.INVALID_CHILD_PASSWORD));
     }
 }

@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.childprofile;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
@@ -16,30 +15,16 @@ import com.bbcc.kidly.shared.member.event.MemberSuspendedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
+import com.bbcc.kidly.support.KafkaMessages;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -97,10 +82,12 @@ class ChildProfileMemberEventKafkaIntegrationTest {
     private final Long otherMemberId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
 
     private MessageListenerContainer listener;
+    private KafkaMessages messages;
 
     // 읽기 시작 위치가 latest라 파티션을 배정받기 전에 보낸 메시지는 받지 못한다
     @BeforeEach
     void startListener() {
+        messages = new KafkaMessages(kafka.getBootstrapServers(), jsonMapper);
         verifications.save(GuardianVerificationFixture.verification(memberId));
         verifications.save(GuardianVerificationFixture.verification(otherMemberId));
         listener = kafkaListenerEndpointRegistry.getListenerContainer(LISTENER_ID);
@@ -154,10 +141,10 @@ class ChildProfileMemberEventKafkaIntegrationTest {
 
         // 회원 릴레이가 보낸 뒤 보낸 기록을 남기기 전에 멈추면 같은 메시지를 한 번 더 보낸다
         send(event);
-        send(event);
+        var second = send(event);
 
         // 두 번째에는 지울 자녀가 없어 결과가 바뀌지 않으므로, 그룹이 두 번째 메시지까지 처리 완료를 표시할 때까지 기다린다
-        awaitProcessed(event.eventId());
+        messages.awaitProcessed(GROUP, TOPIC, second);
         assertThat(childrenOf(memberId)).isEmpty();
         assertThat(childrenOf(otherMemberId)).extracting(ChildProfile::getId).containsExactly(other);
         assertThat(deadLetters()).isEmpty();
@@ -202,18 +189,8 @@ class ChildProfileMemberEventKafkaIntegrationTest {
         return childProfileRepository.findAllByMemberId(memberId);
     }
 
-    // 회원이 보내는 형식 그대로 넣는다. 키는 correlationId(회원 ID)다
-    private void send(DomainEvent event) throws Exception {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body));
+    private RecordMetadata send(DomainEvent event) throws Exception {
+        return messages.send(TOPIC, event);
     }
 
     private MemberWithdrawnEvent memberWithdrawn() {
@@ -221,71 +198,12 @@ class ChildProfileMemberEventKafkaIntegrationTest {
             new MemberWithdrawnEvent.Data(memberId));
     }
 
-    // 회원은 보낸 순서대로 같은 파티션에 넣는다. 이 eventId 메시지 두 건이 토픽에 들어온 뒤, 그룹의 처리 완료 위치가 뒤의 것을 지나기를 기다린다
-    private void awaitProcessed(UUID eventId) {
-        AsyncWait.until(TIMEOUT, () -> recordsOf(eventId).size() == 2);
-        var last = recordsOf(eventId).getLast();
-        var partition = new TopicPartition(TOPIC, last.partition());
-        AsyncWait.until(TIMEOUT, () -> committedOffset(partition) > last.offset());
-    }
-
-    private long committedOffset(TopicPartition partition) {
-        try (var admin = Admin.create(Map.<String, Object>of(
-            AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers()))) {
-            OffsetAndMetadata committed = admin.listConsumerGroupOffsets(GROUP).partitionsToOffsetAndMetadata()
-                .get(10, TimeUnit.SECONDS).get(partition);
-            return committed == null ? -1 : committed.offset();
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     // 메시지를 이 테스트의 회원 ID 키로 직접 넣는다. 회원이 보내지 않는 메시지(다른 종류 · 깨진 본문)도 넣는다
     private RecordMetadata sendRaw(String eventType, UUID eventId, String body) throws Exception {
-        var record = new ProducerRecord<>(TOPIC, String.valueOf(memberId), body);
-        record.headers().add("eventId", eventId.toString().getBytes(UTF_8));
-        record.headers().add("eventType", eventType.getBytes(UTF_8));
-        try (var producer = new KafkaProducer<String, String>(Map.of(
-            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
-            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
-            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class))) {
-            return producer.send(record).get(10, TimeUnit.SECONDS);
-        }
+        return messages.sendRaw(TOPIC, String.valueOf(memberId), eventType, eventId, body);
     }
 
-    // 토픽을 처음부터 지금 끝까지 읽어 이 eventId 헤더를 단 메시지만 offset 순으로 돌려준다
-    private List<ConsumerRecord<String, String>> recordsOf(UUID eventId) {
-        return readAll(TOPIC).stream()
-            .filter(record -> eventId.toString().equals(header(record, "eventId")))
-            .toList();
-    }
-
-    // DLT를 처음부터 지금 끝까지 읽어 이 테스트의 키만 돌려준다. 다른 테스트가 넣은 DLT 메시지도 있다
     private List<ConsumerRecord<String, String>> deadLetters() {
-        return readAll(DLT).stream().filter(record -> String.valueOf(memberId).equals(record.key())).toList();
-    }
-
-    private List<ConsumerRecord<String, String>> readAll(String topic) {
-        try (var consumer = new KafkaConsumer<String, String>(Map.of(
-            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
-            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
-            var partitions = consumer.partitionsFor(topic).stream()
-                .map(info -> new TopicPartition(topic, info.partition()))
-                .toList();
-            consumer.assign(partitions);
-            consumer.seekToBeginning(partitions);
-            var ends = consumer.endOffsets(partitions);
-            var records = new ArrayList<ConsumerRecord<String, String>>();
-            while (partitions.stream().anyMatch(partition -> consumer.position(partition) < ends.get(partition))) {
-                consumer.poll(Duration.ofMillis(200)).forEach(records::add);
-            }
-            return records;
-        }
-    }
-
-    private static String header(ConsumerRecord<String, String> record, String name) {
-        var header = record.headers().lastHeader(name);
-        return header == null ? null : new String(header.value(), UTF_8);
+        return messages.deadLetters(DLT, String.valueOf(memberId));
     }
 }

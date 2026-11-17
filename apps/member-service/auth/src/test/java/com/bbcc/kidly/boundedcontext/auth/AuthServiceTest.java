@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.inOrder;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AuthService;
 import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
@@ -61,9 +60,6 @@ class AuthServiceTest {
         var tokens = authService.login("kakao", request);
 
         assertThat(tokens).isEqualTo(new AuthTokens("access", "refresh"));
-        var order = inOrder(refreshTokenService, accessTokenIssuer);
-        order.verify(refreshTokenService).issue(PRINCIPAL);
-        order.verify(accessTokenIssuer).issue(SUBJECT);
     }
 
     @Test

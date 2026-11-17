@@ -38,7 +38,6 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
@@ -67,9 +66,6 @@ import tools.jackson.databind.json.JsonMapper;
 @ExtendWith(OutputCaptureExtension.class)
 class MemberSellerEventKafkaIntegrationTest {
 
-    @Autowired
-    private AuthEventOutbox authEventOutbox;
-
     private static final String TOPIC = "kidly.seller.events";
     private static final String AUTH_TOPIC = "kidly.auth.events";
     private static final String GROUP = "kidly.member";
@@ -92,6 +88,9 @@ class MemberSellerEventKafkaIntegrationTest {
 
     @Autowired
     private AccessTokenIssuer accessTokenIssuer;
+
+    @Autowired
+    private AuthEventOutbox authEventOutbox;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -330,7 +329,7 @@ class MemberSellerEventKafkaIntegrationTest {
     }
 
     private static String header(ConsumerRecord<String, String> record, String name) {
-        Header header = record.headers().lastHeader(name);
+        var header = record.headers().lastHeader(name);
         return header == null ? null : new String(header.value(), UTF_8);
     }
 

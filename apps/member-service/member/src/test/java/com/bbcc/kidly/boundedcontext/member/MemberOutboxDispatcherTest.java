@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.member;
 
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxDispatcher;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -10,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxDispatcher;
 import com.bbcc.kidly.boundedcontext.member.app.port.outbox.MemberOutboxSendException;
 import com.bbcc.kidly.boundedcontext.member.app.port.outbox.MemberOutboxSender;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;

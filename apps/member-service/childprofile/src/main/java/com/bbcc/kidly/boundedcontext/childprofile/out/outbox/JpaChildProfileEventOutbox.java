@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.childprofile.out.outbox;
 import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileEventOutbox;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
 import com.bbcc.kidly.shared.event.DomainEvent;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 @Component
+@RequiredArgsConstructor
 public class JpaChildProfileEventOutbox implements ChildProfileEventOutbox {
 
     static final String TOPIC = "kidly.childprofile.events";
@@ -17,13 +19,6 @@ public class JpaChildProfileEventOutbox implements ChildProfileEventOutbox {
     private final JpaChildProfileOutboxRepository outboxRepository;
     private final JsonMapper jsonMapper;
     private final ApplicationEventPublisher eventPublisher;
-
-    public JpaChildProfileEventOutbox(JpaChildProfileOutboxRepository outboxRepository, JsonMapper jsonMapper,
-                                      ApplicationEventPublisher eventPublisher) {
-        this.outboxRepository = outboxRepository;
-        this.jsonMapper = jsonMapper;
-        this.eventPublisher = eventPublisher;
-    }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)

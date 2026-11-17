@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.childprofile.app;
 
-import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfile;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import java.time.LocalDateTime;
@@ -28,15 +27,14 @@ public class ChildChangedRepublishService {
     // Kafka로는 이 트랜잭션 커밋 직전 아웃박스에 저장된 뒤 릴레이가 보낸다(ChildProfileOutboxRecorder)
     @Transactional
     public int republishAll() {
-        int publishedCount = 0;
-        for (ChildProfile child : childProfileRepository.findAll()) {
+        var children = childProfileRepository.findAll();
+        for (var child : children) {
             eventPublisher.publishEvent(new ChildChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
                 new ChildChangedEvent.Data(child.getId(), child.getMemberId(), child.getHeightCm(),
                     child.getWeightKg(), child.getGender(), child.getBirthDate(), child.getBodyType(),
                     child.getPreferredFit(), false)));
-            publishedCount++;
         }
-        log.info("자녀 변경 이벤트 다시 발행: publishedCount={}", publishedCount);
-        return publishedCount;
+        log.info("자녀 변경 이벤트 다시 발행: publishedCount={}", children.size());
+        return children.size();
     }
 }

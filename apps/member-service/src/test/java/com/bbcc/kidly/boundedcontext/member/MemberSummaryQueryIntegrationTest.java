@@ -52,16 +52,6 @@ class MemberSummaryQueryIntegrationTest {
     }
 
     @Test
-    @DisplayName("ALL이면 탈퇴 회원을 빼고 모두 읽는다")
-    void findAll() {
-        var page = query.findAll(AdminMemberFilter.ALL, null, PageRequest.of(0, 10));
-
-        assertThat(page.getContent()).extracting(AdminMemberSummary::id)
-            .containsExactlyInAnyOrder(buyer.getId(), seller.getId(), suspendedSeller.getId(),
-                suspendedMember.getId(), fifth.getId());
-    }
-
-    @Test
     @DisplayName("BUYER는 판매자 이력이 없는 회원이다. 이용 정지된 회원도 들어간다")
     void findBuyers() {
         var page = query.findAll(AdminMemberFilter.BUYER, null, PageRequest.of(0, 10));

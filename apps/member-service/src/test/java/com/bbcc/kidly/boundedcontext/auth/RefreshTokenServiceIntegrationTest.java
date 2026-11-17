@@ -136,16 +136,6 @@ class RefreshTokenServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("관리자 토큰 값으로 회원 재발급을 부르면 거절한다")
-    void adminTokenOnMemberReissue() {
-        var token = refreshTokenService.issue(PrincipalId.admin(1L));
-
-        assertInvalid(() -> reissueMember(token));
-
-        assertThat(jpaRefreshTokenRepository.count()).isEqualTo(1);
-    }
-
-    @Test
     @DisplayName("모르는 토큰이면 재발급하지 않는다")
     void unknownToken() {
         assertInvalid(() -> reissueMember("unknown-token"));

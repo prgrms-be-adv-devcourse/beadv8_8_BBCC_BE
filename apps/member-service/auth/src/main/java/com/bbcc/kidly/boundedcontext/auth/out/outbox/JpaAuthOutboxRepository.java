@@ -10,9 +10,6 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface JpaAuthOutboxRepository extends JpaRepository<AuthOutboxMessage, Long>, AuthOutboxRepository {
     @Override
-    AuthOutboxMessage save(AuthOutboxMessage message);
-
-    @Override
     @Query(value = "select pg_try_advisory_xact_lock(hashtext('kidly.auth.outbox-relay'))", nativeQuery = true)
     boolean tryLockRelay();
 

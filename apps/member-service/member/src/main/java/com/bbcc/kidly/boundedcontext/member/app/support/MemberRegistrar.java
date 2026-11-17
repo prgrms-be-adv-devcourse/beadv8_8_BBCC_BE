@@ -8,7 +8,6 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
-
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +27,7 @@ public class MemberRegistrar {
     public Member register(MemberRegisterInfo info) {
         var now = LocalDateTime.now();
 
-        Member member = memberRepository.save(Member.register(info));
+        var member = memberRepository.save(Member.register(info));
 
         eventPublisher.publishEvent(new MemberRegisteredEvent(
             UUID.randomUUID(),

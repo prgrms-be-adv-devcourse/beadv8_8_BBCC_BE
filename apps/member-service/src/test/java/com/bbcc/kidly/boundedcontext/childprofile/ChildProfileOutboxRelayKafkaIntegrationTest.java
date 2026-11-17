@@ -188,7 +188,7 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     }
 
     private static String header(ConsumerRecord<String, String> record, String name) {
-        Header header = record.headers().lastHeader(name);
+        var header = record.headers().lastHeader(name);
         return header == null ? null : new String(header.value(), UTF_8);
     }
 }

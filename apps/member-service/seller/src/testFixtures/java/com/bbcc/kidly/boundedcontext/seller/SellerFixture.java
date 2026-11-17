@@ -20,13 +20,9 @@ public final class SellerFixture {
     private SellerFixture() {
     }
 
-    public static SellerApplicationSubmitInfo submitInfo(Long applicantId) {
-        return new SellerApplicationSubmitInfo(applicantId, APPLICANT_NICKNAME, BUSINESS_NAME,
-            REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER);
-    }
-
     public static SellerApplication application(Long applicantId) {
-        return SellerApplication.submit(submitInfo(applicantId));
+        return SellerApplication.submit(new SellerApplicationSubmitInfo(applicantId, APPLICANT_NICKNAME,
+            BUSINESS_NAME, REPRESENTATIVE_NAME, BUSINESS_REGISTRATION_NUMBER));
     }
 
     public static SellerApplication approvedApplication(Long applicantId) {

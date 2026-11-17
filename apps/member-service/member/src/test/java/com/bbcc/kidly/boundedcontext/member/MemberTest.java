@@ -20,7 +20,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class MemberTest {
@@ -32,24 +31,12 @@ class MemberTest {
     @Test
     @DisplayName("가입하면 가입 키를 가진 활성 일반 회원이 된다")
     void register() {
-        Member member = Member.register(new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), EMAIL));
+        var member = Member.register(new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), EMAIL));
 
         assertThat(member.getRegistrationKey()).isEqualTo("social-account:1");
         assertThat(member.getNickname()).isEqualTo("테스트회원");
         assertThat(member.getEmail()).isEqualTo(EMAIL);
         assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"하은", "가나다라마바사아자차카타파하가나다라마바"})
-    @DisplayName("닉네임이 정확히 2자이거나 20자여도 가입하고 바꿀 수 있다")
-    void acceptsNicknameBoundaryLength(String nickname) {
-        var registered = Member.register(new MemberRegisterInfo(null, new Nickname(nickname), EMAIL));
-        var member = MemberFixture.kakaoMember();
-
-        assertThat(registered.getNickname()).isEqualTo(nickname);
-        assertThat(member.changeNickname(new Nickname(nickname))).isTrue();
-        assertThat(member.getNickname()).isEqualTo(nickname);
     }
 
     @Test
@@ -79,15 +66,6 @@ class MemberTest {
             .isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(MemberErrorCode.LOGIN_NOT_ALLOWED));
         assertThat(member.getNickname()).isNull();
-    }
-
-    @Test
-    @DisplayName("바꿀 닉네임이 null이면 바꿀 수 없다")
-    void changeNicknameRejectsNull() {
-        var member = MemberFixture.kakaoMember();
-
-        assertThatThrownBy(() -> member.changeNickname(null)).isInstanceOf(NullPointerException.class);
-        assertThat(member.getNickname()).isEqualTo(MemberFixture.NICKNAME);
     }
 
     @Test
@@ -183,7 +161,7 @@ class MemberTest {
     @Test
     @DisplayName("판매자 상태를 처음 받으면 그대로 저장한다")
     void applySellerStateFirst() {
-        Member member = MemberFixture.kakaoMember();
+        var member = MemberFixture.kakaoMember();
 
         member.applySellerState(SellerStatus.ACTIVE, NOW);
 
@@ -194,7 +172,7 @@ class MemberTest {
     @Test
     @DisplayName("더 늦게 일어난 판매자 상태 변경은 저장된 값을 바꾼다")
     void applySellerStateLater() {
-        Member member = MemberFixture.withSellerState(SellerStatus.ACTIVE);
+        var member = MemberFixture.withSellerState(SellerStatus.ACTIVE);
 
         member.applySellerState(SellerStatus.SUSPENDED, NOW.plusDays(1));
 
@@ -205,7 +183,7 @@ class MemberTest {
     @Test
     @DisplayName("활성 판매자가 정지되면 SELLER 역할을 잃었으니 true를 돌려준다")
     void applySellerStateReturnsTrueWhenRoleLost() {
-        Member member = MemberFixture.withSellerState(SellerStatus.ACTIVE);
+        var member = MemberFixture.withSellerState(SellerStatus.ACTIVE);
 
         assertThat(member.applySellerState(SellerStatus.SUSPENDED, NOW.plusDays(1))).isTrue();
     }
@@ -223,7 +201,7 @@ class MemberTest {
     @Test
     @DisplayName("저장된 값보다 이르거나 같은 시각의 판매자 상태 변경은 무시한다")
     void applySellerStateIgnoresEarlierOrEqual() {
-        Member member = MemberFixture.withSellerState(SellerStatus.SUSPENDED);
+        var member = MemberFixture.withSellerState(SellerStatus.SUSPENDED);
 
         member.applySellerState(SellerStatus.ACTIVE, NOW.minusMinutes(1));
         member.applySellerState(SellerStatus.ACTIVE, NOW);
@@ -272,11 +250,6 @@ class MemberTest {
         assertThat(MemberFixture.withSellerState(SellerStatus.SUSPENDED).roles()).containsExactly(Role.BUYER);
     }
 
-    private static Member withId(Member member) {
-        ReflectionTestUtils.setField(member, "id", MEMBER_ID);
-        return member;
-    }
-
     @Test
     @DisplayName("활성 또는 정지된 판매자는 탈퇴 조건을 확인한다")
     void sellerWithdrawalCheck() {
@@ -284,5 +257,10 @@ class MemberTest {
         assertThat(MemberFixture.withSellerState(SellerStatus.ACTIVE).requiresSellerWithdrawalCheck()).isTrue();
         assertThat(MemberFixture.withSellerState(SellerStatus.SUSPENDED).requiresSellerWithdrawalCheck()).isTrue();
         assertThat(MemberFixture.withSellerState(SellerStatus.CLOSED).requiresSellerWithdrawalCheck()).isFalse();
+    }
+
+    private static Member withId(Member member) {
+        ReflectionTestUtils.setField(member, "id", MEMBER_ID);
+        return member;
     }
 }

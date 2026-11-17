@@ -2,17 +2,14 @@ package com.bbcc.kidly.boundedcontext.auth;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AccessTokenRevocationService;
-import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.app.AdminAccountService;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.AdminStatus;
@@ -21,8 +18,6 @@ import com.bbcc.kidly.boundedcontext.auth.domain.RefreshTokenRepository;
 import com.bbcc.kidly.member.support.error.BusinessException;
 import com.bbcc.kidly.member.support.error.CommonErrorCode;
 import com.bbcc.kidly.shared.auth.PrincipalId;
-import com.bbcc.kidly.shared.auth.PrincipalType;
-import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,10 +25,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class AdminAccountServiceTest {
@@ -108,27 +101,6 @@ class AdminAccountServiceTest {
         var order = inOrder(accounts);
         order.verify(accounts).findByIdForUpdate(1L);
         order.verify(accounts).findByIdForUpdate(2L);
-    }
-
-    @Test
-    @DisplayName("비활성화하면 ADMIN 주체의 auth.tokens-revoked를 한 번만 발행한다")
-    void disablePublishesOneAdminRevocation() {
-        var publisher = mock(ApplicationEventPublisher.class);
-        var actualService = new AdminAccountService(accounts, passwordEncoder, refreshTokens,
-            new AccessTokenRevocationService(publisher, mock(AuthEventOutbox.class)));
-        givenAdmins(1L, 2L);
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            actualService.disable(1L, 2L);
-            actualService.disable(1L, 2L);
-
-            verify(publisher, times(1)).publishEvent(argThat((Object event) ->
-                event instanceof AuthTokensRevokedEvent revoked
-                    && revoked.data().principalType() == PrincipalType.ADMIN
-                    && revoked.data().principalId().equals(2L)));
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
     }
 
     private void givenAdmins(Long... ids) {

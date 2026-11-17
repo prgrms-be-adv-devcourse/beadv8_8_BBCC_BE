@@ -52,8 +52,8 @@ public class SellerApplicationService {
             applicantId, SellerApplicationStatus.PENDING)) {
             throw new BusinessException(SellerErrorCode.APPLICATION_ALREADY_PENDING);
         }
-        var application = sellerApplicationRepository.save(
-            SellerApplication.submit(request.toSubmitInfo(applicantId, applicantNickname)));
+        var submitInfo = request.toSubmitInfo(applicantId, applicantNickname);
+        var application = sellerApplicationRepository.save(SellerApplication.submit(submitInfo));
         log.info("판매자 신청: applicationId={} applicantId={}", application.getId(), applicantId);
         return SellerApplicationResult.from(application);
     }

@@ -4,11 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
-import com.bbcc.kidly.boundedcontext.member.domain.Member;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
-import com.bbcc.kidly.boundedcontext.member.out.JpaMemberRepository;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
@@ -29,15 +27,12 @@ class MemberRegistrarIntegrationTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private JpaMemberRepository jpaMemberRepository;
-
-    @Autowired
     private ApplicationEvents events;
 
     @Test
     @DisplayName("가입하면 회원을 저장하고 가입 이벤트를 발행한다")
     void register() {
-        Member member = memberRegistrar.register(
+        var member = memberRegistrar.register(
             new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), MemberFixture.EMAIL));
 
         assertThat(memberRepository.findByRegistrationKey("social-account:1"))
@@ -60,7 +55,7 @@ class MemberRegistrarIntegrationTest {
         assertThatThrownBy(() -> memberRegistrar.register(
             new MemberRegisterInfo("social-account:1", new Nickname("다른회원"), MemberFixture.EMAIL)))
             .isInstanceOf(DataIntegrityViolationException.class);
-        assertThat(jpaMemberRepository.count()).isEqualTo(1);
+        assertThat(memberRepository.count()).isEqualTo(1);
         assertThat(events.stream(MemberRegisteredEvent.class)).isEmpty();
     }
 }

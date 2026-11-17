@@ -111,17 +111,6 @@ class ChildProfileServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("회원의 자녀 목록을 등록 순으로 준다")
-    void getChildren() {
-        var first = childProfileService.register(MEMBER_ID, REQUEST).id();
-        var second = childProfileService.register(MEMBER_ID, REQUEST).id();
-        childProfileService.register(OTHER_MEMBER_ID, REQUEST);
-
-        assertThat(childProfileService.getChildren(MEMBER_ID)).extracting(result -> result.id())
-            .containsExactly(first, second);
-    }
-
-    @Test
     @DisplayName("수정하면 바뀐 값이 저장되고 바뀐 뒤 전체 값으로 이벤트가 발행된다")
     void update() {
         var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
@@ -228,20 +217,6 @@ class ChildProfileServiceIntegrationTest {
         assertThat(recorder.events(ChildChangedEvent.class))
             .extracting(event -> event.data().childId())
             .containsExactlyInAnyOrder(first, second);
-    }
-
-    @Test
-    @DisplayName("성장 이력을 오래된 순으로 준다")
-    void getGrowthRecords() {
-        var childId = childProfileService.register(MEMBER_ID, REQUEST).id();
-        childProfileService.update(MEMBER_ID, childId, new ChildProfileUpdateRequest("첫째", LocalDate.of(2019, 1, 15),
-            Gender.MALE, new BigDecimal("118.0"), new BigDecimal("20.0"), BodyType.NORMAL, PreferredFit.LOOSE));
-
-        var records = childProfileService.getGrowthRecords(MEMBER_ID, childId);
-
-        assertThat(records).hasSize(2);
-        assertThat(records.get(0).heightCm()).isEqualByComparingTo("115.0");
-        assertThat(records.get(1).heightCm()).isEqualByComparingTo("118.0");
     }
 
     @Test

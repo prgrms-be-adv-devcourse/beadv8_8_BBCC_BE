@@ -54,13 +54,9 @@ class ChildProfileKafkaListenerConfig {
         return factory;
     }
 
-    private static String dlt(String topic) {
-        return topic + DLT_SUFFIX;
-    }
-
     private static DefaultErrorHandler errorHandler(ProducerFactory<String, String> producerFactory) {
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
-            (record, e) -> new TopicPartition(dlt(record.topic()), 0));
+            (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         var errorHandler = new DefaultErrorHandler((record, e) -> {
             logDeadLetter(record, e);
             deadLetter.accept(record, e);

@@ -23,7 +23,7 @@ class MemberRepositoryIntegrationTest {
     @Test
     @DisplayName("가입 키로 회원을 찾고, 그 키로 가입한 회원이 없으면 찾지 못한다")
     void findByRegistrationKey() {
-        Member saved = memberRepository.save(
+        var saved = memberRepository.save(
             Member.register(new MemberRegisterInfo("social-account:1", new Nickname("테스트회원"), MemberFixture.EMAIL)));
 
         assertThat(memberRepository.findByRegistrationKey("social-account:1"))
