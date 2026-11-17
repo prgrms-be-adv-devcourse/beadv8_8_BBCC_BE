@@ -16,7 +16,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 def fixture(trace_id, now):
     return {'resourceSpans': [{
         'resource': {'attributes': [
-            {'key': 'service.name', 'value': {'stringValue': 'kidly-gateway'}},
+            {'key': 'service.name', 'value': {'stringValue': 'kidly-order'}},
             {'key': 'deployment.environment.name', 'value': {'stringValue': 'dev'}},
         ]},
         'scopeSpans': [{
@@ -25,7 +25,10 @@ def fixture(trace_id, now):
                 'traceId': trace_id, 'spanId': '0000000000000001',
                 'name': 'transport fixture', 'kind': 2,
                 'startTimeUnixNano': str(now - 1_000_000), 'endTimeUnixNano': str(now),
-                'attributes': [{'key': 'http.request.method', 'value': {'stringValue': 'GET'}}],
+                'attributes': [
+                    {'key': 'http.request.method', 'value': {'stringValue': 'GET'}},
+                    {'key': 'http.route', 'value': {'stringValue': '/api/v1/orders/{orderId}'}},
+                ],
             }],
         }],
     }]}
@@ -67,11 +70,22 @@ def send(client, base, trace_id):
 
 
 def verify(client, base, trace_id):
+    url = base + '/api/traces/' + trace_id
+    request = Request(url, headers={'Accept': 'application/json'})
     for _ in range(20):
         try:
-            with client.open(base + '/api/traces/' + trace_id, timeout=3) as response:
+            with client.open(request, timeout=3) as response:
                 if response.status == 200:
-                    return
+                    payload = json.load(response)
+                    for resource in payload.get('batches', payload.get('resourceSpans', [])):
+                        for scope in resource.get('scopeSpans', []):
+                            if scope.get('scope', {}).get('name') != 'kidly.tracing.synthetic':
+                                continue
+                            for span in scope.get('spans', []):
+                                attributes = {entry['key']: entry['value'] for entry in span.get('attributes', [])}
+                                if attributes == {'kidly.operation': {'stringValue': 'order.detail'}}:
+                                    return
+                    raise RuntimeError('order fixture did not retain only the expected operation tag')
         except HTTPError as error:
             if error.code != 404:
                 raise
@@ -96,8 +110,11 @@ def main():
         else:
             with tunnel('monitoring', 'tempo', 3200) as base:
                 verify(client, base, args.trace_id)
-            print('Tempo returned the matching synthetic trace')
-    except (OSError, ValueError, RuntimeError):
+            print('Tempo returned the tagged synthetic order trace')
+    except RuntimeError as error:
+        print(str(error))
+        return 1
+    except (OSError, ValueError):
         print('Could not complete the synthetic ' + args.mode)
         return 1
     return 0
