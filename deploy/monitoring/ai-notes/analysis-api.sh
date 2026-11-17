@@ -15,6 +15,19 @@ pidfile="$state/analysis-api.pid"
 port=8786
 origin=https://grafana.kidly.kro.kr
 
+# Grafana 알림 웹훅(연결점 ai-analysis)이 보내는 Bearer 토큰. 한 번 만들고 유지한다(바꾸면 Grafana 가 다시 떠야 한다)
+# deploy.sh 가 kubectl apply 전에 "token" 으로 불러 Secret ai-analysis-alert 를 맞춘다. 값은 출력 · 명령 인자에 넣지 않는다
+token_file="$state/alert-token"
+if [[ "${1:-}" == token ]]; then
+    mkdir -p -m 700 "$state"
+    if [[ ! -s "$token_file" ]]; then
+        python3 -c 'import os, secrets, sys; os.umask(0o077); open(sys.argv[1], "w").write(secrets.token_urlsafe(32))' "$token_file"
+    fi
+    kubectl -n monitoring create secret generic ai-analysis-alert --from-file=AI_ALERT_TOKEN="$token_file" \
+        --dry-run=client -o yaml | kubectl -n monitoring apply -f - > /dev/null
+    exit 0
+fi
+
 stop() {
     if [[ -f "$pidfile" ]]; then
         pid=$(< "$pidfile")
@@ -61,7 +74,8 @@ ports:
 EOF
 
 args=(--grafana-url "http://$grafana_ip:3000" --origin "$origin" --host "$node_ip" --port "$port"
-      --key-file secrets/GROQ_API_KEY --confirm-free-plan --metrics-file operations/ai-analysis.prom)
+      --key-file secrets/GROQ_API_KEY --confirm-free-plan --metrics-file operations/ai-analysis.prom
+      --alert-token-file "$token_file" --slack-webhook-file secrets/SLACK_OPS_WEBHOOK_URL)
 if [[ -s secrets/OPENAI_API_KEY ]]; then
     args+=(--allow-paid-openai --openai-key-file secrets/OPENAI_API_KEY)
 fi

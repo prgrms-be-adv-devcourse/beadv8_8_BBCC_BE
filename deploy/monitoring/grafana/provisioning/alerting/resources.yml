@@ -187,6 +187,7 @@ groups:
             - 0
     labels:
       severity: warning
+      ai_analysis: auto
     annotations:
       service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
       ai_prompt: 'DB 연결 대기 · 사용 중 · 최대(hikaricp_connections_pending · active · max)와 연결 획득 시간, 같은 시각 요청량 · 5xx를 비교해 요청 폭증인지 느린 쿼리 · 연결 누수인지 봐줘'

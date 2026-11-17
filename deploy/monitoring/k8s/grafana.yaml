@@ -73,6 +73,12 @@ spec:
                 secretKeyRef:
                   name: monitoring-secrets
                   key: SLACK_OPS_WEBHOOK_URL
+            # provisioning/alerting 의 AI 분석 웹훅(ai-analysis)이 읽는다. deploy.sh 가 apply 전에 만든다(ai-notes/analysis-api.sh token)
+            - name: AI_ALERT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-analysis-alert
+                  key: AI_ALERT_TOKEN
           ports:
             - name: http
               containerPort: 3000

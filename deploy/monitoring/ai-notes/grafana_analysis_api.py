@@ -1,6 +1,7 @@
 """Same-origin Grafana action endpoint for an explicitly enabled local trial."""
 import argparse
 from functools import partial
+import hmac
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
@@ -13,11 +14,17 @@ from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
 from analysis_requests import AnalysisRequests, next_trial_at, run_groq_trial, run_trial
+from analysis_notify import SlackNotifier
 from groq_provider import NoRedirect
 from receive import STATE
 
 ACTION_PATH = '/kidly-ai-analysis/run'
 STATUS_PATH = '/kidly-ai-analysis/status'
+# Grafana 알림(웹훅 연결점 ai-analysis)이 부르는 내부 경로. 엣지 · Ingress 로는 열지 않는다(k8s/ai-analysis.yaml)
+ALERT_PATH = '/kidly-ai-analysis/alert'
+ALERT_BODY_LIMIT = 65536
+# 알림 제목 → 분석 목적. 자동 실행은 항상 무료 제공자(Groq)만 쓴다
+ALERT_FOCUS = {'5xx 증가': 'errors', 'Gateway 5xx 증가': 'errors', 'ERROR 로그': 'errors', 'DB 연결 대기 지속': 'latency'}
 SESSION_COOKIE = 'grafana_session'
 ORG_ID = 1
 
@@ -56,13 +63,50 @@ class GrafanaAuthorization:
         )
 
 
+def alert_trigger(payload):
+    """Grafana webhook payload → (focus, trigger text). Only labels Grafana sets; no annotations or values."""
+    if not isinstance(payload, dict) or payload.get('status') != 'firing':
+        return None
+    alerts = [item for item in payload.get('alerts') or () if isinstance(item, dict) and item.get('status') == 'firing']
+    labels = payload.get('commonLabels') if isinstance(payload.get('commonLabels'), dict) else {}
+    name = labels.get('alertname') or (alerts[0].get('labels') or {}).get('alertname') if alerts else labels.get('alertname')
+    if not isinstance(name, str) or not 1 <= len(name) <= 50 or any(ord(char) < 32 for char in name):
+        return None
+    jobs = sorted({(item.get('labels') or {}).get('job') for item in alerts} - {None})
+    jobs = [job for job in jobs if isinstance(job, str) and re.fullmatch(r'kidly-[a-z][a-z0-9-]{0,50}', job)][:5]
+    trigger = f'알림 "{name}"' + (f' ({", ".join(jobs)})' if jobs else '')
+    return ALERT_FOCUS.get(name, 'overview'), trigger
+
+
 class AnalysisAPI:
-    def __init__(self, authorization, requests, *, origin):
+    def __init__(self, authorization, requests, *, origin, alert_token_file=None):
         self.authorization = authorization
         self.requests = requests
         self.origin = origin
+        self.alert_token_file = alert_token_file
+
+    def alert(self, headers, body):
+        try:
+            token = self.alert_token_file.read_text().strip() if self.alert_token_file else ''
+        except OSError:
+            token = ''
+        supplied = headers.get('Authorization', '')
+        if len(token) < 32 or not hmac.compare_digest(supplied.encode(), ('Bearer ' + token).encode()):
+            return 403, {'state': 'forbidden'}
+        try:
+            trigger = alert_trigger(json.loads(body))
+        except ValueError:
+            return 400, {'state': 'invalid_request'}
+        if trigger is None:
+            return 202, {'state': 'ignored'}
+        focus, text = trigger
+        code, result = self.requests.request(is_operator=True, provider='groq', focus=focus, trigger=text)
+        # 한도 · 실행 중도 2xx 로 돌려 Grafana 가 같은 알림을 재전송하지 않게 한다
+        return (202 if code in (202, 409, 429) else code), result
 
     def dispatch(self, method, path, headers, body=b''):
+        if (method, path) == ('POST', ALERT_PATH):
+            return self.alert(headers, body)
         if (method, path) not in (('POST', ACTION_PATH), ('GET', STATUS_PATH)):
             return 404, {'state': 'not_found'}
         if method == 'POST':
@@ -99,6 +143,12 @@ class AnalysisHTTPHandler(BaseHTTPRequestHandler):
         if (self.command == 'POST' and self.path == ACTION_PATH and self.headers.get('Content-Length') == '2'
                 and not self.headers.get('Transfer-Encoding') and self.headers.get('Origin') == self.server.analysis_api.origin):
             body = self.rfile.read(2)
+        elif self.command == 'POST' and self.path == ALERT_PATH and not self.headers.get('Transfer-Encoding'):
+            length = self.headers.get('Content-Length', '')
+            if not length.isdigit() or int(length) > ALERT_BODY_LIMIT:
+                self.send_error(413)
+                return
+            body = self.rfile.read(int(length))
         code, result = self.server.analysis_api.dispatch(self.command, self.path, self.headers, body)
         body = json.dumps(result, separators=(',', ':')).encode()
         self.send_response(code)
@@ -158,6 +208,8 @@ def main():
     parser.add_argument('--openai-key-file', type=Path)
     parser.add_argument('--allow-paid-openai', action='store_true')
     parser.add_argument('--metrics-file', type=Path)
+    parser.add_argument('--alert-token-file', type=Path, help='Bearer token Grafana alert webhook sends')
+    parser.add_argument('--slack-webhook-file', type=Path, help='Slack incoming webhook for run summaries')
     parser.add_argument('--host', default='127.0.0.1', help='Listen address. Server uses the node address the Grafana ingress forwards to')
     parser.add_argument('--port', type=int, default=8786)
     parser.add_argument('--confirm-free-plan', action='store_true', required=True)
@@ -169,10 +221,12 @@ def main():
     requests = AnalysisRequests(
         partial(run_groq_trial, args.key_file, free_plan_confirmed=args.confirm_free_plan),
         partial(next_trial_at, STATE), openai_runner=openai_runner,
+        notifier=SlackNotifier(STATE, args.slack_webhook_file) if args.slack_webhook_file else None,
     )
     with DashboardStatusServer((args.host, args.port), AnalysisHTTPHandler) as server:
         server.metrics_path = args.metrics_file
-        server.analysis_api = AnalysisAPI(GrafanaAuthorization(args.grafana_url), requests, origin=args.origin)
+        server.analysis_api = AnalysisAPI(GrafanaAuthorization(args.grafana_url), requests, origin=args.origin,
+                                          alert_token_file=args.alert_token_file)
         server.serve_forever()
 
 

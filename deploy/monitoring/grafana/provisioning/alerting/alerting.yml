@@ -13,6 +13,19 @@ contactPoints:
           title: '{{ template "kidly.slack.title" . }}'
           text: '{{ template "kidly.slack.text" . }}'
           color: '{{ template "kidly.slack.color" . }}'
+  # 서비스 알림이 뜨면 AI 운영 분석(Groq, 무료)을 1회 돌리고 요약을 Slack 에 붙인다. 처리기는 모니터링 노드 프로세스(ai-notes/analysis-api.sh)
+  # 1시간에 한 번만 실행된다(버튼 · 수동 실행과 같은 간격). 내부 Service 로만 부르고 밖에는 열지 않는다(k8s/ai-analysis.yaml)
+  - orgId: 1
+    name: ai-analysis
+    receivers:
+      - uid: ai-analysis
+        type: webhook
+        settings:
+          url: http://kidly-ai-analysis.monitoring.svc.cluster.local:8786/kidly-ai-analysis/alert
+          httpMethod: POST
+          maxAlerts: '10'
+          authorization_scheme: Bearer
+          authorization_credentials: ${AI_ALERT_TOKEN}
 
 # 같은 알림 · 같은 환경은 묶어서 보내고, 계속 울리면 4시간마다 다시 보낸다
 policies:
@@ -22,6 +35,14 @@ policies:
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 4h
+    routes:
+      # ai_analysis=auto 인 운영(dev) 알림은 AI 분석도 부르고(continue) 아래에서 Slack 으로도 보낸다
+      - receiver: ai-analysis
+        object_matchers:
+          - ['ai_analysis', '=', 'auto']
+          - ['env', '=', 'dev']
+        continue: true
+      - receiver: slack-ops
 
 # 규칙의 annotations 는 환경 변수로 바뀌지 않는다. 템플릿은 $labels · $values 를 그대로 쓴다 ($$ 는 템플릿 오류)
 # logs_url: 그 env 의 최근 15분 로그를 여는 Explore 주소. Slack 본문에 "로그 보기" 로 붙는다(templates.yml)
@@ -59,6 +80,7 @@ groups:
                 - evaluator: {type: lt, params: [1]}
         labels:
           severity: critical
+          ai_analysis: auto
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
           ai_prompt: 'up이 언제 0이 됐는지, 직전 재시작(process_start_time_seconds) · 힙 메모리(jvm_memory_used_bytes, area=heap) · DB 연결 대기(hikaricp_connections_pending)에 이상이 있었는지 봐줘'
@@ -92,6 +114,7 @@ groups:
                 - evaluator: {type: gt, params: [0.05]}
         labels:
           severity: warning
+          ai_analysis: auto
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
           ai_prompt: '5xx가 어느 API(uri · status)에서 언제부터 늘었는지, 같은 시각 DB 연결 대기 · 재시작 · 요청량 변화와 겹치는지 봐줘'
@@ -124,6 +147,7 @@ groups:
                 - evaluator: {type: gt, params: [0.05]}
         labels:
           severity: warning
+          ai_analysis: auto
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
           ai_prompt: 'Gateway 5xx(status별)와 같은 시각 하위 서비스들의 up · 5xx를 비교해, 어느 하위 서비스 때문인지 아니면 Gateway에서만 난 연결 실패인지 봐줘'
@@ -158,6 +182,7 @@ groups:
                 - evaluator: {type: gt, params: [4.5]}
         labels:
           severity: warning
+          ai_analysis: auto
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
           ai_prompt: '로그 내용은 볼 수 없으니 ERROR 건수(logback_events_total, level=error) 추이와 같은 시각 5xx · 재시작 · DB 연결 대기를 비교해 무엇과 같이 움직였는지 봐줘'
@@ -193,6 +218,7 @@ groups:
                 - evaluator: {type: gt, params: [0]}
         labels:
           severity: critical
+          ai_analysis: auto
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
           ai_prompt: '수집(up)이 언제 끊겼는지, 같은 시각 재시작(process_start_time_seconds)이나 다른 서비스도 같이 끊겼는지 봐줘'
