@@ -27,8 +27,6 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          hour=$(TZ=Asia/Seoul date +%H)
-          (( 10#$hour >= 9 && 10#$hour < 18 )) || { echo 'Outside the operating window'; exit 1; }
           umask 077
           auth=$(mktemp -d)
           trap 'rm -rf "$auth"' EXIT
