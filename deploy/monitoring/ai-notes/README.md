@@ -35,3 +35,9 @@ MCP 클라이언트 추론과 서버/로컬 모델 worker는 같은 결과 계�
 별도 제공자를 시험하려면 [Groq 무료 1회 분석](../docs/groq-trial.md)을 봅니다. 키 등록·Free 플랜 확인 후 dev에서 수동 실행하며 예약 실행은 없습니다.
 설치·권한·실패 복구는 [운영 안내](../docs/ai-notes-operations.md)를 봅니다.
 검증: `python3 -m unittest discover -s deploy/monitoring/tests -p 'test_*.py'`
+
+## Grafana 직접 실행 준비
+
+초안의 로컬 HTTP 처리기는 기본 조직의 Grafana Admin 세션으로만 운영 분석을 요청하고 읽을 수 있게 합니다. 실행 요청은 Grafana와 같은 출처에서 보낸 본문 없는 POST로 한정합니다. 요청은 기존 Groq 수동 실행과 같은 잠금 및 호출 간격을 사용하며 응답에는 상태와 게시 시각만 담습니다.
+
+운영에서는 이 처리기를 아직 띄우거나 연결하지 않습니다. 기본 패널 동작이 동일 출처로 세션을 보내는지, 요청 접수와 실제 게시를 화면에서 구분하는지 먼저 검증합니다. Groq 키는 브라우저에 전달하지 않습니다.
