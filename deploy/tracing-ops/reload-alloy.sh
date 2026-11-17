@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export KUBECONFIG="$HOME/.kube/config"
 
 k() { kubectl --request-timeout=12s -n kidly-dev "$@"; }
 
