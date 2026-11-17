@@ -13,22 +13,7 @@
     "from": "now-1h",
     "to": "now"
   },
-  "links": [
-    {
-      "title": "운영 홈",
-      "type": "link",
-      "url": "/d/kidly-home",
-      "includeVars": false,
-      "keepTime": false
-    },
-    {
-      "title": "서비스 상태 확인",
-      "type": "link",
-      "url": "/d/kidly-http?var-env=${env:percentencode}",
-      "includeVars": false,
-      "keepTime": true
-    }
-  ],
+  "links": [],
   "templating": {
     "list": [
       {
@@ -129,7 +114,7 @@
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 12,
+        "w": 9,
         "h": 3
       },
       "datasource": {
@@ -214,9 +199,9 @@
       "type": "stat",
       "title": "분석 실행 상태",
       "gridPos": {
-        "x": 12,
+        "x": 9,
         "y": 0,
-        "w": 12,
+        "w": 8,
         "h": 3
       },
       "datasource": {
@@ -505,6 +490,22 @@
           }
         }
       ]
+    },
+    {
+      "id": 206,
+      "type": "text",
+      "title": "바로 가기",
+      "description": "상단 링크 줄 대신 둡니다. 서비스 상태 확인은 선택한 환경과 시간 범위를 그대로 씁니다.",
+      "gridPos": {
+        "x": 17,
+        "y": 0,
+        "w": 7,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "[운영 홈](/d/kidly-home) · [서비스 상태 확인](/d/kidly-http?var-env=${env}&${__url_time_range})"
+      }
     }
   ]
 }

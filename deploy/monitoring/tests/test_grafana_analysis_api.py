@@ -104,7 +104,12 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
     def test_dashboard_uses_existing_prometheus_and_same_origin_post(self):
         dashboard_path = Path(__file__).parents[1] / 'grafana/dashboards/kidly-ai-notes.json'
         dashboard = json.loads(dashboard_path.read_text())
-        priority, run, status, history, details = dashboard['panels']
+        priority, run, status, history, details, shortcuts = dashboard['panels']
+        # Links live next to the run button instead of a separate link row under the selectors.
+        self.assertEqual(dashboard['links'], [])
+        self.assertEqual((shortcuts['type'], shortcuts['gridPos']['y']), ('text', 0))
+        self.assertIn('/d/kidly-home', shortcuts['options']['content'])
+        self.assertIn('/d/kidly-http?var-env=${env}', shortcuts['options']['content'])
         self.assertTrue(history['collapsed'])
         self.assertEqual(history['panels'][0]['targets'][0]['maxLines'], 15)
         self.assertIn(['X-Kidly-AI-Focus', '${analysis_focus:raw}'],
