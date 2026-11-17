@@ -474,12 +474,10 @@ public class CartService implements CartCleanup, CartReservations, CartCheckout 
      */
     private CartView.Line toLine(CartItem item, ProductOption product, String sellerName) {
         if (product == null) {
-            return new CartView.Line(item.getId(), item.getOptionId(), null, null, null, null, null, item.getChildId(),
-                item.getQuantity(), null, false, 0L, null, item.isReserved(), null);
+            return CartView.Line.withoutProduct(item.getId(), item.getOptionId(), item.getChildId(), item.getQuantity(),
+                item.isReserved());
         }
-        return new CartView.Line(item.getId(), item.getOptionId(), product.productId(), product.sellerId(),
-            product.productName(), product.optionName(), product.size(), item.getChildId(), item.getQuantity(),
-            product.unitPrice(), product.purchasable(), Math.multiplyExact(product.unitPrice(), item.getQuantity()),
-            sellerName, item.isReserved(), product.thumbnailUrl());
+        return CartView.Line.withProduct(item.getId(), item.getOptionId(), item.getChildId(), item.getQuantity(),
+            item.isReserved(), product, sellerName);
     }
 }

@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.order.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.common.in.scheduler.RotatingCursor;
 import com.bbcc.kidly.boundedcontext.order.app.OrderLogContext;
 import com.bbcc.kidly.boundedcontext.order.app.OrderOperationMetrics;
 import com.bbcc.kidly.boundedcontext.order.app.config.OrderScheduleIntervals;

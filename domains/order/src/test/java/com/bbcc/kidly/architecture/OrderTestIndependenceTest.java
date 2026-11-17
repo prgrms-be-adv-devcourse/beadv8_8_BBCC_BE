@@ -17,7 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 주문 테스트는 다른 도메인에 의존하지 않는다(#616). 주문 모듈(주문 · 장바구니 · 배송 컨텍스트, #617)의
+ * 주문 테스트는 다른 도메인에 의존하지 않는다(#616). 주문 모듈(주문 · 장바구니 · 배송 · 조르기 컨텍스트와 공용 도구 common, #617 · #1509)의
  * 코드 전체(main · 테스트 · testFixtures)를 읽어
  * 다른 도메인 패키지 · 앱 모듈(루트 패키지 · 앱 공통 테스트 기반 support)을 참조하지 않는지 본다. 주문은 주문 · shared · common(global)과
  * 라이브러리만 쓴다. 다른 도메인 모듈은 클래스패스에 없어(kidly.domain) 지금은 컴파일부터 안 되지만, 그 조건이 바뀌어도
@@ -26,20 +26,23 @@ import org.junit.jupiter.api.Test;
 class OrderTestIndependenceTest {
 
     private static final String ORDER = "com.bbcc.kidly.boundedcontext.order";
-    // 주문 모듈 = 주문 · 장바구니 · 배송 컨텍스트(#617)
+    // 주문 모듈 = 주문 · 장바구니 · 배송 · 조르기 컨텍스트(#617 · #640)와 공용 도구 common(#1509)
     private static final String CART = "com.bbcc.kidly.boundedcontext.cart";
     private static final String DELIVERY = "com.bbcc.kidly.boundedcontext.delivery";
-    // 조르기 컨텍스트(#640)
+    // 조르기 컨텍스트(#640). 걷어낼 수 있게 둔 컨텍스트도 같은 모듈이라 허용 목록에 든다
     private static final String WISH = "com.bbcc.kidly.boundedcontext.wish";
     // 주문 모듈 테스트 지원(네 컨텍스트가 같이 씀, #651). 앱 공통 테스트 기반(com.bbcc.kidly.support)과는 다른 패키지다
     private static final String SUPPORT = "com.bbcc.kidly.boundedcontext.support";
+    // 주문 모듈 공용 도구 — 업무 규칙 없음(#1509). importPackages에도 넣어 공용 코드 자체도 검사한다
+    private static final String COMMON = "com.bbcc.kidly.boundedcontext.common";
 
     private static final JavaClasses ORDER_CODE =
-        new ClassFileImporter().importPackages(ORDER, CART, DELIVERY, WISH, SUPPORT);
+        new ClassFileImporter().importPackages(ORDER, CART, DELIVERY, WISH, SUPPORT, COMMON);
 
     private static final ArchRule NO_OTHER_DOMAIN_OR_APP = noClasses()
         .should().dependOnClassesThat(resideInAPackage("com.bbcc.kidly.boundedcontext..")
-            .and(not(resideInAnyPackage(ORDER + "..", CART + "..", DELIVERY + "..", WISH + "..", SUPPORT + ".."))))
+            .and(not(resideInAnyPackage(ORDER + "..", CART + "..", DELIVERY + "..", WISH + "..", SUPPORT + "..",
+                COMMON + ".."))))
         .orShould().dependOnClassesThat().resideInAnyPackage("com.bbcc.kidly", "com.bbcc.kidly.support..")
         .because("주문 테스트는 주문 · shared · common만으로 돈다(#616)");
 

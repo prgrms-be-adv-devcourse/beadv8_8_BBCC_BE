@@ -90,8 +90,8 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
             .map(sellerId -> Delivery.create(orderId, sellerId))
             .forEach(delivery -> {
                 deliveryRepository.save(delivery);
-                deliveryOrders.recordHistory(orderId, delivery.getId(), historyActor, null,
-                    delivery.getStatus().name(), null, now);
+                deliveryOrders.recordCreatedHistory(orderId, delivery.getId(), historyActor,
+                    delivery.getStatus().name(), now);
             }));
     }
 
@@ -169,8 +169,8 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
         } catch (DeliveryRuleViolationException e) {
             throw DeliveryErrors.toBusiness(e);
         }
-        deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SELLER, memberId,
-            SELLER_SHIP), from.name(), delivery.getStatus().name(), null, now);
+        deliveryOrders.recordHistoryWithoutReason(delivery.getOrderId(), delivery.getId(),
+            new DeliveryOrders.Actor(SELLER, memberId, SELLER_SHIP), from.name(), delivery.getStatus().name(), now);
         publishShipped(delivery, now);
         log.info("발송: orderId={} deliveryId={} sellerId={} carrier={}",
             delivery.getOrderId(), delivery.getId(), delivery.getSellerId(), parsed);
@@ -198,8 +198,9 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
             log.debug("요청 무시: event=deliver orderId={} deliveryId={} result=ALREADY_DONE",
                 delivery.getOrderId(), delivery.getId());
         } else {
-            deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SELLER,
-                memberId, SELLER_DELIVER), from.name(), delivery.getStatus().name(), null, now);
+            deliveryOrders.recordHistoryWithoutReason(delivery.getOrderId(), delivery.getId(),
+                new DeliveryOrders.Actor(SELLER, memberId, SELLER_DELIVER), from.name(), delivery.getStatus().name(),
+                now);
             publishDelivered(delivery, deliveredItems, now);
             log.info("배송 완료: orderId={} deliveryId={} sellerId={}",
                 delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
@@ -273,8 +274,8 @@ public class DeliveryService implements DeliveryOperations, ShippingDelays {
         List<DeliveryOrders.DeliveredItem> deliveredItems = deliveryOrders.recordDelivered(delivery.getOrderId(),
             delivery.getSellerId(), delivery.getDeliveredAt());
         LocalDateTime now = LocalDateTime.now();
-        deliveryOrders.recordHistory(delivery.getOrderId(), delivery.getId(), new DeliveryOrders.Actor(SYSTEM, null,
-            DELIVERY_TRACKING), from.name(), delivery.getStatus().name(), null, now);
+        deliveryOrders.recordHistoryWithoutReason(delivery.getOrderId(), delivery.getId(),
+            new DeliveryOrders.Actor(SYSTEM, null, DELIVERY_TRACKING), from.name(), delivery.getStatus().name(), now);
         publishDelivered(delivery, deliveredItems, now);
         log.info("배송 완료: orderId={} deliveryId={} sellerId={} by=tracking",
             delivery.getOrderId(), delivery.getId(), delivery.getSellerId());
