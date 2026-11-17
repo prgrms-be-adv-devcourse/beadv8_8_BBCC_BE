@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Operator-only dev trial. Read key from stdin; never persist it or expose in argv."""
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 import resource
@@ -16,6 +18,18 @@ from snapshot import collect
 from storage import LokiPublisher, Store
 
 PRINCIPAL = 'groq-dev-manual'
+TRIAL_INTERVAL = 3600
+
+
+@contextmanager
+def trial_lock(directory):
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with (directory / 'groq-trial.lock').open('ab') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ProviderError('trial_running') from None
+        yield
 
 
 def read_key(stream):
@@ -36,7 +50,7 @@ def run_once(key, *, free_tier_confirmed, store, collector=collect, provider_fac
     store.check_issue_allowed(PRINCIPAL, now)
     # At most one trial an hour, including failed inference, across manual workflow invocations.
     last = store.db.execute('SELECT max(started) FROM contexts WHERE principal=?', (PRINCIPAL,)).fetchone()[0]
-    if last is not None and now-last < 3600:
+    if last is not None and now-last < TRIAL_INTERVAL:
         raise ProviderError('trial_cooldown')
     context = collector('dev', now)
     store.issue(context, PRINCIPAL, now)
@@ -60,7 +74,8 @@ def main():
     signal.alarm(100)
     try:
         key = read_key(sys.stdin.buffer)
-        result = run_once(key, free_tier_confirmed=args.confirm_free_plan, store=Store(STATE, METRICS))
+        with trial_lock(STATE):
+            result = run_once(key, free_tier_confirmed=args.confirm_free_plan, store=Store(STATE, METRICS))
         print(json.dumps({'ok': True, 'result': result}))
         return 0
     except Exception as error:
