@@ -3,10 +3,6 @@ package com.bbcc.kidly.support;
 import java.time.Duration;
 import java.util.function.BooleanSupplier;
 
-/**
- * 비동기 처리(Kafka 수신 등)가 끝나기를 기다린다. 조건이 시간 안에 만족되지 않으면 실패한다.
- * Awaitility 대신 쓴다(회의 10-29 안건 3).
- */
 public final class AsyncWait {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
@@ -19,7 +15,6 @@ public final class AsyncWait {
         until(TIMEOUT, condition);
     }
 
-    // Kafka 수신처럼 5초가 빠듯한 경우 기다리는 시간을 늘린다
     public static void until(Duration timeout, BooleanSupplier condition) {
         var deadline = System.nanoTime() + timeout.toNanos();
         while (!condition.getAsBoolean()) {

@@ -20,9 +20,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 판매자 내 상품 목록 API를 HTTP 요청부터 응답까지 확인한다. 상품은 등록 API로 만든다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @FunctionalTest
 class SellerProductListApiTest {
 
@@ -43,12 +40,10 @@ class SellerProductListApiTest {
     @DisplayName("판매자 본인의 상품을 등록 최신순 페이지로 돌려주고, 상품 ID는 문자열이며 썸네일이 없으면 null이다")
     void listOwnProducts() {
         SavedClothingTop saved = clothingTopSaver.save();
-        // 상품 A는 네이비 110(초기 재고 10) · 네이비 120(초기 재고 0) 옵션이고 판매가는 25,000원이다
         String withoutThumbnail = register(SELLER_ID, productA(saved));
         Map<String, Object> withThumbnailBody = productA(saved);
         withThumbnailBody.put("name", "상품 B");
         withThumbnailBody.put("thumbnailUrl", ownImageUrl(SELLER_ID));
-        // 같은 판매자의 옵션끼리는 SKU 코드가 겹치면 안 되므로 상품 B의 SKU 코드를 비운다
         ProductRegisterRequestFixture.options(withThumbnailBody).getFirst().put("skuCode", null);
         String withThumbnail = register(SELLER_ID, withThumbnailBody);
         register(OTHER_SELLER_ID, productA(saved));
@@ -114,7 +109,6 @@ class SellerProductListApiTest {
     @DisplayName("SALE-09 한 줄에 품절 옵션 수와 재고 적은 옵션 수가 숫자로 오고, lowStock=true면 그런 옵션이 있는 상품만 온다")
     void listShowsSoldOutAndLowStockOptionCounts() {
         SavedClothingTop saved = clothingTopSaver.save();
-        // 상품 A는 재고 10 · 0 옵션이라 품절이 하나, 상품 B는 재고 10 · 3 옵션이라 재고 적음이 하나, 상품 C는 재고 10 · 10 옵션이다
         String soldOut = register(SELLER_ID, productA(saved));
         String low = register(SELLER_ID, productWithOtherSku(saved, "상품 B", 10, 3));
         register(SELLER_ID, productWithOtherSku(saved, "상품 C", 10, 10));
@@ -146,7 +140,6 @@ class SellerProductListApiTest {
             .jsonPath("$.totalElements").isEqualTo(0);
     }
 
-    // 같은 판매자의 옵션끼리는 SKU 코드가 겹치면 안 되므로 SKU 코드를 비우고, 옵션 두 개의 초기 재고를 정한다
     private Map<String, Object> productWithOtherSku(SavedClothingTop saved, String name, int first, int second) {
         Map<String, Object> body = productA(saved);
         body.put("name", name);
@@ -158,7 +151,6 @@ class SellerProductListApiTest {
         return body;
     }
 
-    // 등록 API로 판매대기 상품을 만들고 상품 ID를 돌려준다
     private String register(long sellerId, Map<String, Object> body) {
         return client.post().uri(PRODUCTS_PATH)
             .headers(TestMembers.seller(sellerId))

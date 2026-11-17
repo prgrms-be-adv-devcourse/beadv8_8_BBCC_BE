@@ -23,10 +23,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.test.web.servlet.client.RestTestClient.ResponseSpec;
 
-/**
- * 판매자가 상품 이미지를 S3에 직접 올릴 업로드 주소를 받는 API를 HTTP 요청부터 응답까지 확인한다.
- * 테스트 프로필은 가짜 자격 증명으로 서명하므로 AWS에 요청하지 않는다(key 경로는 test).
- */
 @FunctionalTest
 class SellerProductImageUploadUrlApiTest {
 

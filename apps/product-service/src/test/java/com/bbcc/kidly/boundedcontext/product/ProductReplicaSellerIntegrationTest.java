@@ -19,10 +19,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * 판매자 정보 변경됨을 받아 상품의 판매자 복사본에 반영하는 흐름을 확인한다.
- * 수신은 Kafka로만 하므로(ProductKafkaReceiveIntegrationTest) 여기서는 처리 서비스를 직접 부른다.
- */
 @IntegrationTest
 class ProductReplicaSellerIntegrationTest {
 
@@ -46,8 +42,6 @@ class ProductReplicaSellerIntegrationTest {
             .containsExactly(SELLER_ID, "테스트상점", SellerStatus.ACTIVE, SELLER_CHANGED_AT);
     }
 
-    // 상태 칸은 CHECK 제약이 허용하는 값만 저장한다. 판매자 도메인이 상태를 새로 더하면
-    // 이 제약을 먼저 고쳐야 받은 메시지가 DLT로 빠지지 않으므로, 모든 상태를 저장해 본다
     @ParameterizedTest(name = "{0}")
     @EnumSource(SellerStatus.class)
     @DisplayName("판매자 복사본은 판매자의 모든 상태를 저장한다")

@@ -25,12 +25,6 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 상품이 판매자 토픽의 메시지를 받아 판매자 복사본에 반영하고, 처리하지 못한 메시지를 DLT로 보내는지 확인한다(#692).
- * 메시지는 판매자 도메인을 거치지 않고 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다. 그래야 다시 받은 메시지 · 깨진 본문 ·
- * 받지 않는 종류처럼 판매자가 만들지 않는 경우를 정확히 넣을 수 있다.
- * 같은 토픽에는 다른 테스트의 메시지도 쌓여 이어서 받을 수 있으므로, 판매자 ID를 테스트마다 새로 만든다.
- */
 @KafkaIntegrationTest
 @ExtendWith(OutputCaptureExtension.class)
 class ProductKafkaReceiveIntegrationTest {
@@ -39,7 +33,6 @@ class ProductKafkaReceiveIntegrationTest {
     private static final String SELLER_DLT = "kidly.seller.events.product.dlt";
     private static final LocalDateTime CHANGED_AT = LocalDateTime.of(2026, 11, 2, 10, 0);
 
-    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
@@ -58,7 +51,6 @@ class ProductKafkaReceiveIntegrationTest {
 
     private MessageListenerContainer listener;
 
-    // 리스너는 ProductKafkaListenerTestGuard가 들고 있어 이 테스트 안에서만 켠다. 판매자 리스너만 켠다
     @BeforeEach
     void startListeners() {
         messages = new ProductKafkaMessages(kafka.getBootstrapServers(), jsonMapper);

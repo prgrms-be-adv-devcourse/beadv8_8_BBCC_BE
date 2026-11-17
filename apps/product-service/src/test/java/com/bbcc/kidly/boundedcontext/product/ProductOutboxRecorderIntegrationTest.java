@@ -29,10 +29,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 상품이 발행한 이벤트를 커밋 직전에 아웃박스에 저장하는지 실제 트랜잭션으로 확인한다.
- * 저장은 발행한 트랜잭션 안에서 일어나야 하므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
- */
 @IntegrationTest
 class ProductOutboxRecorderIntegrationTest {
 
@@ -47,7 +43,6 @@ class ProductOutboxRecorderIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    // 아웃박스 저장이 실패할 때 같은 트랜잭션의 업무가 남는지 보려고, 상품 스키마의 판매자 복사본을 업무 저장으로 쓴다
     @Autowired
     private ProductReplicaSellerRepository replicaSellerRepository;
 
@@ -121,13 +116,11 @@ class ProductOutboxRecorderIntegrationTest {
                 "stock.deduction-failed", "78"));
     }
 
-    // 상품 1의 판매 시작으로 나간 상품 정보 변경됨이다. 아웃박스는 이벤트 값을 그대로 옮기므로 옵션은 비워 둔다
     private static ProductChangedEvent productChanged() {
         return new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT, new ProductChangedEvent.Data(
             1L, 2L, "데일리 맨투맨", 3L, ProductStatus.ON_SALE, null, OCCURRED_AT, false, List.of()));
     }
 
-    // 아웃박스 저장을 실패시키려고 만든 상품 이벤트다. 종류가 event_type 칸 길이(60자)보다 길어 INSERT가 실패한다
     private record TooLongTypeEvent(UUID eventId, LocalDateTime occurredAt, Long data) implements DomainEvent {
 
         @Override

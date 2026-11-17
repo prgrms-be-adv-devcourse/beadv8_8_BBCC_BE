@@ -33,9 +33,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 판매자 내 상품 목록 조회를 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class SellerProductQueryIntegrationTest {
 
@@ -191,7 +188,6 @@ class SellerProductQueryIntegrationTest {
     @DisplayName("SALE-09 품절 · 재고 적은 옵션 수는 판매중 옵션만 세고, 재고 행이 없는 판매중 옵션은 품절로 센다")
     void findBySellerCountsSoldOutAndLowStockOptionsOfOnSaleOptions() {
         SavedClothingTop saved = clothingTopSaver.save();
-        // 옵션 여섯 개: 품절 2(재고 0 · 재고 행 없음), 재고 적음 2(1 · 5), 넉넉함 1(6), 판매중지(0) · 보관(3)은 세지 않는다
         Product product = saveProduct(saved, SELLER_ID, "상품 A", 0, 0, 1, 5);
         Product other = saveProduct(saved, SELLER_ID, "상품 B", 6, 0, 3);
         deleteInventory(product.getOptions().get(1).getId());
@@ -251,8 +247,6 @@ class SellerProductQueryIntegrationTest {
         assertThat(page.hasNext()).isTrue();
     }
 
-    // 판매자의 판매대기 상품 하나를 저장하고 옵션마다 재고를 연다.
-    // 옵션은 네이비 110 · 네이비 120 · 오트밀 110 · 오트밀 120 순서로 재고 수만큼 만들고, 판매가는 모두 25,000원이다
     private Product saveProduct(SavedClothingTop saved, long sellerId, String name, int... stocks) {
         ClothingOptions clothing = saved.clothing();
         Product product = Product.register(ProductFixture.productAWithRequired(sellerId, saved.top(), name,
@@ -279,18 +273,14 @@ class SellerProductQueryIntegrationTest {
         return product;
     }
 
-    // 판매중지로 바꾸는 업무 메서드가 아직 없고, 판매 시작은 실측까지 넣어야 해서 표를 직접 고친다
     private void changeStatus(Product product, String status) {
         jdbcTemplate.update("update product.product set status = ? where id = ?", status, product.getId());
     }
 
-    // 재고 행이 없는 옵션을 만든다. 재고를 여는 업무 메서드는 옵션마다 행을 만들어서 표를 직접 지운다
     private void deleteInventory(Long optionId) {
         jdbcTemplate.update("delete from product.inventory where product_option_id = ?", optionId);
     }
 
-    // 옵션의 판매 상태와 판매가를 바꾸는 업무 메서드가 아직 없어 표를 직접 고친다.
-    // 의류는 상품 하나에 판매가가 하나라서, 옵션마다 다른 판매가도 표를 고쳐서 만든다
     private void changeOption(Long optionId, String saleStatus, long price) {
         jdbcTemplate.update("update product.product_option set sale_status = ?, price = ? where id = ?",
             saleStatus, price, optionId);

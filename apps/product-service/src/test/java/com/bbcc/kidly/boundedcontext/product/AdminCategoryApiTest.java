@@ -23,10 +23,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 카테고리를 만들고 조회하는 API를 HTTP 요청부터 응답까지 확인한다.
- * 말단 카테고리가 가리킬 상품 유형과 실측 항목은 관리자 API로 만든다.
- */
 @FunctionalTest
 class AdminCategoryApiTest {
 
@@ -63,7 +59,6 @@ class AdminCategoryApiTest {
         String totalLength = createMeasurementItem("총장", "TOTAL_LENGTH");
         String shoulderWidth = createMeasurementItem("어깨너비", "SHOULDER_WIDTH");
 
-        // 실측 항목은 ID 순서와 다르게 어깨너비를 먼저 넘긴다
         post(TestAdmins.of(ADMIN_ID), category("상의", parentId, productTypeId, List.of(shoulderWidth, totalLength)))
             .expectStatus().isCreated()
             .expectBody()
@@ -134,7 +129,6 @@ class AdminCategoryApiTest {
         assertProblem(post(TestAdmins.of(ADMIN_ID), body), HttpStatus.BAD_REQUEST);
     }
 
-    // 요청 검증에서 막히므로 부모 · 유형 · 실측 항목 ID는 실제로 없는 값이어도 된다
     static Stream<Named<Map<String, Object>>> invalidRequests() {
         return Stream.of(
             Named.of("이름이 빔", category("", null, null, List.of())),
@@ -203,7 +197,6 @@ class AdminCategoryApiTest {
         return createdId(post(TestAdmins.of(ADMIN_ID), body), "categoryId");
     }
 
-    // 항목 코드가 겹치지 않게 유형마다 다른 코드를 받는다. 그 항목의 값을 모두 허용하는 필수 옵션 항목 하나로 유형을 만든다
     private String createProductType(String name, String attributeCode) {
         String attributeId = createdId(postTo("/api/v1/admin/attributes", Map.of(
             "name", attributeCode, "code", attributeCode, "inputType", "LIST",
@@ -225,7 +218,6 @@ class AdminCategoryApiTest {
             "measurementItemId");
     }
 
-    // 만들기 응답에서 ID 칸을 읽는다
     private static String createdId(RestTestClient.ResponseSpec response, String idField) {
         Map<?, ?> body = response.expectStatus().isCreated()
             .expectBody(Map.class)

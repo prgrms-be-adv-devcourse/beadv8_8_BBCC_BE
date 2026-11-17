@@ -11,9 +11,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
-/**
- * 기능 테스트: 실제 포트로 앱을 띄우고 RestTestClient로 HTTP 요청을 보낸다. 테스트가 끝나면 모든 테이블을 비운다.
- */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Tag("functional")

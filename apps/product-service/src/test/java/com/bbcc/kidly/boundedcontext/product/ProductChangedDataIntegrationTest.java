@@ -18,11 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 상품 정보 변경됨에 담을 상품 정보 값을, 실제 PostgreSQL에 저장했다가 새 트랜잭션에서 다시 읽은 상품으로 확인한다.
- * 항목과 목록 값은 지연 로딩이고 직접 입력 행은 목록 값 칸이 비어 있어서, 메모리 객체로 만든 단위 테스트와 따로 확인한다.
- * 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class ProductChangedDataIntegrationTest {
 
@@ -57,8 +52,6 @@ class ProductChangedDataIntegrationTest {
             new ProductChangedEvent.AttributeEntry("FEATURE", clothing.stretch().getId(), "신축성"));
     }
 
-    // 주요소재 · 혼용률 · 특징을 넣은 상품 A를 저장하고 ID를 돌려준다.
-    // 항목 · 목록 값 · 유형 · 카테고리 · 실측 항목은 cascade되지 않아 상품보다 먼저 저장한다
     private Long savedProductWithInfoValues() {
         Product.RegisterInfo info = ProductFixture.productAWith(clothing.type(), List.of(
             new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null),

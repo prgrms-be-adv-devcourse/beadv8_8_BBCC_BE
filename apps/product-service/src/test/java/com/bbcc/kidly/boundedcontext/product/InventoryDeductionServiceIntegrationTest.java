@@ -15,9 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * 주문 생성됨을 받아 재고를 차감하는 서비스를 실제 PostgreSQL로 확인한다. 리스너 대신 서비스를 직접 부른다.
- * 서비스가 트랜잭션을 직접 열고 커밋하므로 테스트에 @Transactional을 붙이지 않는다.
- * 테스트마다 끝난 뒤 재고 불변식을 확인한다. DB를 비우는 extension보다 @AfterEach가 먼저 실행된다.
+ * DB를 비우는 extension보다 @AfterEach가 먼저 실행된다.
  */
 @IntegrationTest
 class InventoryDeductionServiceIntegrationTest {

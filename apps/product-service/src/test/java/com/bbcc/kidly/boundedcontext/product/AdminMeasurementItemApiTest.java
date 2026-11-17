@@ -20,9 +20,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 실측 항목을 만들고 조회하는 API를 HTTP 요청부터 응답까지 확인한다.
- */
 @FunctionalTest
 class AdminMeasurementItemApiTest {
 

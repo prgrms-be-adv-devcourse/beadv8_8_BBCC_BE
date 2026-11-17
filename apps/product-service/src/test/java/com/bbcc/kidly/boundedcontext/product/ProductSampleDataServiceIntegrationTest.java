@@ -65,7 +65,6 @@ class ProductSampleDataServiceIntegrationTest {
     @Autowired
     private CategoryRepository categoryRepository;
 
-    // 추천은 판매 시작 이벤트를 Kafka로 받아서, Kafka가 없는 이 테스트에서는 자녀 맞춤 목록까지 확인하지 않는다
     @Test
     @DisplayName("판매자 2의 샘플 상품 두 개를 판매 중으로 넣는다")
     void load() {
@@ -157,7 +156,6 @@ class ProductSampleDataServiceIntegrationTest {
         assertThat(sampleProducts()).isEmpty();
     }
 
-    // 판매자 2가 등록한 상품(판매 상태와 상관없이)
     private List<SellerProductSummary> sampleProducts() {
         return sellerProductService
             .findMyProducts(SELLER_ID, SellerProductFilter.all(), PageRequest.of(0, 10))
@@ -168,12 +166,10 @@ class ProductSampleDataServiceIntegrationTest {
         return items.stream().filter(item -> item.name().equals(name)).findFirst().orElseThrow().productId();
     }
 
-    // 회원 서비스의 판매자 초기 데이터가 판매자 2(테스트상점)를 승인해 보낸 seller.changed를 받은 상태다
     private void saveSellerReplica() {
         replicaSellerRepository.save(ProductReplicaSeller.create(ProductReplicaSellerFixture.sellerApproved()));
     }
 
-    // 의류 > 상의 · 바지는 있지만 색상 값에 네이비가 없는 기준 데이터다
     private void saveReferenceDataWithoutNavy() {
         Attribute color = attributeRepository.save(ProductTypeFixture.color());
         Attribute size = attributeRepository.save(ProductTypeFixture.size());
@@ -199,7 +195,6 @@ class ProductSampleDataServiceIntegrationTest {
             .toList();
     }
 
-    // JSONB에서 읽은 값은 소수 자릿수가 저장할 때와 다를 수 있어 정수 cm로 바꿔 비교한다
     private Map<String, Integer> centimeters(Map<String, BigDecimal> measurements) {
         return measurements.entrySet().stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().intValueExact()));

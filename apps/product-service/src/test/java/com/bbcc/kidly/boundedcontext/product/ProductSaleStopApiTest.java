@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,10 +23,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 판매자가 기존 판매 상태 변경 주소에 STOPPED를 보내 판매를 중지하거나, ON_SALE로 다시 여는 API를 HTTP 요청부터 응답까지 확인한다.
- * 상품은 등록 API로 만들고 판매 시작 요청으로 판매중으로 바꾼다. 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다.
- */
 @FunctionalTest
 class ProductSaleStopApiTest {
 
@@ -131,7 +128,6 @@ class ProductSaleStopApiTest {
     @DisplayName("SALE-11 관리자가 판매중지한 상품에 판매자가 ON_SALE을 보내면 409이고, 판매중지로 남고 이벤트도 나가지 않는다")
     void rejectRestartSaleOfAdminStoppedProduct() {
         startSale();
-        // 관리자 판매중지 API는 따로 확인하므로, 여기서는 관리자가 판매중지한 상태를 표로 만든다
         jdbcTemplate.update("update product.product set status = 'STOPPED', is_stopped_by_admin = true where id = ?",
             Long.valueOf(productId));
 
@@ -153,20 +149,10 @@ class ProductSaleStopApiTest {
         assertThat(eventRecorder.events(ProductChangedEvent.class)).isEmpty();
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
-        response
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId + "/sale-status");
+        assertProblem(response, status, title, detail, PRODUCTS_PATH + "/" + productId + "/sale-status");
     }
 
-    // 판매 시작 요청으로 판매중으로 바꾸고, 그때 나간 이벤트는 지운다
     private void startSale() {
         changeSaleStatus(TestMembers.seller(SELLER_ID), ON_SALE).expectStatus().isOk();
         eventRecorder.clear();

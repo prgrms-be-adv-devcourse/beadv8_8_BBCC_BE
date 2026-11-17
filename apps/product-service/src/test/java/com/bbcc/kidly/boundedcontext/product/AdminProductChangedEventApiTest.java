@@ -26,11 +26,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 판매를 시작한 상품의 상품 정보 변경됨을 다시 보내는 API를 HTTP 요청부터 응답까지 확인한다.
- * 상품은 판매자 등록 API로 만든다. 같은 판매자가 SKU 코드가 같은 상품을 두 번 등록할 수 없어 상품마다 판매자를 다르게 한다.
- * 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다.
- */
 @FunctionalTest
 class AdminProductChangedEventApiTest {
 
@@ -113,7 +108,6 @@ class AdminProductChangedEventApiTest {
 
         republish(TestAdmins.of(ADMIN_ID)).expectStatus().isOk();
 
-        // 아웃박스는 같은 eventId를 한 번만 보내고, 받는 쪽은 저장된 occurredAt보다 늦은 이벤트만 반영한다
         assertThat(eventRecorder.events(ProductChangedEvent.class))
             .singleElement()
             .satisfies(event -> {
@@ -149,7 +143,6 @@ class AdminProductChangedEventApiTest {
 
         republish(TestAdmins.of(ADMIN_ID)).expectStatus().isOk();
 
-        // 판매 시작 때 남은 줄은 빼고, 다시 보낸 이벤트의 줄만 본다
         List<UUID> republishedEventIds = eventRecorder.events(ProductChangedEvent.class).stream()
             .map(ProductChangedEvent::eventId)
             .toList();

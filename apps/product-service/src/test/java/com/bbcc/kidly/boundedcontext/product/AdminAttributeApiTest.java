@@ -21,9 +21,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 상품 항목과 목록 값을 만들고 조회하는 API를 HTTP 요청부터 응답까지 확인한다.
- */
 @FunctionalTest
 class AdminAttributeApiTest {
 
@@ -170,7 +167,6 @@ class AdminAttributeApiTest {
         return Map.of("name", name, "code", code, "inputType", inputType, "values", values);
     }
 
-    // 값 없이 항목 하나를 만들고 그 ID를 돌려준다
     private String createdAttributeId(String code, String inputType) {
         Map<?, ?> body = post(TestAdmins.of(ADMIN_ID), PATH,
             Map.of("name", code, "code", code, "inputType", inputType, "values", List.of()))

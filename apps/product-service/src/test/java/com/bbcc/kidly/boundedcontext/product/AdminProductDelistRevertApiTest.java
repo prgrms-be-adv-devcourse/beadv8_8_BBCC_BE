@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,9 +26,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 등록 취소한 상품을 판매중지로 되돌리는 API를 HTTP 요청부터 응답까지 확인한다.
- */
 @FunctionalTest
 class AdminProductDelistRevertApiTest {
 
@@ -139,15 +137,7 @@ class AdminProductDelistRevertApiTest {
     }
 
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
-        response
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(ADMIN_PRODUCTS_PATH + "/" + productId + "/delisting");
+        assertProblem(response, status, title, detail, ADMIN_PRODUCTS_PATH + "/" + productId + "/delisting");
     }
 
     private void delistBySeller() {

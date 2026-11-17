@@ -42,10 +42,6 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 상품 리포지토리와 상품 애그리거트의 저장 동작을 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- * 항목 · 목록 값 · 상품 유형 · 카테고리 · 실측 항목은 리포지토리가 아직 없어 EntityManager로 저장한다.
- */
 @IntegrationTest
 class ProductRepositoryIntegrationTest {
 
@@ -93,7 +89,6 @@ class ProductRepositoryIntegrationTest {
     @DisplayName("OPT-03 같은 상품에 같은 옵션을 두 요청이 동시에 추가하면 하나만 저장되고 나머지는 version 충돌로 실패한다")
     void concurrentSameOptionAdditionsSaveOnlyOne() throws Exception {
         Long productId = savedProductA();
-        // 두 요청이 모두 옵션을 추가한 뒤에 커밋하도록 맞춰, 둘 다 같은 version의 상품을 고치게 한다
         CyclicBarrier bothAdded = new CyclicBarrier(2);
         Callable<Void> addNavy110 = () -> {
             inTransaction(() -> {
@@ -225,7 +220,6 @@ class ProductRepositoryIntegrationTest {
             "select sale_started_at from product.product where id = ?", LocalDateTime.class, productId);
     }
 
-    // 상품 A를 저장하고 네이비 110 옵션을 붙인 뒤 ID를 돌려준다
     private Long savedProductAWithOption110() {
         Long productId = savedProductA();
         inTransaction(() -> productRepository.findById(productId).orElseThrow().addOptions(
@@ -233,7 +227,6 @@ class ProductRepositoryIntegrationTest {
         return productId;
     }
 
-    // 옵션 없는 상품 A를 저장하고 ID를 돌려준다. 항목 · 목록 값 · 유형 · 카테고리 · 실측 항목은 cascade되지 않아 먼저 저장한다
     private Long savedProductA() {
         Product.RegisterInfo info = ProductFixture.productAWith(clothing.type(), List.of(
             new Product.InfoValueInfo(clothing.mainMaterial(), List.of(clothing.cotton()), null)));
@@ -247,7 +240,6 @@ class ProductRepositoryIntegrationTest {
         return product.getId();
     }
 
-    // 항목은 유형에 연결한 순서(색상 · 사이즈 · 무늬 · 주요소재)와 반대로 저장해, 항목 ID 순서가 연결 순서와 다르게 한다
     private void saveClothingType() {
         Stream.of(clothing.cotton(), clothing.stripe(), clothing.size110(), clothing.navy())
             .map(AttributeValue::getAttribute)
@@ -264,7 +256,6 @@ class ProductRepositoryIntegrationTest {
         entityManager.persist(category);
     }
 
-    // 상품 유형과 목록 값은 객체 동일성으로 비교하므로, 상품을 읽은 트랜잭션에서 다시 읽은 객체를 넘긴다
     private ProductType managedType() {
         return entityManager.find(ProductType.class, clothing.type().getId());
     }
@@ -277,7 +268,6 @@ class ProductRepositoryIntegrationTest {
         return entityManager.find(AttributeValue.class, value.getId());
     }
 
-    // 먼저 넣은 행을 지우고 같은 값으로 다시 넣어 표 뒤쪽으로 옮긴다. 순서를 정하지 않고 읽으면 이 행이 맨 뒤에 나온다
     // id를 그대로 두는 UPDATE는 색인이 원래 자리를 가리켜, 색인으로 읽을 때 순서가 바뀌지 않는다
     private void moveFirstRowToEnd(String table, String ownerColumn, Long ownerId) {
         jdbcTemplate.update("with moved as (delete from " + table + " where id = (select min(id) from " + table

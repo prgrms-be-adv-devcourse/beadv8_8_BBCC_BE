@@ -21,10 +21,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * 주문 취소됨을 받아 그 주문에서 차감한 재고를 되돌리는 흐름을 실제 PostgreSQL로 확인한다.
- * 차감과 복구 모두 서비스를 직접 부른다. 서비스가 트랜잭션을 직접 열고 커밋하므로 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class InventoryRestorationIntegrationTest {
 
@@ -144,7 +140,6 @@ class InventoryRestorationIntegrationTest {
         ProductOption second = first == options.navy110() ? options.navy120() : options.navy110();
         int firstQty = inventoryDeductionDb.availableQty(first);
         int secondQty = inventoryDeductionDb.availableQty(second);
-        // 나중에 되돌리는 옵션의 수량을 int 최댓값으로 두어, 더하는 UPDATE가 DB의 정수 범위를 넘어 실패하게 한다
         setAvailableQty(second, Integer.MAX_VALUE);
         try {
             assertThatThrownBy(() -> inventoryRestorationService.restore(orderCancelled(ORDER_ID,
@@ -155,7 +150,6 @@ class InventoryRestorationIntegrationTest {
             assertThat(inventoryDeductionDb.availableQty(second)).isEqualTo(Integer.MAX_VALUE);
             assertThat(inventoryDeductionDb.countByStatus("DEDUCTED")).isEqualTo(2);
         } finally {
-            // 단언이 실패해도 끝난 뒤 재고 불변식을 확인할 수 있게 바꾼 수량을 되돌린다
             setAvailableQty(second, secondQty);
         }
     }

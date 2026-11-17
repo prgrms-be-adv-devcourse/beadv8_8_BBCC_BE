@@ -16,10 +16,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 상품을 등록할 때 옵션의 SKU 코드가 같은 판매자의 다른 옵션과 겹치는지 HTTP 요청부터 응답까지 확인한다.
- * 상품 A의 요청은 네이비 110 옵션에 SKU 코드 A-NV-110을 넣는다.
- */
 @FunctionalTest
 class ProductRegistrationSkuCodeApiTest {
 
@@ -35,7 +31,6 @@ class ProductRegistrationSkuCodeApiTest {
     @Autowired
     private ClothingTopSaver clothingTopSaver;
 
-    // 실패한 요청이 아무것도 저장하지 않았는지 확인할 때 쓴다
     @Autowired
     private EntityManager entityManager;
 

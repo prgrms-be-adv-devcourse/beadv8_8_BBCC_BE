@@ -13,9 +13,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 상품 서비스가 상품 도메인만으로 뜨고, 상품 API를 정해진 주소 · 응답 형식으로 내는지 본다(#791).
- */
 @FunctionalTest
 class ProductServiceApplicationApiTest {
 
@@ -30,8 +27,6 @@ class ProductServiceApplicationApiTest {
     @Autowired
     private CategoryRepository categoryRepository;
 
-    // baseline-version은 kidly-app이 마지막으로 적용한 상품 마이그레이션 버전이다. 실제 파일 버전이 아니면
-    // kidly-app이 이미 적용한 DB에서 그 파일까지 건너뛰는 경계가 어긋난다
     @Value("${spring.flyway.baseline-version}")
     private String baselineVersion;
 

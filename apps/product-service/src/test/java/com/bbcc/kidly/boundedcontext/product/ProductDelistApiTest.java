@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -24,9 +25,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 판매자가 상품을 더 팔지 않겠다고 등록 취소하는 API를 HTTP 요청부터 응답까지 확인한다.
- */
 @FunctionalTest
 class ProductDelistApiTest {
 
@@ -177,7 +175,6 @@ class ProductDelistApiTest {
         assertThat(storedStatus()).isEqualTo("SALE_PENDING");
     }
 
-    // 관리자 판매중지 API는 따로 확인하므로 그 상태는 표로 만든다
     private void prepare(String given) {
         if (given.equals("판매대기")) {
             return;
@@ -204,15 +201,7 @@ class ProductDelistApiTest {
     }
 
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
-        response
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId + "/delisting");
+        assertProblem(response, status, title, detail, PRODUCTS_PATH + "/" + productId + "/delisting");
     }
 
     private RestTestClient.ResponseSpec delist(Consumer<HttpHeaders> login) {

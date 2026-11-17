@@ -13,10 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
-/**
- * Flyway 마이그레이션 파일 이름 규칙. 버전은 파일을 만든 시각(yyyyMMddHHmm, KST)이라 PR끼리 번호가 겹치지 않는다.
- * 콜백(beforeValidate 등)은 버전이 없는 SQL이라 따로 허용한다.
- */
 class MigrationNamingTest {
 
     private static final Pattern VERSIONED = Pattern.compile("^V(\\d{12})__[a-z0-9_]+\\.sql$");

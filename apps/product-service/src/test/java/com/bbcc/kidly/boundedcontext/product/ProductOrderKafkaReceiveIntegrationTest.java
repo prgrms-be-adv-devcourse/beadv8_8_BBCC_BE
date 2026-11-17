@@ -32,19 +32,12 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 상품이 주문 토픽의 주문 생성됨 · 주문 취소됨 · 판매자 부분 취소(주문상품 취소됨)를 받아 재고를 줄이고 되돌리는지 확인한다(#692, #693).
- * 메시지는 주문 도메인을 거치지 않고 팀 Kafka 규칙의 형식으로 토픽에 직접 넣는다.
- * DB의 ID는 테스트마다 1부터 다시 시작한다. 다른 테스트가 토픽에 남긴 주문 메시지가 이번 테스트의 옵션을 바꾸지 않도록,
- * 리스너를 켠 뒤 남은 메시지를 모두 처리하고 나서 옵션을 저장한다. 주문 ID는 테스트마다 새로 만든다.
- */
 @KafkaIntegrationTest
 class ProductOrderKafkaReceiveIntegrationTest {
 
     private static final String ORDER_TOPIC = "kidly.order.events";
     private static final String ORDER_DLT = "kidly.order.events.product.dlt";
 
-    // 재시도는 1초 간격 3번이라, 재시도했다면 DLT에 들어가기까지 3초 이상 걸린다
     private static final long RETRY_BACKOFF_TOTAL_MS = 3_000;
 
     @Autowired
@@ -69,7 +62,6 @@ class ProductOrderKafkaReceiveIntegrationTest {
 
     private MessageListenerContainer listener;
 
-    // 리스너는 ProductKafkaListenerTestGuard가 들고 있어 이 테스트 안에서만 켠다. 주문 리스너만 켠다
     @BeforeEach
     void startListeners() {
         messages = new ProductKafkaMessages(kafka.getBootstrapServers(), jsonMapper);
@@ -120,8 +112,6 @@ class ProductOrderKafkaReceiveIntegrationTest {
         String key = String.valueOf(orderId);
         messages.send(ORDER_TOPIC, orderCreated(orderId, orderItem(11L, options.navy110(), 2)));
         AsyncWait.until(TIMEOUT, () -> !inventoryDeductionDb.records(orderId).isEmpty());
-        // 되돌릴 옵션의 수량을 int 최댓값으로 두어, 더하는 UPDATE가 DB의 정수 범위를 넘어 실패하게 한다.
-        // 이 실패는 다시 해도 같지만 재시도하지 않는 예외 목록에 없어서, 재시도를 모두 쓴 뒤 DLT로 간다
         setAvailableQty(options.navy110(), Integer.MAX_VALUE);
         try {
             var sent = messages.send(ORDER_TOPIC, orderCancelled(orderId, cancelledItem(11L, options.navy110(), 2)));
@@ -136,7 +126,6 @@ class ProductOrderKafkaReceiveIntegrationTest {
             assertThat(inventoryDeductionDb.records(orderId))
                 .containsExactly(tuple(orderId, 11L, options.navy110().getId(), 2, "DEDUCTED"));
         } finally {
-            // 단언이 실패해도 끝난 뒤 재고 불변식을 확인할 수 있게 바꾼 수량을 차감 뒤 값으로 되돌린다
             setAvailableQty(options.navy110(), 8);
         }
     }

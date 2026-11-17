@@ -27,9 +27,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 카테고리 리포지토리와 카테고리 표의 저장 동작을 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class CategoryRepositoryIntegrationTest {
 
@@ -65,7 +62,6 @@ class CategoryRepositoryIntegrationTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("duplicates")
-    // 한 카테고리에 같은 실측 항목을 두 번 넣는 경우는 도메인이 저장 전에 400으로 막아 DB까지 가지 않는다(CategoryChangeTest)
     @DisplayName("같은 부모 아래 같은 이름의 카테고리는 DB UNIQUE가 거절한다")
     void uniqueConstraintsRejectDuplicates(Duplicate duplicate) {
         // EntityManager로 바로 저장하므로 Spring이 바꾸지 않은 Hibernate의 제약 위반 예외가 나온다
@@ -87,7 +83,6 @@ class CategoryRepositoryIntegrationTest {
     @DisplayName("말단 카테고리의 실측 항목 연결은 카테고리를 채워 저장되고, 연결한 순서로 다시 읽힌다")
     void measurementItemLinksAreSavedWithCategoryInOrder() {
         Category top = savedTop();
-        // 먼저 넣은 연결을 지우고 같은 값으로 다시 넣어 표 뒤쪽으로 옮긴다. 순서를 정하지 않고 읽으면 이 연결이 맨 뒤에 나온다
         // id를 그대로 두는 UPDATE는 색인이 원래 자리를 가리켜, 색인으로 읽을 때 순서가 바뀌지 않는다
         jdbcTemplate.update("with moved as (delete from product.category_measurement_item where id = (select min(id) "
             + "from product.category_measurement_item where category_id = ?) returning *) "
@@ -117,7 +112,6 @@ class CategoryRepositoryIntegrationTest {
         });
     }
 
-    // 의류 > 상의를 저장한다. 실측 항목은 연결한 순서와 반대로 저장해, 실측 항목 ID 순서가 연결 순서와 다르게 한다
     private Category savedTop() {
         Category clothing = Category.createMiddle("의류", null);
         List<MeasurementItem> items = List.of(CategoryFixture.totalLength(), CategoryFixture.shoulderWidth(),
@@ -133,7 +127,6 @@ class CategoryRepositoryIntegrationTest {
         });
     }
 
-    // 색상만 옵션 항목으로 둔 상품 유형을 저장한다. 항목은 cascade되지 않아 먼저 저장한다
     private ProductType savedType() {
         Attribute color = ProductTypeFixture.color();
         ProductType type = ProductType.define("의류", List.of(ProductTypeFixture.requiredOption(color)));
@@ -142,7 +135,6 @@ class CategoryRepositoryIntegrationTest {
         return type;
     }
 
-    // 중복 행을 저장하는 준비다. 이 클래스의 EntityManager로 같은 트랜잭션 안에서 저장한다
     interface Duplicate {
         void persist(CategoryRepositoryIntegrationTest test);
     }

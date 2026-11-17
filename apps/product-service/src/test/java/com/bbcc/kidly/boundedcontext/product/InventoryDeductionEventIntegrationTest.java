@@ -24,13 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * 주문 생성됨을 받아 재고를 차감하는 서비스가 보내는 이벤트(재고 차감됨, 상품 정보 변경됨)를 실제 PostgreSQL로 확인한다.
- * 서비스는 트랜잭션을 직접 열고 커밋하므로, 서비스를 부르고 나면 차감 결과와 나간 이벤트를 바로 읽을 수 있다.
- * 나가는 이벤트는 커밋된 이벤트만 모으는 CommittedEventRecorder로 확인한다.
- * 재고 차감 테스트를 나눈 기준: 재고 · 차감 기록 결과는 InventoryDeductionServiceIntegrationTest, 재고 부족함은
- * ProductStockDeductionFailedIntegrationTest가 본다. 품절 전환이 두 주문에서 겹치는 경우는
- * InventoryDeductionSoldOutConcurrencyIntegrationTest가 본다.
- * 테스트마다 끝난 뒤 재고 불변식을 확인한다. DB를 비우는 extension보다 @AfterEach가 먼저 실행된다.
+ * DB를 비우는 extension보다 @AfterEach가 먼저 실행된다.
  */
 @IntegrationTest
 class InventoryDeductionEventIntegrationTest {
@@ -109,8 +103,6 @@ class InventoryDeductionEventIntegrationTest {
     @DisplayName("주문상품 목록이 없는 주문 생성됨은 예외를 던지고, 재고와 차감 기록은 바뀌지 않으며 재고 차감됨도 보내지 않는다")
     void changeNothingWhenOrderCreatedHasNoItems() {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(10, 5);
-        // 주문상품 목록이 없는 주문 생성됨은 서비스가 목록을 읽다가 예외를 던진다. 서비스가 예외를 삼키지 않아야
-        // Kafka 에러 처리기가 이 메시지를 재시도 없이 DLT로 보낸다(NullPointerException은 재시도하지 않는 예외다)
         OrderCreatedEvent broken = orderCreated(ORDER_ID, (List<OrderCreatedEvent.Item>) null);
 
         assertThatThrownBy(() -> inventoryDeductionService.deduct(broken)).isInstanceOf(NullPointerException.class);
@@ -125,7 +117,6 @@ class InventoryDeductionEventIntegrationTest {
     void deductOnlyOneOfTwoConcurrentOrdersForLastUnit() throws Exception {
         OnSaleOptions options = productOptionSaver.saveOnSaleNavy110And120(1, 5);
 
-        // 재고 행을 잠근 채 두 주문을 출발시켜, 두 차감이 모두 그 행을 기다린 뒤 겹치게 한다
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(options.navy110()), List.of(
             () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID, orderItem(11L, options.navy110(), 1))),
             () -> inventoryDeductionService.deduct(orderCreated(ORDER_ID + 1, orderItem(21L, options.navy110(), 1)))));

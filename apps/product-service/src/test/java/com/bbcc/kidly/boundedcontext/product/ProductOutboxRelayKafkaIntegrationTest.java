@@ -43,11 +43,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 상품 이벤트가 커밋 직전 아웃박스에 저장된 뒤 릴레이를 거쳐 kidly.product.events에 규칙대로 도착하는지 실제 DB와 브로커로 본다.
- * 테스트 설정에서 릴레이 주기를 길게 두었으므로 릴레이는 테스트가 직접 부른다.
- * 다른 테스트의 메시지도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
- */
 @KafkaIntegrationTest
 class ProductOutboxRelayKafkaIntegrationTest {
 
@@ -114,7 +109,6 @@ class ProductOutboxRelayKafkaIntegrationTest {
     @Test
     @DisplayName("보내다 실패하면 그 메시지에 실패를 남기고 뒤 메시지는 보내지 않으며, 다음 실행은 실패한 메시지부터 다시 보낸다")
     void stopAtFailureAndRetryFromSameMessage() {
-        // 브로커의 토픽 자동 생성이 꺼져 있어 선언하지 않은 토픽으로는 보내지 못한다
         UUID failingId = UUID.randomUUID();
         UUID afterId = UUID.randomUUID();
         outboxRepository.save(ProductOutboxMessage.create(new ProductOutboxMessage.CreateInfo(
@@ -147,7 +141,6 @@ class ProductOutboxRelayKafkaIntegrationTest {
                 "stock.deduction-failed", "78"));
     }
 
-    // 상품 자신의 검색용 표 리스너가 옵션 없는 상품을 오류로 남기지 않게 옵션을 하나 둔다
     private static ProductChangedEvent.Option navy110() {
         return new ProductChangedEvent.Option(11L, "네이비 110", "110", 39_000L, 105, 115, false,
             OptionSaleStatus.ON_SALE);

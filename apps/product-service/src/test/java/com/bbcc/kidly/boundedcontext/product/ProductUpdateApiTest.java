@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.id;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.option;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.options;
@@ -36,11 +37,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 판매자가 상품을 고치는 API를 HTTP 요청부터 응답까지 확인한다.
- * 상품 A는 등록 API로 만든 판매대기 상의이고 옵션 네이비 · 110(초기 재고 10, SKU A-NV-110)과 네이비 · 120(초기 재고 0)이 있다.
- * 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @FunctionalTest
 class ProductUpdateApiTest {
 
@@ -333,7 +329,6 @@ class ProductUpdateApiTest {
         assertThat(adjustments(navy110)).containsExactly("INITIAL 10", "CORRECTION 2");
     }
 
-    // 상품 A를 등록할 때와 같은 값에 version을 더한 수정 요청이다. 옵션 · 가격 · 실측은 보내지 않는다
     private Map<String, Object> updateBody(long version) {
         Map<String, Object> body = productA(saved);
         body.put("version", version);
@@ -351,17 +346,8 @@ class ProductUpdateApiTest {
             .exchange();
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
-        response
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(PRODUCTS_PATH + "/" + productId);
+        assertProblem(response, status, title, detail, PRODUCTS_PATH + "/" + productId);
     }
 
     private void startSale() {
@@ -389,7 +375,6 @@ class ProductUpdateApiTest {
             "select count(*) from product.inventory where product_option_id = ?", Long.class, optionId);
     }
 
-    // 옵션의 재고 조정 기록을 "사유 증감량"으로 남긴 순서대로 읽는다
     private List<String> adjustments(Long optionId) {
         return jdbcTemplate.queryForList("select reason || ' ' || delta_qty from product.inventory_adjustment_record "
             + "where product_option_id = ? order by id", String.class, optionId);

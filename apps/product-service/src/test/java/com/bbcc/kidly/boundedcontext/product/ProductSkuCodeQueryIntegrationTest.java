@@ -22,9 +22,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 판매자의 옵션이 이미 쓰는 SKU 코드를 찾는 조회를 실제 PostgreSQL로 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class ProductSkuCodeQueryIntegrationTest {
 
@@ -56,7 +53,6 @@ class ProductSkuCodeQueryIntegrationTest {
         assertThat(findSkuCodesInUse(SELLER_ID, List.of())).isEmpty();
     }
 
-    // 판매자의 판매대기 상품 하나를 저장한다. 옵션은 네이비 110 · 네이비 120 · 오트밀 110 · 오트밀 120 순서로 코드 수만큼 만든다
     private void saveProduct(SavedClothingTop saved, long sellerId, String... skuCodes) {
         ClothingOptions clothing = saved.clothing();
         Product product = Product.register(ProductFixture.productAWithRequired(sellerId, saved.top(), "상품 A",
@@ -76,7 +72,6 @@ class ProductSkuCodeQueryIntegrationTest {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> productRepository.save(product));
     }
 
-    // 옵션의 판매 상태를 바꾸는 업무 메서드가 아직 없어 표를 직접 고친다
     private void changeSaleStatus(String skuCode, String saleStatus) {
         jdbcTemplate.update(
             "update product.product_option set sale_status = ? where sku_code = ?", saleStatus, skuCode);

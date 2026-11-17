@@ -34,10 +34,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * 관리자의 카테고리 · 유형 설정 변경과 판매자의 상품 등록 · 카테고리 이동이 동시에 겹칠 때 뒤의 요청이 앞의 커밋을
- * 기다리는지 {@link TransactionRace}로 실제 스레드 두 개를 겹쳐 확인한다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class ProductRegistrationLockIntegrationTest {
 
@@ -62,9 +58,6 @@ class ProductRegistrationLockIntegrationTest {
     @Autowired
     private ProductTypeService productTypeService;
 
-    /**
-     * 앞의 작업과 그 커밋을 기다리는 뒤의 작업이다.
-     */
     record Overlap(Runnable first, Runnable second) {
     }
 
@@ -165,7 +158,6 @@ class ProductRegistrationLockIntegrationTest {
         assertWaitedThenRejected(outcome, ProductErrorCode.REQUIRED_INFO_MISSING);
     }
 
-    // 등록한 상품의 값을 그대로 두고 카테고리만 옮기는 수정 요청이다
     private static ProductUpdateRequest moveRequest(
         ProductRegisterResult product, ProductRegisterRequest register, Category to) {
         return new ProductUpdateRequest(product.version(), register.name(), register.brand(), to.getId(), null, null,

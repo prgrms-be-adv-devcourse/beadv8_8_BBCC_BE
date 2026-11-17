@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.product;
 
+import static com.bbcc.kidly.boundedcontext.product.ProblemDetailAssertions.assertProblem;
 import static com.bbcc.kidly.boundedcontext.product.ProductRegisterRequestFixture.productA;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -26,10 +27,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 관리자가 운영 정책을 어긴 상품을 판매중지하거나 다시 여는 API를 HTTP 요청부터 응답까지 확인한다.
- * 상품은 판매자 등록 API로 만든다. 나가는 이벤트는 커밋 뒤 이벤트를 모으는 빈으로 센다.
- */
 @FunctionalTest
 class AdminProductSaleStatusApiTest {
 
@@ -154,7 +151,6 @@ class AdminProductSaleStatusApiTest {
     @Test
     @DisplayName("SALE-03 관리자도 판매 시작 조건을 채우지 못한 상품에 ON_SALE을 보내면 409이고 이벤트가 나가지 않는다")
     void rejectStartSaleByAdminWithoutSaleStartConditions() {
-        // 등록할 때 같은 검사를 하므로, 등록한 뒤 120 사이즈의 실측을 지워 조건을 못 채우게 한다
         jdbcTemplate.update("delete from product.size_spec where product_id = ? and attribute_value_id = "
             + "(select id from product.attribute_value where name = '120')", Long.valueOf(productId));
 
@@ -174,17 +170,8 @@ class AdminProductSaleStatusApiTest {
             "상품을 찾을 수 없습니다", "상품을 다시 확인해 주세요.");
     }
 
-    // 실패 응답이 ProblemDetail 5필드(type, title, status, detail, instance)인지 본다
     private void expectProblem(RestTestClient.ResponseSpec response, HttpStatus status, String title, String detail) {
-        response
-            .expectStatus().isEqualTo(status)
-            .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-            .expectBody()
-            .jsonPath("$.type").exists()
-            .jsonPath("$.title").isEqualTo(title)
-            .jsonPath("$.status").isEqualTo(status.value())
-            .jsonPath("$.detail").isEqualTo(detail)
-            .jsonPath("$.instance").isEqualTo(ADMIN_PRODUCTS_PATH + "/" + productId + "/sale-status");
+        assertProblem(response, status, title, detail, ADMIN_PRODUCTS_PATH + "/" + productId + "/sale-status");
     }
 
     private void changeSaleStatusBySeller(Map<String, Object> body) {
@@ -196,7 +183,6 @@ class AdminProductSaleStatusApiTest {
             .expectStatus().isOk();
     }
 
-    // 판매자의 판매 시작 요청으로 판매중으로 바꾸고, 그때 나간 이벤트는 지운다
     private void startSaleBySeller() {
         changeSaleStatusBySeller(ON_SALE);
         eventRecorder.clear();

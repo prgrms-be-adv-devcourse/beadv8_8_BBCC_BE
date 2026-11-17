@@ -15,8 +15,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.kafka.support.ProducerListener;
 
 /**
- * 상품은 처리하지 못한 메시지를 Boot 기본 KafkaTemplate으로 DLT에 보낸다. 그 전송이 실패할 때 남는 로그에
- * 메시지 본문(판매자 상호명)이 들어가지 않는지 본다. Boot 기본 템플릿은 이 서비스의 ProducerListener 빈을 쓴다.
+ * Boot 기본 템플릿은 이 서비스의 ProducerListener 빈을 쓴다.
  */
 @IntegrationTest
 @ExtendWith(OutputCaptureExtension.class)

@@ -28,10 +28,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * 재고 차감을 실제 스레드 여러 개로 동시에 실행해 실제 PostgreSQL의 행 잠금과 UNIQUE 제약으로 결과를 확인한다.
- * 스레드는 ConcurrentTasks로 함께 출발시킨다. 테스트에 @Transactional을 붙이지 않는다.
- */
 @IntegrationTest
 class InventoryDeductionConcurrencyIntegrationTest {
 
@@ -88,7 +84,6 @@ class InventoryDeductionConcurrencyIntegrationTest {
             deliveries.add(() -> inventoryDeductionService.deduct(event));
         }
 
-        // 먼저 차감하는 110의 재고 행을 잠가, 다섯 스레드가 모두 기존 기록 확인을 지난 뒤 차감에서 겹치게 한다
         runRacing(inventoryDeductionDb, inventoryDeductionDb.lockInventoryRow(firstDeducted(options)), deliveries);
 
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(8);
@@ -112,8 +107,6 @@ class InventoryDeductionConcurrencyIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         List<Future<?>> results = new ArrayList<>();
         try {
-            // ID가 작은 옵션의 재고 행을 잠근 채 두 주문을 차례로 출발시킨다. 담은 순서대로 줄인다면 두 번째 주문은
-            // ID가 큰 옵션을 먼저 잠그고 기다리므로, 잠금을 풀면 두 주문이 서로의 행을 기다리는 교착이 생긴다
             try (InventoryDeductionDb.HeldLock lock = inventoryDeductionDb.lockInventoryRow(firstDeducted(options))) {
                 results.addAll(startTogether(executor, List.of(() -> inventoryDeductionService.deduct(lowFirst))));
                 inventoryDeductionDb.awaitLockWaiters(1);
@@ -142,7 +135,6 @@ class InventoryDeductionConcurrencyIntegrationTest {
         assertThat(inventoryDeductionDb.availableQty(options.navy110())).isEqualTo(1);
         assertThat(inventoryDeductionDb.records())
             .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "DEDUCTED"));
-        // 늦은 쪽의 거절이 새면 재고를 이미 줄인 주문이 취소되므로, 재고 부족함이 나가지 않는지 함께 본다
         assertThat(eventRecorder.events(StockDeductedEvent.class)).hasSize(1);
         assertThat(eventRecorder.events(StockDeductionFailedEvent.class)).isEmpty();
     }
@@ -162,7 +154,6 @@ class InventoryDeductionConcurrencyIntegrationTest {
             .containsExactly(tuple(ORDER_ID, 11L, options.navy110().getId(), 2, "FAILED"));
     }
 
-    // 차감은 옵션 ID 오름차순이라 ID가 작은 옵션의 재고 행을 먼저 잠근다
     private static ProductOption firstDeducted(OnSaleOptions options) {
         if (options.navy110().getId() < options.navy120().getId()) {
             return options.navy110();
