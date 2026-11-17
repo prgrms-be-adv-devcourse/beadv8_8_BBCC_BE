@@ -41,8 +41,9 @@ import org.springframework.stereotype.Service;
  * 기록이라고 밝힌 회원 메시지 하나로 묶어 이번 질문 앞에 둔다. 턴마다 한 줄로 펴서, 내용 안에 줄을 바꿔 다른 턴처럼 꾸밀 수 없다.
  *
  * <p>질문 하나에 쓰는 시간은 {@link ChatbotAnswerProperties#timeBudget()}까지다. 답 만들기는 가상 스레드에서 돌리고 요청
- * 스레드는 예산만큼만 기다린다. 넘으면 바로 503 AI_TIMEOUT으로 답하고, 그 질문은 이미 보낸 OpenAI 호출 하나만 끝내고 다음 호출을
- * 하지 않는다(같은 마감 시각을 {@link ChatbotAi#answer}에 넘긴다). 그래서 회원이 Gateway 504를 받은 뒤에도 비용이 계속 나가지 않는다.
+ * 스레드는 예산만큼만 기다린다. 넘으면 바로 503 AI_TIMEOUT으로 답하고, 답 만들기 스레드에 인터럽트를 건다.
+ * 진행 중인 OpenAI 호출은 끊기거나 그 호출 하나만 끝나고, 다음 호출은 하지 않는다(같은 마감 시각을
+ * {@link ChatbotAi#answer}에 넘긴다). 그래서 회원이 Gateway 504를 받은 뒤에도 비용이 계속 나가지 않는다.
  *
  * <p>질문마다 OpenAI를 여러 번 부르므로 비용 상한을 둔다: 서비스 전체 하루 질문 수({@link ChatbotQuotaProperties#dailyQuestions()})를
  * 넘으면 OpenAI를 부르지 않고 거절하고, 이전 대화는 최근 것부터 글자 수 상한({@link ChatbotQuotaProperties#historyChars()})까지만 넘긴다.

@@ -24,7 +24,7 @@ public class ChatController {
 
     /**
      * 200. 쓴 문서가 없으면 빈 sources, 찾은 상품이 없으면 빈 products. 상품 검색 · 주문 조회가 실패해도 200이다(답에서 안내).
-     * 오류: 400 INVALID_INPUT, 503 AI_UNAVAILABLE.
+     * 오류: 400 INVALID_INPUT, 503 AI_UNAVAILABLE · AI_TIMEOUT · AI_DAILY_LIMIT_REACHED.
      */
     @PostMapping("/messages")
     public ChatResponse send(@LoginMember AuthMember member, @Valid @RequestBody ChatRequest request) {
