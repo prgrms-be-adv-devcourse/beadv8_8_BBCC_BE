@@ -34,6 +34,7 @@ templates:
       {{- with .Annotations.service_url }} · <{{ . }}|서비스 상세>{{ end }}
       {{- with .Annotations.logs_url }} · <{{ . }}|로그 보기>{{ end }}
       {{- with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
+      {{- template "kidly.slack.ai" . }}
       {{- else -}}
       {{ if .Alerts.Resolved -}}
       {{ if (index .Alerts.Resolved 0).Annotations.recovery_summary -}}
@@ -47,6 +48,14 @@ templates:
       {{ with index .Alerts.Resolved 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ with .Annotations.service_url }} · <{{ . }}|서비스 상세>{{ end }}{{ with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
       {{ end -}}
       {{- end }}
+      {{- end }}
+
+      {{/* 규칙에 ai_prompt가 있으면 첫 알림 기준으로 AI(kidly_grafana MCP)에 붙여 넣을 질문을 붙인다. 시각은 UTC */}}
+      {{ define "kidly.slack.ai" -}}
+      {{ with index .Alerts.Firing 0 }}{{ if .Annotations.ai_prompt }}
+      AI에게 물어보기 (kidly_grafana MCP)
+      ```Kidly {{ .Labels.alertname }} 알림: job={{ .Labels.job }}, env={{ .Labels.env }}, 시작 {{ .StartsAt.UTC.Format "2006-01-02 15:04" }} UTC. {{ .Annotations.ai_prompt }}. query_prometheus로 시작 시각 기준 1시간 범위를 조회하고 숫자 근거와 함께 원인 후보를 정리해줘. 추측은 가설로 표시해줘.```
+      {{- end }}{{ end }}
       {{- end }}
 
       {{ define "kidly.slack.color" -}}

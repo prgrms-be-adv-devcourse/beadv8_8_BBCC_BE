@@ -61,6 +61,7 @@ groups:
           severity: critical
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
+          ai_prompt: 'up이 언제 0이 됐는지, 직전 재시작(process_start_time_seconds) · 힙 메모리(jvm_memory_used_bytes, area=heap) · DB 연결 대기(hikaricp_connections_pending)에 이상이 있었는지 봐줘'
           summary: '{{ $labels.job }} 메트릭을 5분 넘게 못 읽었습니다 (다운 또는 /actuator/prometheus 없음)'
 
       # 서비스별 최근 5분 5xx 비율 > 5%이고 오류 추정 건수 >= 5인 상태가 2분 지속될 때 알린다. 초기 후보이며 dev 검증 후 조정한다
@@ -93,6 +94,7 @@ groups:
           severity: warning
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
+          ai_prompt: '5xx가 어느 API(uri · status)에서 언제부터 늘었는지, 같은 시각 DB 연결 대기 · 재시작 · 요청량 변화와 겹치는지 봐줘'
           summary: '{{ $labels.job }} 최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
           logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", service_name=\"%s\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_response_status_code >= 500","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env $labels.job | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
 
@@ -124,6 +126,7 @@ groups:
           severity: warning
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
+          ai_prompt: 'Gateway 5xx(status별)와 같은 시각 하위 서비스들의 up · 5xx를 비교해, 어느 하위 서비스 때문인지 아니면 Gateway에서만 난 연결 실패인지 봐줘'
           description: 하위 서비스 5xx도 포함합니다. 서비스 오류 화면과 비교해 Gateway에서만 발생하는 연결 실패인지 확인하세요. 같은 요청을 서비스 오류와 합산하지 마세요.
           summary: '{{ $labels.job }} 입구 요청의 최근 5분 5xx 비율 {{ with $values.A }}{{ humanizePercentage .Value }}{{ end }}'
           logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", service_name=\"%s\"} |= \"RequestLoggingFilter\" | json | __error__=\"\" | http_response_status_code >= 500","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env $labels.job | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
@@ -157,6 +160,7 @@ groups:
           severity: warning
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
+          ai_prompt: '로그 내용은 볼 수 없으니 ERROR 건수(logback_events_total, level=error) 추이와 같은 시각 5xx · 재시작 · DB 연결 대기를 비교해 무엇과 같이 움직였는지 봐줘'
           summary: '{{ $labels.job }} 최근 5분 ERROR 로그 {{ with $values.A }}{{ printf "%.0f" .Value }}{{ end }}건'
           logs_url: '{{ printf `{"t":{"datasource":"loki","queries":[{"refId":"A","datasource":{"type":"loki","uid":"loki"},"expr":"{env=\"%s\", service_name=\"%s\", level=\"ERROR\"}","queryType":"range","editorMode":"code"}],"range":{"from":"now-15m","to":"now"}}}` $labels.env $labels.job | urlquery | printf "https://grafana.kidly.kro.kr/explore?schemaVersion=1&orgId=1&panes=%s" }}'
 
@@ -191,5 +195,6 @@ groups:
           severity: critical
         annotations:
           service_url: 'https://grafana.kidly.kro.kr/d/kidly-service?var-env={{ $labels.env }}&var-service={{ $labels.job }}'
+          ai_prompt: '수집(up)이 언제 끊겼는지, 같은 시각 재시작(process_start_time_seconds)이나 다른 서비스도 같이 끊겼는지 봐줘'
           summary: '{{ $labels.job }} 수집 데이터가 3분 이상 없습니다'
           description: 운영 대상은 유지돼 있습니다. targets 등록과 Alloy의 해당 서비스 수집 상태를 확인하세요. 의도적 중지는 environment-operation을 사용하세요.
