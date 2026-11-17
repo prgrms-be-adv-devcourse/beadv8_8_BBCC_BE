@@ -76,6 +76,20 @@ else
     echo "::warning::Logs Drilldown 앱이 ${installed:-알 수 없음} 입니다(기대 $expected). 플러그인 저장소에 닿지 못했을 수 있습니다. 기본 열이 보이지 않으면 monitoring-deploy 를 다시 돌리세요"
 fi
 
+# Grafana AI 운영 분석의 "새 분석 실행" 버튼 처리기(노드 프로세스). 실패해도 모니터링 배포는 계속한다
+if ! bash ai-notes/analysis-api.sh; then
+    echo "::warning::AI 분석 실행 처리기를 띄우지 못했습니다. 기존 모니터링 배포는 계속합니다"
+fi
+# 서버가 다시 켜지면(매일 저녁 꺼짐) 처리기도 다시 띄운다. crontab 이 없으면 다음 배포까지 실행 행이 숨는다
+reboot_line='@reboot bash /opt/app/monitoring/ai-notes/analysis-api.sh > /dev/null 2>&1'
+if command -v crontab > /dev/null; then
+    if ! crontab -l 2>/dev/null | grep -qxF "$reboot_line"; then
+        { crontab -l 2>/dev/null || true; echo "$reboot_line"; } | crontab -
+    fi
+else
+    echo "::warning::crontab 이 없어 서버가 다시 켜진 뒤에는 다음 monitoring-deploy 까지 AI 분석 실행 버튼이 숨습니다"
+fi
+
 # 운영 시범 수신 설정은 대시보드 배포가 지우지 않는 operations에서 고른다.
 tempo_profile=tempo
 if [[ -f operations/tempo-private-receiver.enabled ]]; then

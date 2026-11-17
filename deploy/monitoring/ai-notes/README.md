@@ -40,12 +40,16 @@ MCP 클라이언트 추론과 서버/로컬 모델 worker는 같은 결과 계�
 
 Groq 실행은 같은 서비스의 최근 30분과 직전 30분을 비교합니다. 요청 수와 5xx는 관측값을 사용하고, 평균 응답 시간은 각 구간의 누적 응답 시간에서 요청 수로 나눠 계산합니다. 요청 데이터가 없거나 0인 구간, 비교할 값이 없는 지표는 변화로 해석하지 않습니다. AI에는 대응할 항목 하나를 고르고 비교 근거와 첫 확인 순서를 제안하도록 요청합니다.
 
-## Grafana 직접 실행 준비
+## Grafana에서 바로 실행
 
-초안의 로컬 HTTP 처리기는 기본 조직의 Grafana Admin 세션으로만 운영 분석을 요청하고 읽을 수 있게 합니다. 실행 요청은 Grafana와 같은 출처에서 보낸 POST로 한정하고, 본문은 비어 있거나 기본 패널의 `{}`여야 합니다. 요청은 기존 Groq 수동 실행과 같은 잠금 및 호출 간격을 사용하며 응답에는 상태와 게시 시각만 담습니다.
+Grafana → Kidly → **Kidly AI 운영 분석** 상단에서 제공자와 분석 목적을 고르고 **새 분석 실행**을 누릅니다. 기본 조직 Admin만 실행 · 상태 조회할 수 있습니다(Viewer 거부). 옆 칸에서 실행 중 · 게시 · 한도 · 실패를 보고, 게시되면 최신 메모가 바뀝니다.
 
-Grafana 상단에서 제공자를 선택한 뒤 새 분석 실행 버튼을 누릅니다. 옆에서 분석 상태를 확인합니다. 상태는 기존 Alloy textfile 수집 경로로 보내며, 처리기의 최근 상태 지표가 있을 때만 실행 행을 표시합니다. 운영 Grafana의 요청 경로와 처리기 배포는 아직 연결되지 않았습니다. Groq 키는 브라우저에 전달하지 않습니다.
+- 처리기(`grafana_analysis_api.py`)는 모니터링 서버의 deploy 유저 프로세스입니다. `analysis-api.sh`가 배포마다 다시 띄우고, 서버가 다시 켜지면 crontab `@reboot`으로 다시 뜹니다
+- 경로: 브라우저 → 엣지 Traefik → 모니터링 k3s IngressRoute `kidly-ai-analysis`(`POST /kidly-ai-analysis/run`, `GET /kidly-ai-analysis/status`만) → 노드 사설 IP:8786. 나머지는 그대로 Grafana로 갑니다
+- 실행은 Grafana와 같은 출처의 POST만 받고, Grafana 세션으로 권한을 확인합니다. 응답에는 상태와 게시 시각만 담습니다
+- 키: monitoring-deploy가 dev Environment Secret `GROQ_API_KEY` · `OPENAI_API_KEY`를 서버 `secrets/`(0600, deploy 유저)에 쓰고, 처리기가 실행 때마다 읽어 분석 프로세스의 stdin으로만 넘깁니다. k8s Secret · 명령 인자 · 로그 · 브라우저에는 넣지 않습니다. `GROQ_API_KEY`가 없으면 처리기를 띄우지 않고, 상태 지표가 끊기면 화면의 실행 행이 숨습니다
+- 처리기 상태는 기존 Alloy textfile(`operations/ai-analysis.prom`)로 보냅니다. 최근 45초 안의 상태 지표가 있을 때만 실행 행을 표시합니다
 
-제공자는 기본값 Groq와 선택형 OpenAI로 나눕니다. OpenAI는 서버에 `--allow-paid-openai`와 별도 키 파일이 모두 설정돼 있을 때만 노출합니다. 매 실행마다 `X-Kidly-AI-Provider: openai`와 `X-Kidly-AI-Confirm-Paid: true`가 필요합니다. 두 제공자와 기존 GitHub 수동 실행은 동일한 실행 잠금과 한 시간 호출 간격을 공유합니다. 실패나 한도 초과 시 다른 제공자로 전환하지 않습니다.
+제공자는 기본값 Groq와 선택형 OpenAI로 나눕니다. OpenAI는 dev Environment Secret `OPENAI_API_KEY`를 등록하고 monitoring-deploy를 다시 돌렸을 때만 선택지에 나옵니다(서버 `--allow-paid-openai`와 키 파일). 사용량이 청구됩니다. 매 실행마다 `X-Kidly-AI-Provider: openai`와 `X-Kidly-AI-Confirm-Paid: true`가 필요합니다. 두 제공자와 기존 GitHub 수동 실행은 동일한 실행 잠금과 한 시간 호출 간격을 공유합니다. 실패나 한도 초과 시 다른 제공자로 전환하지 않습니다.
 
 분석 목적은 전체 점검, 응답 지연, 오류 증가, 서버 자원 중 선택합니다. 전체 점검이 기본이며 두 제공자가 같은 목적별 지침을 씁니다. 자유 입력 프롬프트는 받지 않습니다. 최신 메모의 우선 조치는 상단에 표시하고, 선택한 환경의 최근 14일 중 최신 메모 최대 15건은 **이전 분석 내역**에서 펼쳐 봅니다.

@@ -158,6 +158,7 @@ def main():
     parser.add_argument('--openai-key-file', type=Path)
     parser.add_argument('--allow-paid-openai', action='store_true')
     parser.add_argument('--metrics-file', type=Path)
+    parser.add_argument('--host', default='127.0.0.1', help='Listen address. Server uses the node address the Grafana ingress forwards to')
     parser.add_argument('--port', type=int, default=8786)
     parser.add_argument('--confirm-free-plan', action='store_true', required=True)
     args = parser.parse_args()
@@ -169,7 +170,7 @@ def main():
         partial(run_groq_trial, args.key_file, free_plan_confirmed=args.confirm_free_plan),
         partial(next_trial_at, STATE), openai_runner=openai_runner,
     )
-    with DashboardStatusServer(('127.0.0.1', args.port), AnalysisHTTPHandler) as server:
+    with DashboardStatusServer((args.host, args.port), AnalysisHTTPHandler) as server:
         server.metrics_path = args.metrics_file
         server.analysis_api = AnalysisAPI(GrafanaAuthorization(args.grafana_url), requests, origin=args.origin)
         server.serve_forever()
