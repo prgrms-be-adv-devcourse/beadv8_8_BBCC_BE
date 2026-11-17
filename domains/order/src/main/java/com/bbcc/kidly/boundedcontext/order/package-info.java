@@ -8,7 +8,8 @@
  *   <li>{@code domain}: 엔티티 · 값 객체 · 상태 전이 · 규칙. {@code jakarta.persistence}까지만 안다</li>
  *   <li>{@code app}: 유즈케이스 · 조회 서비스. {@code port}에 출력 포트, {@code port.in}에 다른 컨텍스트에 내주는 입력 포트
  *       (구현은 {@code provided})</li>
- *   <li>{@code in}: {@code web}(API, 관리자는 {@code web.admin}) · {@code event}(리스너) · {@code scheduler}(시간 작업)
+ *   <li>{@code in}: {@code web}(API, 관리자는 {@code web.admin}, 서비스 사이 내부 API는 {@code web.internal})
+ *       · {@code event}(리스너) · {@code scheduler}(시간 작업)
  *       · {@code mcp}(운영 조회 MCP 창구) · {@code config}(Kafka 리스너 · MCP · 웹 설정)</li>
  *   <li>{@code out}: {@code persistence}(Spring Data JPA 저장소만) · {@code outbox}(이벤트 아웃박스) · {@code kafka}(발송 · 봉투 ·
  *       대기량 확인) · {@code deadletter}(DLT 보관) · {@code lock}(DB 잠금) · {@code ai}(멈춘 주문 AI 진단)
@@ -16,6 +17,7 @@
  * </ul>
  *
  * <p>의존 방향: in → app → domain ← out, out → app/port. 규칙은 {@code OrderArchitectureTest} · {@code LayerArchitectureTest}
- * · {@code OrderContextArchitectureTest}(컨텍스트 경계)가 검사한다.
+ * · {@code OrderContextArchitectureTest}(컨텍스트 경계) · {@code OrderPackageLayoutArchitectureTest}(컨텍스트 아래 계층 패키지)가
+ * 검사한다.
  */
 package com.bbcc.kidly.boundedcontext.order;
