@@ -1,10 +1,11 @@
-# medium 노드 자체의 메트릭과 Pod 로그를 모은다 (alloy/config.alloy). 앱 서버(t3.large)는 deploy/monitoring-agent 의 Alloy 가 맡는다
+# medium 노드 자체의 메트릭, Pod 컨테이너 CPU · 메모리, Pod 로그를 모은다 (alloy/config.alloy). 앱 서버(t3.large)는 deploy/monitoring-agent 의 Alloy 가 맡는다
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: alloy
 ---
 # 이 노드의 Pod 를 찾고(discovery.kubernetes) 그 로그를 API 로 읽는다(loki.source.kubernetes)
+# kubelet 의 cAdvisor 지표(/metrics/cadvisor)를 읽는 것도 허용한다(prometheus.scrape "k3s_cadvisor")
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -13,6 +14,9 @@ rules:
   - apiGroups: [""]
     resources: [pods, pods/log]
     verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [nodes/metrics]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
