@@ -24,7 +24,7 @@
       "keepTime": true
     },
     {
-      "title": "서비스 상태",
+      "title": "서비스 오류",
       "type": "link",
       "url": "/d/kidly-http?var-env=${env}&var-service=${service}&${__url_time_range}",
       "includeVars": false,

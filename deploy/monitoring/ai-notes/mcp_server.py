@@ -33,7 +33,7 @@ REPORT_SCHEMA = {
             }}}
     }}
 TOOLS = [
-    {'name': 'get_analysis_context', 'description': 'Read an authoritative dev/prod technical metric context for AI inference. Issued evidence expires after 300 seconds. Does not analyze or operate services. Write checks as ordered Grafana steps a developer can follow, e.g. 운영 홈 서비스 상태판 → 서비스 상태 → 오류 로그.',
+    {'name': 'get_analysis_context', 'description': 'Read an authoritative dev/prod technical metric context for AI inference. Issued evidence expires after 300 seconds. Does not analyze or operate services. Write checks as ordered Grafana steps a developer can follow, e.g. 운영 홈 서비스 상태판 → 서비스 상세 → 오류 로그.',
      'inputSchema': {'type': 'object', 'additionalProperties': False, 'required': ['environment'], 'properties': {'environment': {'type': 'string', 'enum': ['dev', 'prod']}}},
      'annotations': {'readOnlyHint': True, 'destructiveHint': False}},
     {'name': 'publish_analysis', 'description': 'Publish an AI-authored report for an issued context. Does not call an AI or operate services. Do not include URLs, IPs, credentials or personal data. Caller-bound evidence/format/deadline are checked; unknown causes must be hypotheses.',

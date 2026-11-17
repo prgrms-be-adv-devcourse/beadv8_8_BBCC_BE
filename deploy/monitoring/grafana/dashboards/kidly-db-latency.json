@@ -438,14 +438,11 @@
   },
   "links": [
     {
-      "title": "서비스 상태",
+      "title": "운영 홈",
       "type": "link",
-      "url": "/d/kidly-http?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
-    },
-    {
-      "title": "로그 확인",
-      "type": "link",
-      "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
+      "url": "/d/kidly-home",
+      "includeVars": false,
+      "keepTime": true
     },
     {
       "title": "서비스 상세",
@@ -455,6 +452,16 @@
       "keepTime": false,
       "icon": "dashboard",
       "tooltip": "서비스 상세로 이동합니다. 특정 서비스는 그래프 선이나 표의 서비스 칸을 누르세요"
+    },
+    {
+      "title": "서비스 오류",
+      "type": "link",
+      "url": "/d/kidly-http?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
+    },
+    {
+      "title": "오류 로그",
+      "type": "link",
+      "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
     },
     {
       "title": "AI 분석",
