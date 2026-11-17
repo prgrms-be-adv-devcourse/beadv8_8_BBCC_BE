@@ -39,7 +39,10 @@ if [[ "$mode" == rollback ]]; then
   exit
 fi
 
-[[ ! -e "$marker" ]]
+if [[ -e "$marker" ]]; then
+  echo 'Search Agent is already enabled. Run rollback if the marker is stale.' >&2
+  exit 1
+fi
 allowlist=$(k get deployment/tracing-alloy -o 'jsonpath={.spec.template.spec.containers[?(@.name=="alloy")].env[?(@.name=="TRACING_ALLOWED_SERVICES")].value}')
 [[ "$allowlist" == '^(kidly-(gateway|order|search))$' ]] || { echo 'Search Alloy profile is not active' >&2; exit 1; }
 ready tracing-alloy
