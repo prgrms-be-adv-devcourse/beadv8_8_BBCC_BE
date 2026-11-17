@@ -11,8 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.support.ProducerListener;
 
 /**
- * Kafka 전송 실패 로그에 어떤 이벤트인지 찾을 값(토픽 · 키 · eventType · eventId)만 남긴다.
- * 메시지 본문(판매자 정보 같은 개인정보)은 남기지 않는다.
  * Boot 기본 LoggingProducerListener는 키와 본문을 함께 남기거나(includeContents=true) 함께 빼서(false)
  * 이 둘을 나눌 수 없어 직접 구현한다.
  */
