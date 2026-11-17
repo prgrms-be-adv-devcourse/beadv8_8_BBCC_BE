@@ -21,8 +21,10 @@ spec:
           image: grafana/tempo:2.10.8@sha256:f0561deb1c68ec44d6e6e7e4487f30106c4e5e768642077695b37958b105812a
           args: ["-config.file=/etc/tempo/tempo.yml"]
           env:
+            # 블록을 완성(parquet 쓰기)할 때 순간 사용량이 평소보다 약 110MiB 늘어난다(로컬 측정: 평소 약 120MiB → 230~260MiB).
+            # 한도 256Mi 에서는 이때 컨테이너 OOM 으로 죽었다(11/17 4회). 한도 384Mi, Go 목표는 그 75%
             - name: GOMEMLIMIT
-              value: 192MiB
+              value: 288MiB
           ports:
             - name: query
               containerPort: 3200
@@ -36,7 +38,7 @@ spec:
               memory: 128Mi
             limits:
               cpu: 500m
-              memory: 256Mi
+              memory: 384Mi
               ephemeral-storage: 512Mi
           volumeMounts:
             - name: config
