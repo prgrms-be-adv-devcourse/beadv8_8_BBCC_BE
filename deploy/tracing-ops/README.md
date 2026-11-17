@@ -55,6 +55,10 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 
 수신 경로를 준비한 뒤 `tracing-verify-alloy`를 수동 실행합니다. 전용 Alloy에 합성 span 한 개를 넣고 Tempo에서 같은 ID를 조회합니다. 기존 Alloy가 허용하는 Gateway 서비스 이름과 별도 합성 계측 scope를 사용합니다. 검증 실행에 표시된 합성 trace ID는 실제 요청 검증에서 제외합니다. 앱이나 DB는 변경하지 않습니다. 운영 Grafana에서 실제 요청의 Gateway·주문·DB 추적은 Agent 적용 후 확인합니다.
 
+## Gateway·주문 Agent 시범 적용
+
+`tracing-switch-pilot-agent`의 `apply`는 최근 1시간 이내에 성공한 `tracing-verify-alloy` 실행 ID와 적용 시각·대상 서비스 사전 공유 확인을 요구합니다. 앱 서버에서 기존 배포와 같은 잠금으로 두 서비스만 순차 롤링합니다. 둘 다 준비되면 일반 배포에서도 유지할 선택 파일을 둡니다. 실패 시 선택 파일을 제거하고 이번에 적용한 패치를 역순으로 원복합니다. 이후 `rollback` 실행으로 원복할 수도 있습니다.
+
 ## 운영 적용·원복 점검
 
 `tracing-preflight`에서 `applied` 또는 `rolled-back`을 선택합니다. Gateway·주문 롤아웃, Agent 설정, 전용 Alloy, Tempo 수신 설정을 읽어서 기대 상태와 다르면 실패합니다. 이 검사는 설정과 Pod 준비 상태를 확인합니다. 실제 전송·사설 접근 차단과 Grafana의 주문 트레이스는 시범 절차에서 각각 확인합니다.
