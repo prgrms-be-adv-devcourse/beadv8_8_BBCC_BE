@@ -99,11 +99,19 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
 
     def test_dashboard_uses_existing_prometheus_and_same_origin_post(self):
         dashboard_path = Path(__file__).parents[1] / 'grafana/dashboards/kidly-ai-notes.json'
-        panels = json.loads(dashboard_path.read_text())['panels']
-        run, status = panels[:2]
+        dashboard = json.loads(dashboard_path.read_text())
+        run, status = dashboard['panels'][:2]
+        provider = next(variable for variable in dashboard['templating']['list'] if variable['name'] == 'provider')
+        self.assertFalse(provider['multi'])
+        self.assertFalse(provider['includeAll'])
+        self.assertEqual(provider['current']['value'], 'groq')
+        self.assertIn('kidly_ai_analysis_provider_enabled', provider['query'])
         self.assertEqual((run['datasource']['uid'], status['datasource']['uid']), ('prometheus', 'prometheus'))
-        action = run['fieldConfig']['overrides'][1]['properties'][1]['value'][0]
+        actions = run['fieldConfig']['overrides'][0]['properties'][1]['value']
+        self.assertEqual(len(actions), 1)
+        action = actions[0]
+        self.assertIn(['X-Kidly-AI-Provider', '${provider:raw}'], action['fetch']['headers'])
         self.assertIn('청구', action['confirmation'])
         self.assertEqual((action['fetch']['url'], action['fetch']['method']), (ACTION_PATH, 'POST'))
-        self.assertIn('kidly_ai_analysis_provider_enabled', run['targets'][0]['expr'])
+        self.assertIn('kidly_ai_analysis_provider_enabled{provider="${provider:raw}"}', run['targets'][0]['expr'])
         self.assertIn('kidly_ai_analysis_heartbeat_seconds', status['targets'][0]['expr'])
