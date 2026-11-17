@@ -6,9 +6,7 @@ import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerUpdateRequest;
 import com.bbcc.kidly.boundedcontext.seller.domain.Seller;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerRepository;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
-import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,8 +30,7 @@ public class SellerService {
     public SellerResult changeBusinessName(Long sellerId, SellerUpdateRequest request) {
         var seller = sellerRepository.getById(sellerId);
         if (seller.changeBusinessName(request.businessName())) {
-            eventPublisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
-                new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+            eventPublisher.publishEvent(seller.toChangedEvent(LocalDateTime.now()));
         }
         return SellerResult.from(seller);
     }
@@ -43,8 +40,7 @@ public class SellerService {
         var now = LocalDateTime.now();
         var seller = sellerRepository.getById(sellerId);
         seller.suspend(adminId, request.reason(), now);
-        eventPublisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), now,
-            new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+        eventPublisher.publishEvent(seller.toChangedEvent(now));
         log.info("판매자 정지: sellerId={} adminId={}", sellerId, adminId);
         return SellerResult.from(seller);
     }
@@ -58,8 +54,7 @@ public class SellerService {
 
     private void closeAndPublish(Seller seller) {
         seller.close();
-        eventPublisher.publishEvent(new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new SellerChangedEvent.Data(seller.getId(), seller.getBusinessName(), seller.getStatus())));
+        eventPublisher.publishEvent(seller.toChangedEvent(LocalDateTime.now()));
         log.info("판매자 탈퇴로 닫음: sellerId={}", seller.getId());
     }
 }
