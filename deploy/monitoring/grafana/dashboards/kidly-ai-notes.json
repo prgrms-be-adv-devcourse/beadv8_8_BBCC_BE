@@ -76,13 +76,47 @@
   },
   "panels": [
     {
+      "id": 3,
+      "type": "logs",
+      "title": "먼저 확인할 내용",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 10
+      },
+      "timeFrom": "14d",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{if .priority}}{{.priority}}{{else}}{{.headline}} · 아래에서 전체 메모 보기{{end}}\"",
+          "queryType": "range",
+          "maxLines": 1
+        }
+      ],
+      "options": {
+        "showTime": false,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": false,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "description": "최근 메모가 관측한 변화와 사람의 첫 확인 조치입니다. 수치 근거와 원인 후보는 아래에서 펼쳐 봅니다."
+    },
+    {
       "id": 201,
       "type": "table",
       "title": "운영 AI 분석 실행",
       "description": "위에서 제공자를 선택한 뒤 실행하세요. Groq는 무료이며 OpenAI 사용량은 청구될 수 있습니다.",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 10,
         "w": 14,
         "h": 5
       },
@@ -165,7 +199,7 @@
       "title": "분석 실행 상태",
       "gridPos": {
         "x": 14,
-        "y": 0,
+        "y": 10,
         "w": 10,
         "h": 5
       },
@@ -217,72 +251,72 @@
       }
     },
     {
-      "id": 4,
-      "type": "text",
-      "title": "AI에게 분석 맡기기 · 메모 읽는 법",
-      "gridPos": {
-        "x": 0,
-        "y": 5,
-        "w": 24,
-        "h": 10
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**AI에게 분석 맡기기** — ai-notes MCP를 연결한 AI 클라이언트에 아래 문장을 그대로 붙여 넣습니다(주문 MCP는 연결돼 있을 때만).\n\n```text\ndev 환경 운영 분석을 해 줘. get_analysis_context(\"dev\")로 지표 문맥을 받고, 지금 가장 먼저 볼 문제를 중요한 순서로 최대 3개 골라.\n항목마다 관측(숫자 근거), 원인 후보(확인 전 가설), 확인 순서 2~3단계(운영 홈 상태판 → 서비스 상태 → 오류 로그처럼 Grafana 화면과 패널 이름),\n대응 제안을 쓰고 evidence_id를 붙여. 주문 MCP가 있으면 stuck_orders_summary와 dead_letters도 확인해 근거에 넣어.\n이상이 없으면 어떤 지표를 어느 시간 범위에서 봤는지와 판단할 수 없는 것을 적어. 300초 안에 publish_analysis로 게시하고 get_publication_status로 확인해.\n```\n\n**메모 읽는 법**\n1. **관측 시각 · 환경**을 지금 알림과 맞춥니다. 다르면 [운영 홈](/d/kidly-home) 상태판부터 봅니다.\n2. 번호 붙은 **확인 순서**를 위에서부터 실행합니다. **근거**의 서비스 이름으로 [서비스 상태](/d/kidly-http)와 [오류 로그](/d/kidly-logs)를 엽니다.\n3. 이슈에는 **발생 시각 · 영향 서비스 · 확인한 화면 · 다음 조치**를 남깁니다. 원인 후보는 확인 전 가설로 표시합니다."
-      }
-    },
-    {
-      "id": 3,
-      "type": "logs",
-      "title": "최신 AI 분석 메모",
+      "id": 5,
+      "type": "row",
+      "title": "분석 근거 · 게시 상태 · 사용 안내",
+      "collapsed": true,
       "gridPos": {
         "x": 0,
         "y": 15,
         "w": 24,
-        "h": 14
-      },
-      "timeFrom": "14d",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.report}}\"",
-          "queryType": "range",
-          "maxLines": 1
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "showLabels": false,
-        "showCommonLabels": false,
-        "wrapLogMessage": true,
-        "enableLogDetails": false,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none"
-      }
-    },
-    {
-      "id": 5,
-      "type": "row",
-      "title": "메모 게시 상태",
-      "collapsed": true,
-      "gridPos": {
-        "x": 0,
-        "y": 29,
-        "w": 24,
         "h": 1
       },
       "panels": [
+        {
+          "id": 203,
+          "type": "logs",
+          "title": "최신 분석 전체 메모 · 근거와 원인 후보",
+          "gridPos": {
+            "x": 0,
+            "y": 16,
+            "w": 24,
+            "h": 14
+          },
+          "timeFrom": "14d",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.report}}\"",
+              "queryType": "range",
+              "maxLines": 1
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": false,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "enableLogDetails": false,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          }
+        },
+        {
+          "id": 4,
+          "type": "text",
+          "title": "AI에게 분석 맡기기 · 메모 읽는 법",
+          "gridPos": {
+            "x": 0,
+            "y": 30,
+            "w": 24,
+            "h": 10
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**AI에게 분석 맡기기** — ai-notes MCP를 연결한 AI 클라이언트에 아래 문장을 그대로 붙여 넣습니다(주문 MCP는 연결돼 있을 때만).\n\n```text\ndev 환경 운영 분석을 해 줘. get_analysis_context(\"dev\")로 지표 문맥을 받고, 지금 가장 먼저 볼 문제를 중요한 순서로 최대 3개 골라.\n항목마다 관측(숫자 근거), 원인 후보(확인 전 가설), 확인 순서 2~3단계(운영 홈 상태판 → 서비스 상태 → 오류 로그처럼 Grafana 화면과 패널 이름),\n대응 제안을 쓰고 evidence_id를 붙여. 주문 MCP가 있으면 stuck_orders_summary와 dead_letters도 확인해 근거에 넣어.\n이상이 없으면 어떤 지표를 어느 시간 범위에서 봤는지와 판단할 수 없는 것을 적어. 300초 안에 publish_analysis로 게시하고 get_publication_status로 확인해.\n```\n\n**메모 읽는 법**\n1. **관측 시각 · 환경**을 지금 알림과 맞춥니다. 다르면 [운영 홈](/d/kidly-home) 상태판부터 봅니다.\n2. 번호 붙은 **확인 순서**를 위에서부터 실행합니다. **근거**의 서비스 이름으로 [서비스 상태](/d/kidly-http)와 [오류 로그](/d/kidly-logs)를 엽니다.\n3. 이슈에는 **발생 시각 · 영향 서비스 · 확인한 화면 · 다음 조치**를 남깁니다. 원인 후보는 확인 전 가설로 표시합니다."
+          }
+        },
         {
           "id": 1,
           "type": "stat",
           "title": "게시된 메모의 관측 경과 · 서비스 정상 여부 아님",
           "gridPos": {
             "x": 0,
-            "y": 30,
+            "y": 40,
             "w": 12,
             "h": 5
           },
@@ -349,7 +383,7 @@
           "title": "미전송 메모 · 실패 시 AI 재호출하지 않음",
           "gridPos": {
             "x": 12,
-            "y": 30,
+            "y": 40,
             "w": 12,
             "h": 5
           },

@@ -100,7 +100,12 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
     def test_dashboard_uses_existing_prometheus_and_same_origin_post(self):
         dashboard_path = Path(__file__).parents[1] / 'grafana/dashboards/kidly-ai-notes.json'
         dashboard = json.loads(dashboard_path.read_text())
-        run, status = dashboard['panels'][:2]
+        priority, run, status, details = dashboard['panels']
+        self.assertEqual(priority['gridPos']['y'], 0)
+        self.assertIn('{{if .priority}}{{.priority}}{{else}}{{.headline}}',
+                      priority['targets'][0]['expr'])
+        self.assertTrue(details['collapsed'])
+        self.assertIn('{{.report}}', details['panels'][0]['targets'][0]['expr'])
         provider = next(variable for variable in dashboard['templating']['list'] if variable['name'] == 'provider')
         self.assertFalse(provider['multi'])
         self.assertFalse(provider['includeAll'])
