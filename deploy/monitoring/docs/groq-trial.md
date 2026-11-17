@@ -26,7 +26,7 @@
 무료 한도·오류·잘못된 결과·timeout은 기존 메모를 유지하고 실패합니다. 유료/다른 모델 전환과 자동 재호출은 없습니다.
 Loki 전송 실패는 기존 outbox 운영 절차로 저장본만 복구하며 AI를 다시 부르지 않습니다.
 
-키는 GitHub Secret에서 암호화된 SSH stdin으로만 전달하며 서버 파일·명령 인자·출력에는 넣지 않습니다.
+이 수동 실행의 키는 GitHub Secret에서 암호화된 SSH stdin으로만 전달하며 명령 인자·출력에는 넣지 않습니다. Grafana 실행 버튼(#1470)을 위해 monitoring-deploy가 같은 키를 서버 `secrets/GROQ_API_KEY`(0600)에도 둡니다. 키를 바꾸면 monitoring-deploy를 다시 돌립니다([AI 운영 분석 메모](../ai-notes/README.md#grafana에서-바로-실행)).
 수신 프로세스는 100초/CPU10초/가상 주소공간384MiB, 외부 HTTP는60초·응답64KiB, 출력은3,000토큰 상한입니다.
 Groq API 주소와 모델은 고정이며 프록시/리다이렉트는 사용하지 않습니다. 새 패키지·이미지·데몬은 없습니다.
 

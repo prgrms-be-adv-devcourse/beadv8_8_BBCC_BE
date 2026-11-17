@@ -24,8 +24,8 @@
     {
       "title": "서비스 상태 확인",
       "type": "link",
-      "url": "/d/kidly-http",
-      "includeVars": true,
+      "url": "/d/kidly-http?var-env=${env:percentencode}",
+      "includeVars": false,
       "keepTime": true
     }
   ],
@@ -52,34 +52,50 @@
             "selected": false
           }
         ]
+      },
+      {
+        "name": "provider",
+        "label": "분석 제공자",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "query_result(max by(provider) (kidly_ai_analysis_provider_enabled == 1) and on() (time() - max(kidly_ai_analysis_heartbeat_seconds) < 45))",
+        "regex": "/provider=\"([^\"]+)\"/",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "groq",
+          "value": "groq"
+        }
+      },
+      {
+        "name": "analysis_focus",
+        "label": "분석 목적",
+        "type": "custom",
+        "query": "전체 점검 : overview,응답 지연 : latency,오류 증가 : errors,서버 자원 : resources",
+        "current": {
+          "text": "전체 점검",
+          "value": "overview"
+        },
+        "includeAll": false,
+        "multi": false
       }
     ]
   },
   "panels": [
     {
-      "id": 4,
-      "type": "text",
-      "title": "AI에게 분석 맡기기 · 메모 읽는 법",
+      "id": 3,
+      "type": "logs",
+      "title": "먼저 확인할 내용",
       "gridPos": {
         "x": 0,
         "y": 0,
         "w": 24,
         "h": 10
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**AI에게 분석 맡기기** — ai-notes MCP를 연결한 AI 클라이언트에 아래 문장을 그대로 붙여 넣습니다(주문 MCP는 연결돼 있을 때만).\n\n```text\ndev 환경 운영 분석을 해 줘. get_analysis_context(\"dev\")로 지표 문맥을 받고, 지금 가장 먼저 볼 문제를 중요한 순서로 최대 3개 골라.\n항목마다 관측(숫자 근거), 원인 후보(확인 전 가설), 확인 순서 2~3단계(운영 홈 상태판 → 서비스 상태 → 오류 로그처럼 Grafana 화면과 패널 이름),\n대응 제안을 쓰고 evidence_id를 붙여. 주문 MCP가 있으면 stuck_orders_summary와 dead_letters도 확인해 근거에 넣어.\n이상이 없으면 어떤 지표를 어느 시간 범위에서 봤는지와 판단할 수 없는 것을 적어. 300초 안에 publish_analysis로 게시하고 get_publication_status로 확인해.\n```\n\n**메모 읽는 법**\n1. **관측 시각 · 환경**을 지금 알림과 맞춥니다. 다르면 [운영 홈](/d/kidly-home) 상태판부터 봅니다.\n2. 번호 붙은 **확인 순서**를 위에서부터 실행합니다. **근거**의 서비스 이름으로 [서비스 상태](/d/kidly-http)와 [오류 로그](/d/kidly-logs)를 엽니다.\n3. 이슈에는 **발생 시각 · 영향 서비스 · 확인한 화면 · 다음 조치**를 남깁니다. 원인 후보는 확인 전 가설로 표시합니다."
-      }
-    },
-    {
-      "id": 3,
-      "type": "logs",
-      "title": "최신 AI 분석 메모",
-      "gridPos": {
-        "x": 0,
-        "y": 10,
-        "w": 24,
-        "h": 14
       },
       "timeFrom": "14d",
       "datasource": {
@@ -89,40 +105,282 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.report}}\"",
+          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{if .priority}}{{.priority}}{{else}}{{.headline}} · 아래에서 전체 메모 보기{{end}}\"",
           "queryType": "range",
           "maxLines": 1
         }
       ],
       "options": {
-        "showTime": true,
+        "showTime": false,
         "showLabels": false,
         "showCommonLabels": false,
         "wrapLogMessage": true,
         "enableLogDetails": false,
         "sortOrder": "Descending",
         "dedupStrategy": "none"
+      },
+      "description": "최근 메모가 관측한 변화와 사람의 첫 확인 조치입니다. 수치 근거와 원인 후보는 아래에서 펼쳐 봅니다."
+    },
+    {
+      "id": 201,
+      "type": "table",
+      "title": "운영 AI 분석 실행",
+      "description": "위에서 제공자와 분석 목적을 선택한 뒤 실행하세요. Groq는 무료이며 OpenAI 사용량은 청구될 수 있습니다.",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 14,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace((max by(provider) (kidly_ai_analysis_provider_enabled{provider=\"${provider:raw}\"} == 1)), \"analysis_env\", \"dev\", \"__name__\", \".*\") and on (analysis_env) label_replace(vector(1), \"analysis_env\", \"${env:raw}\", \"__name__\", \".*\") and on() (time() - max(kidly_ai_analysis_heartbeat_seconds) < 45)",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "analysis_env": true,
+              "provider": true
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": false
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "actions"
+                }
+              },
+              {
+                "id": "actions",
+                "value": [
+                  {
+                    "type": "fetch",
+                    "title": "새 분석 실행",
+                    "confirmation": "선택한 제공자로 운영 분석을 1회 실행합니다. OpenAI를 선택했다면 사용량이 청구될 수 있습니다.",
+                    "fetch": {
+                      "url": "/kidly-ai-analysis/run",
+                      "method": "POST",
+                      "body": "{}",
+                      "headers": [
+                        [
+                          "X-Kidly-AI-Provider",
+                          "${provider:raw}"
+                        ],
+                        [
+                          "X-Kidly-AI-Confirm-Paid",
+                          "true"
+                        ],
+                        [
+                          "X-Kidly-AI-Focus",
+                          "${analysis_focus:raw}"
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }
     },
     {
-      "id": 5,
+      "id": 202,
+      "type": "stat",
+      "title": "분석 실행 상태",
+      "gridPos": {
+        "x": 14,
+        "y": 10,
+        "w": 10,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace((max(kidly_ai_analysis_state)), \"analysis_env\", \"dev\", \"__name__\", \".*\") and on (analysis_env) label_replace(vector(1), \"analysis_env\", \"${env:raw}\", \"__name__\", \".*\") and on() (time() - max(kidly_ai_analysis_heartbeat_seconds) < 45)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "실행 기능 준비 전",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "대기 중"
+                },
+                "1": {
+                  "text": "분석 중"
+                },
+                "2": {
+                  "text": "게시 완료"
+                },
+                "3": {
+                  "text": "호출 간격 제한"
+                },
+                "4": {
+                  "text": "실행 실패"
+                },
+                "5": {
+                  "text": "다른 실행 진행 중"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "textMode": "value",
+        "colorMode": "none"
+      }
+    },
+    {
+      "id": 205,
       "type": "row",
-      "title": "메모 게시 상태",
+      "title": "이전 분석 내역",
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 15,
         "w": 24,
         "h": 1
       },
       "panels": [
+        {
+          "id": 204,
+          "type": "logs",
+          "title": "이전 분석 · 최신순 최대 15건",
+          "gridPos": {
+            "x": 0,
+            "y": 16,
+            "w": 24,
+            "h": 14
+          },
+          "timeFrom": "14d",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.report}}\"",
+              "queryType": "range",
+              "maxLines": 15
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": false,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "enableLogDetails": false,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          },
+          "description": "선택한 환경의 최근 14일 메모입니다. 각 행의 관측 시각과 제공자를 확인하세요."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "분석 근거 · 게시 상태 · 사용 안내",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 203,
+          "type": "logs",
+          "title": "최신 분석 전체 메모 · 근거와 원인 후보",
+          "gridPos": {
+            "x": 0,
+            "y": 17,
+            "w": 24,
+            "h": 14
+          },
+          "timeFrom": "14d",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{.report}}\"",
+              "queryType": "range",
+              "maxLines": 1
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": false,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "enableLogDetails": false,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          }
+        },
+        {
+          "id": 4,
+          "type": "text",
+          "title": "AI에게 분석 맡기기 · 메모 읽는 법",
+          "gridPos": {
+            "x": 0,
+            "y": 31,
+            "w": 24,
+            "h": 10
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**AI에게 분석 맡기기** — ai-notes MCP를 연결한 AI 클라이언트에 아래 문장을 그대로 붙여 넣습니다(주문 MCP는 연결돼 있을 때만).\n\n```text\ndev 환경 운영 분석을 해 줘. get_analysis_context(\"dev\")로 지표 문맥을 받고, 지금 가장 먼저 볼 문제를 중요한 순서로 최대 3개 골라.\n항목마다 관측(숫자 근거), 원인 후보(확인 전 가설), 확인 순서 2~3단계(운영 홈 상태판 → 서비스 상태 → 오류 로그처럼 Grafana 화면과 패널 이름),\n대응 제안을 쓰고 evidence_id를 붙여. 주문 MCP가 있으면 stuck_orders_summary와 dead_letters도 확인해 근거에 넣어.\n이상이 없으면 어떤 지표를 어느 시간 범위에서 봤는지와 판단할 수 없는 것을 적어. 300초 안에 publish_analysis로 게시하고 get_publication_status로 확인해.\n```\n\n**메모 읽는 법**\n1. **관측 시각 · 환경**을 지금 알림과 맞춥니다. 다르면 [운영 홈](/d/kidly-home) 상태판부터 봅니다.\n2. 번호 붙은 **확인 순서**를 위에서부터 실행합니다. **근거**의 서비스 이름으로 [서비스 상태](/d/kidly-http)와 [오류 로그](/d/kidly-logs)를 엽니다.\n3. 이슈에는 **발생 시각 · 영향 서비스 · 확인한 화면 · 다음 조치**를 남깁니다. 원인 후보는 확인 전 가설로 표시합니다."
+          }
+        },
         {
           "id": 1,
           "type": "stat",
           "title": "게시된 메모의 관측 경과 · 서비스 정상 여부 아님",
           "gridPos": {
             "x": 0,
-            "y": 25,
+            "y": 41,
             "w": 12,
             "h": 5
           },
@@ -189,7 +447,7 @@
           "title": "미전송 메모 · 실패 시 AI 재호출하지 않음",
           "gridPos": {
             "x": 12,
-            "y": 25,
+            "y": 41,
             "w": 12,
             "h": 5
           },

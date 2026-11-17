@@ -152,10 +152,19 @@ def render(publication):
                 lines.append(f'근거 {ref}: {label} {fact.value:.1f}%')
             else:
                 lines.append(f'근거 {ref}: {fact.environment}/{fact.service or "scope"} {fact.metric}={fact.value} {fact.unit}')
+    if report.findings:
+        first = report.findings[0]
+        first_services = list(dict.fromkeys(facts[ref].service for ref in first.evidence_ids if facts[ref].service))
+        priority = ['관측: ' + first.observation, '먼저 할 일: ' + first.checks[0]]
+        if first_services:
+            priority.append('관련 서비스: ' + ', '.join(first_services))
+    else:
+        priority = ['우선 확인 항목을 정할 수 없었습니다. 아래의 분석 제약을 확인하세요.']
+    priority.append(f'관측 {stamp(context.window_end)} · {report.provider}/{report.model}')
     lines.append('\n제약:')
     lines.extend(dict.fromkeys(context.limitations+report.limitations))
     return {'headline': f'AI 분석 · 관측 {stamp(context.window_end)} · {len(report.findings)}개 항목 · {report.provider}/{report.model}',
-            'level': 'info', 'report': '\n'.join(lines), 'context_id': context.context_id, 'stale_at_publish': publication.stale_at_publish}
+            'level': 'info', 'priority': '\n'.join(priority), 'report': '\n'.join(lines), 'context_id': context.context_id, 'stale_at_publish': publication.stale_at_publish}
 
 
 class LokiPublisher:

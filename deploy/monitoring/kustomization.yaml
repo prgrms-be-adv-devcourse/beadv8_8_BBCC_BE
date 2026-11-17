@@ -12,6 +12,7 @@ resources:
   - k8s/grafana.yaml
   - k8s/alloy.yaml
   - k8s/mcp-prometheus.yaml
+  - k8s/ai-analysis.yaml
 
 configMapGenerator:
   - name: prometheus-config

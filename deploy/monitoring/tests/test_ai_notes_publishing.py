@@ -54,10 +54,22 @@ class NotesPublishingTest(unittest.TestCase):
                       'CPU 사용량이 높은 호스트에서 서비스 로그를 검토', ('f2',)),
         ))
         publication = c.Publication(trial_context, trial_report, 'server-worker', 'test', 2002, False, 'test')
-        note = render(publication)['report']
+        rendered = render(publication)
+        note = rendered['report']
+        priority = rendered['priority']
+        self.assertTrue(priority.startswith('관측: CPU 사용률이 91%로 높음\n먼저 할 일: 개별 호스트'))
+        self.assertNotIn('원인 후보:', priority)
+        self.assertNotIn('근거 f2:', priority)
         self.assertIn('근거 f2: 수집된 호스트 중 최대 CPU 사용률 (5분 평균) 91.3%', note)
         self.assertLess(note.index('1. 개별 호스트'), note.index('관측: CPU'))
         self.assertIn('대응 제안: CPU 사용량이 높은 호스트', note)
+
+    def test_priority_preserves_reports_with_only_limitations(self):
+        limited_report = replace(report(), findings=(), limitations=('데이터 부족',))
+        publication = c.Publication(context(), limited_report, 'server-worker', 'test', 2002, False, 'test')
+        rendered = render(publication)
+        self.assertIn('우선 확인 항목을 정할 수 없었습니다.', rendered['priority'])
+        self.assertIn('데이터 부족', rendered['report'])
 
     def test_issue_infer_publish_and_receipt_after_deadline(self):
         with tempfile.TemporaryDirectory() as temp:

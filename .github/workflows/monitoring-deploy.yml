@@ -65,6 +65,9 @@ jobs:
         env:
           SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          # AI 운영 분석 버튼(ai-notes/analysis-api.sh)이 실행 때마다 읽는다. 없으면 버튼(OpenAI 는 그 선택지)만 꺼진다. k8s Secret 에는 넣지 않는다
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           out="$RUNNER_TEMP/monitoring"
           mkdir -p "$out"
@@ -78,6 +81,16 @@ jobs:
             mkdir -p "$out/secrets"
             for key in SLACK_OPS_WEBHOOK_URL GRAFANA_ADMIN_PASSWORD; do
               printf '%s' "${!key}" > "$out/secrets/$key"
+            done
+            for key in GROQ_API_KEY OPENAI_API_KEY; do
+              value=${!key}
+              [[ -n "$value" ]] || continue
+              # 키 한 줄만 받는다(처리기가 256바이트까지 읽는다). 값은 출력하지 않는다
+              if [[ "$value" == *$'\n'* || ${#value} -gt 256 ]]; then
+                echo "::warning::$key 형식이 맞지 않아 넣지 않습니다(한 줄, 256자 이하)"
+                continue
+              fi
+              printf '%s' "$value" > "$out/secrets/$key"
             done
           )
 
