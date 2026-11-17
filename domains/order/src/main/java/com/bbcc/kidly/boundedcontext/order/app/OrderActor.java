@@ -48,7 +48,24 @@ public record OrderActor(OrderStatusHistory.ActorType type, Long id, String sour
     }
 
     /**
+     * 새로 만든 대상의 첫 상태 한 줄: 이전 상태 · 사유가 없다(#1509, 비는 값을 null 인자 대신 이름으로 드러낸다).
+     */
+    public OrderStatusHistory createdHistory(Long orderId, OrderStatusHistory.TargetType targetType, Long targetId,
+        Enum<?> to, LocalDateTime occurredAt) {
+        return history(orderId, targetType, targetId, null, to, null, occurredAt);
+    }
+
+    /**
+     * 사유 없이 바뀐 상태 한 줄(결제완료 · 재처리 종료처럼 상태 이름만으로 뜻이 드러나는 변경, #1509).
+     */
+    public OrderStatusHistory historyWithoutReason(Long orderId, OrderStatusHistory.TargetType targetType,
+        Long targetId, Enum<?> from, Enum<?> to, LocalDateTime occurredAt) {
+        return history(orderId, targetType, targetId, from, to, null, occurredAt);
+    }
+
+    /**
      * 이 주체가 바꾼 상태 한 줄. 상태는 대상마다 enum이 달라 이름으로 남긴다.
+     * 이전 상태 · 사유가 비면 createdHistory · historyWithoutReason을 쓴다(#1509).
      *
      * @param from 이전 상태. 새로 만들었으면 null
      */

@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.in.scheduler;
+package com.bbcc.kidly.boundedcontext.common.in.scheduler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,13 +15,15 @@ import java.util.function.Predicate;
  * 상한에 닿으면 한 건을 더 조회해 이번 바퀴에 남은 대상이 실제로 있을 때만 멈춘 것으로 본다(대상 수가 정확히 상한이면 멈춤 아님 ·
  * 커서는 처음으로). 그 한 번의 조회는 상한에 닿은 실행에만 더해진다.
  * 상한 안에서 끝나는 실행은 늘 처음부터 읽으므로 조회 · 결과가 커서 없을 때와 같다.
+ * 업무 규칙 · 상태 공유가 없는 공용 도구라 컨텍스트(order · delivery · wish)의 주기 작업이 함께 쓴다(#1509, 컨텍스트 사이 코드는 나누지
+ * 않는다는 규칙의 예외: {@code boundedcontext.common}에는 이런 도구만 두고, 패키지 배치 규칙대로 계층(in) 아래에 둔다).
  */
-final class RotatingCursor {
+public final class RotatingCursor {
 
     // 다음 실행이 이어 읽을 위치(이 ID 다음부터). 0이면 처음부터
     private volatile long resumeAfterId;
 
-    long resumeAfterId() {
+    public long resumeAfterId() {
         return resumeAfterId;
     }
 
@@ -29,7 +31,7 @@ final class RotatingCursor {
      * @param fetch afterId 다음부터 ID 오름차순 limit건
      * @param process 대상 하나를 처리한다. 성공이면 true, 실패(로그를 남긴 뒤)면 false
      */
-    <T> Run run(int batchSize, int maxPerRun, BiFunction<Long, Integer, List<T>> fetch, Function<T, Long> idOf,
+    public <T> Run run(int batchSize, int maxPerRun, BiFunction<Long, Integer, List<T>> fetch, Function<T, Long> idOf,
         Predicate<T> process) {
         long start = resumeAfterId;
         long afterId = start;
@@ -87,6 +89,6 @@ final class RotatingCursor {
      * @param capped 상한에 닿았고 이번 바퀴에 남은 대상이 있어 멈췄으면 true(다음 실행이 이어 읽는다)
      * @param batches 처리할 대상을 읽은 조회 수(상한에서 남은 대상을 확인한 한 번은 세지 않는다)
      */
-    record Run(int targets, int failed, int batches, boolean capped) {
+    public record Run(int targets, int failed, int batches, boolean capped) {
     }
 }

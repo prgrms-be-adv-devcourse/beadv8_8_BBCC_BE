@@ -139,8 +139,7 @@ public class OrderService {
         }
         Order order = orderRepository.save(placed);
         historyRepository.save(OrderActor.buyer(memberId, OrderActor.PLACE)
-            .history(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(), null, order.getStatus(), null,
-                now));
+            .createdHistory(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(), order.getStatus(), now));
 
         publish(new OrderCreatedEvent(UUID.randomUUID(), now, new OrderCreatedEvent.Data(
             order.getId(),
@@ -213,8 +212,8 @@ public class OrderService {
             logIgnored("payment.completed", order, result);
             return false;
         }
-        historyRepository.save(actor.history(order.getId(), OrderStatusHistory.TargetType.ORDER, order.getId(), from,
-            order.getStatus(), null, now));
+        historyRepository.save(actor.historyWithoutReason(order.getId(), OrderStatusHistory.TargetType.ORDER,
+            order.getId(), from, order.getStatus(), now));
         publishPaid(order, now);
         log.info("결제완료: orderId={} paymentId={}", order.getId(), command.paymentId());
         return true;

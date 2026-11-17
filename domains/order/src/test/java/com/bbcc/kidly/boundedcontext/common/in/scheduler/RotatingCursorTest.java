@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.order.in.scheduler;
+package com.bbcc.kidly.boundedcontext.common.in.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

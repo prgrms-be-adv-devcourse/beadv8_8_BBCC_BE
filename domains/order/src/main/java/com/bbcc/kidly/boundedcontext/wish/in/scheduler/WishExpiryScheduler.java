@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.wish.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.common.in.scheduler.RotatingCursor;
 import com.bbcc.kidly.boundedcontext.wish.app.WishExpiryService;
 import com.bbcc.kidly.boundedcontext.wish.app.WishJobMetrics;
 import com.bbcc.kidly.boundedcontext.wish.app.config.WishExpiryProperties;

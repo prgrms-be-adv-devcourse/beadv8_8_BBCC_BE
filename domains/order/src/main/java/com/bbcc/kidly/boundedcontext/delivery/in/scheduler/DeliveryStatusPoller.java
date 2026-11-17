@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.delivery.in.scheduler;
 
+import com.bbcc.kidly.boundedcontext.common.in.scheduler.RotatingCursor;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryJobMetrics;
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryTrackingService;
 import com.bbcc.kidly.boundedcontext.delivery.app.config.DeliveryTrackingProperties;

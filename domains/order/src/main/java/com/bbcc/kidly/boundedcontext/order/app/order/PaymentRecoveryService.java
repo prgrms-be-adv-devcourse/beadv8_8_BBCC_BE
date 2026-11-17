@@ -116,7 +116,7 @@ public class PaymentRecoveryService {
         LocalDateTime now = LocalDateTime.now();
         PaymentRecovery.Status from = recovery.getStatus();
         recovery.finishRetry(orderStatus == Order.Status.CANCELLED, now);
-        recordHistory(OrderActor.admin(adminId, OrderActor.RECOVERY_RETRY), recovery, from, null, now);
+        recordHistoryWithoutReason(OrderActor.admin(adminId, OrderActor.RECOVERY_RETRY), recovery, from, now);
         log.info("결제 반영 재처리: recoveryId={} orderId={} result={}",
             recovery.getId(), recovery.getOrderId(), recovery.getStatus());
         return PaymentRecoveryResult.from(recovery);
@@ -169,7 +169,7 @@ public class PaymentRecoveryService {
             recovery.cancelByAdmin(orderStatus == Order.Status.PAID, now);
             return true;
         });
-        recordHistory(admin, recovery, from, null, now);
+        recordHistoryWithoutReason(admin, recovery, from, now);
         log.info("결제 반영 취소로 종료: recoveryId={} orderId={} result={}",
             recovery.getId(), recovery.getOrderId(), recovery.getStatus());
         return PaymentRecoveryResult.from(recovery);
@@ -188,6 +188,13 @@ public class PaymentRecoveryService {
         LocalDateTime now) {
         historyRepository.save(actor.history(recovery.getOrderId(), OrderStatusHistory.TargetType.PAYMENT_RECOVERY,
             recovery.getId(), from, recovery.getStatus(), reason, now));
+    }
+
+    // 재처리 성공 · 관리자 취소 종료는 상태 이름만으로 뜻이 드러나 사유를 남기지 않는다(#1509)
+    private void recordHistoryWithoutReason(OrderActor actor, PaymentRecovery recovery, PaymentRecovery.Status from,
+        LocalDateTime now) {
+        historyRepository.save(actor.historyWithoutReason(recovery.getOrderId(),
+            OrderStatusHistory.TargetType.PAYMENT_RECOVERY, recovery.getId(), from, recovery.getStatus(), now));
     }
 
     // in은 도메인 enum을 쓰지 않으므로 상태 이름은 여기서 바꾼다. 이름이 정확히 같아야 한다(소문자 · 모르는 값은 400)

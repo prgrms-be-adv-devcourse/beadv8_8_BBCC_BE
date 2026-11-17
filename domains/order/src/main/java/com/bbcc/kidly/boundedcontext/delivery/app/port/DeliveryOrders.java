@@ -28,7 +28,7 @@ public interface DeliveryOrders {
     List<DeliveredItem> recordDelivered(Long orderId, Long sellerId, LocalDateTime deliveredAt);
 
     /**
-     * 배송된 주문상품 한 줄(#1061).
+     * 배송된 주문상품 한 줄(#1061): 배송 완료 이벤트의 주문상품 목록 · 자동 구매확정 예정 시각은 주문이 정한 이 값으로 채운다.
      *
      * @param autoConfirmAt 자동 구매확정 예정 시각(주문의 자동 확정과 같은 기준: 주문상품 배송 완료 시각 + 자동 구매확정 기간)
      */
@@ -42,6 +42,22 @@ public interface DeliveryOrders {
      */
     void recordHistory(Long orderId, Long deliveryId, Actor actor, String from, String to, String reason,
         LocalDateTime occurredAt);
+
+    /**
+     * 새로 만든 배송의 첫 상태 이력: 이전 상태 · 사유가 없다(#1509, 비는 값을 null 인자 대신 이름으로 드러낸다).
+     */
+    default void recordCreatedHistory(Long orderId, Long deliveryId, Actor actor, String to,
+        LocalDateTime occurredAt) {
+        recordHistory(orderId, deliveryId, actor, null, to, null, occurredAt);
+    }
+
+    /**
+     * 사유 없이 바뀐 배송 상태 이력(발송 · 배송 완료처럼 상태 이름만으로 뜻이 드러나는 변경, #1509).
+     */
+    default void recordHistoryWithoutReason(Long orderId, Long deliveryId, Actor actor, String from, String to,
+        LocalDateTime occurredAt) {
+        recordHistory(orderId, deliveryId, actor, from, to, null, occurredAt);
+    }
 
     /**
      * 판매자 발송 전 몫 취소를 주문에 반영한다(#655): 그 판매자 주문상품 취소(모두면 주문도 취소) · 이력 · order-item.cancelled.
@@ -62,7 +78,7 @@ public interface DeliveryOrders {
     /**
      * 배송할 주문 한 건. 상태 · 구매확정 종류는 enum 이름 문자열.
      *
-     * @param memberId 주문한 회원(구매자) ID(#900)
+     * @param memberId 주문한 회원(구매자) ID(#900). 배송 이벤트의 구매자 · 택배 진행 이력 조회의 본인 확인에 쓴다
      * @param orderedAt 주문 시각(주문 생성 시각)
      * @param shippingAddress 배송지. 없으면 null
      */
