@@ -34,7 +34,7 @@
     }
   ],
   "uid": "kidly-logs",
-  "title": "Kidly 로그",
+  "title": "4 · Kidly 로그",
   "tags": [
     "02 원인 조사",
     "kidly",
@@ -99,96 +99,6 @@
   },
   "panels": [
     {
-      "id": 1,
-      "type": "timeseries",
-      "title": "상태 코드별 요청 수",
-      "description": "요청 로그(RequestLoggingFilter)를 상태 코드별로 센다. actuator 정상 요청은 로그를 남기지 않아 빠진다",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "stacking": {
-              "mode": "normal",
-              "group": "A"
-            }
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "queryType": "range",
-          "legendFormat": "{{http_response_status_code}}",
-          "expr": "sum by (http_response_status_code) (count_over_time({env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", http_response_status_code=\"http.response.status_code\" | __error__=\"\" | http_request_method != \"\" [$__auto]))"
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "type": "logs",
-      "title": "요청 로그",
-      "description": "method · path → status (duration) · traceId. 줄을 펼쳐 traceId 링크로 같은 요청의 로그를 본다",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 8
-      },
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false,
-        "showLabels": false,
-        "showCommonLabels": false
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", url_path=\"url.path\", http_response_status_code=\"http.response.status_code\", duration_ms=\"duration_ms\" | __error__=\"\" | http_request_method != \"\" | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
-          "queryType": "range"
-        }
-      ]
-    },
-    {
       "id": 8,
       "type": "table",
       "title": "자주 난 예외 · 선택 기간",
@@ -199,7 +109,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 0,
         "w": 24,
         "h": 8
       },
@@ -284,10 +194,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
         "x": 0,
-        "y": 28
+        "y": 8,
+        "w": 12,
+        "h": 10
       },
       "options": {
         "showTime": true,
@@ -321,10 +231,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 10,
-        "w": 12,
         "x": 12,
-        "y": 28
+        "y": 8,
+        "w": 12,
+        "h": 10
       },
       "options": {
         "showTime": true,
@@ -349,84 +259,15 @@
       ]
     },
     {
-      "id": 5,
-      "type": "table",
-      "title": "요청 상세",
-      "description": "요청마다 한 행. 헤더 · 본문은 Explore 에서 줄을 펼쳐 본다(README 로그 보기)",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 38
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "sortBy": [
-          {
-            "displayName": "시간",
-            "desc": true
-          }
-        ]
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json method=\"http.request.method\", route=\"http.route\", status=\"http.response.status_code\", duration_ms=\"duration_ms\" | __error__=\"\" | method != \"\" | keep method, route, status, duration_ms, traceId",
-          "queryType": "range"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "labels",
-            "replace": true,
-            "keepTime": true
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "indexByName": {
-              "Time": 0,
-              "method": 1,
-              "route": 2,
-              "status": 3,
-              "duration_ms": 4,
-              "traceId": 7
-            },
-            "renameByName": {
-              "Time": "시간",
-              "duration_ms": "duration(ms)"
-            },
-            "excludeByName": {}
-          }
-        }
-      ]
-    },
-    {
       "id": 6,
       "type": "row",
-      "title": "API 처리 시간 (필요할 때 펼치기)",
+      "title": "API 처리 시간 p95 (응답이 느릴 때 펼치기)",
       "collapsed": true,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 48
+        "y": 18,
+        "w": 24,
+        "h": 1
       },
       "panels": [
         {
@@ -439,10 +280,10 @@
             "uid": "loki"
           },
           "gridPos": {
-            "h": 10,
-            "w": 24,
             "x": 0,
-            "y": 49
+            "y": 19,
+            "w": 24,
+            "h": 10
           },
           "fieldConfig": {
             "defaults": {
@@ -491,6 +332,179 @@
                   "route": "API 경로",
                   "Value #A": "p95"
                 }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "전체 요청 로그 · 상태 코드 (흐름을 따라갈 때 펼치기)",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "timeseries",
+          "title": "상태 코드별 요청 수",
+          "description": "요청 로그(RequestLoggingFilter)를 상태 코드별로 센다. actuator 정상 요청은 로그를 남기지 않아 빠진다",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 20,
+            "w": 24,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "stacking": {
+                  "mode": "normal",
+                  "group": "A"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "queryType": "range",
+              "legendFormat": "{{http_response_status_code}}",
+              "expr": "sum by (http_response_status_code) (count_over_time({env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", http_response_status_code=\"http.response.status_code\" | __error__=\"\" | http_request_method != \"\" [$__auto]))"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "logs",
+          "title": "요청 로그",
+          "description": "method · path → status (duration) · traceId. 줄을 펼쳐 traceId 링크로 같은 요청의 로그를 본다",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 28,
+            "w": 24,
+            "h": 12
+          },
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "enableLogDetails": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none",
+            "prettifyLogMessage": false,
+            "showLabels": false,
+            "showCommonLabels": false
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "{env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json http_request_method=\"http.request.method\", url_path=\"url.path\", http_response_status_code=\"http.response.status_code\", duration_ms=\"duration_ms\" | __error__=\"\" | http_request_method != \"\" | line_format `{{.http_request_method}} {{.url_path}} → {{.http_response_status_code}} ({{.duration_ms}}ms) · {{.traceId}}`",
+              "queryType": "range"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "table",
+          "title": "요청 상세",
+          "description": "요청마다 한 행. 헤더 · 본문은 Explore 에서 줄을 펼쳐 본다(README 로그 보기)",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 40,
+            "w": 24,
+            "h": 10
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "sortBy": [
+              {
+                "displayName": "시간",
+                "desc": true
+              }
+            ]
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "expr": "{env=\"$env\", service_name=~\"${service:regex}\"} |= \"RequestLoggingFilter\" | json method=\"http.request.method\", route=\"http.route\", status=\"http.response.status_code\", duration_ms=\"duration_ms\" | __error__=\"\" | method != \"\" | keep method, route, status, duration_ms, traceId",
+              "queryType": "range"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "extractFields",
+              "options": {
+                "source": "labels",
+                "replace": true,
+                "keepTime": true
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "indexByName": {
+                  "Time": 0,
+                  "method": 1,
+                  "route": 2,
+                  "status": 3,
+                  "duration_ms": 4,
+                  "traceId": 7
+                },
+                "renameByName": {
+                  "Time": "시간",
+                  "duration_ms": "duration(ms)"
+                },
+                "excludeByName": {}
               }
             }
           ]

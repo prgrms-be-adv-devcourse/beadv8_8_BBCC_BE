@@ -42,7 +42,7 @@
     }
   ],
   "uid": "kidly-home",
-  "title": "Kidly 운영 홈",
+  "title": "1 · Kidly 운영 홈",
   "tags": [
     "kidly"
   ],
@@ -505,7 +505,7 @@
       "gridPos": {
         "x": 0,
         "y": 14,
-        "w": 12,
+        "w": 15,
         "h": 9
       },
       "links": [
@@ -537,9 +537,9 @@
       "type": "logs",
       "title": "최근 AI 분석 · 24시간",
       "gridPos": {
-        "x": 12,
+        "x": 15,
         "y": 14,
-        "w": 12,
+        "w": 9,
         "h": 9
       },
       "timeFrom": "24h",
