@@ -43,6 +43,10 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 4. Traefik의 공개 추적 헤더 제거를 확인한 뒤 Gateway·주문 Agent를 적용합니다. 운영 Grafana에서 실제 주문 조회 트레이스와 기존 Loki 요청 ID 검색을 확인합니다.
 5. 원복할 때 앱 Agent와 전용 Alloy를 내리고, 별도로 만든 `tempo-otlp-private` Service·NetworkPolicy와 외부 방화벽 허용을 제거합니다. 선택 파일을 제거한 뒤 기본 Tempo 조회 구성을 다시 적용합니다.
 
+## 사설 수신기 연결 확인
+
+앱 서버의 발신 위치에서 `python3 verify-transport.py <Tempo 사설 IPv4> --ca <CA 인증서> --cert <Alloy 인증서> --key <Alloy 키>`로 Tempo의 TLS 수신기를 점검합니다. 인증서가 있을 때 비어 있는 OTLP 요청이 성공하고, 같은 주소에 인증서 없이 접속하면 TLS에서 거절돼야 통과합니다. 요청에 span 데이터가 없어 Grafana에 메모나 트레이스를 남기지 않습니다. Alloy Pod의 실제 전송과 운영 요청 추적은 별도 확인 항목입니다.
+
 ## 운영 적용·원복 점검
 
 `tracing-preflight`에서 `applied` 또는 `rolled-back`을 선택합니다. Gateway·주문 롤아웃, Agent 설정, 전용 Alloy, Tempo 수신 설정을 읽어서 기대 상태와 다르면 실패합니다. 이 검사는 설정과 Pod 준비 상태를 확인합니다. 실제 전송·사설 접근 차단과 Grafana의 주문 트레이스는 시범 절차에서 각각 확인합니다.
