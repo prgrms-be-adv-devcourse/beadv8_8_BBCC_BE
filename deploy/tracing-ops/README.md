@@ -1,6 +1,6 @@
 # 운영 트레이싱 준비
 
-Tempo 조회용 리소스와 Grafana 데이터소스는 기본 모니터링 배포에 포함됩니다. 이 디렉터리의 수집 오버레이와 앱 Agent는 수동 시범용입니다.
+Tempo와 Grafana 데이터소스는 모니터링 배포에 포함됩니다. 사설 수신은 기본적으로 꺼져 있으며 앱 Agent는 수동 시범용입니다.
 
 - `kubectl kustomize deploy/tracing-ops`로 모니터링 클러스터에 적용할 매니페스트를 확인합니다.
 - Tempo는 ClusterIP의 조회 포트만 열고, 같은 네임스페이스의 Grafana Pod만 허용합니다. OTLP는 Tempo 컨테이너의 루프백에 바인딩합니다. 기존 Grafana Pod에서 Tempo 준비 상태와 조회 접근을, 비대상 Pod에서 접근 차단을 각각 확인합니다.
@@ -32,9 +32,10 @@ Gateway와 주문 Deployment의 현재 JSON을 `python3 deploy/tracing-ops/agent
 
 1. 모니터링 노드 TCP 30438이 비어 있고, 클라우드 보안 그룹에서 앱 노드의 승인된 사설 경로만 허용하는지 확인합니다. NodePort 자체는 인터페이스를 사설 주소로 제한하지 않습니다. 공개 네트워크에서 열려 있으면 적용을 중단합니다.
 2. Tempo 서버 인증서의 IP SAN에 목적지 사설 IPv4를 넣고 상호 TLS 수신 오버레이를 준비합니다. 모니터링 리소스와 앱 ConfigMap을 각각 맞는 클러스터에 적용합니다. `externalTrafficPolicy: Local`이므로 Tempo가 실행되는 노드로 연결합니다.
+   인증서와 사설 정책이 준비되면 모니터링 서버의 `/opt/app/monitoring/operations/tempo-private-receiver.enabled`를 생성해 후속 모니터링 배포에서도 같은 수신 구성을 선택하도록 합니다.
 3. 실제 Alloy Pod 출발점에서 전송 성공, 인증서 없는 연결 거부, 허용하지 않은 송신점에서 접근 차단을 확인합니다. CNI에 따라 NetworkPolicy에 보이는 원본이 다를 수 있으므로 한 주소의 /32 정책이 확인되기 전에는 앱 Agent를 연결하지 않습니다.
 4. Traefik의 공개 추적 헤더 제거를 확인한 뒤 Gateway·주문 Agent를 적용합니다. 운영 Grafana에서 실제 주문 조회 트레이스와 기존 Loki 요청 ID 검색을 확인합니다.
-5. 원복할 때 앱 Agent와 전용 Alloy를 내리고, 별도로 만든 `tempo-otlp-private` Service·NetworkPolicy와 외부 방화벽 허용을 제거합니다. 이후 기본 Tempo 조회 구성을 다시 적용합니다.
+5. 원복할 때 앱 Agent와 전용 Alloy를 내리고, 별도로 만든 `tempo-otlp-private` Service·NetworkPolicy와 외부 방화벽 허용을 제거합니다. 선택 파일을 제거한 뒤 기본 Tempo 조회 구성을 다시 적용합니다.
 
 ## 운영 사전 점검
 

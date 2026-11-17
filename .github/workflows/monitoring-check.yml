@@ -21,6 +21,7 @@ jobs:
         run: |
           bash -n deploy/deploy.sh deploy/monitoring/deploy.sh
           ruby deploy/monitoring/tests/check-workflows.rb
+          ruby deploy/monitoring/tests/check-tempo.rb
           ruby -ryaml -e 'ARGV.each { |p| YAML.load_file(p) }' .github/workflows/{deploy,monitoring-deploy,environment-operation,monitoring-check}.yml deploy/monitoring/grafana/provisioning/alerting/*.yml
           python3 -c 'import json,pathlib; [json.loads(p.read_text()) for p in pathlib.Path("deploy/monitoring/grafana/dashboards").glob("*.json")]'
       - name: 알림 발화·중지 억제·복구 검증

@@ -76,7 +76,18 @@ else
     echo "::warning::Logs Drilldown 앱이 ${installed:-알 수 없음} 입니다(기대 $expected). 플러그인 저장소에 닿지 못했을 수 있습니다. 기본 열이 보이지 않으면 monitoring-deploy 를 다시 돌리세요"
 fi
 
-# Tempo 준비 실패 시 기존 수집기 배포는 이어가고 경고를 남긴다.
-if ! k rollout status deploy/tempo --timeout 120s; then
+# 운영 시범 수신 설정은 대시보드 배포가 지우지 않는 operations에서 고른다.
+tempo_profile=tempo
+if [[ -f operations/tempo-private-receiver.enabled ]]; then
+    tempo_profile=tempo/private-receiver
+    if ! k get secret tracing-tempo-server-tls -o name >/dev/null; then
+        echo "::warning::Tempo 수신용 Secret을 확인하지 못해 현재 Tempo 배포를 유지합니다."
+        exit 0
+    fi
+fi
+# Tempo 실패 시 기존 모니터링 배포는 계속한다.
+if ! kubectl apply --server-side --force-conflicts -k "$tempo_profile"; then
+    echo "::warning::Tempo 설정 적용에 실패했습니다 ($tempo_profile)."
+elif ! k rollout status deploy/tempo --timeout 120s; then
     echo "::warning::Tempo 가 120초 안에 준비되지 않았습니다. 기존 모니터링 배포는 계속합니다."
 fi
