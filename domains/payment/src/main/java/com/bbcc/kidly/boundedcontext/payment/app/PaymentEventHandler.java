@@ -80,7 +80,8 @@ public class PaymentEventHandler {
 
     /**
      * order-item.cancelled: 판매자가 취소한 주문상품의 금액만큼 환불한다(#711). Kafka로만 받는다.
-     * 실패하면 예외가 나가 Kafka가 재시도한 뒤 DLT로 보낸다. 같은 취소는 한 번만 환불하므로 다시 처리해도 된다.
+     * 결제 없음 · 회원 불일치 · 환불 불가는 재처리 기록으로 남기고 정상으로 끝낸다. DB 오류처럼 처리 중 예외가 나면
+     * Kafka가 재시도한 뒤 DLT로 보낸다. 같은 취소는 한 번만 환불하므로 다시 처리해도 된다.
      */
     public void orderItemCancelled(OrderItemCancelledEvent event) {
         OrderItemCancelledEvent.Data data = event.data();

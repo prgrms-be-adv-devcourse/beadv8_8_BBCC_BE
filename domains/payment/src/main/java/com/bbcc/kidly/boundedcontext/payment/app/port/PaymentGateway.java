@@ -6,7 +6,7 @@ package com.bbcc.kidly.boundedcontext.payment.app.port;
  */
 public interface PaymentGateway {
 
-    // 부분 취소된 결제의 상태. 전액 취소 조회의 거절 코드로 온다
+    // 부분 취소된 결제의 상태. 승인 조회(findByOrderId) · 전액 취소 조회(findCancellationByOrderId)의 거절 코드로 온다
     String PARTIAL_CANCELED = "PARTIAL_CANCELED";
 
     PgResult<PgApproval> confirm(String paymentKey, String orderId, long amount, String idempotencyKey);

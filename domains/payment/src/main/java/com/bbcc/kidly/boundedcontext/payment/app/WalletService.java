@@ -59,7 +59,7 @@ public class WalletService {
      * 지갑 락을 잡고, 관리자가 본 금액이 지금 잔액과 같을 때만 잔액을 0으로 만들고 환급 기록 · 원장 BALANCE_RETURN을 남긴다.
      * 그사이 입금이 들어왔거나 이미 처리했으면(두 번 누름) 잔액이 달라 409로 거절한다.
      *
-     * @param returnedBy 처리한 관리자(회원 ID)
+     * @param returnedBy 처리한 관리자 ID(회원 ID 아님)
      */
     @Transactional
     public BalanceReturnResult returnBalance(Long walletId, long amount, Long returnedBy) {
