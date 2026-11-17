@@ -1,4 +1,4 @@
-// medium(k3s) 노드 자체의 메트릭과 이 노드 Pod 로그. DaemonSet 으로 뜬다 (k8s/alloy.yaml)
+// medium(k3s) 노드 자체의 메트릭, 이 노드 Pod 의 컨테이너 CPU · 메모리와 로그. DaemonSet 으로 뜬다 (k8s/alloy.yaml)
 // 앱 서버(t3.large)의 앱 로그 · 앱 메트릭 · 호스트 메트릭은 deploy/monitoring-agent 의 Alloy 가 보낸다
 // 호스트 경로는 k8s/alloy.yaml 이 /host 아래에 읽기 전용으로 마운트한다
 
@@ -24,6 +24,48 @@ prometheus.scrape "node" {
 	targets         = prometheus.exporter.unix.node.targets
 	forward_to      = [prometheus.remote_write.prometheus.receiver]
 	scrape_interval = "15s"
+}
+
+// 이 노드 Pod 컨테이너의 CPU · 메모리. kubelet 이 내장한 cAdvisor 에서 읽는다 (앱 서버의 deploy/monitoring-agent 와 같은 job · 라벨)
+// 토큰은 Pod 의 ServiceAccount 토큰이다(k8s/alloy.yaml 의 alloy 에 nodes/metrics get 을 준다). 쿠버네티스가 갱신하고 긁을 때마다 파일을 다시 읽는다
+// instance 는 호스트 지표와 같은 호스트 이름이라 Kidly 서버 대시보드의 서버 선택으로 함께 거른다
+prometheus.scrape "k3s_cadvisor" {
+	job_name        = "integrations/kubelet-cadvisor"
+	targets         = [{"__address__" = "127.0.0.1:10250", "instance" = constants.hostname}]
+	scheme          = "https"
+	metrics_path    = "/metrics/cadvisor"
+	scrape_interval = "15s"
+	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+	// kubelet 은 자체 서명 인증서를 쓴다. 호스트 네트워크라 이 노드 안(127.0.0.1)에서만 붙는다
+	tls_config {
+		insecure_skip_verify = true
+	}
+
+	forward_to = [prometheus.relabel.k3s_cadvisor.receiver]
+}
+
+// 시계열을 줄인다: CPU · 메모리 · 메모리 상한만, 컨테이너 줄만(Pod 합계 줄 container="" · pause 는 뺀다), 라벨은 namespace · pod · container 만
+prometheus.relabel "k3s_cadvisor" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "container_(cpu_usage_seconds_total|memory_working_set_bytes|spec_memory_limit_bytes)"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["container"]
+		regex         = "|POD"
+		action        = "drop"
+	}
+
+	// 재시작마다 바뀌는 cgroup 경로(id) · 이미지 · containerd 이름은 뺀다
+	rule {
+		regex  = "id|image|name"
+		action = "labeldrop"
+	}
 }
 
 prometheus.remote_write "prometheus" {
