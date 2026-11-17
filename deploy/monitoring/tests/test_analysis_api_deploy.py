@@ -34,7 +34,7 @@ class AnalysisApiDeployTest(unittest.TestCase):
 
     def test_deploy_restarts_handler_and_registers_reboot(self):
         deploy = (ROOT / 'deploy.sh').read_text()
-        self.assertIn('if ! bash ai-notes/analysis-api.sh; then', deploy)
+        self.assertIn('    if ! bash ai-notes/analysis-api.sh; then', deploy)
         self.assertIn("@reboot bash /opt/app/monitoring/ai-notes/analysis-api.sh", deploy)
 
     def test_workflow_writes_optional_keys_without_printing(self):
