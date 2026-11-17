@@ -33,7 +33,7 @@ public interface PaymentOutboxRepository {
 
     Optional<PaymentOutboxMessage> findById(Long id);
 
-    // 격리된 메시지(아직 안 보냄) 최신순
+    // 격리된 메시지(아직 안 보냄) 최근에 만든 순(id 내림차순)
     Page<PaymentOutboxMessage> findParked(Pageable pageable);
 
     long countParked();

@@ -60,7 +60,7 @@
 | COMPLETED · PARTIALLY_REFUNDED | 남은 금액을 모두 지갑에 입금, 원장 `REFUND`(ref_id = 환불 ID), 환불 기록(`cancellation_id` null), 결제 REFUNDED |
 | 없음 | 취소된 주문 기록(`cancelled_order`, `order_id` UK). 그 뒤 온 `order.payment-requested`는 차감 · 발행 없이 건너뜀(WARN) |
 | FAILED · REFUNDED | 아무것도 안 함 (같은 취소가 다시 와도 한 번만 환불) |
-| 회원 · 지갑이 결제와 다름 | 환불 안 함, 재처리 기록(`MEMBER_MISMATCH`), ERROR 로그 |
+| 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그(재처리 기록은 남기지 않는다) |
 
 - 처리 실패 대비(#350): 받은 이벤트를 다시 받지 못할 수 있어서 결제 안에서 메운다
   - `handle`은 받는 처리와 다른 트랜잭션(`REQUIRES_NEW`)이다. 실패하면 처리한 것만 롤백되고, `app/PaymentEventHandler`가 `order_cancellation_retry`(`order_id` UK)에 남긴다(ERROR 로그). 남기면 처리 완료이고, 남기기까지 실패하면 예외가 나가 Kafka가 재시도 뒤 DLT로 보낸다
@@ -79,7 +79,7 @@
 | 결제 상태가 COMPLETED · PARTIALLY_REFUNDED 아님 / 결제에 없는 주문상품 / 남은 금액 초과 | 입금 · 결제 변경 없이 환불 기록 FAILED(`INVALID_PAYMENT_STATUS` · `PAYMENT_ITEM_NOT_FOUND` · `REFUND_AMOUNT_EXCEEDED`), 재처리 기록(`last_error` = 그 코드), ERROR 로그. 하나라도 안 되면 그 취소 전체를 환불하지 않는다(`Payment.checkRefundable`로 먼저 본다) |
 | 같은 취소의 완료된 환불 있음 | 아무것도 안 함(재처리 기록이 남아 있으면 지운다) |
 | 같은 취소의 실패한 환불 있음(관리자 다시 처리) | 위 경우대로 다시 본다. 환불되면 그 기록을 COMPLETED로 바꾸고(새 기록 없음) 재처리 기록을 지운다. 또 실패하면 실패 코드만 바꾼다 |
-| 회원 · 지갑이 결제와 다름 | 환불 안 함, ERROR 로그 |
+| 회원 · 지갑이 결제와 다름 | 환불 안 함, 재처리 기록(`MEMBER_MISMATCH`), ERROR 로그 |
 | 그 주문의 결제 없음 | 재처리 기록(`PAYMENT_NOT_FOUND`), ERROR 로그. 예외를 내지 않아 DLT로 가지 않는다. 주문은 결제완료 주문만 판매자 취소를 받고 같은 키라 결제 뒤에 온다 |
 
 - 부분 취소 뒤 같은 주문의 `order.cancelled`가 오면 남은 금액만 환불한다(위 주문 취소 환불)

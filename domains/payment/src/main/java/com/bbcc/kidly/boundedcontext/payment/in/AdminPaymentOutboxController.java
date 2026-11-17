@@ -25,7 +25,7 @@ public class AdminPaymentOutboxController {
 
     private final PaymentOutboxParkingService parkingService;
 
-    // 최신 격리순
+    // 최근에 만든 메시지순(id 내림차순)
     @GetMapping
     public PageResponse<ParkedPaymentEventResponse> getParked(
         @RequestParam(defaultValue = "0") @Min(0) int page,

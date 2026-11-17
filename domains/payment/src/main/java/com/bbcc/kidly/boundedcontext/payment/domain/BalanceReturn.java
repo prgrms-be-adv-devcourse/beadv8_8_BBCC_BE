@@ -34,7 +34,7 @@ public class BalanceReturn extends BaseTimeEntity {
     @Column(nullable = false)
     private long amount;
 
-    // 처리한 관리자(회원 ID)
+    // 처리한 관리자 ID(회원 ID 아님)
     @Column(nullable = false)
     private Long returnedBy;
 

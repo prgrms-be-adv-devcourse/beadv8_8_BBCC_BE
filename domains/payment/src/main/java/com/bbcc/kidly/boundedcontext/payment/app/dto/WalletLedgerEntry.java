@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  * @param type 거래 종류 이름(WalletLedgerType)
  * @param amount 입금은 양수, 출금은 음수(원)
  * @param balanceAfter 거래 뒤 잔액(원)
- * @param refId type에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 ID
+ * @param refId type에 따라 충전 · 충전 취소 · 결제 · 환불 · 정산 · 환급 기록 · 개발용 충전 ID
  */
 public record WalletLedgerEntry(Long ledgerId, String type, long amount, long balanceAfter, Long refId,
                                 LocalDateTime createdAt) {
