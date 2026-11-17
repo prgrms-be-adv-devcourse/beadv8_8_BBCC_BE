@@ -1,6 +1,6 @@
-# Codex 메트릭 조회
+# AI 메트릭 조회 (Codex · Claude Code)
 
-**별도 Grafana 조직의 Prometheus만 읽습니다.** Loki·기존 조직의 대시보드/알림·설정 변경은 허용하지 않습니다. 메트릭 조회 결과는 연결한 OpenAI로 전달될 수 있습니다.
+**별도 Grafana 조직의 Prometheus만 읽습니다.** Loki·기존 조직의 대시보드/알림·설정 변경은 허용하지 않습니다. 메트릭 조회 결과는 연결한 AI 제공자(Codex는 OpenAI, Claude Code는 Anthropic)로 전달될 수 있습니다. 무엇을 물어보면 되는지는 [질문 모음](questions.md)을 봅니다.
 
 ## 경계
 
@@ -15,11 +15,26 @@
 
 1. 경계를 적용하고 아래 검증을 통과시킵니다. `bootstrap.py ensure`로 조직·datasource·Viewer를 준비합니다. 관리자 기본 조직은 바꾸지 않습니다.
 2. 공식 v2.2.0 macOS arm64 배포본을 공급자 checksum과 `policy.json`의 SHA-256으로 확인합니다. PC의 `~/.local/share/kidly-grafana-mcp/`에 바이너리·`launch.py`·`policy.json`을 둡니다.
-3. Codex에는 실행기를 **enabled=false**로 등록합니다. `connection.json`에는 조직·계정·토큰 ID·만료·바이너리 hash·검증 상태만 둡니다. 토큰 값은 넣지 않습니다.
+3. AI 클라이언트(Codex 또는 Claude Code, 아래 "Claude Code에 등록")에는 실행기를 꺼 둔 상태로 등록합니다(Codex는 **enabled=false**). `connection.json`에는 조직·계정·토큰 ID·만료·바이너리 hash·검증 상태만 둡니다. 토큰 값은 넣지 않습니다.
 4. 승인된 관리자가 비공개 SSH 파이프로 7일 토큰을 발급해 `store_token.py`의 stdin으로만 전달합니다. 직접 터미널 출력·인자·파일·환경 설정에 복사하지 않습니다. 저장 실패 시 발급한 ID로 즉시 폐기합니다.
-5. Viewer 권한과 실제 공식 MCP 조회·거부 시험 후에만 검증 상태와 Codex의 enabled를 켭니다. macOS Keychain의 토큰은 실행기 내부에서만 읽어 자식 프로세스 환경으로 전달합니다.
+5. Viewer 권한과 실제 공식 MCP 조회·거부 시험 후에만 검증 상태와 클라이언트 연결을 켭니다(Codex는 enabled, Claude Code는 등록). macOS Keychain의 토큰은 실행기 내부에서만 읽어 자식 프로세스 환경으로 전달합니다.
 
 클라이언트는 `--disable-write --enabled-tools=datasource,prometheus`를 쓰며 조직 전환·URL override·교차 출처 redirect·TLS 검증 생략을 끕니다. 저장 시계열 조회 창은 1시간, 반환 지점은 시계열당 241개로 제한하고 HTTP timeout은 10초입니다. 이 클라이언트 옵션은 서버 접근 경계를 대체하지 않습니다.
+
+## Claude Code에 등록
+
+Codex와 같은 실행기(`launch.py`)를 씁니다. 토큰 · 경계 · 도구 제한(`--disable-write --enabled-tools=datasource,prometheus`)은 실행기 안에서 그대로 적용되며, 클라이언트 설정에는 토큰을 넣지 않습니다.
+
+```bash
+# 검증 상태(connection.json의 verified)가 true가 된 뒤에 등록한다. 사용자 범위(user)라 저장소 파일을 바꾸지 않는다
+claude mcp add kidly_grafana --scope user -- /usr/bin/python3 "$HOME/.local/share/kidly-grafana-mcp/launch.py"
+claude mcp list   # kidly_grafana: ✓ Connected 확인
+```
+
+- 처음 쓰기 전에 Claude Code에서 `query_prometheus`로 `up{env="dev"}` 한 번을 조회해 응답을 확인합니다. 쓰기 · 관리 도구(`create_*` · `update_*` 등)는 목록에 나오지 않아야 합니다
+- 조회 결과는 Anthropic으로 전달됩니다. Prometheus 지표(서비스 이름 · 숫자)만 보내며 로그 · 개인정보는 이 연결로 조회할 수 없습니다
+- 끌 때: `claude mcp remove kidly_grafana --scope user`. 토큰 폐기는 아래 "중단·만료" 절차를 그대로 따릅니다
+- 저장소 루트에 `.mcp.json`(프로젝트 범위)을 두지 않습니다. 사람마다 Keychain · 경로가 달라 공용 설정으로 맞지 않습니다
 
 ## 검증
 
@@ -39,4 +54,4 @@ GitHub Actions → **monitoring-deploy → Run workflow**로 재동기화할 수
 
 Codex의 `kidly_grafana`를 끄고 `bootstrap.py revoke-token --token-id <ID>`로 폐기한 뒤 해당 Keychain 항목을 지웁니다. 만료 뒤 자동 재발급하지 않습니다. 다시 승인된 절차로 검증·발급합니다. 조직은 기존 운영 조직과 분리되어 있고 운영 알림은 기존 공간에서 계속 동작합니다.
 
-[공식 MCP v2.2.0](https://github.com/grafana/mcp-grafana/releases/tag/v2.2.0) · [Codex MCP 설정](https://developers.openai.com/codex/mcp) · [Grafana 서비스 계정 API](https://grafana.com/docs/grafana/latest/developer-resources/api-reference/http-api/serviceaccount/)
+[공식 MCP v2.2.0](https://github.com/grafana/mcp-grafana/releases/tag/v2.2.0) · [Codex MCP 설정](https://developers.openai.com/codex/mcp) · [Claude Code MCP 설정](https://docs.claude.com/en/docs/claude-code/mcp) · [Grafana 서비스 계정 API](https://grafana.com/docs/grafana/latest/developer-resources/api-reference/http-api/serviceaccount/)
