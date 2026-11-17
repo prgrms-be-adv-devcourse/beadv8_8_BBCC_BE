@@ -28,17 +28,17 @@
   "graphTooltip": 0,
   "links": [
     {
-      "title": "서비스 상세(평소 보는 화면)",
+      "title": "서비스 상세",
       "type": "link",
       "url": "/d/kidly-service?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
     },
     {
-      "title": "서비스 상태",
+      "title": "서비스 오류",
       "type": "link",
       "url": "/d/kidly-http?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
     },
     {
-      "title": "서비스 로그",
+      "title": "오류 로그",
       "type": "link",
       "url": "/d/kidly-logs?var-env=${env}&var-service=${service}&from=${__from}&to=${__to}"
     }

@@ -356,7 +356,7 @@
           },
           "options": {
             "mode": "markdown",
-            "content": "**AI에게 분석 맡기기** — ai-notes MCP를 연결한 AI 클라이언트에 아래 문장을 그대로 붙여 넣습니다(주문 MCP는 연결돼 있을 때만).\n\n```text\ndev 환경 운영 분석을 해 줘. get_analysis_context(\"dev\")로 지표 문맥을 받고, 지금 가장 먼저 볼 문제를 중요한 순서로 최대 3개 골라.\n항목마다 관측(숫자 근거), 원인 후보(확인 전 가설), 확인 순서 2~3단계(운영 홈 상태판 → 서비스 상태 → 오류 로그처럼 Grafana 화면과 패널 이름),\n대응 제안을 쓰고 evidence_id를 붙여. 주문 MCP가 있으면 stuck_orders_summary와 dead_letters도 확인해 근거에 넣어.\n이상이 없으면 어떤 지표를 어느 시간 범위에서 봤는지와 판단할 수 없는 것을 적어. 300초 안에 publish_analysis로 게시하고 get_publication_status로 확인해.\n```\n\n**메모 읽는 법**\n1. **관측 시각 · 환경**을 지금 알림과 맞춥니다. 다르면 [운영 홈](/d/kidly-home) 상태판부터 봅니다.\n2. 번호 붙은 **확인 순서**를 위에서부터 실행합니다. **근거**의 서비스 이름으로 [서비스 상태](/d/kidly-http)와 [오류 로그](/d/kidly-logs)를 엽니다.\n3. 이슈에는 **발생 시각 · 영향 서비스 · 확인한 화면 · 다음 조치**를 남깁니다. 원인 후보는 확인 전 가설로 표시합니다."
+            "content": "**AI에게 분석 맡기기** — ai-notes MCP를 연결한 AI 클라이언트에 아래 문장을 그대로 붙여 넣습니다(주문 MCP는 연결돼 있을 때만).\n\n```text\ndev 환경 운영 분석을 해 줘. get_analysis_context(\"dev\")로 지표 문맥을 받고, 지금 가장 먼저 볼 문제를 중요한 순서로 최대 3개 골라.\n항목마다 관측(숫자 근거), 원인 후보(확인 전 가설), 확인 순서 2~3단계(운영 홈 상태판 → 서비스 오류 → 오류 로그처럼 Grafana 화면과 패널 이름),\n대응 제안을 쓰고 evidence_id를 붙여. 주문 MCP가 있으면 stuck_orders_summary와 dead_letters도 확인해 근거에 넣어.\n이상이 없으면 어떤 지표를 어느 시간 범위에서 봤는지와 판단할 수 없는 것을 적어. 300초 안에 publish_analysis로 게시하고 get_publication_status로 확인해.\n```\n\n**메모 읽는 법**\n1. **관측 시각 · 환경**을 지금 알림과 맞춥니다. 다르면 [운영 홈](/d/kidly-home) 상태판부터 봅니다.\n2. 번호 붙은 **확인 순서**를 위에서부터 실행합니다. **근거**의 서비스 이름으로 [서비스 오류](/d/kidly-http)와 [오류 로그](/d/kidly-logs)를 엽니다.\n3. 이슈에는 **발생 시각 · 영향 서비스 · 확인한 화면 · 다음 조치**를 남깁니다. 원인 후보는 확인 전 가설로 표시합니다."
           }
         },
         {
@@ -495,7 +495,7 @@
       "id": 206,
       "type": "text",
       "title": "바로 가기",
-      "description": "상단 링크 줄 대신 둡니다. 서비스 상태 확인은 선택한 환경과 시간 범위를 그대로 씁니다.",
+      "description": "상단 링크 줄 대신 둡니다. 서비스 오류 확인은 선택한 환경과 시간 범위를 그대로 씁니다.",
       "gridPos": {
         "x": 17,
         "y": 0,
@@ -504,7 +504,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "[운영 홈](/d/kidly-home) · [서비스 상태 확인](/d/kidly-http?var-env=${env}&${__url_time_range})"
+        "content": "[운영 홈](/d/kidly-home) · [서비스 오류 확인](/d/kidly-http?var-env=${env}&${__url_time_range})"
       }
     }
   ]

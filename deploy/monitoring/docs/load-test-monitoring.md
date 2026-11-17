@@ -94,7 +94,7 @@ k6 run -o experimental-prometheus-rw --tag testid=<이름> <시나리오.js>
 
 ## 4. Grafana에서 보기
 
-Grafana → Kidly → **Kidly 부하 테스트** (운영 홈 · 서비스 상태 화면 상단의 "부하 테스트" 링크)
+Grafana → Kidly → **Kidly 부하 테스트** (운영 홈 · 서비스 오류 화면 상단의 "부하 테스트" 링크)
 
 1. **테스트**: 방금 쓴 testid를 고릅니다(최근 것이 위에 있습니다)
 2. **서비스**: 부하가 지나가는 서비스만 고릅니다. 예: 알림 조회 → `kidly-gateway`, `kidly-notification`

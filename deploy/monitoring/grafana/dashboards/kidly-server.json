@@ -1094,6 +1094,13 @@
   ],
   "links": [
     {
+      "title": "운영 홈",
+      "type": "link",
+      "url": "/d/kidly-home",
+      "includeVars": false,
+      "keepTime": true
+    },
+    {
       "title": "서비스 상세",
       "type": "link",
       "url": "/d/kidly-service?var-env=dev&${__url_time_range}",
@@ -1101,6 +1108,20 @@
       "keepTime": false,
       "icon": "dashboard",
       "tooltip": "서비스 하나의 상세(HTTP · JVM · DB · Kafka)로 이동"
+    },
+    {
+      "title": "서비스 오류",
+      "type": "link",
+      "url": "/d/kidly-http?var-env=dev&${__url_time_range}",
+      "includeVars": false,
+      "keepTime": false
+    },
+    {
+      "title": "오류 로그",
+      "type": "link",
+      "url": "/d/kidly-logs?var-env=dev&${__url_time_range}",
+      "includeVars": false,
+      "keepTime": false
     },
     {
       "title": "AI 분석",

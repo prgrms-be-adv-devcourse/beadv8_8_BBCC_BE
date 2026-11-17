@@ -23,6 +23,7 @@ templates:
       {{- with .CommonLabels.env }} · {{ if eq . "dev" }}운영{{ else }}{{ . }}{{ end }}{{ end }}
       {{- end }}
 
+      {{/* 서비스 상세 링크는 알림 시작 30분 전부터 연다(늦게 봐도 그 시각). 해결 알림은 끝난 뒤 30분까지 */}}
       {{ define "kidly.slack.text" -}}
       {{ if eq .Status "firing" -}}
       {{ range .Alerts.Firing -}}
@@ -31,7 +32,7 @@ templates:
       {{ end -}}
       {{ end -}}
       {{ with index .Alerts.Firing 0 }}<{{ .GeneratorURL }}|규칙 보기> · <{{ .SilenceURL }}|일시정지>
-      {{- with .Annotations.service_url }} · <{{ . }}|서비스 상세>{{ end }}
+      {{- if .Annotations.service_url }} · <{{ .Annotations.service_url }}&from={{ (.StartsAt.Add -1800000000000).UnixMilli }}&to=now|서비스 상세>{{ end }}
       {{- with .Annotations.logs_url }} · <{{ . }}|로그 보기>{{ end }}
       {{- with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
       {{- template "kidly.slack.ai" . }}
@@ -45,7 +46,7 @@ templates:
       {{ else -}}
       정상으로 돌아왔습니다
       {{ end -}}
-      {{ with index .Alerts.Resolved 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ with .Annotations.service_url }} · <{{ . }}|서비스 상세>{{ end }}{{ with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
+      {{ with index .Alerts.Resolved 0 }}<{{ .GeneratorURL }}|규칙 보기>{{ if .Annotations.service_url }} · <{{ .Annotations.service_url }}&from={{ (.StartsAt.Add -1800000000000).UnixMilli }}&to={{ (.EndsAt.Add 1800000000000).UnixMilli }}|서비스 상세>{{ end }}{{ with .Annotations.dashboard_url }} · <{{ . }}|Kafka 대시보드>{{ end }}{{ end }}
       {{ end -}}
       {{- end }}
       {{- end }}

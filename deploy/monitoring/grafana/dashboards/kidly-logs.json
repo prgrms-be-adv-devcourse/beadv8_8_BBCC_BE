@@ -1,25 +1,25 @@
 {
   "links": [
     {
-      "title": "홈",
+      "title": "운영 홈",
       "type": "link",
-      "url": "/",
+      "url": "/d/kidly-home",
+      "includeVars": false,
+      "keepTime": true
+    },
+    {
+      "title": "서비스 상세",
+      "type": "link",
+      "url": "/d/kidly-service?var-env=${env}&${__url_time_range}",
       "includeVars": false,
       "keepTime": false,
-      "targetBlank": false
+      "icon": "dashboard",
+      "tooltip": "서비스 상세로 이동합니다. 특정 서비스는 그래프 선이나 표의 서비스 칸을 누르세요"
     },
     {
-      "title": "서비스 상태",
+      "title": "서비스 오류",
       "type": "link",
       "url": "/d/kidly-http",
-      "includeVars": true,
-      "keepTime": true,
-      "targetBlank": false
-    },
-    {
-      "title": "오류 로그",
-      "type": "link",
-      "url": "/d/kidly-logs",
       "includeVars": true,
       "keepTime": true,
       "targetBlank": false
@@ -31,15 +31,6 @@
       "includeVars": false,
       "keepTime": false,
       "targetBlank": false
-    },
-    {
-      "title": "서비스 상세",
-      "type": "link",
-      "url": "/d/kidly-service?var-env=${env}&${__url_time_range}",
-      "includeVars": false,
-      "keepTime": false,
-      "icon": "dashboard",
-      "tooltip": "서비스 상세로 이동합니다. 특정 서비스는 그래프 선이나 표의 서비스 칸을 누르세요"
     },
     {
       "title": "AI 분석",
@@ -120,7 +111,7 @@
       "id": 8,
       "type": "table",
       "title": "자주 난 예외 · 선택 기간",
-      "description": "선택한 기간의 ERROR 로그를 서비스 · 예외 타입별로 센 상위 10개입니다.\n건수가 갑자기 많은 예외부터 아래 'ERROR 로그'에서 같은 타입의 메시지와 스택 트레이스를 확인합니다.\n예외 타입이 없는 ERROR 로그(메시지만 남긴 경우)는 세지 않습니다. 전체 건수는 운영 홈 상태판의 ERROR 로그 열에서 봅니다.",
+      "description": "선택한 기간의 ERROR 로그를 서비스 · 예외 타입별로 센 상위 10개입니다. (예외 타입은 패키지 이름을 뺀 클래스 이름)\n건수가 갑자기 많은 예외부터 아래 'ERROR 로그'에서 같은 타입의 메시지와 스택 트레이스를 확인합니다.\n예외 타입이 없는 ERROR 로그(메시지만 남긴 경우)는 세지 않습니다. 전체 건수는 운영 홈 상태판의 ERROR 로그 열에서 봅니다.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -128,7 +119,7 @@
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 24,
+        "w": 12,
         "h": 8
       },
       "targets": [
@@ -139,7 +130,7 @@
             "uid": "loki"
           },
           "queryType": "instant",
-          "expr": "topk(10, sum by (service_name, error_type) (count_over_time({env=\"$env\", service_name=~\"${service:regex}\", level=\"ERROR\"} | json error_type=\"error.type\" | __error__=\"\" | error_type != \"\" [$__range])))"
+          "expr": "topk(10, sum by (service_name, error_type) (count_over_time({env=\"$env\", service_name=~\"${service:regex}\", level=\"ERROR\"} | json error_type=\"error.type\" | __error__=\"\" | error_type != \"\" | label_format error_type=`{{ regexReplaceAll \"^.*[.]\" .error_type \"\" }}` [$__range])))"
         }
       ],
       "transformations": [
@@ -203,6 +194,133 @@
                     "url": "/d/kidly-service?var-env=${env}&var-service=${__value.raw}&${__url_time_range}"
                   }
                 ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "건수",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "예외 위치 (우리 코드) · 선택 기간",
+      "description": "ERROR 로그의 스택에서 처음 지나간 우리 코드(com.bbcc.kidly)의 클래스.메서드:줄입니다. 상위 10개. 예외 종류는 왼쪽 표에서 봅니다.\n프록시(<generated>) · 프레임워크 줄은 건너뜁니다. 실패가 일어난 위치이지 근본 원인(Caused by)과 다를 수 있습니다.\nAI 운영 분석이 쓰는 근거(error_site_30m)와 같은 기준입니다.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "instant",
+          "expr": "topk(10, sum by (service_name, site) (count_over_time({env=\"$env\", service_name=~\"${service:regex}\", level=\"ERROR\"} | json error_type=\"error.type\", stack=\"error.stack_trace\" | __error__=\"\" | error_type != \"\" | line_format \"{{.stack}}\" | regexp \"at com[.]bbcc[.]kidly[.](?:[A-Za-z0-9_]+[.])*(?P<cls>[A-Z][A-Za-z0-9_]*)[.](?P<method>[A-Za-z0-9_]+)[(][A-Za-z0-9_]+[.]java:(?P<ln>[0-9]+)[)]\" | ln != \"\" | label_format site=`{{.cls}}.{{.method}}:{{.ln}}` [$__range])))"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "service_name": 0,
+              "site": 1,
+              "Value #A": 2
+            },
+            "renameByName": {
+              "service_name": "서비스",
+              "site": "우리 코드 위치",
+              "Value #A": "건수"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "선택 기간에 우리 코드 줄이 있는 ERROR 스택이 없습니다"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "건수"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "서비스"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 서비스 상세 보기",
+                    "url": "/d/kidly-service?var-env=${env}&var-service=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "서비스"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "건수"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           }
