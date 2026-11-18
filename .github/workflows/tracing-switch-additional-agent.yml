@@ -1,0 +1,55 @@
+name: tracing-switch-additional-agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 계측할 서비스
+        type: choice
+        options: [payment, chatbot]
+        required: true
+      operation:
+        description: 결제 또는 챗봇 서비스 Java Agent 적용 또는 원복
+        type: choice
+        options: [apply, rollback]
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/develop'
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+      SERVICE: ${{ inputs.service }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 앱 서버 접속 준비
+        uses: ./.github/actions/server-ssh
+        with:
+          host: ${{ env.SSH_HOST }}
+          private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.SSH_KNOWN_HOSTS }}
+      - name: 결제 또는 챗봇 서비스 Agent 적용 또는 원복
+        run: |
+          set -euo pipefail
+          case "$SERVICE" in payment|chatbot) ;; *) exit 2 ;; esac
+          case "$OPERATION" in apply|rollback) ;; *) exit 2 ;; esac
+          tar -C deploy -cf - tracing-ops/switch-additional-agent.sh tracing-ops/agent-patch.py k3s/tracing_agent.py |
+            ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 "deploy@$SSH_HOST" "
+              set -eu
+              umask 077
+              work=\$(mktemp -d)
+              trap 'rm -rf -- \"\$work\"' EXIT
+              tar -xf - -C \"\$work\"
+              bash \"\$work/tracing-ops/switch-additional-agent.sh\" '$SERVICE' '$OPERATION'
+            "

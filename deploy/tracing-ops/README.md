@@ -103,3 +103,11 @@ GitHub Actions에서 `tracing-preflight`를 develop 기준으로 수동 실행�
 ## Java Agent 파일 준비
 
 `tracing-stage-agent`를 develop 기준으로 수동 실행하면 현재 앱 노드의 `/opt/app/kidly-tracing` 아래에 고정 버전 JAR을 준비합니다. runner와 앱 노드에서 모두 SHA-256을 확인하고, 기존 파일의 체크섬이 다르면 덮어쓰지 않고 중단합니다. 앱 Deployment를 변경하거나 Pod를 다시 띄우는 단계는 없습니다. 노드가 추가되면 배치 가능한 각 노드에 같은 파일이 있는지 확인합니다.
+
+## 결제·챗봇 추가
+
+검색 수집 구성이 활성화된 상태에서 `tracing-stage-additional-alloy`를 check → apply 순서로 실행합니다. 결제·챗봇이 보낼 수 있도록 기존 수집기 허용 목록과 NetworkPolicy를 확장합니다. 이어서 기존 합성 주문 전송이 통과하는지 확인합니다.
+
+`tracing-switch-additional-agent`에서 payment 또는 chatbot을 선택해 apply합니다. 선택한 서비스의 Pod가 교체되고, 준비 상태를 통과하면 선택 파일을 남깁니다. 샘플링은 5%입니다. 결제는 기존 예치금·거래 내역 조회로 확인합니다. 챗봇 정상 응답은 외부 AI 호출 비용과 데이터 전달 범위를 확인한 뒤 검증하고, 먼저 입력 검증 오류로 HTTP 경로를 확인합니다.
+
+원복은 각 서비스에 rollback을 실행합니다. 두 Agent와 선택 파일이 제거된 뒤 수집기 rollback으로 검색 수집 구성에 돌아갈 수 있습니다. 검색·주문·Gateway는 계속 수집합니다.
