@@ -27,7 +27,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 
 /**
- * 정산 아웃박스 메시지가 릴레이를 거쳐 kidly.settlement.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다.
  * 스케줄러는 테스트 설정으로 멈춰 두고 릴레이를 직접 부른다.
  * 다른 테스트의 메시지도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.
  */

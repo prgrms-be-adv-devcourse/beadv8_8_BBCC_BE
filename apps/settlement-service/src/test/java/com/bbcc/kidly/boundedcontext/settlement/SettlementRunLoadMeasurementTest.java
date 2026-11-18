@@ -20,14 +20,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 정산 실행 부하 측정(#730 · #808). 연휴 뒤 첫 영업일 실행이 밀린 날수(days)만큼의 구매확정을 한 번에 정산해도
+ * 정산 실행 부하 측정. 연휴 뒤 첫 영업일 실행이 밀린 날수(days)만큼의 구매확정을 한 번에 정산해도
  * 운영 설정 안에 끝나는지 잰다. 이 측정이 실행 제한(CronJob activeDeadlineSeconds)과 {@code stale-run-after}의 근거다.
  * <ul>
  *   <li>하루치: 2025년 아동·유아용품 온라인쇼핑 거래액 5조 4,515억 원(국가데이터처 온라인쇼핑동향, 2026-02-02)을
  *       365일과 1회 평균 결제 44,300원(오픈서베이 2026)으로 나눈 약 33.7만 건. 국내 시장 전체를 받는다는 상한이다</li>
  *   <li>days: 기본 6. 2026년 영업일 중 가장 많이 밀리는 날인 설 연휴(2/16~18) 뒤 2/19(목)가 2/13(금)~2/18(수) 6일치를 받는다.
  *       실행은 그날 0시 전에 확정된 대기 항목을 모두 정산하므로 연휴 전날 확정분도 포함된다</li>
- *   <li>판매자 1,000명에 고르게 나눈다. 치우친 분포(유명인사 판매자)는 #808에서 고른 분포보다 빨랐다. 성공 수 = 판매자 수를
+ *   <li>판매자 1,000명에 고르게 나눈다. 치우친 분포(유명인사 판매자)는 고른 분포보다 빨랐다. 성공 수 = 판매자 수를
  *       검사하므로 하위 판매자 몫이 판매자 수보다 적으면 생성한 데이터 때문에 실패한다(운영 결함이 아니다)</li>
  * </ul>
  * 기준: 가장 오래 걸린 묶음 &lt; {@code stale-run-after}, 실행 전체 &lt; CronJob 실행 제한, 실행 뒤 미발행 아웃박스 0건.
@@ -93,7 +93,6 @@ class SettlementRunLoadMeasurementTest {
         assertThat(outboxRepository.countUnsent()).isZero();
     }
 
-    // 확정 시각은 기준일 전 DAYS일에 고르게 나눈다(그날 정오)
     private void insert(int items) {
         var now = Timestamp.valueOf(LocalDateTime.now());
         List<Object[]> rows = new ArrayList<>(INSERT_BATCH);

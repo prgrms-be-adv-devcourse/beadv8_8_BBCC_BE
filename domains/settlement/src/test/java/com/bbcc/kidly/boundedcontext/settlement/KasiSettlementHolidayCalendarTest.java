@@ -31,7 +31,6 @@ import org.springframework.web.client.RestClient;
 class KasiSettlementHolidayCalendarTest {
 
     private static final String BASE_URL = "https://holiday.test/SpcdeInfoService";
-    // 실제 키와 같은 64자 16진수 모양의 가짜 키
     private static final String FAKE_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final Year YEAR = Year.of(2026);
     private static final String YEAR_URL = BASE_URL + "/getRestDeInfo?serviceKey=" + FAKE_KEY

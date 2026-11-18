@@ -54,8 +54,6 @@ public class SettlementOutboxMessage extends BaseTimeEntity {
     private LocalDateTime sentAt;
 
     /**
-     * 보내지 않은 메시지(시도 0)를 만든다.
-     *
      * @param eventType 헤더 eventType에 넣을 값(예: settlement.payout-requested)
      * @param messageKey Kafka 메시지 키(이벤트의 correlationId)
      * @param payload 보낼 본문 JSON. 보낼 때 그대로 쓴다
@@ -71,9 +69,6 @@ public class SettlementOutboxMessage extends BaseTimeEntity {
         return message;
     }
 
-    /**
-     * 보냈다. 시도를 1 늘리고 보낸 시각을 기록한다. 이미 보낸 메시지는 바꾸지 않는다.
-     */
     public void markSent(LocalDateTime now) {
         if (sentAt != null) {
             return;

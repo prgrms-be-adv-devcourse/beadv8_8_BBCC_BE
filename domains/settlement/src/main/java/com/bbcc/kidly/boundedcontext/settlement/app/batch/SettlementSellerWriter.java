@@ -31,7 +31,6 @@ public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> 
             requireNonNull(settlementPayoutRequester, "settlementPayoutRequester는 필수입니다");
     }
 
-    // 계획 뒤에 대상이 바뀌었으면 IllegalStateException
     @Override
     public void write(Chunk<? extends SettlementSellerPlan> plans) {
         var now = LocalDateTime.now();

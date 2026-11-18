@@ -34,7 +34,6 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 주문 · 결제 토픽에서 받은 메시지를 eventType 헤더로 골라 정산 처리에 넘기는지 본다.
  * 본문은 보내는 쪽과 같은 모양(공통 칸 7개 + data)이고, eventType은 shared 이벤트의 eventType() 규칙에서 만든다.
  */
 @ExtendWith(MockitoExtension.class)

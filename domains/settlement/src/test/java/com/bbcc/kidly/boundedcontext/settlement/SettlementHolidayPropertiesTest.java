@@ -21,7 +21,6 @@ class SettlementHolidayPropertiesTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withUserConfiguration(PropertiesConfig.class);
 
-    // 값은 ;로 나눈 설정 줄이다
     @ParameterizedTest(name = "[{0}]")
     @ValueSource(strings = {
         CONNECT + ";" + READ,

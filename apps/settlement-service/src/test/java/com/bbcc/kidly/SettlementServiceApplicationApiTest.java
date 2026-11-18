@@ -6,10 +6,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.client.RestTestClient;
-
-/**
- * 정산 서비스가 정산 도메인만으로 뜨고, 정산 API만 받는지 본다. 정산 도메인 자체의 동작은 도메인 테스트가 본다.
- */
 @FunctionalTest
 class SettlementServiceApplicationApiTest {
 

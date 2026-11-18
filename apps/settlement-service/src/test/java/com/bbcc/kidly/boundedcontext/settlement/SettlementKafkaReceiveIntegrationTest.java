@@ -51,7 +51,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 정산이 구매확정 · 지급 결과를 Kafka로 받아 Spring 이벤트로 받았을 때와 같이 처리하는지 실제 Kafka로 본다.
  * 테스트 설정은 스위치를 꺼 다른 테스트가 Spring 경로로 돌게 하고, 컨텍스트를 다시 쓸 때도 리스너가 켜지지 않게
  * SettlementKafkaListenerTestGuard가 리스너를 들고 있으므로, 여기서만 가드에서 꺼내 직접 켜고 끈다.
  * 메시지는 보내는 쪽과 같은 모양(키 = correlationId, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data)으로 직접 넣는다.
@@ -108,7 +107,7 @@ class SettlementKafkaReceiveIntegrationTest {
         AsyncWait.until(TIMEOUT, () -> listeners.stream().noneMatch(l -> l.getAssignedPartitions().isEmpty()));
     }
 
-    // 결제 토픽은 결제 서비스가 선언한다(#525). 테스트가 같은 모양(파티션 3)으로 만든다
+    // 결제 토픽은 결제 서비스가 선언한다. 테스트가 같은 모양(파티션 3)으로 만든다
     private void createPaymentTopic() {
         try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
             kafka.getBootstrapServers()))) {
@@ -162,7 +161,7 @@ class SettlementKafkaReceiveIntegrationTest {
     @DisplayName("payment.payout-completed를 받으면 정산서가 지급 완료가 된다")
     void payoutCompleted() throws Exception {
         long settlementId = saveSettlement();
-        PaymentPayoutCompletedEvent event = completed(settlementId, sellerId, 90_000L);
+        PaymentPayoutCompletedEvent event = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_000L);
 
         send(PAYMENT_TOPIC, settlementId, event.eventType(), envelope(event));
 
@@ -187,8 +186,8 @@ class SettlementKafkaReceiveIntegrationTest {
     void deadLetterMismatchedPayout() throws Exception {
         long settlementId = saveSettlement();
         long unknownSettlementId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
-        PaymentPayoutCompletedEvent wrongAmount = completed(settlementId, sellerId, 90_001L);
-        PaymentPayoutCompletedEvent unknown = completed(unknownSettlementId, sellerId, 90_000L);
+        PaymentPayoutCompletedEvent wrongAmount = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_001L);
+        PaymentPayoutCompletedEvent unknown = SettlementFixture.payoutCompleted(unknownSettlementId, sellerId, 90_000L);
 
         RecordMetadata wrongAmountSent = send(PAYMENT_TOPIC, settlementId, wrongAmount.eventType(),
             envelope(wrongAmount));
@@ -222,7 +221,7 @@ class SettlementKafkaReceiveIntegrationTest {
         long settlementId = saveSettlement();
         send(PAYMENT_TOPIC, settlementId, "payment.payout-requested", "정산이 받지 않는 종류라 읽지 않는 본문");
         // 키(정산서 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
-        PaymentPayoutCompletedEvent event = completed(settlementId, sellerId, 90_000L);
+        PaymentPayoutCompletedEvent event = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_000L);
         send(PAYMENT_TOPIC, settlementId, event.eventType(), envelope(event));
 
         AsyncWait.until(TIMEOUT, () -> "PAID".equals(settlementStatus(settlementId)));
@@ -233,11 +232,6 @@ class SettlementKafkaReceiveIntegrationTest {
         return new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderItemPurchaseConfirmedEvent.Data(itemId, orderId, 2L, sellerId, null, 3L, 4L, "110", 1, 50_000L,
                 LocalDateTime.of(2026, 10, 1, 10, 0)));
-    }
-
-    private static PaymentPayoutCompletedEvent completed(long settlementId, long sellerId, long amount) {
-        return new PaymentPayoutCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new PaymentPayoutCompletedEvent.Data(settlementId, sellerId, amount, 1L, LocalDateTime.now()));
     }
 
     // 판매 100,000원 · 수수료 10% → 정산금액 90,000원. 지급을 요청한(COMPLETED) 정산서다

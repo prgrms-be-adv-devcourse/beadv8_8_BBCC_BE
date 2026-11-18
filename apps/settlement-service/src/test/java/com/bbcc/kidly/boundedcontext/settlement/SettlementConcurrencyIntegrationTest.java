@@ -13,7 +13,6 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
-import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -35,11 +34,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
-
-/**
- * 같은 요청이 실제 스레드로 동시에 들어와도 정산이 한 번만 반영되는지 확인한다.
- * 작업마다 자기 스레드 · 자기 트랜잭션으로 커밋하고, 출발 신호 하나로 함께 시작한다.
- */
 @IntegrationTest
 class SettlementConcurrencyIntegrationTest {
 
@@ -63,7 +57,6 @@ class SettlementConcurrencyIntegrationTest {
     @Autowired
     private SettlementOrderEventListener settlementOrderEventListener;
 
-    // 저장된 정산 항목 전체를 읽으려고 JpaRepository의 기본 조회를 쓴다
     @Autowired
     private JpaSettlementItemRepository jpaSettlementItemRepository;
 
@@ -118,9 +111,8 @@ class SettlementConcurrencyIntegrationTest {
         var settlement = settlementRepository.save(SettlementFixture.settlement(10_000L));
         var versionBefore = settlement.getVersion();
         var paidAt = LocalDateTime.of(2026, 11, 1, 9, 0);
-        var event = new PaymentPayoutCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new PaymentPayoutCompletedEvent.Data(settlement.getId(), SettlementFixture.SELLER_ID,
-                settlement.getSettlementAmount(), 1L, paidAt));
+        var event = SettlementFixture.payoutCompleted(
+            settlement.getId(), SettlementFixture.SELLER_ID, settlement.getSettlementAmount(), paidAt);
 
         // 진 쪽 리스너는 낙관적 락 충돌로 롤백되거나 이미 지급 완료라 아무것도 하지 않는다
         var outcomes = runAtOnce(() -> publishInTransaction(event));

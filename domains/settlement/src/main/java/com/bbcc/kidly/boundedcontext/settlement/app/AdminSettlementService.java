@@ -43,7 +43,6 @@ public class AdminSettlementService {
         settlementMetrics.countRetry(SettlementMetrics.TRIGGER_ADMIN);
     }
 
-    // 자동 재요청(스케줄러)용. 요청은 같고 지표의 trigger만 다르다
     @Transactional
     public void retryStuckPayout(Long settlementId) {
         requestPayout(settlementId);

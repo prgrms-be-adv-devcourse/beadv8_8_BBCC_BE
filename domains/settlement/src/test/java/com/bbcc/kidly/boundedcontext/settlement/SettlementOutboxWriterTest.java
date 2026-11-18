@@ -77,7 +77,6 @@ class SettlementOutboxWriterTest {
         assertThat(data.get("periodEndOn").asString()).isEqualTo("2026-10-31");
     }
 
-    // 저장소에 넘긴 값으로 메시지를 만들어 돌려준다
     private SettlementOutboxMessage append() {
         writer.append(REQUESTED);
 

@@ -9,18 +9,16 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
-import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
-// 정산이 지급을 요청하고, 지급 결과가 정산서에 반영되는 흐름을 검증한다. 입금은 결제 서비스가 하므로(#525) 결과는 테스트가 발행한다(PayoutRequests)
+// 입금은 결제 서비스가 하므로 결과는 테스트가 발행한다(PayoutRequests)
 @IntegrationTest
 class SettlementPayoutIntegrationTest {
 
@@ -88,8 +86,8 @@ class SettlementPayoutIntegrationTest {
         var settlementId = saveSettlement().getId();
         var first = LocalDateTime.of(2026, 11, 1, 9, 0);
 
-        publishInTransaction(completed(settlementId, SELLER_ID, 9_000L, first));
-        publishInTransaction(completed(settlementId, SELLER_ID, 9_000L, first.plusMinutes(5)));
+        publishInTransaction(SettlementFixture.payoutCompleted(settlementId, SELLER_ID, 9_000L, first));
+        publishInTransaction(SettlementFixture.payoutCompleted(settlementId, SELLER_ID, 9_000L, first.plusMinutes(5)));
 
         var settlement = settlementRepository.findById(settlementId).orElseThrow();
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.PAID);
@@ -102,8 +100,8 @@ class SettlementPayoutIntegrationTest {
         var settlementId = saveSettlement().getId();
         var paidAt = LocalDateTime.of(2026, 11, 1, 9, 0);
 
-        publishInTransaction(completed(settlementId, SELLER_ID + 1, 9_000L, paidAt));
-        publishInTransaction(completed(settlementId, SELLER_ID, 9_001L, paidAt));
+        publishInTransaction(SettlementFixture.payoutCompleted(settlementId, SELLER_ID + 1, 9_000L, paidAt));
+        publishInTransaction(SettlementFixture.payoutCompleted(settlementId, SELLER_ID, 9_001L, paidAt));
 
         var settlement = settlementRepository.findById(settlementId).orElseThrow();
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
@@ -125,11 +123,5 @@ class SettlementPayoutIntegrationTest {
 
     private void publishInTransaction(DomainEvent event) {
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
-    }
-
-    private static PaymentPayoutCompletedEvent completed(
-        Long settlementId, Long sellerId, long amount, LocalDateTime paidAt) {
-        return new PaymentPayoutCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new PaymentPayoutCompletedEvent.Data(settlementId, sellerId, amount, 1L, paidAt));
     }
 }

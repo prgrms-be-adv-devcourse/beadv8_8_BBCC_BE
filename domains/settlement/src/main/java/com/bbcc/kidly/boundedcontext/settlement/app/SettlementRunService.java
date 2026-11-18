@@ -155,8 +155,9 @@ public class SettlementRunService {
     // 수동 실행은 살아 있을 수 있어 진행(step 갱신)이 staleRunAfter 넘게 없을 때만 닫는다.
     // 다시 돌릴 때는 관리자 수동 실행을 쓴다. `kubectl create job --from`은 Forbid를 우회해 살아 있는 실행을 닫는다
     private void recoverIfDead(JobExecution execution, SettlementTriggerType triggerType) {
-        var leftover = execution.getJobParameters().getString(SettlementJobConfig.TRIGGER_TYPE);
-        if (triggerType == SettlementTriggerType.SCHEDULED && SettlementTriggerType.SCHEDULED.name().equals(leftover)) {
+        var leftoverTriggerType = execution.getJobParameters().getString(SettlementJobConfig.TRIGGER_TYPE);
+        if (triggerType == SettlementTriggerType.SCHEDULED
+            && SettlementTriggerType.SCHEDULED.name().equals(leftoverTriggerType)) {
             markFailed(execution, "자동 실행이 앞 Pod가 남긴 자동 실행을 닫음");
             return;
         }
