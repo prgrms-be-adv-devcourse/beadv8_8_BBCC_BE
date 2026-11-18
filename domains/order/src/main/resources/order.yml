@@ -160,7 +160,7 @@ kidly:
       # 종류마다 오래된 것부터 scan-size씩, 요청 상한이 남으면 다음 페이지를 max-scan-pages까지 읽는다
       scan-size: 50
       max-scan-pages: 20
-      # 서킷브레이커(#708 방식). 실패가 많으면 열림 동안 부르지 않고 다음 실행에서 다시 본다
+      # 서킷브레이커(택배 조회 서킷브레이커 #708과 같은 방식). 실패가 많으면 열림 동안 부르지 않고 다음 실행에서 다시 본다
       circuit-breaker:
         sliding-window-size: 10
         minimum-number-of-calls: 5

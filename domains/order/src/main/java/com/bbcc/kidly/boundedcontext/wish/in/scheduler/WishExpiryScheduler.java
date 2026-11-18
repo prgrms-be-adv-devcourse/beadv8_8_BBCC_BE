@@ -39,7 +39,7 @@ public class WishExpiryScheduler {
     private final WishJobMetrics metrics;
     private final RotatingCursor cursor = new RotatingCursor();
 
-    // 기동 직후가 아니라 한 주기 뒤에 처음 돈다(#926 방식): 배포 직후 여러 서버가 함께 뜨며 몰리지 않게 하고, 테스트 컨텍스트가
+    // 기동 직후가 아니라 한 주기 뒤에 처음 돈다(멈춘 주문 AI 진단 작업 #926과 같은 방식): 배포 직후 여러 서버가 함께 뜨며 몰리지 않게 하고, 테스트 컨텍스트가
     // 뜰 때 저절로 돌지 않게 한다. 그래서 배포 직후 최대 한 주기 동안 예약 해제가 늦을 수 있다(409 판정은 계산이라 영향 없음)
     @Scheduled(fixedDelayString = "${kidly.order.wish.expiry.interval}",
         initialDelayString = "${kidly.order.wish.expiry.interval}")

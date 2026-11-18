@@ -7,7 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 배송 이벤트를 주문 컨텍스트의 발행 포트로 낸다(#900, 장바구니 #654 · 조르기 #702와 같은 길). 같은 앱 안의 동기 호출이라
+ * 배송 이벤트를 주문 컨텍스트의 발행 포트로 낸다(#900, 장바구니 CartEventsAdapter(#654) · 조르기
+ * WishEventsAdapter(#702)와 같은 길). 같은 앱 안의 동기 호출이라
  * 부르는 쪽 트랜잭션에 합류한다.
  */
 @Component

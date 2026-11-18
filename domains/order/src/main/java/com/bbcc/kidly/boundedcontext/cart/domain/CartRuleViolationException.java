@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.cart.domain;
 
 /**
  * 장바구니 규칙 위반. domain은 공통 모듈을 모르므로 이 예외만 던지고, app이 CartErrorCode로 바꿔 오류 응답을 만든다.
- * #617 컨텍스트별 복사(주문의 OrderRuleViolationException에서 이 컨텍스트 규칙만).
+ * 컨텍스트 사이에는 코드를 나눠 쓰지 않아(#617) 주문의 OrderRuleViolationException에서 이 컨텍스트 규칙만 따로 둔다.
  */
 public class CartRuleViolationException extends RuntimeException {
 

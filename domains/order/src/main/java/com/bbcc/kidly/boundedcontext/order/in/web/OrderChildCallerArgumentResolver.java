@@ -16,7 +16,7 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 /**
  * {@link OrderChildCaller} 파라미터를 Gateway가 붙인 주체 헤더로 만든다(#1000). 장바구니(#998) · 조르기(#906) 해석기와 같은 자녀
  * 해석 규칙이고, 컨텍스트 사이에 in 코드를 나눠 쓰지 않는 배치 규칙(OrderContextArchitectureTest)에 따라 주문 컨텍스트에 따로 둔다
- * (#617 컨텍스트별 복사). 헤더 값 규칙(0-9만 · Long 범위 · 0보다 큼)은 공용 해석기와 같다.
+ * (컨텍스트마다 따로 두는 복사, #617). 헤더 값 규칙(0-9만 · Long 범위 · 0보다 큼)은 공용 해석기와 같다.
  * <ul>
  *   <li>회원 헤더가 있으면 403(자녀만 받는 API, CHILD_PURCHASES_FORBIDDEN)</li>
  *   <li>자녀 헤더 둘이 모두 맞으면 계정 복사본으로 프로필을 찾는다(없음 · 삭제 · 보호자 다름 403, CHILD_ACCOUNT_FORBIDDEN)</li>

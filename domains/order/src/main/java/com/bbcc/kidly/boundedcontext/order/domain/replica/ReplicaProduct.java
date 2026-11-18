@@ -50,7 +50,7 @@ public class ReplicaProduct extends OrderTimeEntity {
         String thumbnailUrl) {
 
         /**
-         * 썸네일 없이(#1328 전 입력 모양). 썸네일은 null.
+         * 썸네일 없이: 썸네일 칸을 더하기(#1328) 전 입력 모양이다. 썸네일은 null.
          */
         public Values(Long optionId, Long productId, Long sellerId, String productName, String optionName, String size,
             long unitPrice, Long categoryId, String productStatus, String optionSaleStatus, boolean soldOut,

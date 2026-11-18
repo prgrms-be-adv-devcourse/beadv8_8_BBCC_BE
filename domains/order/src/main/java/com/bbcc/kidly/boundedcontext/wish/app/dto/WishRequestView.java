@@ -50,7 +50,7 @@ public record WishRequestView(
     /**
      * 조르기에 든 칸 하나. 상품 복사본이 없으면 상품 필드 null, purchasable false.
      *
-     * @param cartItemId 장바구니 칸 ID. #999 전 조르기는 null
+     * @param cartItemId 장바구니 칸 ID. 장바구니 칸으로 조르기 전(#999)에 만든 조르기는 null
      * @param quantity 보낸 때 칸 수량
      * @param unitPrice 지금 가격
      * @param saleStatus 지금 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED 등)

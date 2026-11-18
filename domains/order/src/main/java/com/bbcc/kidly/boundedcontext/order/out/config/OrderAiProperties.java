@@ -42,7 +42,7 @@ public record OrderAiProperties(
     }
 
     /**
-     * 서킷브레이커(#708 방식). 의미는 DeliveryTrackerCircuitBreakerProperties와 같다.
+     * 서킷브레이커(택배 조회 서킷브레이커 #708과 같은 방식). 의미는 DeliveryTrackerCircuitBreakerProperties와 같다.
      */
     public record CircuitBreaker(
         @Min(1) int slidingWindowSize,

@@ -4,7 +4,7 @@ import com.bbcc.kidly.boundedcontext.cart.domain.CartItem.OwnerType;
 import java.util.Optional;
 
 /**
- * 로그인한 사람을 장바구니 주인으로 바꾼다(#998). 회원 로그인은 그 회원, 자녀 로그인은 그 자녀 프로필(#906과 같은 규칙)이다.
+ * 로그인한 사람을 장바구니 주인으로 바꾼다(#998). 회원 로그인은 그 회원, 자녀 로그인은 그 자녀 프로필(조르기 @WishCaller(#906)와 같은 규칙)이다.
  * 구현은 out(주문이 받아 둔 자녀 계정 복사본으로 프로필을 찾는다).
  */
 public interface CartActors {

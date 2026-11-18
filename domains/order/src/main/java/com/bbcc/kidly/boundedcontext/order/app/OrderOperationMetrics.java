@@ -31,7 +31,7 @@ public class OrderOperationMetrics {
     public enum SendFailure { RETRY, QUARANTINED }
 
     private final MeterRegistry registry;
-    // 처음 성공하기 전에는 NaN이다. 기동 직후 '오래 성공 못 함'으로 잘못 읽히지 않게 한다(결제 #981과 같음)
+    // 처음 성공하기 전에는 NaN이다. 기동 직후 '오래 성공 못 함'으로 잘못 읽히지 않게 한다(결제 지표(#981)와 같음)
     private final Map<Job, AtomicLong> lastSuccessEpochSeconds = new EnumMap<>(Job.class);
 
     public OrderOperationMetrics(MeterRegistry registry) {

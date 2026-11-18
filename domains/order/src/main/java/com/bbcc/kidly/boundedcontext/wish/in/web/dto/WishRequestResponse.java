@@ -43,7 +43,7 @@ public record WishRequestResponse(
     LocalDateTime expiredAt) {
 
     /**
-     * @param cartItemId 장바구니 칸 ID. #999 전 조르기는 null
+     * @param cartItemId 장바구니 칸 ID. 장바구니 칸으로 조르기 전(#999)에 만든 조르기는 null
      * @param quantity 보낸 때 칸 수량
      * @param unitPrice 지금 가격. 상품 정보가 없으면 null
      * @param saleStatus 지금 판매 상태 값(ON_SALE · SOLD_OUT · STOPPED 등). 판매 중이 아니어도 빼지 않는다(화면이 버튼을 막는다)

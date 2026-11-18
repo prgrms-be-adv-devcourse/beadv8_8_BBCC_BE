@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 조르기에 든 장바구니 칸 하나(#999). 상품 · 옵션 · 수량은 보낸 때 값이고, 가격은 저장하지 않는다(보여 줄 때 지금 가격).
- * #999 전 조르기의 줄은 공용 장바구니 줄이었으므로 칸 ID가 없다(null).
+ * 장바구니 칸으로 조르기 전(#999)에 만든 줄은 공용 장바구니 줄이었으므로 칸 ID가 없다(null).
  */
 @Entity
 @Table(schema = "orders", name = "wish_request_line")
@@ -32,7 +32,7 @@ public class WishRequestLine {
     private WishRequest request;
 
     /**
-     * 예약한 장바구니 칸 ID. #999 전 줄은 null.
+     * 예약한 장바구니 칸 ID. 장바구니 칸으로 조르기 전(#999)에 만든 줄은 null.
      */
     private Long cartItemId;
 
