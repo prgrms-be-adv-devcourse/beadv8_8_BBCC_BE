@@ -26,4 +26,10 @@ public interface JpaAuthOutboxRepository extends JpaRepository<AuthOutboxMessage
     @Modifying
     @Query("update AuthOutboxMessage m set m.sentAt = :now, m.attemptCount = m.attemptCount + 1 where m.id in :ids")
     void markSent(@Param("ids") List<Long> ids, @Param("now") LocalDateTime now);
+
+    // sent_at이 null인 행은 비교 결과가 참이 아니므로 지우지 않는다
+    @Override
+    @Modifying
+    @Query("delete from AuthOutboxMessage m where m.sentAt < :cutoff")
+    int deleteSentBefore(@Param("cutoff") LocalDateTime cutoff);
 }

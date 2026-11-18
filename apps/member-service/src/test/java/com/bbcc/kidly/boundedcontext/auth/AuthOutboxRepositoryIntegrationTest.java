@@ -82,6 +82,21 @@ class AuthOutboxRepositoryIntegrationTest {
         assertThat(unsent).containsExactly(eventId);
     }
 
+    @Test
+    @DisplayName("기준 시각보다 먼저 보낸 메시지만 지우고, 보내지 않은 메시지와 기준 시각 이후에 보낸 메시지는 남긴다")
+    void deleteSentBefore() {
+        saveSent(SENT_AT);
+        var sentAtCutoff = saveSent(SENT_AT.plusDays(1));
+        var sentLater = saveSent(SENT_AT.plusDays(2));
+        var unsent = saveUnsent();
+
+        Integer deleted = transactions.execute(status -> repository.deleteSentBefore(SENT_AT.plusDays(1)));
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(jdbc.queryForList("select event_id from auth.auth_outbox", UUID.class))
+            .containsExactlyInAnyOrder(sentAtCutoff, sentLater, unsent);
+    }
+
     private UUID saveUnsent() {
         var eventId = UUID.randomUUID();
         transactions.executeWithoutResult(status -> repository.save(

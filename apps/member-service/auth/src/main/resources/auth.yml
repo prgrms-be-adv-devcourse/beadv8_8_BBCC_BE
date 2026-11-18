@@ -9,6 +9,7 @@ kidly:
   auth:
     outbox:
       relay-interval: PT1M
+      cleanup-cron: "0 0 4 * * *"
     admin:
       bootstrap:
         email: ${KIDLY_ADMIN_BOOTSTRAP_EMAIL:}

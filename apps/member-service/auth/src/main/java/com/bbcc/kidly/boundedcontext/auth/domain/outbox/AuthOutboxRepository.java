@@ -8,4 +8,5 @@ public interface AuthOutboxRepository {
     boolean tryLockRelay();
     List<AuthOutboxMessage> findUnsentCreatedBefore(LocalDateTime cutoff, int limit);
     void markSent(List<Long> ids, LocalDateTime now);
+    int deleteSentBefore(LocalDateTime cutoff);
 }

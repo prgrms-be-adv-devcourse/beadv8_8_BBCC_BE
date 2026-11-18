@@ -24,6 +24,7 @@ kidly:
   auth:
     outbox:
       relay-interval: P3650D
+      cleanup-cron: "-"
   childprofile:
     verification:
       identity-key-secret: test-identity-key-secret
