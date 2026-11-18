@@ -4,9 +4,9 @@ import static com.bbcc.kidly.boundedcontext.member.MemberFixture.NOW;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
+import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberEventOutbox;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
-import com.bbcc.kidly.boundedcontext.member.out.outbox.JpaMemberEventOutbox;
-import com.bbcc.kidly.boundedcontext.member.out.outbox.JpaMemberOutboxRepository;
+import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -20,7 +20,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
-class JpaMemberEventOutboxTest {
+class MemberEventOutboxTest {
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final UUID EVENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000077");
@@ -28,7 +28,7 @@ class JpaMemberEventOutboxTest {
         new MemberWithdrawnEvent(EVENT_ID, NOW, new MemberWithdrawnEvent.Data(1L));
 
     @Mock
-    private JpaMemberOutboxRepository outboxRepository;
+    private MemberOutboxRepository outboxRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -66,7 +66,7 @@ class JpaMemberEventOutboxTest {
     }
 
     private MemberOutboxMessage appendAndCapture() {
-        new JpaMemberEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(WITHDRAWN);
+        new MemberEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(WITHDRAWN);
         var captor = ArgumentCaptor.forClass(MemberOutboxMessage.class);
         verify(outboxRepository).save(captor.capture());
         return captor.getValue();

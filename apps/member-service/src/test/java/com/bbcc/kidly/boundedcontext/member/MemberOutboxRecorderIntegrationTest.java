@@ -107,7 +107,7 @@ class MemberOutboxRecorderIntegrationTest {
     @DisplayName("아웃박스 저장이 실패하면 같은 트랜잭션의 업무도 커밋되지 않는다")
     void rollBackBusinessWhenRecordFails() {
         var eventId = UUID.randomUUID();
-        outboxRepository.save(MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn(eventId)));
+        outboxRepository.save(new MemberOutboxMessage(MemberOutboxMessageFixture.withdrawn(eventId)));
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             memberRepository.save(MemberFixture.kakaoMember());

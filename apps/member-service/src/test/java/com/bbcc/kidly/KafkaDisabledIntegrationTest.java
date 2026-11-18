@@ -8,8 +8,7 @@ import com.bbcc.kidly.boundedcontext.auth.in.outbox.AuthOutboxScheduler;
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxDispatcher;
 import com.bbcc.kidly.boundedcontext.childprofile.in.outbox.ChildProfileOutboxScheduler;
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxDispatcher;
+import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelay;
 import com.bbcc.kidly.boundedcontext.member.in.outbox.MemberOutboxScheduler;
 import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
 import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxDispatcher;
@@ -44,8 +43,7 @@ class KafkaDisabledIntegrationTest {
     @Test
     @DisplayName("일반 통합 테스트에서는 회원 아웃박스 릴레이와 그 스케줄러를 만들지 않는다")
     void noMemberOutboxRelay() {
-        assertThat(context.getBeanNamesForType(MemberOutboxRelayService.class)).isEmpty();
-        assertThat(context.getBeanNamesForType(MemberOutboxDispatcher.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(MemberOutboxRelay.class)).isEmpty();
         assertThat(context.getBeanNamesForType(MemberOutboxScheduler.class)).isEmpty();
     }
 

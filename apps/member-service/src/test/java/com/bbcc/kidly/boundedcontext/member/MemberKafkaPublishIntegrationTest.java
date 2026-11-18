@@ -7,13 +7,14 @@ import com.bbcc.kidly.boundedcontext.member.app.AdminMemberService;
 import com.bbcc.kidly.boundedcontext.member.app.MemberService;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberSuspendRequest;
 import com.bbcc.kidly.boundedcontext.member.app.dto.MemberUpdateRequest;
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelay;
 import com.bbcc.kidly.boundedcontext.member.app.support.MemberRegistrar;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRegisterInfo;
 import com.bbcc.kidly.boundedcontext.member.domain.MemberRepository;
 import com.bbcc.kidly.boundedcontext.member.domain.Nickname;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
+import com.bbcc.kidly.member.support.outbox.OutboxMessage;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
@@ -78,7 +79,7 @@ class MemberKafkaPublishIntegrationTest {
     private KafkaContainer kafka;
 
     @Autowired
-    private MemberOutboxRelayService relayService;
+    private MemberOutboxRelay relayService;
 
     @Autowired
     private MemberOutboxRepository outboxRepository;
@@ -149,10 +150,10 @@ class MemberKafkaPublishIntegrationTest {
     void stopAtFailureAndRetryFromSameMessage() {
         var failingId = UUID.randomUUID();
         var afterId = UUID.randomUUID();
-        outboxRepository.save(MemberOutboxMessage.create(new MemberOutboxMessage.CreateInfo(
+        outboxRepository.save(new MemberOutboxMessage(new OutboxMessage.CreateInfo(
             failingId, "member.withdrawn", "kidly.member.missing-" + failingId, "1",
             MemberOutboxMessageFixture.PAYLOAD)));
-        outboxRepository.save(MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn(afterId)));
+        outboxRepository.save(new MemberOutboxMessage(MemberOutboxMessageFixture.withdrawn(afterId)));
         jdbcTemplate.update("update member.member_outbox set created_at = ? where event_id in (?, ?)",
             LocalDateTime.now().minusMinutes(6), failingId, afterId);
 

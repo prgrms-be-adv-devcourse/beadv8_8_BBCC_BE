@@ -2,9 +2,9 @@ package com.bbcc.kidly.boundedcontext.member.out.outbox;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.bbcc.kidly.boundedcontext.member.app.port.outbox.MemberOutboxSendException;
 import com.bbcc.kidly.boundedcontext.member.app.port.outbox.MemberOutboxSender;
-import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxSendException;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +22,7 @@ public class KafkaMemberOutboxSender implements MemberOutboxSender, DisposableBe
     private final Duration sendTimeout;
 
     @Override
-    public void send(MemberOutboxMessage message) {
+    public void send(OutboxMessage message) {
         var record = new ProducerRecord<>(message.getTopic(), message.getMessageKey(), message.getPayload());
         record.headers()
             .add("eventType", message.getEventType().getBytes(UTF_8))
@@ -41,8 +41,8 @@ public class KafkaMemberOutboxSender implements MemberOutboxSender, DisposableBe
         }
     }
 
-    private MemberOutboxSendException failure(MemberOutboxMessage message, String reason, Throwable cause) {
-        return new MemberOutboxSendException(
+    private OutboxSendException failure(OutboxMessage message, String reason, Throwable cause) {
+        return new OutboxSendException(
             "회원 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. eventType=%s eventId=%s key=%s reason=%s"
                 .formatted(message.getEventType(), message.getEventId(), message.getMessageKey(), reason),
             cause);

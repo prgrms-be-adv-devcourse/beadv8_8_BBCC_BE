@@ -4,8 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.BDDMockito.willThrow;
 
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxCleanupService;
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelay;
 import com.bbcc.kidly.boundedcontext.member.in.outbox.MemberOutboxScheduler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,34 +19,29 @@ import org.springframework.dao.DataIntegrityViolationException;
 class MemberOutboxSchedulerTest {
 
     @Mock
-    private MemberOutboxRelayService relayService;
-
-    @Mock
-    private MemberOutboxCleanupService cleanupService;
+    private MemberOutboxRelay outboxRelay;
 
     @Test
     @DisplayName("릴레이가 DB 오류 같은 예외로 끝나도 스케줄러 밖으로 던지지 않고, 로그에는 예외 종류만 남긴다")
     void relayKeepsRowValuesOutOfLogs(CapturedOutput output) {
         willThrow(new DataIntegrityViolationException("Failing row contains (회원 1)"))
-            .given(relayService).relay();
-        var scheduler = new MemberOutboxScheduler(relayService, cleanupService);
+            .given(outboxRelay).relay();
 
-        assertThatCode(scheduler::relay).doesNotThrowAnyException();
+        assertThatCode(new MemberOutboxScheduler(outboxRelay)::relay).doesNotThrowAnyException();
 
-        assertThat(output.getAll()).contains("WARN").contains("DataIntegrityViolationException")
-            .doesNotContain("회원 1");
+        assertThat(output.getAll()).contains("WARN").contains("회원 아웃박스 릴레이가 예외로 끝났습니다")
+            .contains("DataIntegrityViolationException").doesNotContain("회원 1");
     }
 
     @Test
     @DisplayName("정리가 예외로 끝나도 스케줄러 밖으로 던지지 않고, 로그에는 예외 종류만 남긴다")
     void cleanUpKeepsExceptionMessageOutOfLogs(CapturedOutput output) {
         willThrow(new DataIntegrityViolationException("Failing row contains (회원 1)"))
-            .given(cleanupService).cleanUp();
-        var scheduler = new MemberOutboxScheduler(relayService, cleanupService);
+            .given(outboxRelay).cleanUp();
 
-        assertThatCode(scheduler::cleanUp).doesNotThrowAnyException();
+        assertThatCode(new MemberOutboxScheduler(outboxRelay)::cleanUp).doesNotThrowAnyException();
 
-        assertThat(output.getAll()).contains("WARN").contains("DataIntegrityViolationException")
-            .doesNotContain("회원 1");
+        assertThat(output.getAll()).contains("WARN").contains("회원 아웃박스 정리가 예외로 끝났습니다")
+            .contains("DataIntegrityViolationException").doesNotContain("회원 1");
     }
 }
