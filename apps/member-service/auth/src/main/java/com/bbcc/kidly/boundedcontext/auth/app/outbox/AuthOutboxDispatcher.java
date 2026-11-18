@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxMessage;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -78,7 +79,7 @@ public class AuthOutboxDispatcher {
             }
         }
         if (!sentIds.isEmpty()) {
-            transactionTemplate.executeWithoutResult(status -> repository.deleteAllByIdInBatch(sentIds));
+            transactionTemplate.executeWithoutResult(status -> repository.markSent(sentIds, LocalDateTime.now()));
         }
     }
 }
