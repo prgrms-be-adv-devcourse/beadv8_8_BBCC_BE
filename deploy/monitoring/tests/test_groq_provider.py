@@ -76,10 +76,20 @@ class GroqProviderTest(unittest.TestCase):
                     if name.startswith('host_') or name in (
                         'kafka_lag', 'environment_transition', 'environment_enabled', 'transition_age')}
 
+        business = {expr for name, (_, expr) in definitions.items() if name.startswith('business_')}
+
+        def owns(job, expression):
+            short = job.split('-', 1)[1]
+            return 'kidly_' + short + '_' in expression or short + '_outbox' in expression
+
         def rows(expression, when):
             assigned = 123.456789012345 if expression in http else 1
             if expression in globals_:
                 return [{'metric': {}, 'value': [when, assigned]}]
+            if expression in business:
+                # 업무 지표는 자기 지표가 있는 서비스만 값이 온다. 모두 > 0
+                return [{'metric': {'job': name}, 'value': [when, 1000 + i]}
+                        for i, name in enumerate(snapshot.JOBS) if owns(name, expression)]
             label = 'app_job' if expression == app_expected else 'job'
             return [{'metric': {label: name}, 'value': [when, assigned]} for name in snapshot.JOBS]
 
@@ -94,6 +104,7 @@ class GroqProviderTest(unittest.TestCase):
         self.assertEqual(len([f for f in sample.evidence if f.metric.startswith('error_type_30m:')]), snapshot.EXCEPTION_TOP)
         self.assertEqual(len([f for f in sample.evidence if f.metric.startswith('error_site_30m:')]), snapshot.SITE_TOP)
         self.assertEqual(len([f for f in sample.evidence if f.metric == 'restarted_minutes_ago']), len(snapshot.JOBS))
+        self.assertEqual(len([f for f in sample.evidence if f.metric.startswith('business_')]), 17)
         client = transport()
         self.provider(client).analyze(sample, 2300)
         request = client.open.call_args.args[0]
@@ -110,6 +121,58 @@ class GroqProviderTest(unittest.TestCase):
         restarts = [f for f in message['evidence'] if f['metric'] == 'restarted_minutes_ago']
         self.assertTrue(len(restarts) == len(snapshot.JOBS) or not kept)
         self.assertIn(groq_provider.TRIMMED, message['limitations'])
+        # 업무 지표는 재시작까지 다 뺀 뒤에만, 값이 작은 것부터 줄인다
+        business = [f['value'] for f in message['evidence'] if f['metric'].startswith('business_')]
+        self.assertTrue(len(business) == 17 or not restarts)
+        every = sorted(f.value for f in sample.evidence if f.metric.startswith('business_'))
+        self.assertEqual(sorted(business), every[len(every) - len(business):])
+
+    def test_business_backlog_sends_only_nonzero_known_services(self):
+        definitions = snapshot.queries('dev')
+        by_expression = {expr: name for name, (_, expr) in definitions.items()}
+        for name, (_, expr) in definitions.items():
+            if name.startswith('business_') and name != 'business_dlt_new_30m':
+                self.assertEqual(expr.count('(time()-timestamp('), expr.count(' by (job) ('), name)
+        self.assertIn('state="pending"', definitions['business_outbox_unsent'][1])
+        self.assertIn('state="quarantined"', definitions['business_outbox_blocked'][1])
+        self.assertTrue(definitions['business_outbox_oldest_seconds'][1].startswith('max by (job)'))
+        self.assertIn('increase(kidly_payment_dlt_messages_total', definitions['business_dlt_new_30m'][1])
+        readings = {
+            'business_stuck_items': [('kidly-order', '3'), ('kidly-payment', '0'), ('kidly-unknown', '9')],
+            'business_outbox_unsent': [('kidly-community', '0')],
+            'business_outbox_oldest_seconds': [('kidly-notification', '125.5'), ('kidly-order', 'NaN')],
+            'business_dlt_open': [('kidly-community', '2')],
+            'business_dlt_new_30m': [('kidly-payment', '1')],
+        }
+
+        def rows(values):
+            def read(expression, when):
+                return [{'metric': {'job': job}, 'value': [when, value]}
+                        for job, value in values.get(by_expression[expression], ())]
+            return read
+
+        with patch('snapshot.metric_rows', side_effect=rows(readings)), patch('snapshot.log_rows', return_value=[]):
+            sample = snapshot.collect('dev', 2000)
+        facts = {(f.metric, f.service): (f.value, f.unit) for f in sample.evidence}
+        self.assertEqual(facts, {
+            ('business_stuck_items', 'kidly-order'): (3, 'count'),
+            ('business_outbox_oldest_seconds', 'kidly-notification'): (125.5, 'seconds'),
+            ('business_dlt_open', 'kidly-community'): (2, 'count'),
+            ('business_dlt_new_30m', 'kidly-payment'): (1, 'estimated_count')})
+        self.assertIn(snapshot.BUSINESS_NOTE, sample.limitations)
+        self.assertFalse(any('business_' in line for line in sample.limitations if line != snapshot.BUSINESS_NOTE))
+        client = transport()
+        self.provider(client).analyze(sample, 2300)
+        message = json.loads(json.loads(client.open.call_args.args[0].data)['messages'][1]['content'])
+        self.assertEqual({f['metric'] for f in message['evidence']}, {metric for metric, _ in facts})
+        self.assertIn(snapshot.BUSINESS_NOTE, message['limitations'])
+        # 0 · 없음이면 근거 · 설명 줄 · 빠진 지표 줄 모두 없다
+        zero = {name: [('kidly-order', '0')] for name in definitions if name.startswith('business_')}
+        for values in ({}, zero):
+            with patch('snapshot.metric_rows', side_effect=rows(values)), patch('snapshot.log_rows', return_value=[]):
+                quiet = snapshot.collect('dev', 2000)
+            self.assertFalse(any(f.metric.startswith('business_') for f in quiet.evidence))
+            self.assertFalse(any('business_' in line for line in quiet.limitations))
 
     def test_error_sites_and_recent_restarts_become_evidence(self):
         def metric_rows(expression, when):
