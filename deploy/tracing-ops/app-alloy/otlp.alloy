@@ -54,7 +54,9 @@ otelcol.processor.transform "tracing_ops" {
       `set(status.message, "")`,
       `delete_key(attributes, "kidly.operation")`,
       `set(attributes["kidly.operation"], "order.detail") where resource.attributes["service.name"] == "kidly-order" and kind == SPAN_KIND_SERVER and (attributes["http.request.method"] == "GET" or attributes["http.method"] == "GET") and attributes["http.route"] == "/api/v1/orders/{orderId}"`,
-      `keep_keys(attributes, ["http.response.status_code", "http.status_code", "kidly.operation"])`,
+      `set(name, Concat([attributes["http.request.method"], attributes["http.route"]], " ")) where kind == SPAN_KIND_SERVER and attributes["http.route"] != nil and attributes["http.request.method"] != nil`,
+      `set(name, Concat([attributes["http.method"], attributes["http.route"]], " ")) where kind == SPAN_KIND_SERVER and attributes["http.route"] != nil and attributes["http.request.method"] == nil and attributes["http.method"] != nil`,
+      `keep_keys(attributes, ["http.response.status_code", "http.status_code", "kidly.operation", "http.route", "http.request.method"])`,
     ]
   }
 
