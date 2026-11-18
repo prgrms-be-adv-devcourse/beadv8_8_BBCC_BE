@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.auth.in;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AuthDeadLetterService;
-import com.bbcc.kidly.boundedcontext.auth.in.dto.AuthDeadLetterResponse;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterResponse;
 import com.bbcc.kidly.member.support.response.PageResponse;
 import com.bbcc.kidly.member.support.security.AuthAdmin;
 import com.bbcc.kidly.member.support.security.LoginAdmin;
@@ -24,20 +24,20 @@ public class AdminAuthDeadLetterController {
     private final AuthDeadLetterService service;
 
     @GetMapping
-    public PageResponse<AuthDeadLetterResponse> list(
+    public PageResponse<DeadLetterResponse> list(
         @RequestParam(defaultValue = "OPEN") @Pattern(regexp = "OPEN|REPROCESSED") String status,
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return PageResponse.from(service.list(status, page, size).map(AuthDeadLetterResponse::from));
+        return PageResponse.from(service.list(status, page, size).map(DeadLetterResponse::from));
     }
 
     @GetMapping("/{id}")
-    public AuthDeadLetterResponse get(@PathVariable Long id) {
-        return AuthDeadLetterResponse.from(service.get(id));
+    public DeadLetterResponse get(@PathVariable Long id) {
+        return DeadLetterResponse.from(service.get(id));
     }
 
     @PostMapping("/{id}/reprocess")
-    public AuthDeadLetterResponse reprocess(@PathVariable Long id, @LoginAdmin AuthAdmin admin) {
-        return AuthDeadLetterResponse.from(service.reprocess(id, admin.id()));
+    public DeadLetterResponse reprocess(@PathVariable Long id, @LoginAdmin AuthAdmin admin) {
+        return DeadLetterResponse.from(service.reprocess(id, admin.id()));
     }
 }

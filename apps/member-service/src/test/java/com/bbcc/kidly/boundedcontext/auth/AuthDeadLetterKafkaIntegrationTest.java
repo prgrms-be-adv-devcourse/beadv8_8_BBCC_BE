@@ -3,9 +3,9 @@ package com.bbcc.kidly.boundedcontext.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AuthDeadLetterService;
-import com.bbcc.kidly.boundedcontext.auth.app.dto.AuthDeadLetterMessage;
-import com.bbcc.kidly.boundedcontext.auth.domain.DeadLetterStatus;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthDeadLetterRepository;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterStatus;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import com.bbcc.kidly.support.KafkaMessages;
@@ -92,7 +92,7 @@ class AuthDeadLetterKafkaIntegrationTest {
         assertThat(stored.getReplayCount()).isZero();
         assertThat(JacksonException.class.isAssignableFrom(Class.forName(stored.getFailureType()))).isTrue();
 
-        var again = new AuthDeadLetterMessage(stored.getDltTopic(), stored.getDltPartition(), stored.getDltOffset(),
+        var again = new DeadLetterMessage(stored.getDltTopic(), stored.getDltPartition(), stored.getDltOffset(),
             MEMBER_TOPIC, sent.partition(), sent.offset(), key, "member.withdrawn", eventId.toString(), body,
             stored.getFailureType());
         assertThat(deadLetterService.receive(again)).isFalse();

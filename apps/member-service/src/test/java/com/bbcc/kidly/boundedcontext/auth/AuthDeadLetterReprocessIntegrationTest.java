@@ -3,10 +3,11 @@ package com.bbcc.kidly.boundedcontext.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AuthDeadLetterService;
-import com.bbcc.kidly.boundedcontext.auth.app.dto.AuthDeadLetterMessage;
-import com.bbcc.kidly.boundedcontext.auth.app.dto.AuthDeadLetterResult;
+import com.bbcc.kidly.boundedcontext.auth.domain.AuthDeadLetter;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthDeadLetterRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.SocialAccountRepository;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterResult;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
@@ -48,13 +49,14 @@ class AuthDeadLetterReprocessIntegrationTest {
         socialAccountRepository.save(SocialAccountFixture.linked(MEMBER_ID, UUID.randomUUID().toString()));
         var payload = jsonMapper.writeValueAsString(new MemberWithdrawnEvent(UUID.randomUUID(),
             SocialAccountFixture.NOW, new MemberWithdrawnEvent.Data(MEMBER_ID)));
-        var id = deadLetterRepository.save(new AuthDeadLetterMessage("kidly.member.events.auth.dlt", 0, 1L,
+        var message = new DeadLetterMessage("kidly.member.events.auth.dlt", 0, 1L,
             "kidly.member.events", 0, 1L, String.valueOf(MEMBER_ID), "member.withdrawn", UUID.randomUUID().toString(),
-            payload, "tools.jackson.core.JacksonException").toDeadLetter()).getId();
+            payload, "tools.jackson.core.JacksonException");
+        var id = deadLetterRepository.save(new AuthDeadLetter(message)).getId();
 
         var results = reprocessConcurrently(id);
 
-        assertThat(results).extracting(AuthDeadLetterResult::status).containsOnly("REPROCESSED");
+        assertThat(results).extracting(DeadLetterResult::status).containsOnly("REPROCESSED");
         var deadLetter = deadLetterRepository.getById(id);
         assertThat(deadLetter.getReplayCount()).isOne();
         assertThat(deadLetter.getLastReplayFailureType()).isNull();
@@ -62,9 +64,9 @@ class AuthDeadLetterReprocessIntegrationTest {
         assertThat(output).doesNotContain("DLT 재처리 실패");
     }
 
-    private List<AuthDeadLetterResult> reprocessConcurrently(Long id) throws Exception {
+    private List<DeadLetterResult> reprocessConcurrently(Long id) throws Exception {
         var start = new CountDownLatch(1);
-        Callable<AuthDeadLetterResult> reprocess = () -> {
+        Callable<DeadLetterResult> reprocess = () -> {
             start.await();
             return service.reprocess(id, ADMIN_ID);
         };
