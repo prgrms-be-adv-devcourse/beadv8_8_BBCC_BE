@@ -32,7 +32,7 @@ class AuthOutboxRelayKafkaIntegrationTest {
     @Autowired private JsonMapper mapper;
 
     @Test
-    void deletesSentEvent() {
+    void marksSentEventWithoutDeleting() {
         var event = new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new ChildAccountChangedEvent.Data(100L, 200L, 300L, false));
         transactions.executeWithoutResult(status -> outbox.append(event));
@@ -60,7 +60,8 @@ class AuthOutboxRelayKafkaIntegrationTest {
             assertThat(found).isTrue();
         }
         AsyncWait.until(Duration.ofSeconds(30), () -> jdbc.queryForObject(
-            "select count(*) from auth.auth_outbox where event_id = ?", Long.class, event.eventId()) == 0);
+            "select count(*) from auth.auth_outbox where event_id = ? and sent_at is not null and attempt_count = 1",
+            Long.class, event.eventId()) == 1);
     }
 
     @Test

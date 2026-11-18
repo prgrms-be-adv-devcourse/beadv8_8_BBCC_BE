@@ -2,8 +2,8 @@ package com.bbcc.kidly;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.auth.AuthOutboxMessageFixture;
 import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
-import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxMessage;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.ChildProfileOutboxMessageFixture;
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
@@ -52,7 +52,7 @@ class OutboxGraceKafkaIntegrationTest {
         var recent = UUID.randomUUID();
         members.save(MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn(old)));
         members.save(MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn(recent)));
-        verifyRelay("member.member_outbox", "kidly.member.events", old, recent, memberRelay::relay, false);
+        verifyRelay("member.member_outbox", "kidly.member.events", old, recent, memberRelay::relay);
     }
 
     @Test
@@ -61,7 +61,7 @@ class OutboxGraceKafkaIntegrationTest {
         var recent = UUID.randomUUID();
         sellers.save(SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(old)));
         sellers.save(SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(recent)));
-        verifyRelay("seller.seller_outbox", "kidly.seller.events", old, recent, sellerRelay::relay, false);
+        verifyRelay("seller.seller_outbox", "kidly.seller.events", old, recent, sellerRelay::relay);
     }
 
     @Test
@@ -71,19 +71,19 @@ class OutboxGraceKafkaIntegrationTest {
         children.save(ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(old)));
         children.save(ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(recent)));
         verifyRelay("childprofile.child_profile_outbox", "kidly.childprofile.events",
-            old, recent, childRelay::relay, false);
+            old, recent, childRelay::relay);
     }
 
     @Test
     void authRelaysOnlyOld() {
         var old = UUID.randomUUID();
         var recent = UUID.randomUUID();
-        auth.save(AuthOutboxMessage.create(old, "child-account.changed", "1", "{}"));
-        auth.save(AuthOutboxMessage.create(recent, "child-account.changed", "2", "{}"));
-        verifyRelay("auth.auth_outbox", "kidly.auth.events", old, recent, authRelay::relay, true);
+        auth.save(AuthOutboxMessageFixture.childAccountChanged(old));
+        auth.save(AuthOutboxMessageFixture.childAccountChanged(recent));
+        verifyRelay("auth.auth_outbox", "kidly.auth.events", old, recent, authRelay::relay);
     }
 
-    private void verifyRelay(String table, String topic, UUID old, UUID recent, Runnable relay, boolean deleted) {
+    private void verifyRelay(String table, String topic, UUID old, UUID recent, Runnable relay) {
         jdbc.update("update " + table + " set created_at = ? where event_id = ?",
             LocalDateTime.now().minusMinutes(6), old);
         try (var consumer = new KafkaConsumer<String, String>(Map.of(
@@ -105,15 +105,13 @@ class OutboxGraceKafkaIntegrationTest {
                 return found[0];
             });
         }
-        var oldCondition = deleted ? "event_id = ?" : "event_id = ? and sent_at is null";
-        assertThat(jdbc.queryForObject("select count(*) from " + table + " where " + oldCondition, Integer.class, old))
-            .isZero();
+        assertThat(jdbc.queryForObject(
+            "select count(*) from " + table + " where event_id = ? and sent_at is not null", Integer.class, old))
+            .isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from " + table + " where event_id = ?", Integer.class, recent))
             .isEqualTo(1);
-        if (!deleted) {
-            assertThat(jdbc.queryForObject(
-                "select sent_at from " + table + " where event_id = ?", Object.class, recent))
-                .isNull();
-        }
+        assertThat(jdbc.queryForObject(
+            "select sent_at from " + table + " where event_id = ?", Object.class, recent))
+            .isNull();
     }
 }

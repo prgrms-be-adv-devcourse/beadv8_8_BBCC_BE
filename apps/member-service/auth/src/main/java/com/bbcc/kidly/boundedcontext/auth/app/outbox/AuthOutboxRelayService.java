@@ -27,14 +27,18 @@ public class AuthOutboxRelayService {
         if (!repository.tryLockRelay()) {
             return;
         }
-        for (var message : repository.findCreatedBefore(LocalDateTime.now().minus(IMMEDIATE_SEND_GRACE), BATCH_SIZE)) {
+        var messages = repository.findUnsentCreatedBefore(
+            LocalDateTime.now().minus(IMMEDIATE_SEND_GRACE), BATCH_SIZE);
+        for (var message : messages) {
             try {
                 sender.send(message);
             } catch (AuthOutboxSendException e) {
-                log.warn("인증 이벤트 전송 실패 {}", e.getMessage());
+                message.recordFailure(e.getMessage());
+                log.warn("인증 아웃박스 전송 실패로 이번 릴레이를 멈춥니다. attempt={} {}",
+                    message.getAttemptCount(), e.getMessage());
                 return;
             }
-            repository.delete(message);
+            message.markSent(LocalDateTime.now());
         }
     }
 }

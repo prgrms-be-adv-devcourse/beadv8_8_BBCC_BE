@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.auth;
 
 import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxDispatcher;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -42,6 +43,6 @@ class AuthOutboxDispatcherTest {
         new AuthOutboxDispatcher(repository, sender, transactions).sendBatch(List.of(first, failing, last));
 
         verify(sender, never()).send(last);
-        verify(repository).deleteAllByIdInBatch(List.of(1L));
+        verify(repository).markSent(eq(List.of(1L)), any());
     }
 }
