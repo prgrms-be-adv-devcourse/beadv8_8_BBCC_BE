@@ -73,38 +73,186 @@
   },
   "panels": [
     {
-      "id": 3,
-      "type": "logs",
-      "title": "먼저 확인할 내용",
+      "id": 1,
+      "type": "stat",
+      "title": "AI 관측 후 경과 · 정상 판정 아님",
       "gridPos": {
         "x": 0,
-        "y": 3,
-        "w": 24,
-        "h": 10
+        "y": 0,
+        "w": 8,
+        "h": 4
       },
-      "timeFrom": "14d",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{if .priority}}{{.priority}}{{else}}{{.headline}} · 아래에서 전체 메모 보기{{end}}\"",
-          "queryType": "range",
-          "maxLines": 1
+          "expr": "time() - (max(kidly_ai_notes_last_observed_seconds{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_last_observed_seconds{env=\"$env\"})<60)) > 0)",
+          "instant": true
         }
       ],
-      "options": {
-        "showTime": false,
-        "showLabels": false,
-        "showCommonLabels": false,
-        "wrapLogMessage": true,
-        "enableLogDetails": false,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none"
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "게시 전 / 수집 확인 필요",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "게시 전 / 수집 확인 필요",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 2400
+              },
+              {
+                "color": "red",
+                "value": 3600
+              }
+            ]
+          }
+        },
+        "overrides": []
       },
-      "description": "최근 메모가 관측한 변화와 사람의 첫 확인 조치입니다. 수치 근거와 원인 후보는 아래에서 펼쳐 봅니다."
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "description": "마지막 게시 메모의 관측 시각 기준입니다. 현재 요청이나 장애 상태를 의미하지 않습니다. 40분부터 갱신 권장, 1시간부터 과거 분석으로 표시합니다."
+    },
+    {
+      "id": 208,
+      "type": "stat",
+      "title": "AI 분석 최신성",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((time() - (max(kidly_ai_notes_last_observed_seconds{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_last_observed_seconds{env=\"$env\"})<60)) > 0)) >= bool 2400) + ((time() - (max(kidly_ai_notes_last_observed_seconds{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_last_observed_seconds{env=\"$env\"})<60)) > 0)) >= bool 3600)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "분석 시각 확인 필요",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "최근 관측 · 현재 상태와 대조",
+                  "color": "blue"
+                },
+                "1": {
+                  "text": "갱신 권장",
+                  "color": "yellow"
+                },
+                "2": {
+                  "text": "과거 분석 · 현재 상태 확인",
+                  "color": "orange"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "description": "마지막 게시 메모의 관측 시각 기준입니다. 현재 요청이나 장애 상태를 의미하지 않습니다. 40분부터 갱신 권장, 1시간부터 과거 분석으로 표시합니다."
+    },
+    {
+      "id": 209,
+      "type": "stat",
+      "title": "AI가 관측한 시각",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max(kidly_ai_notes_last_observed_seconds{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_last_observed_seconds{env=\"$env\"})<60)) > 0) * 1000",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsIso",
+          "noValue": "게시 전 / 수집 확인 필요"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "none"
+      },
+      "description": "마지막 게시 메모의 관측 시각 기준입니다. 현재 요청이나 장애 상태를 의미하지 않습니다. 40분부터 갱신 권장, 1시간부터 과거 분석으로 표시합니다."
     },
     {
       "id": 201,
@@ -113,7 +261,7 @@
       "description": "위에서 제공자와 분석 목적을 선택한 뒤 실행하세요. 결과는 이 화면에서만 봅니다. Slack에는 알림이 부른 자동 분석만 올라갑니다. Groq는 무료이며 OpenAI 사용량은 청구될 수 있습니다.",
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 4,
         "w": 9,
         "h": 3
       },
@@ -200,7 +348,7 @@
       "title": "분석 실행 상태",
       "gridPos": {
         "x": 9,
-        "y": 0,
+        "y": 4,
         "w": 8,
         "h": 3
       },
@@ -252,13 +400,63 @@
       }
     },
     {
+      "id": 206,
+      "type": "text",
+      "title": "바로 가기",
+      "description": "상단 링크 줄 대신 둡니다. 서비스 오류 확인은 선택한 환경과 시간 범위를 그대로 씁니다.",
+      "gridPos": {
+        "x": 17,
+        "y": 4,
+        "w": 7,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "[운영 홈](/d/kidly-home) · [서비스 오류 확인](/d/kidly-http?var-env=${env}&${__url_time_range})"
+      }
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "관측 시점의 AI 제안 · 현재 상태와 대조",
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 10
+      },
+      "timeFrom": "14d",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"kidly-ai-notes\",env=\"$env\"} | json | label_format detected_level=\"info\",level=\"info\" | line_format \"{{if .priority}}{{.priority}}{{else}}{{.headline}} · 아래에서 전체 메모 보기{{end}}\"",
+          "queryType": "range",
+          "maxLines": 1
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": false,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "description": "위 관측 시각과 경과를 먼저 확인하세요. 과거 메모는 현재 장애·복구 여부를 판정하지 않습니다. 새 분석 실행은 별도 버튼이며 화면 새로 고침만으로 AI를 호출하지 않습니다."
+    },
+    {
       "id": 205,
       "type": "row",
       "title": "이전 분석 내역",
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 17,
         "w": 24,
         "h": 1
       },
@@ -269,7 +467,7 @@
           "title": "이전 분석 · 최신순 최대 15건",
           "gridPos": {
             "x": 0,
-            "y": 14,
+            "y": 18,
             "w": 24,
             "h": 14
           },
@@ -306,7 +504,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 18,
         "w": 24,
         "h": 1
       },
@@ -317,7 +515,7 @@
           "title": "최신 분석 전체 메모 · 근거와 원인 후보",
           "gridPos": {
             "x": 0,
-            "y": 15,
+            "y": 19,
             "w": 24,
             "h": 14
           },
@@ -350,7 +548,7 @@
           "title": "AI에게 분석 맡기기 · 메모 읽는 법",
           "gridPos": {
             "x": 0,
-            "y": 29,
+            "y": 33,
             "w": 24,
             "h": 10
           },
@@ -360,79 +558,12 @@
           }
         },
         {
-          "id": 1,
-          "type": "stat",
-          "title": "게시된 메모의 관측 경과 · 서비스 정상 여부 아님",
-          "gridPos": {
-            "x": 0,
-            "y": 39,
-            "w": 12,
-            "h": 5
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "expr": "time() - (max(kidly_ai_notes_last_observed_seconds{env=\"$env\"} and (time()-timestamp(kidly_ai_notes_last_observed_seconds{env=\"$env\"})<60)) > 0)",
-              "instant": true
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "noValue": "게시 전 / 수집 확인 필요",
-              "mappings": [
-                {
-                  "type": "special",
-                  "options": {
-                    "match": "null",
-                    "result": {
-                      "text": "게시 전 / 수집 확인 필요",
-                      "color": "gray"
-                    }
-                  }
-                }
-              ],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "yellow",
-                    "value": 2400
-                  },
-                  {
-                    "color": "red",
-                    "value": 3600
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "values": false
-            },
-            "colorMode": "background"
-          }
-        },
-        {
           "id": 2,
           "type": "stat",
           "title": "미전송 메모 · 실패 시 AI 재호출하지 않음",
           "gridPos": {
             "x": 12,
-            "y": 39,
+            "y": 43,
             "w": 12,
             "h": 5
           },
@@ -490,22 +621,6 @@
           }
         }
       ]
-    },
-    {
-      "id": 206,
-      "type": "text",
-      "title": "바로 가기",
-      "description": "상단 링크 줄 대신 둡니다. 서비스 오류 확인은 선택한 환경과 시간 범위를 그대로 씁니다.",
-      "gridPos": {
-        "x": 17,
-        "y": 0,
-        "w": 7,
-        "h": 3
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "[운영 홈](/d/kidly-home) · [서비스 오류 확인](/d/kidly-http?var-env=${env}&${__url_time_range})"
-      }
     }
   ]
 }
