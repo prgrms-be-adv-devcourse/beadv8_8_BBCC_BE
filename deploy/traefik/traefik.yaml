@@ -3,37 +3,14 @@ kind: Namespace
 metadata:
   name: edge
 ---
-# 모든 요청이 Traefik을 지나므로 자리가 없으면 우선순위가 낮은 Pod를 밀어낸다
-apiVersion: scheduling.k8s.io/v1
-kind: PriorityClass
-metadata:
-  name: kidly-edge
-value: 1000000
-globalDefault: false
-description: t3.large 의 Traefik(namespace edge). 자리가 없으면 다른 Pod 를 밀어내고 뜬다(#1423)
----
+# k3s 내장 Traefik(kube-system/traefik)에 값을 덧씌운다. 차트 · 이미지 · 우선순위(system-cluster-critical)는 k3s 가 정한다
 apiVersion: helm.cattle.io/v1
-kind: HelmChart
+kind: HelmChartConfig
 metadata:
-  name: kidly-traefik-crd
+  name: traefik
   namespace: kube-system
 spec:
-  targetNamespace: edge
-  chart: https://%{KUBERNETES_API}%/static/charts/traefik-crd-41.4.2+up41.4.0.tgz
----
-apiVersion: helm.cattle.io/v1
-kind: HelmChart
-metadata:
-  name: kidly-traefik
-  namespace: kube-system
-spec:
-  targetNamespace: edge
-  chart: https://%{KUBERNETES_API}%/static/charts/traefik-41.4.2+up41.4.0.tgz
   valuesContent: |-
-    # 차트 기본 태그(v3.7.1)는 미러에 없다. k3s 가 내장 매니페스트(manifests/traefik.yaml)에서 덮어쓰는 태그를 그대로 쓴다
-    image:
-      repository: rancher/mirrored-library-traefik
-      tag: "3.7.13"
     deployment:
       replicas: 1
       # acme.json(계정 키 · 인증서)을 Pod 가 다시 떠도 남긴다. StorageClass 가 없어 hostPath 이고, 디렉터리는 README 대로 uid 65532 로 미리 만든다
@@ -73,7 +50,6 @@ spec:
     updateStrategy:
       type: Recreate
       rollingUpdate: null
-    priorityClassName: kidly-edge
     ports:
       web:
         port: 8000

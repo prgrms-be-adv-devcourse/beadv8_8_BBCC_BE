@@ -23,33 +23,25 @@ if ! kubectl get --raw /readyz > /dev/null 2>&1; then
     echo "k3s API 에 붙지 못했습니다. KUBECONFIG 를 확인하세요" >&2
     exit 1
 fi
-if ! kubectl -n edge get secret zerossl-eab > /dev/null 2>&1; then
-    echo "edge/zerossl-eab 가 없습니다. README 「처음 설치」의 sudo 명령으로 EAB 키 Secret 과 acme.json 디렉터리를 만드세요" >&2
+if ! kubectl -n kube-system get helmchart traefik > /dev/null 2>&1; then
+    echo "k3s 내장 Traefik 이 없습니다. k3s 실행 인자에서 --disable traefik 을 빼세요(README 「처음 설치」)" >&2
+    exit 1
+fi
+if ! kubectl -n kube-system get secret zerossl-eab > /dev/null 2>&1; then
+    echo "kube-system/zerossl-eab 가 없습니다. README 「처음 설치」의 sudo 명령으로 EAB 키 Secret 과 acme.json 디렉터리를 만드세요" >&2
     exit 1
 fi
 
 diagnose() {
-    kubectl -n kube-system logs job/helm-install-kidly-traefik --all-containers=true --tail=100 >&2 || true
-    kubectl -n edge describe pods -l app.kubernetes.io/name=traefik >&2 || true
+    kubectl -n kube-system logs job/helm-install-traefik --all-containers=true --tail=100 >&2 || true
+    kubectl -n kube-system describe pods -l app.kubernetes.io/name=traefik >&2 || true
 }
 
-generation() { kubectl -n kube-system get helmchart kidly-traefik -o jsonpath='{.metadata.generation}' 2> /dev/null || true; }
+generation() { kubectl -n kube-system get helmchartconfig traefik -o jsonpath='{.metadata.generation}' 2> /dev/null || true; }
 before=$(generation)
 applied_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 sed -e "s/__WEB_PORT__/$WEB_PORT/g" -e "s/__WEBSECURE_PORT__/$WEBSECURE_PORT/g" traefik.yaml \
     | kubectl apply --server-side --force-conflicts -f -
-for crd in ingressroutes.traefik.io middlewares.traefik.io tlsoptions.traefik.io; do
-    found=false
-    for _ in $(seq 120); do
-        if kubectl get crd "$crd" > /dev/null 2>&1; then found=true; break; fi
-        sleep 1
-    done
-    if [[ $found != true ]] || ! kubectl wait --for=condition=Established "crd/$crd" --timeout=120s; then
-        echo "$crd 가 준비되지 않았습니다" >&2
-        diagnose
-        exit 1
-    fi
-done
 sed -e "s/__DOMAIN__/$DOMAIN/g" -e "s/__MONITORING_HOST__/$MONITORING_HOST/g" routes.yaml \
     | kubectl apply --server-side --force-conflicts -f -
 
@@ -59,18 +51,18 @@ installed=true
 if [[ $(generation) != "$before" ]]; then
     installed=false
     for _ in $(seq 180); do
-        created=$(kubectl -n kube-system get job helm-install-kidly-traefik -o jsonpath='{.metadata.creationTimestamp}' 2> /dev/null || true)
+        created=$(kubectl -n kube-system get job helm-install-traefik -o jsonpath='{.metadata.creationTimestamp}' 2> /dev/null || true)
         if [[ -n $created && ! $created < $applied_at ]] \
-            && kubectl -n kube-system wait --for=condition=Complete job/helm-install-kidly-traefik --timeout=1s > /dev/null 2>&1; then
+            && kubectl -n kube-system wait --for=condition=Complete job/helm-install-traefik --timeout=1s > /dev/null 2>&1; then
             installed=true
             break
         fi
         sleep 1
     done
 fi
-if [[ $installed != true ]] || ! kubectl -n edge rollout status deploy/kidly-traefik --timeout=120s; then
+if [[ $installed != true ]] || ! kubectl -n kube-system rollout status deploy/traefik --timeout=120s; then
     echo "Traefik 이 새 값으로 준비되지 않았습니다" >&2
     diagnose
     exit 1
 fi
-kubectl -n edge get pods -l app.kubernetes.io/name=traefik --no-headers
+kubectl -n kube-system get pods -l app.kubernetes.io/name=traefik --no-headers

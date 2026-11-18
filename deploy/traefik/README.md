@@ -1,6 +1,6 @@
 # Traefik 엣지
 
-t3.large 의 k3s(namespace `edge`)에서 Traefik 이 80 · 443 을 받아 Gateway 와 Grafana 로 넘깁니다(#1423).
+t3.large 의 k3s 내장 Traefik(`kube-system/traefik`)이 80 · 443 을 받아 Gateway 와 Grafana 로 넘깁니다(#1423, #1599). 라우트 · 미들웨어는 namespace `edge` 에 둡니다.
 
 | 역할 | 설정 |
 | --- | --- |
@@ -13,16 +13,9 @@ t3.large 의 k3s(namespace `edge`)에서 Traefik 이 80 · 443 을 받아 Gatewa
 
 모르는 SNI 와 IP 직접 접속(SNI 없음)은 `sniStrict` 가 핸드셰이크를 거부합니다. HTTP 의 모르는 Host 는 Traefik 404 입니다. Nginx 의 444 와 다르지만 앱에는 닿지 않습니다.
 
-k3s 의 `--disable traefik` 을 그대로 두고 번들 차트를 HelmChart(`kidly-traefik-crd` · `kidly-traefik`)로 설치합니다. k3s 재시작 없이 같은 차트와 이미지를 씁니다. hostNetwork 는 1024 아래 포트에 root 가 필요하고 ServiceLB 는 k3s 재시작이 필요해 hostPort 를 씁니다. 메모리 request 64Mi(실측 약 25Mi), PriorityClass `kidly-edge` 입니다.
+k3s 를 `--disable traefik` 없이 실행하고, `traefik.yaml` 의 HelmChartConfig 로 내장 Traefik 에 값만 덧씌웁니다. 차트와 이미지는 k3s 가 정하므로 k3s 를 올리면 Traefik 도 함께 올라갑니다. 그때는 아래 「확인」을 다시 돌립니다. hostNetwork 는 1024 아래 포트에 root 가 필요하고 ServiceLB 는 꺼 두어 hostPort 를 씁니다. 메모리 request 64Mi(실측 약 25Mi), 우선순위는 k3s 기본값 `system-cluster-critical` 입니다.
 
 앱과 따로 배포합니다. 엣지는 드물게 바뀌고 앱 배포 실패가 엣지에 번지지 않게 합니다.
-
-k3s 를 올리면 `traefik.yaml` 의 두 차트 URL 과 이미지 태그를 새 k3s 값으로 바꿔 다시 배포합니다. 이미지 태그는 차트 기본값이 아니라 k3s 내장 매니페스트가 덮어쓰는 값입니다. 차트 기본값(`v3.7.1`)은 미러에 없어 `ImagePullBackOff` 가 났습니다.
-
-```bash
-sudo ls /var/lib/rancher/k3s/server/static/charts/   # 차트 파일 이름
-curl -sL "https://raw.githubusercontent.com/k3s-io/k3s/$(k3s --version | awk 'NR==1{print $3}' | sed 's/+/%2B/')/manifests/traefik.yaml" | grep -A1 'repository:'   # 이미지 태그
-```
 
 ## 인증서
 
@@ -33,14 +26,14 @@ ZeroSSL 에서 Traefik ACME(resolver `zerossl`, HTTP-01, EC256)로 받습니다.
 | 지금 인증서 | api · grafana 각각, 2026-11-16 발급, 2027-02-14 만료(ZeroSSL ECC DV SSL CA 2). 2027-01-15 무렵부터 갱신된다 |
 | 갱신 | 90일 인증서를 만료 30일 전부터 Traefik 이 새로 받는다(Traefik 문서). Traefik 이 뜰 때도 검사하므로(로그 `Testing certificate renew...`) 서버가 밤에 꺼져도 된다. 80 이 밖에서 열려 있어야 한다 |
 | `acme.json` | 호스트 `/var/lib/kidly/traefik/acme.json`(Pod 의 `/acme`). ACME 계정 키와 인증서 개인 키가 들어 있어 비밀로 다룬다. 디렉터리는 uid 65532(Traefik), 700 |
-| EAB 키 | Secret `edge/zerossl-eab`(키 `ZEROSSL_EAB_KID` · `ZEROSSL_EAB_HMAC_KEY`). 원본은 호스트 `/etc/kidly/zerossl-eab.env`(root, 600). Traefik 인자에는 `$(ZEROSSL_EAB_KID)` 자리만 있고 kubelet 이 펼친다. 그래서 Deployment · 로그에는 값이 없고, 노드의 Traefik 프로세스 인자(`/proc/<pid>/cmdline`, root 만)에만 있다 |
+| EAB 키 | Secret `kube-system/zerossl-eab`(키 `ZEROSSL_EAB_KID` · `ZEROSSL_EAB_HMAC_KEY`). 원본은 호스트 `/etc/kidly/zerossl-eab.env`(root, 600). Traefik 인자에는 `$(ZEROSSL_EAB_KID)` 자리만 있고 kubelet 이 펼친다. 그래서 Deployment · 로그에는 값이 없고, 노드의 Traefik 프로세스 인자(`/proc/<pid>/cmdline`, root 만)에만 있다 |
 
 백업 · 복구(ec2-user):
 
 ```bash
 sudo cp -p /var/lib/kidly/traefik/acme.json ~/acme.json.bak && sudo chmod 600 ~/acme.json.bak   # 백업
 sudo install -m 600 -o 65532 -g 65532 ~/acme.json.bak /var/lib/kidly/traefik/acme.json         # 복구
-sudo k3s kubectl -n edge rollout restart deploy/kidly-traefik                                   # 다시 읽기(약 17초 끊김)
+sudo k3s kubectl -n kube-system rollout restart deploy/traefik                                  # 다시 읽기(약 17초 끊김)
 ```
 
 `acme.json` 을 잃으면 Traefik 이 뜰 때 다시 받습니다. 받을 때까지 api · grafana 핸드셰이크가 거부됩니다.
@@ -57,12 +50,11 @@ sudo k3s kubectl -n edge rollout restart deploy/kidly-traefik                   
      | sudo python3 -c 'import json,os,sys; d=json.load(sys.stdin); assert d.get("success"), {k:v for k,v in d.items() if not k.startswith("eab_")}; fd=os.open("/etc/kidly/zerossl-eab.env", os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0o600); os.write(fd, ("ZEROSSL_EAB_KID=%s\nZEROSSL_EAB_HMAC_KEY=%s\n" % (d["eab_kid"], d["eab_hmac_key"])).encode())'
    ```
 
-3. `acme.json` 디렉터리와 EAB Secret 을 만듭니다(ec2-user). Secret 전에 namespace `edge` 를 만듭니다. PriorityClass `kidly-edge` 는 배포할 때 만듭니다.
+3. k3s 를 `--disable servicelb --disable local-storage` 로 설치합니다. `--disable traefik` 을 붙이면 `deploy.sh` 가 멈춥니다. 그다음 `acme.json` 디렉터리와 EAB Secret 을 만듭니다(ec2-user).
 
    ```bash
-   sudo k3s kubectl create namespace edge --dry-run=client -o yaml | sudo k3s kubectl apply -f -
    sudo install -d -m 755 /var/lib/kidly && sudo install -d -m 700 -o 65532 -g 65532 /var/lib/kidly/traefik
-   sudo k3s kubectl -n edge create secret generic zerossl-eab --from-env-file=/etc/kidly/zerossl-eab.env
+   sudo k3s kubectl -n kube-system create secret generic zerossl-eab --from-env-file=/etc/kidly/zerossl-eab.env
    ```
 
 4. 아래 「바꾸기 · 배포」대로 올립니다. 처음 뜨면 인증서를 받는 동안 api · grafana 핸드셰이크가 거부됩니다.
@@ -141,6 +133,8 @@ kubectl -n edge delete ingressroute,service,deployment whoami
 ## 되돌리기
 
 이전 커밋의 `deploy/traefik`을 같은 방법으로 다시 배포합니다. `acme.json`은 그대로 씁니다.
+
+k3s 에 `--disable traefik` 을 다시 붙이면 k3s 가 내장 Traefik 과 함께 Traefik CRD 를 지워 `edge` 의 라우트 · 미들웨어도 사라집니다. 그때는 `deploy.sh` 로 라우트를 다시 올려야 응답합니다.
 
 ## Nginx 에서 옮긴 기록 (2026-11-16)
 
