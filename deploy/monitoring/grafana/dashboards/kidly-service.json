@@ -77,7 +77,7 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "expr": "max by (job, instance) ((time() - process_start_time_seconds{env=\"$env\",job=~\"$service\"}) < 90 >= 0)",
+        "expr": "max by (job, instance) (((time() - process_start_time_seconds{env=\"$env\",job=~\"$service\"}) < 90 >= 0) and on(env,job) label_replace(kidly_app_expected{env=\"$env\",app_job=~\"$service\"}, \"job\", \"$1\", \"app_job\", \"(.+)\"))",
         "step": "60s",
         "titleFormat": "{{job}} 재시작",
         "textFormat": "{{instance}} · 배포 · 수동 패치 덮어쓰기 · OOM 여부 확인",
