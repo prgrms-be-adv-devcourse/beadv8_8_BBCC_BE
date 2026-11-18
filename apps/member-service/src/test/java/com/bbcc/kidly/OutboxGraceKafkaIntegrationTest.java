@@ -6,7 +6,7 @@ import com.bbcc.kidly.boundedcontext.auth.AuthOutboxMessageFixture;
 import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelay;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.ChildProfileOutboxMessageFixture;
-import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelay;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxRepository;
 import com.bbcc.kidly.boundedcontext.member.MemberOutboxMessageFixture;
@@ -41,7 +41,7 @@ class OutboxGraceKafkaIntegrationTest {
     @Autowired private AuthOutboxRepository auth;
     @Autowired private MemberOutboxRelay memberRelay;
     @Autowired private SellerOutboxRelay sellerRelay;
-    @Autowired private ChildProfileOutboxRelayService childRelay;
+    @Autowired private ChildProfileOutboxRelay childRelay;
     @Autowired private AuthOutboxRelay authRelay;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private KafkaContainer kafka;
@@ -68,8 +68,8 @@ class OutboxGraceKafkaIntegrationTest {
     void childRelaysOnlyOld() {
         var old = UUID.randomUUID();
         var recent = UUID.randomUUID();
-        children.save(ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(old)));
-        children.save(ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(recent)));
+        children.save(new ChildProfileOutboxMessage(ChildProfileOutboxMessageFixture.childChanged(old)));
+        children.save(new ChildProfileOutboxMessage(ChildProfileOutboxMessageFixture.childChanged(recent)));
         verifyRelay("childprofile.child_profile_outbox", "kidly.childprofile.events",
             old, recent, childRelay::relay);
     }

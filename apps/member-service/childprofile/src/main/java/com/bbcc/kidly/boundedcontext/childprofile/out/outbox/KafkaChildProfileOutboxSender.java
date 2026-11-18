@@ -2,9 +2,9 @@ package com.bbcc.kidly.boundedcontext.childprofile.out.outbox;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileEventSendException;
-import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileEventSender;
-import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
+import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileOutboxSender;
+import com.bbcc.kidly.member.support.outbox.OutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxSendException;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -14,18 +14,18 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.core.NestedExceptionUtils;
 import org.springframework.kafka.core.KafkaTemplate;
 
-public class KafkaChildProfileEventSender implements ChildProfileEventSender, DisposableBean {
+public class KafkaChildProfileOutboxSender implements ChildProfileOutboxSender, DisposableBean {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final Duration sendTimeout;
 
-    public KafkaChildProfileEventSender(KafkaTemplate<String, String> kafkaTemplate, Duration sendTimeout) {
+    public KafkaChildProfileOutboxSender(KafkaTemplate<String, String> kafkaTemplate, Duration sendTimeout) {
         this.kafkaTemplate = kafkaTemplate;
         this.sendTimeout = sendTimeout;
     }
 
     @Override
-    public void send(ChildProfileOutboxMessage message) {
+    public void send(OutboxMessage message) {
         var record = new ProducerRecord<>(message.getTopic(), message.getMessageKey(), message.getPayload());
         record.headers()
             .add("eventType", message.getEventType().getBytes(UTF_8))
@@ -44,8 +44,8 @@ public class KafkaChildProfileEventSender implements ChildProfileEventSender, Di
         }
     }
 
-    private ChildProfileEventSendException failure(ChildProfileOutboxMessage message, String reason, Throwable cause) {
-        return new ChildProfileEventSendException(
+    private OutboxSendException failure(OutboxMessage message, String reason, Throwable cause) {
+        return new OutboxSendException(
             "자녀 프로필 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. eventType=%s eventId=%s key=%s reason=%s"
                 .formatted(message.getEventType(), message.getEventId(), message.getMessageKey(), reason),
             cause);

@@ -8,9 +8,9 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileEventOutbox;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
-import com.bbcc.kidly.boundedcontext.childprofile.out.outbox.JpaChildProfileEventOutbox;
-import com.bbcc.kidly.boundedcontext.childprofile.out.outbox.JpaChildProfileOutboxRepository;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxRepository;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -28,7 +28,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
-class JpaChildProfileEventOutboxTest {
+class ChildProfileEventOutboxTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -42,7 +42,7 @@ class JpaChildProfileEventOutboxTest {
         ChildProfileFixture.BIRTH_DATE, BodyType.NORMAL, PreferredFit.LOOSE, true));
 
     @Mock
-    private JpaChildProfileOutboxRepository outboxRepository;
+    private ChildProfileOutboxRepository outboxRepository;
 
     @Test
     @DisplayName("이벤트를 kidly.childprofile.events로 보낼 메시지로 저장한다. 키는 correlationId(자녀 ID), 종류와 ID는 이벤트 값이다")
@@ -85,7 +85,7 @@ class JpaChildProfileEventOutboxTest {
     void appendGrowthRecordBody() {
         var event = new ChildGrowthRecordedEvent(EVENT_ID, NOW,
             new ChildGrowthRecordedEvent.Data(7L, CHILD_ID, ChildProfileFixture.HEIGHT, null, NOW));
-        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(event);
+        new ChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(event);
         var captor = ArgumentCaptor.forClass(ChildProfileOutboxMessage.class);
         verify(outboxRepository).save(captor.capture());
         var body = JSON_MAPPER.readTree(captor.getValue().getPayload());
@@ -101,13 +101,13 @@ class JpaChildProfileEventOutboxTest {
     void skipSameEventId() {
         given(outboxRepository.existsByEventId(EVENT_ID)).willReturn(true);
 
-        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(DELETED);
+        new ChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(DELETED);
 
         then(outboxRepository).should(never()).save(any());
     }
 
     private ChildProfileOutboxMessage appendAndCapture() {
-        new JpaChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(DELETED);
+        new ChildProfileEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(DELETED);
         var captor = ArgumentCaptor.forClass(ChildProfileOutboxMessage.class);
         verify(outboxRepository).save(captor.capture());
         return captor.getValue();

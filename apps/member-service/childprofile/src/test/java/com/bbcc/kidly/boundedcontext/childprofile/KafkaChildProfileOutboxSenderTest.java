@@ -8,9 +8,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
-import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileEventSendException;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
-import com.bbcc.kidly.boundedcontext.childprofile.out.outbox.KafkaChildProfileEventSender;
+import com.bbcc.kidly.boundedcontext.childprofile.out.outbox.KafkaChildProfileOutboxSender;
+import com.bbcc.kidly.member.support.outbox.OutboxSendException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -27,12 +27,12 @@ import org.springframework.kafka.core.KafkaProducerException;
 import org.springframework.kafka.core.KafkaTemplate;
 
 @ExtendWith(MockitoExtension.class)
-class KafkaChildProfileEventSenderTest {
+class KafkaChildProfileOutboxSenderTest {
 
     private static final Duration SEND_TIMEOUT = Duration.ofSeconds(1);
 
     private static final ChildProfileOutboxMessage MESSAGE =
-        ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged());
+        new ChildProfileOutboxMessage(ChildProfileOutboxMessageFixture.childChanged());
 
     @Mock
     private KafkaTemplate<String, String> kafkaTemplate;
@@ -65,7 +65,7 @@ class KafkaChildProfileEventSenderTest {
             new TimeoutException("Topic kidly.childprofile.events not present in metadata after 3000 ms.")));
 
         assertThatThrownBy(() -> sender().send(MESSAGE))
-            .isInstanceOf(ChildProfileEventSendException.class)
+            .isInstanceOf(OutboxSendException.class)
             .hasMessageContaining("Topic kidly.childprofile.events not present in metadata after 3000 ms.")
             .hasMessageContaining("key=3")
             .hasMessageNotContaining("heightCm");
@@ -79,7 +79,7 @@ class KafkaChildProfileEventSenderTest {
         Thread.currentThread().interrupt();
         try {
             assertThatThrownBy(() -> sender().send(MESSAGE))
-                .isInstanceOf(ChildProfileEventSendException.class)
+                .isInstanceOf(OutboxSendException.class)
                 .hasMessageContaining("응답 대기 중 인터럽트");
             assertThat(Thread.currentThread().isInterrupted()).isTrue();
         } finally {
@@ -97,7 +97,7 @@ class KafkaChildProfileEventSenderTest {
                 new TimeoutException("Expiring 1 record(s) for kidly.childprofile.events-0"))));
 
         assertThatThrownBy(() -> sender().send(MESSAGE))
-            .isInstanceOf(ChildProfileEventSendException.class)
+            .isInstanceOf(OutboxSendException.class)
             .hasMessageContaining("Expiring 1 record(s) for kidly.childprofile.events-0")
             .hasMessageNotContaining("reason=Failed to send")
             .hasMessageNotContaining("heightCm");
@@ -108,10 +108,10 @@ class KafkaChildProfileEventSenderTest {
     @SuppressWarnings("unchecked")
     void throwWhenResponseTimesOut() {
         given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(new CompletableFuture<>());
-        var sender = new KafkaChildProfileEventSender(kafkaTemplate, Duration.ofMillis(100));
+        var sender = new KafkaChildProfileOutboxSender(kafkaTemplate, Duration.ofMillis(100));
 
         assertTimeoutPreemptively(Duration.ofSeconds(2), () -> assertThatThrownBy(() -> sender.send(MESSAGE))
-            .isInstanceOf(ChildProfileEventSendException.class)
+            .isInstanceOf(OutboxSendException.class)
             .hasMessageContaining("응답 대기 시간 100ms 초과")
             .hasMessageNotContaining("heightCm"));
     }
@@ -124,8 +124,8 @@ class KafkaChildProfileEventSenderTest {
         then(kafkaTemplate).should().destroy();
     }
 
-    private KafkaChildProfileEventSender sender() {
-        return new KafkaChildProfileEventSender(kafkaTemplate, SEND_TIMEOUT);
+    private KafkaChildProfileOutboxSender sender() {
+        return new KafkaChildProfileOutboxSender(kafkaTemplate, SEND_TIMEOUT);
     }
 
     private static String header(ProducerRecord<String, String> record, String name) {

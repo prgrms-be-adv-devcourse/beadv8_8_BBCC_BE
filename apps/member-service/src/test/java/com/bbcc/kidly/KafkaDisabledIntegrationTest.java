@@ -4,8 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelay;
 import com.bbcc.kidly.boundedcontext.auth.in.outbox.AuthOutboxScheduler;
-import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
-import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxDispatcher;
+import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelay;
 import com.bbcc.kidly.boundedcontext.childprofile.in.outbox.ChildProfileOutboxScheduler;
 import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelay;
 import com.bbcc.kidly.boundedcontext.member.in.outbox.MemberOutboxScheduler;
@@ -53,8 +52,7 @@ class KafkaDisabledIntegrationTest {
     @Test
     @DisplayName("일반 통합 테스트에서는 자녀 아웃박스 릴레이와 스케줄러를 만들지 않는다")
     void noChildProfileOutboxRelay() {
-        assertThat(context.getBeanNamesForType(ChildProfileOutboxRelayService.class)).isEmpty();
-        assertThat(context.getBeanNamesForType(ChildProfileOutboxDispatcher.class)).isEmpty();
+        assertThat(context.getBeanNamesForType(ChildProfileOutboxRelay.class)).isEmpty();
         assertThat(context.getBeanNamesForType(ChildProfileOutboxScheduler.class)).isEmpty();
     }
 }

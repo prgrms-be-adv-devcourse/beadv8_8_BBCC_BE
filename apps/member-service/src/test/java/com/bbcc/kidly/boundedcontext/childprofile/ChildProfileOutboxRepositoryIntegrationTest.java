@@ -85,7 +85,7 @@ class ChildProfileOutboxRepositoryIntegrationTest {
         var eventId = saveUnsent();
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> outboxRepository.save(
-            ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(eventId)))))
+            new ChildProfileOutboxMessage(ChildProfileOutboxMessageFixture.childChanged(eventId)))))
             .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(eventIds()).containsExactly(eventId);
     }
@@ -130,14 +130,14 @@ class ChildProfileOutboxRepositoryIntegrationTest {
     private UUID saveUnsent() {
         var eventId = UUID.randomUUID();
         transactionTemplate.executeWithoutResult(status -> outboxRepository.save(
-            ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(eventId))));
+            new ChildProfileOutboxMessage(ChildProfileOutboxMessageFixture.childChanged(eventId))));
         return eventId;
     }
 
     private UUID saveSent(LocalDateTime sentAt) {
         var eventId = UUID.randomUUID();
         transactionTemplate.executeWithoutResult(status -> {
-            var message = ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(eventId));
+            var message = new ChildProfileOutboxMessage(ChildProfileOutboxMessageFixture.childChanged(eventId));
             message.markSent(sentAt);
             outboxRepository.save(message);
         });

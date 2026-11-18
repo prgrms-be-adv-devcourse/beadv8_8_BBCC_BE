@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.childprofile.out.outbox;
 
-import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileEventSender;
+import com.bbcc.kidly.boundedcontext.childprofile.app.port.outbox.ChildProfileOutboxSender;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
 import java.time.Duration;
 import java.util.Map;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -33,11 +34,11 @@ class ChildProfileKafkaConfig {
 
     @Bean
     NewTopic childProfileEventsTopic() {
-        return TopicBuilder.name(JpaChildProfileEventOutbox.TOPIC).partitions(3).replicas(1).build();
+        return TopicBuilder.name(ChildProfileOutboxMessage.TOPIC).partitions(3).replicas(1).build();
     }
 
     @Bean
-    ChildProfileEventSender childProfileEventSender(ProducerFactory<String, String> producerFactory) {
+    ChildProfileOutboxSender childProfileOutboxSender(ProducerFactory<String, String> producerFactory) {
         var kafkaTemplate = new KafkaTemplate<>(producerFactory, Map.<String, Object>of(
             ProducerConfig.MAX_BLOCK_MS_CONFIG, MAX_BLOCK_MS,
             ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, REQUEST_TIMEOUT_MS,
@@ -46,6 +47,6 @@ class ChildProfileKafkaConfig {
         // 기본 LoggingProducerListener는 실패 로그에 본문(아이의 키 · 몸무게 등)을 찍는다.
         kafkaTemplate.setProducerListener(new ProducerListener<>() {
         });
-        return new KafkaChildProfileEventSender(kafkaTemplate, SEND_TIMEOUT);
+        return new KafkaChildProfileOutboxSender(kafkaTemplate, SEND_TIMEOUT);
     }
 }
