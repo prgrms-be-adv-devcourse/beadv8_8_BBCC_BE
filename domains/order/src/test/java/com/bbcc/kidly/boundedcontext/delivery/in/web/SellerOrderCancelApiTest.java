@@ -78,8 +78,8 @@ class SellerOrderCancelApiTest {
     @BeforeEach
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
-        productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
-            2L, 2L, OTHER_SELLER_ID, "상품 B", null, "120", 30_000L, 2L, "ON_SALE", null, false, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(
+            ReplicaFixture.otherSellerProduct(2L, OTHER_SELLER_ID, "상품 B", 30_000L, OCCURRED_AT)));
         childReplicaRepository.save(ReplicaChild.create(ReplicaFixture.child("115.0", false, OCCURRED_AT)));
         orderId = placePaidOrder();
         recorder.clear();

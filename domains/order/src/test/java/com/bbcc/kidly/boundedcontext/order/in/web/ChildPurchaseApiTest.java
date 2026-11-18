@@ -156,10 +156,10 @@ class ChildPurchaseApiTest {
     @DisplayName("상태는 판매자별로 따라간다: 발송하면 그 줄 SHIPPING, 배송 완료하면 DELIVERED, 판매자 부분 취소는 그 줄만 CANCELLED이고 "
         + "다른 판매자 줄은 그대로")
     void statusFollowsSellerDelivery() {
-        productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
-            3L, 3L, SECOND_SELLER_ID, "상품 C", null, "120", SECOND_PRICE, 2L, "ON_SALE", null, false, OCCURRED_AT)));
-        productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
-            4L, 4L, THIRD_SELLER_ID, "상품 D", null, "120", SECOND_PRICE, 2L, "ON_SALE", null, false, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(
+            ReplicaFixture.otherSellerProduct(3L, SECOND_SELLER_ID, "상품 C", SECOND_PRICE, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(
+            ReplicaFixture.otherSellerProduct(4L, THIRD_SELLER_ID, "상품 D", SECOND_PRICE, OCCURRED_AT)));
         Long orderId = orderOf(List.of(
             Map.of("optionId", "1", "childId", "1", "quantity", 1, "unitPrice", PRICE),
             Map.of("optionId", "3", "childId", "1", "quantity", 1, "unitPrice", SECOND_PRICE),
