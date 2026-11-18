@@ -17,6 +17,19 @@ class OrderTagMismatch(RuntimeError):
     pass
 
 
+# 수집 설정을 지난 주문 상세 span: 이름은 메서드 · 경로 템플릿, 속성은 이 셋만 남는다
+EXPECTED_NAME = 'GET /api/v1/orders/{orderId}'
+EXPECTED_ATTRIBUTES = [
+    {'key': 'http.request.method', 'value': {'stringValue': 'GET'}},
+    {'key': 'http.route', 'value': {'stringValue': '/api/v1/orders/{orderId}'}},
+    {'key': 'kidly.operation', 'value': {'stringValue': 'order.detail'}},
+]
+
+
+def attribute_key(attribute):
+    return str(attribute.get('key'))
+
+
 def fixture(trace_id, now):
     return {'resourceSpans': [{
         'resource': {'attributes': [
@@ -86,9 +99,9 @@ def verify(client, base, trace_id):
                             if scope.get('scope', {}).get('name') != 'kidly.tracing.synthetic':
                                 continue
                             for span in scope.get('spans', []):
-                                if span.get('attributes') == [
-                                    {'key': 'kidly.operation', 'value': {'stringValue': 'order.detail'}},
-                                ]:
+                                attributes = span.get('attributes') or []
+                                if span.get('name') == EXPECTED_NAME and \
+                                        sorted(attributes, key=attribute_key) == EXPECTED_ATTRIBUTES:
                                     return
                     raise OrderTagMismatch
         except HTTPError as error:
