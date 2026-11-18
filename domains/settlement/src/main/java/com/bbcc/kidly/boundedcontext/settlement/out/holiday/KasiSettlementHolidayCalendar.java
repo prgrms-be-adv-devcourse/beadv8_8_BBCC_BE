@@ -80,20 +80,7 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
     }
 
     private static List<SettlementHoliday> parse(byte[] body) {
-        Document document;
-        try {
-            var factory = DocumentBuilderFactory.newInstance();
-            factory.setFeature(DISALLOW_DOCTYPE, true);
-            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            factory.setExpandEntityReferences(false);
-            var builder = factory.newDocumentBuilder();
-            // 기본 처리기는 해석 오류를 표준 오류로 찍는다. 예외로만 알린다
-            builder.setErrorHandler(new DefaultHandler());
-            document = builder.parse(new ByteArrayInputStream(body));
-        } catch (ParserConfigurationException | SAXException | IOException e) {
-            throw new SettlementHolidayLookupException("공휴일 조회 응답을 읽지 못했습니다: " + e.getClass().getSimpleName());
-        }
-        var root = document.getDocumentElement();
+        var root = readDocument(body).getDocumentElement();
         var resultCode = text(root, "resultCode");
         if (!NORMAL.equals(resultCode)) {
             throw new SettlementHolidayLookupException("공휴일 조회 결과가 정상이 아닙니다: resultCode " + resultCode);
@@ -103,12 +90,27 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
         for (int i = 0; i < items.getLength(); i++) {
             var item = (Element) items.item(i);
             if (HOLIDAY.equals(text(item, "isHoliday"))) {
-                holidays.merge(locdate(text(item, "locdate")), text(item, "dateName"),
+                holidays.merge(parseHolidayDate(text(item, "locdate")), text(item, "dateName"),
                     (first, second) -> first + ", " + second);
             }
         }
         return holidays.entrySet().stream()
             .map(entry -> new SettlementHoliday(entry.getKey(), entry.getValue())).toList();
+    }
+
+    private static Document readDocument(byte[] body) {
+        try {
+            var factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature(DISALLOW_DOCTYPE, true);
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            factory.setExpandEntityReferences(false);
+            var builder = factory.newDocumentBuilder();
+            // 기본 처리기는 해석 오류를 표준 오류로 찍는다. 예외로만 알린다
+            builder.setErrorHandler(new DefaultHandler());
+            return builder.parse(new ByteArrayInputStream(body));
+        } catch (ParserConfigurationException | SAXException | IOException e) {
+            throw new SettlementHolidayLookupException("공휴일 조회 응답을 읽지 못했습니다: " + e.getClass().getSimpleName());
+        }
     }
 
     private static String text(Element parent, String tag) {
@@ -119,8 +121,8 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
         return node.getTextContent().strip();
     }
 
-    // locdate는 yyyyMMdd
-    private static LocalDate locdate(String value) {
+    // 응답의 locdate는 yyyyMMdd
+    private static LocalDate parseHolidayDate(String value) {
         try {
             return LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE);
         } catch (DateTimeParseException e) {

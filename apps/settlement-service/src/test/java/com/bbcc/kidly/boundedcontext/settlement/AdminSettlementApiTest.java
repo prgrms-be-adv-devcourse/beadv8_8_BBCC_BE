@@ -21,6 +21,7 @@ import org.springframework.batch.core.job.parameters.JobParametersBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -59,7 +60,7 @@ class AdminSettlementApiTest {
         var cutoffOn = LocalDate.now().withDayOfMonth(1);
 
         var result = run(cutoffOn).expectStatus().isCreated()
-            .expectHeader().value("Location", location -> assertThat(location).startsWith(RUNS_PATH + "/"))
+            .expectHeader().value(HttpHeaders.LOCATION, location -> assertThat(location).startsWith(RUNS_PATH + "/"))
             .expectBody(SettlementRunResponse.class)
             .returnResult();
 

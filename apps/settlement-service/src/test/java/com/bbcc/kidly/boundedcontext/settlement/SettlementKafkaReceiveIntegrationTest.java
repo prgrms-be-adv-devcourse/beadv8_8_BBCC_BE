@@ -161,7 +161,7 @@ class SettlementKafkaReceiveIntegrationTest {
     @DisplayName("payment.payout-completed를 받으면 정산서가 지급 완료가 된다")
     void payoutCompleted() throws Exception {
         long settlementId = saveSettlement();
-        PaymentPayoutCompletedEvent event = completed(settlementId, sellerId, 90_000L);
+        PaymentPayoutCompletedEvent event = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_000L);
 
         send(PAYMENT_TOPIC, settlementId, event.eventType(), envelope(event));
 
@@ -186,8 +186,8 @@ class SettlementKafkaReceiveIntegrationTest {
     void deadLetterMismatchedPayout() throws Exception {
         long settlementId = saveSettlement();
         long unknownSettlementId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
-        PaymentPayoutCompletedEvent wrongAmount = completed(settlementId, sellerId, 90_001L);
-        PaymentPayoutCompletedEvent unknown = completed(unknownSettlementId, sellerId, 90_000L);
+        PaymentPayoutCompletedEvent wrongAmount = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_001L);
+        PaymentPayoutCompletedEvent unknown = SettlementFixture.payoutCompleted(unknownSettlementId, sellerId, 90_000L);
 
         RecordMetadata wrongAmountSent = send(PAYMENT_TOPIC, settlementId, wrongAmount.eventType(),
             envelope(wrongAmount));
@@ -221,7 +221,7 @@ class SettlementKafkaReceiveIntegrationTest {
         long settlementId = saveSettlement();
         send(PAYMENT_TOPIC, settlementId, "payment.payout-requested", "정산이 받지 않는 종류라 읽지 않는 본문");
         // 키(정산서 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
-        PaymentPayoutCompletedEvent event = completed(settlementId, sellerId, 90_000L);
+        PaymentPayoutCompletedEvent event = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_000L);
         send(PAYMENT_TOPIC, settlementId, event.eventType(), envelope(event));
 
         AsyncWait.until(TIMEOUT, () -> "PAID".equals(settlementStatus(settlementId)));
@@ -232,11 +232,6 @@ class SettlementKafkaReceiveIntegrationTest {
         return new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new OrderItemPurchaseConfirmedEvent.Data(itemId, orderId, 2L, sellerId, null, 3L, 4L, "110", 1, 50_000L,
                 LocalDateTime.of(2026, 10, 1, 10, 0)));
-    }
-
-    private static PaymentPayoutCompletedEvent completed(long settlementId, long sellerId, long amount) {
-        return new PaymentPayoutCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new PaymentPayoutCompletedEvent.Data(settlementId, sellerId, amount, 1L, LocalDateTime.now()));
     }
 
     // 판매 100,000원 · 수수료 10% → 정산금액 90,000원. 지급을 요청한(COMPLETED) 정산서다

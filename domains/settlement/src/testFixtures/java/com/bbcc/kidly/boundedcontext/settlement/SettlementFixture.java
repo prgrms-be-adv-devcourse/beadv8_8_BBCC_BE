@@ -5,6 +5,7 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementCreateInfo;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItem;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemCreateInfo;
 import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxMessage;
+import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +24,16 @@ public final class SettlementFixture {
     public static final LocalDate PERIOD_END = LocalDate.of(2026, 10, 31);
 
     private SettlementFixture() {
+    }
+
+    public static PaymentPayoutCompletedEvent payoutCompleted(long settlementId, long sellerId, long amount) {
+        return payoutCompleted(settlementId, sellerId, amount, LocalDateTime.now());
+    }
+
+    public static PaymentPayoutCompletedEvent payoutCompleted(
+        long settlementId, long sellerId, long amount, LocalDateTime paidAt) {
+        return new PaymentPayoutCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new PaymentPayoutCompletedEvent.Data(settlementId, sellerId, amount, 1L, paidAt));
     }
 
     public static SettlementItemCreateInfo itemInfo(Long orderItemId) {

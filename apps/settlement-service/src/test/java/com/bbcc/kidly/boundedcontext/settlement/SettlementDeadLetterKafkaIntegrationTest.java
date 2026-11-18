@@ -15,7 +15,6 @@ import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -97,7 +96,8 @@ class SettlementDeadLetterKafkaIntegrationTest {
     void storesAndReprocessesDeadLetter() throws Exception {
         long settlementId = saveSettlement();
         String eventId = UUID.randomUUID().toString();
-        RecordMetadata sent = send(settlementId, eventId, completed(settlementId, 90_001L));
+        RecordMetadata sent = send(settlementId, eventId,
+            SettlementFixture.payoutCompleted(settlementId, sellerId, 90_001L));
 
         AsyncWait.until(TIMEOUT, () -> deadLetterCount(eventId) == 1);
         Long id = deadLetterId(eventId);
@@ -140,7 +140,7 @@ class SettlementDeadLetterKafkaIntegrationTest {
     void auditFailureRollsBackReplayResult() throws Exception {
         long settlementId = saveSettlement();
         String eventId = UUID.randomUUID().toString();
-        send(settlementId, eventId, completed(settlementId, 90_001L));
+        send(settlementId, eventId, SettlementFixture.payoutCompleted(settlementId, sellerId, 90_001L));
         AsyncWait.until(TIMEOUT, () -> deadLetterCount(eventId) == 1);
         Long id = deadLetterId(eventId);
 
@@ -171,11 +171,6 @@ class SettlementDeadLetterKafkaIntegrationTest {
     private long saveSettlement() {
         return settlementRepository.save(SettlementFixture.settlement(sellerId,
             SettlementFixture.PERIOD_START, SettlementFixture.PERIOD_END)).getId();
-    }
-
-    private PaymentPayoutCompletedEvent completed(long settlementId, long amount) {
-        return new PaymentPayoutCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new PaymentPayoutCompletedEvent.Data(settlementId, sellerId, amount, 1L, LocalDateTime.now()));
     }
 
     // 결제 토픽은 결제 서비스가 선언한다. 테스트가 같은 모양(파티션 3)으로 만든다

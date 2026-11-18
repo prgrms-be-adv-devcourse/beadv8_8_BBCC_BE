@@ -1,15 +1,10 @@
 package com.bbcc.kidly.boundedcontext.settlement;
 
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
-import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 final class PayoutRequests {
-
-    private static final long LEDGER_ID = 1L;
 
     private PayoutRequests() {
     }
@@ -30,9 +25,7 @@ final class PayoutRequests {
     }
 
     static void complete(EventPublisher eventPublisher, TransactionTemplate transactionTemplate, Request request) {
-        var event = new PaymentPayoutCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new PaymentPayoutCompletedEvent.Data(request.settlementId(), request.sellerId(), request.amount(),
-                LEDGER_ID, LocalDateTime.now()));
+        var event = SettlementFixture.payoutCompleted(request.settlementId(), request.sellerId(), request.amount());
         transactionTemplate.executeWithoutResult(status -> eventPublisher.publish(event));
     }
 

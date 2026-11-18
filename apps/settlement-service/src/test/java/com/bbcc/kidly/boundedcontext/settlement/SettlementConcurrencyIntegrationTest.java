@@ -13,7 +13,6 @@ import com.bbcc.kidly.global.error.BusinessException;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
-import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -112,9 +111,8 @@ class SettlementConcurrencyIntegrationTest {
         var settlement = settlementRepository.save(SettlementFixture.settlement(10_000L));
         var versionBefore = settlement.getVersion();
         var paidAt = LocalDateTime.of(2026, 11, 1, 9, 0);
-        var event = new PaymentPayoutCompletedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new PaymentPayoutCompletedEvent.Data(settlement.getId(), SettlementFixture.SELLER_ID,
-                settlement.getSettlementAmount(), 1L, paidAt));
+        var event = SettlementFixture.payoutCompleted(
+            settlement.getId(), SettlementFixture.SELLER_ID, settlement.getSettlementAmount(), paidAt);
 
         // 진 쪽 리스너는 낙관적 락 충돌로 롤백되거나 이미 지급 완료라 아무것도 하지 않는다
         var outcomes = runAtOnce(() -> publishInTransaction(event));
