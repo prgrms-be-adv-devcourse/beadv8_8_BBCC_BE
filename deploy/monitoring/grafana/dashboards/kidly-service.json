@@ -40,7 +40,7 @@
     {
       "title": "같은 시간 로그 (Explore)",
       "type": "link",
-      "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D%5C%22${service}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+      "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D~%5C%22${service:regex}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
       "includeVars": false,
       "keepTime": false
     },
@@ -77,7 +77,7 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "expr": "max by (job, instance) ((time() - process_start_time_seconds{env=\"$env\",job=\"$service\"}) < 90 >= 0)",
+        "expr": "max by (job, instance) ((time() - process_start_time_seconds{env=\"$env\",job=~\"$service\"}) < 90 >= 0)",
         "step": "60s",
         "titleFormat": "{{job}} 재시작",
         "textFormat": "{{instance}} · 배포 · 수동 패치 덮어쓰기 · OOM 여부 확인",
@@ -120,12 +120,13 @@
         "query": "label_values(kidly_app_expected{env=\"$env\"}, app_job)",
         "refresh": 1,
         "sort": 1,
-        "includeAll": false,
+        "includeAll": true,
         "multi": false,
         "current": {
           "text": "kidly-gateway",
           "value": "kidly-gateway"
-        }
+        },
+        "allValue": ".*"
       }
     ]
   },
@@ -147,8 +148,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "((max(last_over_time(up{env=\"$env\",job=\"$service\"}[1m])) + 1) and on() (max(kidly_app_expected{env=\"$env\",app_job=\"$service\"}) == 1)) or on() ((max(kidly_app_expected{env=\"$env\",app_job=\"$service\"}) == 1) * 0) or on() ((max(kidly_app_expected{env=\"$env\",app_job=\"$service\"}) == 0) * 0 - 1)",
-          "legendFormat": "",
+          "expr": "((max by (env, job) (last_over_time(up{env=\"$env\", job=~\"$service\"}[1m])) + 1) and on(env,job) (label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1)) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 1) * 0) or on(env,job) ((label_replace(max by (env, app_job) (kidly_app_expected{env=\"$env\", app_job=~\"$service\"}), \"job\", \"$1\", \"app_job\", \"(.+)\") == 0) * 0 - 1)",
+          "legendFormat": "{{job}}",
           "instant": true,
           "range": false
         }
@@ -163,7 +164,7 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "fieldConfig": {
         "defaults": {
@@ -228,8 +229,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "(sum(rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) or sum(rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m])) * 0) / (sum(rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m])) > 0)",
-          "legendFormat": "",
+          "expr": "(sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) or sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) * 0) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "legendFormat": "{{job}}",
           "instant": true,
           "range": false
         }
@@ -244,7 +245,7 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "fieldConfig": {
         "defaults": {
@@ -304,8 +305,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum(rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m]))",
-          "legendFormat": "",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m]))",
+          "legendFormat": "{{job}}",
           "instant": true,
           "range": false
         }
@@ -320,7 +321,7 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "fieldConfig": {
         "defaults": {
@@ -363,8 +364,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum(rate(http_server_requests_seconds_sum{env=\"$env\",job=\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum(rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0)",
-          "legendFormat": "",
+          "expr": "sum by (job) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum by (job) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0)",
+          "legendFormat": "{{job}}",
           "instant": true,
           "range": false
         }
@@ -379,7 +380,7 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "fieldConfig": {
         "defaults": {
@@ -438,8 +439,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum(increase(logback_events_total{env=\"$env\",job=\"$service\",level=\"error\"}[5m]))",
-          "legendFormat": "",
+          "expr": "sum by (job) (increase(logback_events_total{env=\"$env\",job=~\"$service\",level=\"error\"}[5m]))",
+          "legendFormat": "{{job}}",
           "instant": true,
           "range": false
         }
@@ -454,7 +455,7 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "fieldConfig": {
         "defaults": {
@@ -514,8 +515,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "max(process_start_time_seconds{env=\"$env\",job=\"$service\"}) * 1000",
-          "legendFormat": "",
+          "expr": "max by (job) (process_start_time_seconds{env=\"$env\",job=~\"$service\"}) * 1000",
+          "legendFormat": "{{job}}",
           "instant": true,
           "range": false
         }
@@ -530,7 +531,7 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "value"
+        "textMode": "value_and_name"
       },
       "fieldConfig": {
         "defaults": {
@@ -589,8 +590,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "topk(10, sum by (method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m])))",
-          "legendFormat": "{{method}} {{uri}}"
+          "expr": "topk(10, sum by (job, method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])))",
+          "legendFormat": "{{job}} · {{method}} {{uri}}"
         }
       ],
       "options": {
@@ -653,8 +654,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum by (method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) / (sum by (method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m])) > 0)",
-          "legendFormat": "{{method}} {{uri}}"
+          "expr": "sum by (job, method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\",status=~\"5..\"}[5m])) / (sum by (job, method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m])) > 0)",
+          "legendFormat": "{{job}} · {{method}} {{uri}}"
         }
       ],
       "options": {
@@ -717,8 +718,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum by (status) (rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*\"}[5m]))",
-          "legendFormat": "{{status}}"
+          "expr": "sum by (job, status) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*\"}[5m]))",
+          "legendFormat": "{{job}} · {{status}}"
         }
       ],
       "options": {
@@ -785,8 +786,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "topk(10, sum by (method, uri) (rate(http_server_requests_seconds_sum{env=\"$env\",job=\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum by (method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0))",
-          "legendFormat": "{{method}} {{uri}}"
+          "expr": "topk(10, sum by (job, method, uri) (rate(http_server_requests_seconds_sum{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) / (sum by (job, method, uri) (rate(http_server_requests_seconds_count{env=\"$env\",job=~\"$service\",uri!~\"/actuator.*|/api/v1/(child/)?notifications/stream\"}[5m])) > 0))",
+          "legendFormat": "{{job}} · {{method}} {{uri}}"
         }
       ],
       "options": {
@@ -861,8 +862,8 @@
                 "uid": "prometheus"
               },
               "refId": "A",
-              "expr": "sum by (instance) (jvm_memory_used_bytes{env=\"$env\",job=\"$service\",area=\"heap\"})",
-              "legendFormat": "사용 · {{instance}}"
+              "expr": "sum by (job, instance) (jvm_memory_used_bytes{env=\"$env\",job=~\"$service\",area=\"heap\"})",
+              "legendFormat": "{{job}} · 사용 · {{instance}}"
             },
             {
               "datasource": {
@@ -870,8 +871,8 @@
                 "uid": "prometheus"
               },
               "refId": "B",
-              "expr": "sum by (instance) (jvm_memory_max_bytes{env=\"$env\",job=\"$service\",area=\"heap\"} > 0)",
-              "legendFormat": "상한 · {{instance}}"
+              "expr": "sum by (job, instance) (jvm_memory_max_bytes{env=\"$env\",job=~\"$service\",area=\"heap\"} > 0)",
+              "legendFormat": "{{job}} · 상한 · {{instance}}"
             }
           ],
           "options": {
@@ -934,8 +935,8 @@
                 "uid": "prometheus"
               },
               "refId": "A",
-              "expr": "sum by (instance) (rate(jvm_gc_pause_seconds_sum{env=\"$env\",job=\"$service\"}[5m]))",
-              "legendFormat": "{{instance}}"
+              "expr": "sum by (job, instance) (rate(jvm_gc_pause_seconds_sum{env=\"$env\",job=~\"$service\"}[5m]))",
+              "legendFormat": "{{job}} · {{instance}}"
             }
           ],
           "options": {
@@ -998,8 +999,8 @@
                 "uid": "prometheus"
               },
               "refId": "A",
-              "expr": "max by (instance) (process_cpu_usage{env=\"$env\",job=\"$service\"})",
-              "legendFormat": "{{instance}}"
+              "expr": "max by (job, instance) (process_cpu_usage{env=\"$env\",job=~\"$service\"})",
+              "legendFormat": "{{job}} · {{instance}}"
             }
           ],
           "options": {
@@ -1076,8 +1077,8 @@
                 "uid": "prometheus"
               },
               "refId": "A",
-              "expr": "sum by (pool) (hikaricp_connections_active{env=\"$env\",job=\"$service\"})",
-              "legendFormat": "사용 중 · {{pool}}"
+              "expr": "sum by (job, pool) (hikaricp_connections_active{env=\"$env\",job=~\"$service\"})",
+              "legendFormat": "{{job}} · 사용 중 · {{pool}}"
             },
             {
               "datasource": {
@@ -1085,8 +1086,8 @@
                 "uid": "prometheus"
               },
               "refId": "B",
-              "expr": "sum by (pool) (hikaricp_connections_idle{env=\"$env\",job=\"$service\"})",
-              "legendFormat": "대기 연결 · {{pool}}"
+              "expr": "sum by (job, pool) (hikaricp_connections_idle{env=\"$env\",job=~\"$service\"})",
+              "legendFormat": "{{job}} · 대기 연결 · {{pool}}"
             },
             {
               "datasource": {
@@ -1094,8 +1095,8 @@
                 "uid": "prometheus"
               },
               "refId": "C",
-              "expr": "sum by (pool) (hikaricp_connections_pending{env=\"$env\",job=\"$service\"})",
-              "legendFormat": "연결 기다림 · {{pool}}"
+              "expr": "sum by (job, pool) (hikaricp_connections_pending{env=\"$env\",job=~\"$service\"})",
+              "legendFormat": "{{job}} · 연결 기다림 · {{pool}}"
             },
             {
               "datasource": {
@@ -1103,8 +1104,8 @@
                 "uid": "prometheus"
               },
               "refId": "D",
-              "expr": "sum by (pool) (hikaricp_connections_max{env=\"$env\",job=\"$service\"})",
-              "legendFormat": "상한 · {{pool}}"
+              "expr": "sum by (job, pool) (hikaricp_connections_max{env=\"$env\",job=~\"$service\"})",
+              "legendFormat": "{{job}} · 상한 · {{pool}}"
             }
           ],
           "options": {
@@ -1167,8 +1168,8 @@
                 "uid": "prometheus"
               },
               "refId": "A",
-              "expr": "sum(rate(hikaricp_connections_acquire_seconds_sum{env=\"$env\",job=\"$service\"}[5m])) / (sum(rate(hikaricp_connections_acquire_seconds_count{env=\"$env\",job=\"$service\"}[5m])) > 0)",
-              "legendFormat": "획득 평균"
+              "expr": "sum by (job) (rate(hikaricp_connections_acquire_seconds_sum{env=\"$env\",job=~\"$service\"}[5m])) / (sum by (job) (rate(hikaricp_connections_acquire_seconds_count{env=\"$env\",job=~\"$service\"}[5m])) > 0)",
+              "legendFormat": "{{job}} · 획득 평균"
             },
             {
               "datasource": {
@@ -1176,8 +1177,8 @@
                 "uid": "prometheus"
               },
               "refId": "B",
-              "expr": "sum(increase(hikaricp_connections_timeout_total{env=\"$env\",job=\"$service\"}[5m]))",
-              "legendFormat": "시간 초과 · 5분"
+              "expr": "sum by (job) (increase(hikaricp_connections_timeout_total{env=\"$env\",job=~\"$service\"}[5m]))",
+              "legendFormat": "{{job}} · 시간 초과 · 5분"
             }
           ],
           "options": {
@@ -1254,7 +1255,7 @@
                 "uid": "prometheus"
               },
               "refId": "A",
-              "expr": "sum by (consumergroup, topic) (label_replace(label_replace(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\",consumergroup=~\"kidly[.].+\"} >= 0, \"job\", \"kidly-$1\", \"consumergroup\", \"kidly[.]([a-z]+)([.].+)?\"), \"job\", \"kidly-member\", \"consumergroup\", \"kidly[.](auth|childprofile|member|seller)([.].+)?\") and on (job) label_replace(vector(1), \"job\", \"$service\", \"\", \"\"))",
+              "expr": "sum by (consumergroup, topic) (label_replace(label_replace(kafka_consumergroup_lag{job=\"kidly-kafka\",env=\"$env\",consumergroup=~\"kidly[.].+\"} >= 0, \"job\", \"kidly-$1\", \"consumergroup\", \"kidly[.]([a-z]+)([.].+)?\"), \"job\", \"kidly-member\", \"consumergroup\", \"kidly[.](auth|childprofile|member|seller)([.].+)?\") and on (job) label_replace(kidly_app_expected{env=\"$env\",app_job=~\"$service\"}, \"job\", \"$1\", \"app_job\", \"(.+)\"))",
               "legendFormat": "{{consumergroup}} · {{topic}}"
             }
           ],
@@ -1306,7 +1307,7 @@
     {
       "id": 21,
       "type": "row",
-      "title": "트레이스 · 게이트웨이 · 주문만 (느리거나 5xx일 때 펼치기)",
+      "title": "요청 추적 · Agent 적용 서비스 (필요할 때 펼치기)",
       "collapsed": true,
       "gridPos": {
         "x": 0,
@@ -1338,7 +1339,7 @@
                 "uid": "tempo"
               },
               "queryType": "traceql",
-              "query": "{resource.service.name=\"$service\" && resource.deployment.environment.name=\"$env\" && kind=server && duration>=500ms}",
+              "query": "{resource.service.name=~\"${service:regex}\" && resource.deployment.environment.name=\"$env\" && kind=server && duration>=500ms}",
               "limit": 20,
               "spss": 3,
               "tableType": "traces"
@@ -1379,7 +1380,7 @@
                 "uid": "tempo"
               },
               "queryType": "traceql",
-              "query": "{resource.service.name=\"$service\" && resource.deployment.environment.name=\"$env\" && kind=server && span.http.response.status_code>=500}",
+              "query": "{resource.service.name=~\"${service:regex}\" && resource.deployment.environment.name=\"$env\" && kind=server && span.http.response.status_code>=500}",
               "limit": 20,
               "spss": 3,
               "tableType": "traces"
@@ -1397,7 +1398,8 @@
             }
           }
         }
-      ]
+      ],
+      "description": "Gateway·주문·검색·결제·챗봇에 Agent가 적용되어 있습니다. 미적용 서비스나 5% 샘플링으로 선택되지 않은 요청은 나타나지 않을 수 있습니다. 빈 결과는 수집 실패나 정상 판정이 아닙니다."
     }
   ]
 }
