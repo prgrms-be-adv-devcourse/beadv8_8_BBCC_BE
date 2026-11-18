@@ -15,7 +15,6 @@ import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,7 +45,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * product.changed를 kidly.product.events로 받아 상품 이름 복사본을 저장한다(#851).
  * 이 서비스에는 상품 도메인이 없으므로(상품 서비스) 상품이 보내는 형식(키 correlationId = 상품 ID, 헤더 eventType · eventId,
  * 본문 공통 칸 7개 + data)으로 토픽에 직접 넣는다. 리스너는 이 테스트 안에서만 켜고 끈다.
  * 앞 메시지를 다 처리했는지는 같은 키(같은 파티션)로 뒤에 보낸 표시 메시지가 저장됐는지로 본다. 표시 메시지는 data의 상품 ID만 다르다.
@@ -187,18 +185,8 @@ class NotificationProductEventKafkaIntegrationTest {
         send(event, event.data().productId());
     }
 
-    // 상품이 보내는 형식 그대로 넣는다
     private void send(ProductChangedEvent event, Long key) throws Exception {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body), key);
+        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(EventEnvelope.of(event)), key);
     }
 
     private RecordMetadata sendRaw(String eventType, UUID eventId, String body) throws Exception {

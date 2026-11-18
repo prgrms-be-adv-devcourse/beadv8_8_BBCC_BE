@@ -18,7 +18,6 @@ import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,7 +40,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 처리하지 못한 판매자 승인이 DLT를 거쳐 DB에 보관되고, 관리자가 원인을 고친 뒤 재처리하면 승인 메일이 만들어지는지 실제 Kafka로 본다.
  * 회원 이메일 복사본이 없으면 승인 처리가 실패한다(SellerStatusService). 판매자 리스너와 DLT 보관 리스너만 켠다.
  * DLT에는 앞 테스트가 남긴 메시지도 있으므로 이 테스트의 eventId로 고른다.
  */
@@ -134,7 +132,6 @@ class NotificationDeadLetterKafkaIntegrationTest {
         assertThat(deadLetterService.list("REPROCESSED", 0, 100).getContent()).extracting(Summary::getId)
             .contains(id);
 
-        // 이미 성공한 기록은 다시 실행하지 않는다
         assertThat(deadLetterService.reprocess(id, ADMIN_ID).getReplayCount()).isEqualTo(2);
         assertThat(notifications()).hasSize(1);
     }
@@ -145,18 +142,9 @@ class NotificationDeadLetterKafkaIntegrationTest {
             .toList();
     }
 
-    // 판매자가 보내는 형식 그대로 넣는다: 공통 칸 7개 + data
     private RecordMetadata send(DomainEvent event) throws Exception {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        var record = new ProducerRecord<>(SELLER_TOPIC, event.correlationId(), jsonMapper.writeValueAsString(body));
+        var record = new ProducerRecord<>(SELLER_TOPIC, event.correlationId(),
+            jsonMapper.writeValueAsString(EventEnvelope.of(event)));
         record.headers().add("eventId", event.eventId().toString().getBytes(UTF_8));
         record.headers().add("eventType", event.eventType().getBytes(UTF_8));
         try (var producer = new KafkaProducer<String, String>(Map.of(

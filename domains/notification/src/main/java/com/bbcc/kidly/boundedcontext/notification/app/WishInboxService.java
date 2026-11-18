@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 아이가 보낸 조르기를 보호자 알림함에, 조르기 결과(결제 완료 · 거절 · 만료)를 자녀 알림함에 넣는다.
  * 같은 조르기의 같은 일은 한 건만 넣는다(중복 키 = 이벤트 종류 + 조르기 ID).
  * 보호자 알림을 누르면 그 자녀의 조르기 상세로, 자녀 알림을 누르면 자녀 화면의 그 조르기로 간다.
  */

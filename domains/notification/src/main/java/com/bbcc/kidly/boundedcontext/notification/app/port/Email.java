@@ -4,10 +4,6 @@ import org.springframework.util.StringUtils;
 
 /**
  * 보낼 알림 메일 한 통 (일반 텍스트).
- *
- * @param to      받는 사람 주소
- * @param subject 제목
- * @param text    본문
  */
 public record Email(String to, String subject, String text) implements OutgoingMessage {
 

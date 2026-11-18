@@ -6,10 +6,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/**
- * 알림 발송의 Kidly 정책. 재시도 간격 · 멈춘 발송을 다시 맡는 기준 · 보내지 않는 주소 · 발송 기록과 알림함 보존 기간 ·
- * 푸시 FID 상한과 보존 기간을 정한다.
- */
 public final class NotificationPolicy {
 
     // 만들어진 뒤 이만큼 PENDING이면 비동기로 넘기기 전에 서버가 멈춘 것으로 본다
@@ -21,7 +17,6 @@ public final class NotificationPolicy {
     private static final List<Duration> RETRY_DELAYS =
         List.of(Duration.ofSeconds(30), Duration.ofMinutes(2), Duration.ofMinutes(10));
 
-    // 첫 시도 + 재시도 3번
     public static final int MAX_ATTEMPTS = RETRY_DELAYS.size() + 1;
 
     // 알림함 알림을 남겨 두는 기간. 지나면 읽음 여부와 상관없이 정리 배치가 지운다
@@ -43,7 +38,6 @@ public final class NotificationPolicy {
     private NotificationPolicy() {
     }
 
-    // 재시도할 수 있고 시도 횟수가 남았으면 다음 시도 시각을 30초 → 2분 → 10분 뒤로 잡는다. 더 시도하지 않으면 null
     public static LocalDateTime nextAttemptAt(int attemptCount, boolean retryable, LocalDateTime now) {
         if (!retryable || attemptCount >= MAX_ATTEMPTS) {
             return null;

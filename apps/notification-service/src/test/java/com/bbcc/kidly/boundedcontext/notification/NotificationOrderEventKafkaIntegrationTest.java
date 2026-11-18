@@ -18,7 +18,6 @@ import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,14 +39,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 결제가 kidly.payment.events에 보낸 지급 완료 · 환불 완료를 받아 메일을 보낸다(#879).
- * 이 서비스에는 결제 도메인이 없으므로 결제가 보내는 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 + data)으로
- * 토픽에 직접 넣는다. 받는 사람 · 정산서 · 주문 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 받는 사람으로 걸러 본다.
- */
-/**
- * 주문이 kidly.order.events에 보낸 조르기 요청을 받아 보호자 알림함에 넣는다(#881).
  * 주문이 보내는 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 + data)으로 토픽에 직접 넣는다.
- * 보호자 회원 ID를 테스트마다 새로 만들고, 결과는 그 회원의 알림함으로 걸러 본다.
  */
 @KafkaIntegrationTest
 class NotificationOrderEventKafkaIntegrationTest {
@@ -193,19 +185,9 @@ class NotificationOrderEventKafkaIntegrationTest {
             .toList();
     }
 
-    // 주문이 보내는 형식 그대로 넣는다
     private void send(DomainEvent event) throws Exception {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
         var record = new ProducerRecord<>("kidly.order.events", event.correlationId(),
-            jsonMapper.writeValueAsString(body));
+            jsonMapper.writeValueAsString(EventEnvelope.of(event)));
         record.headers().add("eventId", event.eventId().toString().getBytes(UTF_8));
         record.headers().add("eventType", event.eventType().getBytes(UTF_8));
         try (var producer = new KafkaProducer<String, String>(Map.of(

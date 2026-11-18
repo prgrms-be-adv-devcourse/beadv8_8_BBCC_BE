@@ -15,7 +15,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 판매자 상태 복사본(판매자당 1행). seller.changed의 지금 값을 덮어쓰고, 상태가 바뀌었는지 알려 준다.
  * 발생 시각은 DB 정밀도(마이크로초)로 잘라 저장 · 비교한다. 자르지 않으면 같은 메시지를 다시 받았을 때 늦은 이벤트로 보인다.
  */
 @Entity
@@ -42,7 +41,6 @@ public class SellerStatusCopy extends BaseTimeEntity {
     }
 
     /**
-     * 저장된 값보다 늦게 발생한 이벤트일 때만 덮어쓰고, 상태가 바뀌었으면 true를 돌려준다.
      * 같은 시각은 같은 메시지, 이른 시각은 늦게 온 옛 메시지라 무시한다(false).
      */
     public boolean changeIfNewer(SellerStatus status, LocalDateTime occurredAt) {

@@ -52,7 +52,6 @@ class SellerOrderInboxServiceTest {
 
         var captor = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService, times(2)).add(captor.capture());
-        // 판매자마다 같은 내용을 푸시로도 보낸다
         captor.getAllValues().forEach(info -> verify(notificationService).createPush(info));
         assertThat(captor.getAllValues()).satisfiesExactly(
             info -> {
@@ -95,7 +94,6 @@ class SellerOrderInboxServiceTest {
     private InboxNotificationInfo captured() {
         var captor = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService).add(captor.capture());
-        // 구매확정은 알림함에만 넣는다
         verify(notificationService, never()).createPush(any());
         return captor.getValue();
     }

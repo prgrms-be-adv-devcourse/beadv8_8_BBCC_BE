@@ -19,7 +19,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 알림 문구에 쓸 상품 이름 복사본(상품당 1행). product.changed의 지금 값을 덮어쓴다.
  * 판매자에게 관리자 판매 중지 · 옵션 품절을 알리려고 마지막으로 본 판매 상태도 두고, 바뀐 것을 알려 준다.
  * 발생 시각은 DB 정밀도(마이크로초)로 잘라 저장 · 비교한다. 자르지 않으면 같은 메시지를 다시 받았을 때 늦은 이벤트로 보인다.
  */
@@ -55,7 +54,6 @@ public class ProductName extends BaseTimeEntity {
     }
 
     /**
-     * 저장된 값보다 늦게 발생한 이벤트일 때만 덮어쓰고, 알릴 변화를 돌려준다.
      * 같은 시각은 같은 메시지, 이른 시각은 늦게 온 옛 메시지라 무시한다(변화 없음).
      */
     public ProductNameChange applyIfNewer(ProductNameInfo info) {

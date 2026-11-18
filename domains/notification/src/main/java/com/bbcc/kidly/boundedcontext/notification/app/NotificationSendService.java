@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 발송을 맡고 결과를 기록한다. 메서드마다 짧은 트랜잭션 하나이고, 실제 발송(외부 I/O)은 트랜잭션 밖에서 한다.
+ * 메서드마다 짧은 트랜잭션 하나이고, 실제 발송(외부 I/O)은 트랜잭션 밖에서 한다.
  */
 @Slf4j
 @Service
@@ -33,8 +33,7 @@ public class NotificationSendService {
     private final NotificationMetrics notificationMetrics;
 
     /**
-     * 발송을 맡는다. 맡았고 보낼 곳이 있으면 채널에 맞는 보낼 내용을 돌려준다.
-     * 보낼 곳이 없으면(받을 수 없는 이메일 주소, 푸시 FID 없음) SKIPPED로 바꾸고 비어 있는 값을 돌려준다.
+         * 보낼 곳이 없으면(받을 수 없는 이메일 주소, 푸시 FID 없음) SKIPPED로 바꾸고 비어 있는 값을 돌려준다.
      * 다른 곳이 같은 알림을 먼저 맡았으면 커밋할 때 버전 충돌 예외가 난다.
      */
     @Transactional
@@ -66,9 +65,6 @@ public class NotificationSendService {
             });
     }
 
-    /**
-     * 실패를 기록하고, 다시 시도할 예정이면 true를 돌려준다.
-     */
     @Transactional
     public boolean recordFailed(Long notificationId, String error, boolean retryable) {
         return notificationRepository.findById(notificationId)
@@ -81,8 +77,7 @@ public class NotificationSendService {
     }
 
     /**
-     * 푸시 결과를 기록한다. 무효 FID를 지우고, 결과(PushSendResult.outcome)대로 알림 상태를 바꾼다.
-     * 다시 시도할 예정이면 true를 돌려준다. 다시 시도할 때는 남은 FID를 다시 찾아 보낸다.
+         * 다시 시도할 예정이면 true를 돌려준다. 다시 시도할 때는 남은 FID를 다시 찾아 보낸다.
      */
     @Transactional
     public boolean recordPushResult(Long notificationId, PushSendResult result) {

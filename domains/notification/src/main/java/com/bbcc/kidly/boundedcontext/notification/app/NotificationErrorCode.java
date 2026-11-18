@@ -6,9 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
-/**
- * 알림 도메인 오류. detail은 받는 쪽이 다음에 할 일을 알 수 있게 쓴다.
- */
 @Getter
 @Accessors(fluent = true)
 @RequiredArgsConstructor

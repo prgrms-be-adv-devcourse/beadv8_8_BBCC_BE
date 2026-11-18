@@ -28,7 +28,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 도메인 이벤트로 알림을 만든다. 같은 이벤트 · 같은 채널은 한 건만 만들고, 커밋된 뒤에 비동기 발송을 넘긴다.
+ * 같은 이벤트 · 같은 채널은 한 건만 만들고, 커밋된 뒤에 비동기 발송을 넘긴다.
  * 커밋 전에 넘기면 다른 스레드가 아직 저장되지 않은 알림을 찾지 못한다.
  * 계정 정지를 뺀 메일은 같은 일을 받는 사람 알림함에도 한 건 남긴다(같은 트랜잭션). 알림함은 이메일이 필요 없어
  * 이메일 복사본이 없어 메일을 못 만들어도 남긴다. 계정 정지는 로그인이 막혀 알림함을 볼 수 없어 메일만 만든다.
@@ -58,7 +58,7 @@ public class NotificationService {
     }
 
     /**
-     * 정산금 지급 메일. 같은 정산서의 지급 요청이 다시 오면 결제가 새 eventId로 지급 완료를 다시 발행하므로,
+     * 같은 정산서의 지급 요청이 다시 오면 결제가 새 eventId로 지급 완료를 다시 발행하므로,
      * 이벤트 ID 대신 정산서 ID로 만든 고정 키로 한 통만 만든다. 0원 정산은 입금이 없어 보내지 않는다.
      */
     @Transactional
@@ -70,15 +70,8 @@ public class NotificationService {
             NotificationType.PAYOUT_COMPLETED, "정산금이 입금됐어요", "정산금 %,d원이 예치금으로 입금됐어요.".formatted(command.amount()),
             "/center/settlements/" + command.settlementId(), "payment.payout-completed:" + command.settlementId()));
         var key = payoutKey(command.settlementId());
-        if (exists(key)) {
-            return;
-        }
-        memberContactService.findEmail(command.sellerId()).ifPresent(email -> {
-            var content = PayoutEmail.compose(notificationProperties.siteUrl(), command.settlementId(),
-                command.amount());
-            createEmail(new EmailNotificationInfo(key, command.sellerId(), NotificationType.PAYOUT_COMPLETED,
-                email, content.title(), content.body()));
-        });
+        createMemberEmail(key, command.sellerId(), NotificationType.PAYOUT_COMPLETED,
+            PayoutEmail.compose(notificationProperties.siteUrl(), command.settlementId(), command.amount()));
     }
 
     // 주문 결제완료는 주문마다 한 번만 나가므로 이벤트 ID로 한 통만 만든다. 알림함과 같은 내용을 푸시로도 보낸다
@@ -89,14 +82,8 @@ public class NotificationService {
             "order.paid:" + command.orderId());
         inboxNotificationService.add(inbox);
         createPush(inbox);
-        if (exists(command.eventId())) {
-            return;
-        }
-        memberContactService.findEmail(command.memberId()).ifPresent(email -> {
-            var content = OrderPaidEmail.compose(notificationProperties.siteUrl(), command);
-            createEmail(new EmailNotificationInfo(command.eventId(), command.memberId(), NotificationType.ORDER_PAID,
-                email, content.title(), content.body()));
-        });
+        createMemberEmail(command.eventId(), command.memberId(), NotificationType.ORDER_PAID,
+            OrderPaidEmail.compose(notificationProperties.siteUrl(), command));
     }
 
     // 회원 ID가 없는 예전 환불 이벤트는 받는 사람을 알 수 없어 만들지 않는다
@@ -108,28 +95,15 @@ public class NotificationService {
         inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
             NotificationType.REFUND_COMPLETED, "환불이 완료됐어요", "취소한 주문의 %,d원을 예치금으로 돌려드렸어요.".formatted(command.amount()),
             "/orders/" + command.orderId(), "payment.refunded:" + command.eventId()));
-        if (exists(command.eventId())) {
-            return;
-        }
-        memberContactService.findEmail(command.memberId()).ifPresent(email -> {
-            var content = RefundEmail.compose(notificationProperties.siteUrl(), command.orderId(),
-                command.amount());
-            createEmail(new EmailNotificationInfo(command.eventId(), command.memberId(),
-                NotificationType.REFUND_COMPLETED, email, content.title(), content.body()));
-        });
+        createMemberEmail(command.eventId(), command.memberId(), NotificationType.REFUND_COMPLETED,
+            RefundEmail.compose(notificationProperties.siteUrl(), command.orderId(), command.amount()));
     }
 
     // 정지 사유는 회원 서비스가 200자까지 받으므로 본문 한도(4000자)를 넘지 않는다
     @Transactional
     public void createSuspendedEmail(UUID eventId, Long memberId, String reason) {
-        if (exists(eventId)) {
-            return;
-        }
-        memberContactService.findEmail(memberId).ifPresent(email -> {
-            var content = SuspendedEmail.compose(reason);
-            createEmail(new EmailNotificationInfo(eventId, memberId, NotificationType.MEMBER_SUSPENDED, email,
-                content.title(), content.body()));
-        });
+        createMemberEmail(eventId, memberId, NotificationType.MEMBER_SUSPENDED,
+            SuspendedEmail.compose(reason));
     }
 
     // 거절 사유는 회원 서비스가 200자까지 받으므로 본문 한도(4000자)를 넘지 않는다
@@ -140,14 +114,8 @@ public class NotificationService {
             NotificationType.SELLER_APPLICATION_REJECTED,
             "판매자 신청이 거절됐어요", hasReason ? REJECTED_INBOX_BODY + " 거절 사유: " + reason.strip() : REJECTED_INBOX_BODY,
             null, "seller.application-rejected:" + eventId));
-        if (exists(eventId)) {
-            return;
-        }
-        memberContactService.findEmail(memberId).ifPresent(email -> {
-            var content = ApplicationRejectedEmail.compose(reason);
-            createEmail(new EmailNotificationInfo(eventId, memberId, NotificationType.SELLER_APPLICATION_REJECTED,
-                email, content.title(), content.body()));
-        });
+        createMemberEmail(eventId, memberId, NotificationType.SELLER_APPLICATION_REJECTED,
+            ApplicationRejectedEmail.compose(reason));
     }
 
     @Transactional
@@ -156,14 +124,8 @@ public class NotificationService {
             NotificationType.SELLER_APPROVED,
             "판매자 신청이 승인됐어요", "%s 상호의 판매자 신청이 승인됐어요. 판매자 센터에서 상품을 등록해 보세요.".formatted(businessName),
             "/center", "seller.changed:" + eventId));
-        if (exists(eventId)) {
-            return;
-        }
-        memberContactService.findEmail(sellerId).ifPresent(email -> {
-            var content = SellerApprovedEmail.compose(notificationProperties.siteUrl(), businessName);
-            createEmail(new EmailNotificationInfo(eventId, sellerId, NotificationType.SELLER_APPROVED, email,
-                content.title(), content.body()));
-        });
+        createMemberEmail(eventId, sellerId, NotificationType.SELLER_APPROVED,
+            SellerApprovedEmail.compose(notificationProperties.siteUrl(), businessName));
     }
 
     @Transactional
@@ -172,14 +134,8 @@ public class NotificationService {
             NotificationType.SELLER_SUSPENDED,
             "판매자 자격이 정지됐어요", "관리자가 %s 상호의 판매자 자격을 정지했어요.".formatted(businessName), null,
             "seller.changed:" + eventId));
-        if (exists(eventId)) {
-            return;
-        }
-        memberContactService.findEmail(sellerId).ifPresent(email -> {
-            var content = SellerSuspendedEmail.compose(businessName);
-            createEmail(new EmailNotificationInfo(eventId, sellerId, NotificationType.SELLER_SUSPENDED, email,
-                content.title(), content.body()));
-        });
+        createMemberEmail(eventId, sellerId, NotificationType.SELLER_SUSPENDED,
+            SellerSuspendedEmail.compose(businessName));
     }
 
     @Transactional
@@ -189,19 +145,12 @@ public class NotificationService {
             NotificationType.PRODUCT_STOPPED_BY_ADMIN, "상품 판매가 중지됐어요",
             "관리자가 운영 정책에 따라 %s 상품의 판매를 중지했어요.".formatted(command.name()), link,
             "product.changed:" + command.eventId() + ":stopped-by-admin"));
-        if (exists(command.eventId())) {
-            return;
-        }
-        memberContactService.findEmail(command.sellerId()).ifPresent(email -> {
-            var content = ProductStoppedByAdminEmail.compose(notificationProperties.siteUrl(), command.productId(),
-                command.name());
-            createEmail(new EmailNotificationInfo(command.eventId(), command.sellerId(),
-                NotificationType.PRODUCT_STOPPED_BY_ADMIN, email, content.title(), content.body()));
-        });
+        createMemberEmail(command.eventId(), command.sellerId(), NotificationType.PRODUCT_STOPPED_BY_ADMIN,
+            ProductStoppedByAdminEmail.compose(notificationProperties.siteUrl(), command.productId(), command.name()));
     }
 
     /**
-     * 알림함 알림과 같은 제목 · 본문 · 경로로 회원 웹 푸시를 만든다. 알림함 중복 키로 만든 고정 키로 한 건만 만든다.
+     * 알림함 중복 키로 만든 고정 키로 한 건만 만든다.
      * 자녀 계정 푸시는 보호자 동의 정책이 정해지지 않아 보내지 않는다.
      */
     @Transactional
@@ -218,13 +167,18 @@ public class NotificationService {
         dispatchAfterCommit(notification.getId());
     }
 
-    /**
-     * 보존 기간(NotificationPolicy.HISTORY_RETENTION)이 지난 끝난 발송 기록을 지운다. 아직 보낼 것은 남긴다. 지운 개수.
-     */
     @Transactional
     public int deleteExpired() {
         return notificationRepository.deleteFinishedCreatedBefore(
             LocalDateTime.now().minus(NotificationPolicy.HISTORY_RETENTION));
+    }
+
+    private void createMemberEmail(UUID key, Long memberId, NotificationType type, EmailContent content) {
+        if (exists(key)) {
+            return;
+        }
+        memberContactService.findEmail(memberId).ifPresent(email ->
+            createEmail(new EmailNotificationInfo(key, memberId, type, email, content.title(), content.body())));
     }
 
     private void createEmail(EmailNotificationInfo info) {

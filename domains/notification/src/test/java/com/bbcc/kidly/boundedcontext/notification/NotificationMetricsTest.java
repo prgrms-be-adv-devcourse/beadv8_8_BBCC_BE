@@ -16,7 +16,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 발송 결과는 기록이 커밋된 뒤에만 센다. 버전 충돌로 롤백된 기록이 실패율을 흐리지 않게 한다(#1071).
+ * 발송 결과는 기록이 커밋된 뒤에만 센다. 버전 충돌로 롤백된 기록이 실패율을 흐리지 않게 한다.
  */
 class NotificationMetricsTest {
 

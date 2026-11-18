@@ -83,7 +83,6 @@ class DeliveryInboxServiceTest {
     private InboxNotificationInfo captured() {
         var captor = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService).add(captor.capture());
-        // 알림함과 같은 내용을 푸시로도 보낸다
         verify(notificationService).createPush(captor.getValue());
         return captor.getValue();
     }

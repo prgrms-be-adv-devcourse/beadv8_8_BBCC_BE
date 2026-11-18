@@ -14,8 +14,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
@@ -26,10 +24,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * 가입(member.registered)이 DLT로 간 사이 탈퇴가 처리된 뒤 관리자가 그 DLT를 재처리해도
- * 탈퇴한 회원의 이메일 복사본 · 환영 메일 · 알림함이 다시 생기지 않는다.
- */
 @IntegrationTest
 class MemberWithdrawalDeadLetterIntegrationTest {
 
@@ -78,7 +72,7 @@ class MemberWithdrawalDeadLetterIntegrationTest {
         Long id = receive(MEMBER_ID, 1L);
         byte[] body = payload(id);
         memberWithdrawalService.purge(MEMBER_ID);
-        memberWithdrawalService.purge(MEMBER_ID);  // 같은 탈퇴를 다시 받아도 표시는 한 행
+        memberWithdrawalService.purge(MEMBER_ID);
         // 본문 비우기를 거치지 않은 행(이 수정 전에 보관된 것 등)을 흉내 낸다
         jdbcTemplate.update("update notification.dead_letter set payload = ? where id = ?", body, id);
 
@@ -157,22 +151,12 @@ class MemberWithdrawalDeadLetterIntegrationTest {
             "select count(*) from notification.inbox where recipient_id = ?", Long.class, memberId)).isZero();
     }
 
-    // 회원이 보내는 형식 그대로(공통 칸 7개 + data) DLT에 보관된 것으로 만든다
     private Long receive(Long memberId, long dltOffset) {
         var event = new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
             new MemberRegisteredEvent.Data(memberId, "member-" + memberId + "@kidly.co.kr"));
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
         deadLetterService.receive(new Received(MEMBER_EVENTS + ".notification.dlt", 0, dltOffset, MEMBER_EVENTS, 0,
             dltOffset, event.correlationId(), event.eventType(), event.eventId().toString(),
-            jsonMapper.writeValueAsString(body), IllegalStateException.class.getName()));
+            jsonMapper.writeValueAsString(EventEnvelope.of(event)), IllegalStateException.class.getName()));
         return jdbcTemplate.queryForObject("select id from notification.dead_letter where dlt_offset = ?",
             Long.class, dltOffset);
     }

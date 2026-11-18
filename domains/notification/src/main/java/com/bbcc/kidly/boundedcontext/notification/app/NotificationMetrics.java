@@ -13,7 +13,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 알림 발송 지표(#1071). 채널별 발송 결과 카운터와, 아직 보내지 못한 알림의 수 · 가장 오래된 나이 게이지.
  * 실패율은 결과 카운터의 비율로, 적체는 게이지로 본다. 게이지는 수집할 때마다 상태 인덱스로 건수 · 최솟값만 읽는다.
  */
 @Component

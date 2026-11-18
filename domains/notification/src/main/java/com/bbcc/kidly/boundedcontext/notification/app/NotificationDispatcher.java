@@ -16,7 +16,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
- * 알림 한 건을 보낸다: 맡기(트랜잭션) → 채널 발송기로 발송(트랜잭션 밖) → 결과 기록(트랜잭션).
  * 다시 시도할 실패는 WARN, 더 시도하지 않는 실패만 ERROR로 남긴다(ERROR는 Slack 장애 채널로 간다).
  * 로그에는 주소 · 푸시 FID를 남기지 않는다: 예외 객체 대신 알림 id와 고정된 실패 사유만 적는다.
  */

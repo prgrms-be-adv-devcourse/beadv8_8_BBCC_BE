@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * 발송 결과 카운터와 미발송 게이지가 실제 발송 · DB 상태를 따라가는지 본다(#1071). 카운터는 누적이라 전후 차이로 본다.
+ * 카운터는 누적이라 전후 차이로 본다.
  */
 @IntegrationTest
 class NotificationMetricsIntegrationTest {
@@ -60,7 +60,6 @@ class NotificationMetricsIntegrationTest {
         assertThat(sends("skipped")).isEqualTo(skippedBefore + 1);
         assertThat(sends("retry")).isEqualTo(retryBefore + 1);
         assertThat(sends("failed")).isEqualTo(failedBefore + 1);
-        // 다시 시도할 실패만 아직 보내지 못한 것으로 남는다
         assertThat(gauge("kidly.notification.unsent")).isEqualTo(unsentBefore + 1);
     }
 

@@ -21,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-// 실제 FCM은 부르지 않는다. 오류 분류와 키 읽기 실패만 확인한다
 class FcmPushSenderTest {
 
     @ParameterizedTest

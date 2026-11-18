@@ -2,9 +2,6 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 
 import java.util.List;
 
-/**
- * 옵션 품절 알림함 문구. 함께 품절된 옵션은 한 건으로 묶어 상품의 옵션 순서로 첫 옵션 이름만 적는다.
- */
 public record ProductSoldOutInbox(String title, String body) {
 
     public static ProductSoldOutInbox compose(String productName, List<String> optionNames) {

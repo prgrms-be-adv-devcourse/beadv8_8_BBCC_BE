@@ -27,14 +27,12 @@ public final class NotificationFixture {
             NotificationType.DELIVERY_SHIPPED, "주문하신 상품이 출발했어요", "CJ대한통운 운송장 123456789012로 출발했어요.", linkPath));
     }
 
-    // 발송을 맡은 상태
     public static Notification sending(String recipient, LocalDateTime startedAt) {
         var notification = welcomeEmail(recipient);
         notification.startSending(startedAt);
         return notification;
     }
 
-    // 재시도할 수 있게 실패한 상태. 다음 시도 시각은 failedAt + 30초
     public static Notification retryableFailed(String recipient, LocalDateTime failedAt) {
         var notification = sending(recipient, failedAt);
         notification.markFailed("연결 실패", true, failedAt);

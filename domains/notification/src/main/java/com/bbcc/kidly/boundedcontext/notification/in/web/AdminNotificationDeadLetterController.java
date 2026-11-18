@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 알림 DLT 보관 목록 · 상세 · 재처리. /api/v1/admin/** 라 관리자 주체만 호출할 수 있다.
+ * /api/v1/admin/** 라 관리자 주체만 호출할 수 있다.
  */
 @RestController
 @RequestMapping("/api/v1/admin/notification-dead-letters")
@@ -25,7 +25,6 @@ public class AdminNotificationDeadLetterController {
 
     private final NotificationDeadLetterService service;
 
-    // status 기본 OPEN. OPEN · REPROCESSED 밖이면 400
     @GetMapping
     public PageResponse<NotificationDeadLetterResponse> list(
         @RequestParam(required = false) String status,

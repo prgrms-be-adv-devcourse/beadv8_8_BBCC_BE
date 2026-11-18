@@ -245,7 +245,6 @@ class InboxNotificationApiTest {
             .expectStatus().isOk()
             .expectBody()
             .jsonPath("$.count").isEqualTo(1);
-        // 회원 알림함에도 자녀 알림이 보이지 않는다
         client.get().uri("/api/v1/notifications").headers(member(ME))
             .exchange()
             .expectBody()

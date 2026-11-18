@@ -1,10 +1,9 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
 /**
- * 관리자 판매 중지 메일. 갑자기 팔 수 없게 된 상품과, 판매자가 다시 열 수 없다는 것을 알린다.
  * 상품 변경 이벤트에는 중지 사유가 없어 넣지 않는다.
  */
-public record ProductStoppedByAdminEmail(String title, String body) {
+public record ProductStoppedByAdminEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 상품 판매가 중지됐어요";
     private static final String BODY = """

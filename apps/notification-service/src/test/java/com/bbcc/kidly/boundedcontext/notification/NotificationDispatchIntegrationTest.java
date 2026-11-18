@@ -13,9 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * 디스패처를 같은 스레드에서 불러 맡기 · 발송 · 결과 기록을 확인한다. 비동기 경로는 WelcomeEmailIntegrationTest가 확인한다.
- */
 @IntegrationTest
 class NotificationDispatchIntegrationTest {
 

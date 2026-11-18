@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 알림 DLT 보관 · 조회 · 재처리. 재처리는 원래 처리기의 트랜잭션으로 끝내고 결과만 별도로 기록한다.
+ * 재처리는 원래 처리기의 트랜잭션으로 끝내고 결과만 별도로 기록한다.
  * DLT 잠금을 쥔 채 새 DB 연결을 기다리지 않는다.
  */
 @Slf4j

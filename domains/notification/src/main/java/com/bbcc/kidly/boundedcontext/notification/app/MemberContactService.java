@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 회원 이메일 복사본을 저장 · 삭제 · 조회한다. 같은 가입 이벤트를 다시 받아도 한 건만 둔다.
+ * 같은 가입 이벤트를 다시 받아도 한 건만 둔다.
  * 로그에는 이메일을 남기지 않는다.
  */
 @Slf4j
