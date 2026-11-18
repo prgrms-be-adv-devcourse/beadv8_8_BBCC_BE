@@ -19,7 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 안 읽은 알림 수 SSE. 연결하면 지금 안 읽은 수를 보내고, 수가 바뀔 때마다(InboxChanged, 커밋 뒤) 새 수를 보낸다.
- * 연결은 이 서버 메모리에만 있다. 알림 서비스는 Pod 1대라(deploy/k3s/k3s.py SINGLE_INSTANCE) 다른 서버로 전달하지 않는다.
+ * 연결은 이 Pod 메모리에만 있다. 롤링 배포 중 다른 Pod에 연결한 화면은 다음 연결 때 맞는 수를 받는다(아직 다른 Pod로 전달하지 않음).
  */
 @Component
 @RequiredArgsConstructor

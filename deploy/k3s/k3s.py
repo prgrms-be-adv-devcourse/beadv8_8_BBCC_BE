@@ -20,8 +20,9 @@ AUTOSCALE = {'recommend': (1, 2, 70)}
 CPU_REQUEST = {'recommend': '200m'}
 DEFAULT_CPU_REQUEST = '50m'
 # 두 프로세스가 함께 돌면 안 되는 스케줄러가 있는 서비스. 롤링 배포의 겹치는 시간을 두지 않고 옛 Pod 를 먼저 내린다(compose 때와 같다)
-# 상품: 아웃박스 릴레이에 잠금이 없다(domains/product CLAUDE.md). 알림: 재발송 스케줄러가 같은 알림을 두 번 보낼 수 있다
-SINGLE_INSTANCE = {'product', 'notification'}
+# 상품: 아웃박스 릴레이에 잠금이 없다(domains/product CLAUDE.md).
+# 알림은 롤링 배포한다. 재발송은 Notification @Version 잠금으로 한 Pod만 맡고 정리는 두 번 돌아도 결과가 같다(#1194)
+SINGLE_INSTANCE = {'product'}
 # 하루 한 번 실행하는 CronJob: Deployment 이름 → (CronJob 이름, 일정, 인자)
 DAILY_JOBS = {'settlement': ('settlement-daily-run', '0 10 * * *',
                              ['--spring.profiles.include=settlement-run-once'])}
