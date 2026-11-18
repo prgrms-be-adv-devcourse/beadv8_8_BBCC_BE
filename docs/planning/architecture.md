@@ -10,7 +10,7 @@
 - Gateway는 경로별로 도메인 서비스에 보냅니다. `GET /api/v1/products`는 search-service가 처리합니다.
 - 도메인 사이는 Kafka 이벤트로만 주고받습니다(토픽은 3.3). 다른 도메인 정보는 이벤트로 받아 둔 복사본을 씁니다 (6.3).
 - 서버는 EC2 2대이고, 서버마다 k3s를 따로 설치해 두 클러스터가 서로 기대지 않습니다(#1028).
-  - t3.large(namespace `kidly-dev`): Gateway · 도메인 서비스 10개 · Redis(캐시). 같은 서버에 Traefik(HTTPS · 인증서, namespace `edge`)과 Pod 지표 · 로그 수집기 Alloy(namespace `monitoring`)도 k3s로 돕니다(#1142 · #1423 · #1210).
+  - t3.large(namespace `kidly-dev`): Gateway · 도메인 서비스 10개 · Redis(캐시). 같은 서버에 k3s 내장 Traefik(HTTPS · 인증서)과 Pod 지표 · 로그 수집기 Alloy(namespace `monitoring`)도 k3s로 돕니다(#1142 · #1423 · #1210).
   - t3.medium: PostgreSQL · Kafka(Redpanda) · Elasticsearch · 모니터링(Prometheus · Loki · Grafana). 앱은 사설 IP의 NodePort로 붙고, 보안 그룹은 t3.large에서 오는 것만 받습니다.
   - 상품 이미지는 S3, 배포는 GitHub Actions가 맡습니다.
 - 배포는 소스가 바뀐 서비스만 하나씩 새 Pod가 준비된 뒤 옛 Pod를 내립니다. 추천은 CPU 사용률로 Pod를 1 ~ 2개로 늘리고 줄이고(HPA), 정산 실행은 매일 도는 CronJob입니다. 자세한 것은 `deploy/k3s/README.md`입니다.
