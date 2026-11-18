@@ -19,7 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 안 읽은 알림 수 SSE. 연결하면 지금 안 읽은 수를 보내고, 수가 바뀔 때마다(InboxChanged, 커밋 뒤) 새 수를 보낸다.
- * 연결은 이 Pod 메모리에만 있다. 롤링 배포 중 다른 Pod에 연결한 화면은 다음 연결 때 맞는 수를 받는다(아직 다른 Pod로 전달하지 않음).
+ * 연결은 이 Pod 메모리에만 있다. 다른 Pod에서 바뀐 수는 UnreadCountRelay가 Redis로 받아 push한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -50,11 +50,15 @@ public class UnreadCountStream {
 
     @TransactionalEventListener
     public void onChanged(InboxChanged event) {
-        var open = emitters.get(event.principal());
+        push(event.principal());
+    }
+
+    public void push(PrincipalId principal) {
+        var open = emitters.get(principal);
         if (open == null || open.isEmpty()) {
             return;
         }
-        var count = count(event.principal());
+        var count = count(principal);
         open.forEach(emitter -> send(emitter, SseEmitter.event().name(EVENT).data(count, MediaType.APPLICATION_JSON)));
     }
 

@@ -25,6 +25,8 @@ dependencies {
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
     // Test
+    // 테스트가 StringRedisTemplate로 다른 Pod 메시지를 보낸다
+    testImplementation("org.springframework.boot:spring-boot-starter-data-redis")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")

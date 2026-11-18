@@ -1,4 +1,9 @@
 spring:
+  data:
+    redis:
+      # CI 컨테이너 첫 연결이 느릴 수 있다
+      timeout: 2s
+      connect-timeout: 2s
   # Kafka 리스너는 저절로 시작하지 않는다. 켜 두면 앞 테스트가 보낸 메시지를 다음 테스트 도중에 받아 처리해 테스트끼리 간섭한다.
   # Kafka 수신을 확인하는 테스트는 그 안에서 자기 리스너만 켜고 끈다
   kafka:
