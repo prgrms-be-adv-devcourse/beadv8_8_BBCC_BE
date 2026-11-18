@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 다른 서비스가 부르는 내부 정산 API. Gateway가 /internal/**을 밖에서 막으므로 인증 헤더를 받지 않는다.
+ * Gateway가 /internal/**을 밖에서 막으므로 인증 헤더를 받지 않는다.
  */
 @RestController
 @RequestMapping("/internal/sellers")

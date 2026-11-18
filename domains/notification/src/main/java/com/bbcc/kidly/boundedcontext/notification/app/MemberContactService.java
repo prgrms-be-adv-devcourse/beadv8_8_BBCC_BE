@@ -36,9 +36,6 @@ public class MemberContactService {
         memberContactRepository.deleteById(memberId);
     }
 
-    /**
-     * 메일을 보낼 회원의 이메일. 없으면 비어 있는 값을 돌려주고 회원 ID만 INFO로 남긴다(호출한 쪽은 메일을 만들지 않는다).
-     */
     @Transactional(readOnly = true)
     public Optional<String> findEmail(Long memberId) {
         var email = memberContactRepository.findById(memberId).map(MemberContact::getEmail);

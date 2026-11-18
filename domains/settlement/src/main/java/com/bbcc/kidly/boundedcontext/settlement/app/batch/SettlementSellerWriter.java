@@ -11,7 +11,7 @@ import org.springframework.batch.infrastructure.item.Chunk;
 import org.springframework.batch.infrastructure.item.ItemWriter;
 
 /**
- * 정산 계획마다 정산서를 만들고 대상을 그 정산서로 정산한 뒤 지급을 요청한다. 0원 정산서도 요청한다.
+ * 0원 정산서도 요청한다.
  * 묶음이 실패하면 Batch가 같은 계획을 1명씩 새 트랜잭션에서 다시 넘기므로, 대상은 매번 새로 읽는다.
  */
 public class SettlementSellerWriter implements ItemWriter<SettlementSellerPlan> {

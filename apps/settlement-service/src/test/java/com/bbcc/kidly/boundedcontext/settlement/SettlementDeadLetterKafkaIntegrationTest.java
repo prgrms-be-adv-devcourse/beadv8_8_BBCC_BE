@@ -16,7 +16,6 @@ import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -187,21 +186,9 @@ class SettlementDeadLetterKafkaIntegrationTest {
         }
     }
 
-    // 보내는 쪽 본문과 같은 모양: 공통 칸 7개 + data
     private RecordMetadata send(long key, String eventId, PaymentPayoutCompletedEvent event) throws Exception {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> fields = jsonMapper.convertValue(event, Map.class);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", fields.get("eventId"));
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", fields.get("occurredAt"));
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", fields.get("data"));
         ProducerRecord<String, String> record = new ProducerRecord<>(PAYMENT_TOPIC, String.valueOf(key),
-            jsonMapper.writeValueAsString(body));
+            KafkaEnvelope.of(jsonMapper, event));
         record.headers().add("eventId", eventId.getBytes(UTF_8));
         record.headers().add("eventType", event.eventType().getBytes(UTF_8));
         try (KafkaProducer<String, String> producer = new KafkaProducer<>(Map.of(

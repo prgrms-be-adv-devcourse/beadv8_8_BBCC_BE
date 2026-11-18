@@ -11,7 +11,7 @@ import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 
 /**
- * Redis가 없을 때의 구독 컨테이너. Redis를 띄웠다 내리는 경우는 컨테이너를 공유하는 테스트에 영향을 줘 여기서 다루지 않는다.
+ * Redis를 띄웠다 내리는 경우는 컨테이너를 공유하는 테스트에 영향을 줘 여기서 다루지 않는다.
  */
 class UnreadCountRelayListenerContainerTest {
 

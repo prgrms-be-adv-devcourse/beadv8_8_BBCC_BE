@@ -1,8 +1,6 @@
 package com.bbcc.kidly.boundedcontext.settlement.app.outbox;
 
 /**
- * 릴레이 한 번 실행의 결과.
- *
  * @param targets 읽은 안 보낸 메시지 수
  * @param sent 이번에 보낸 수
  */

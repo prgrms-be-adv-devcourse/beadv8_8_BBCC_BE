@@ -78,7 +78,7 @@ public class SettlementOutboxMessage extends BaseTimeEntity {
     }
 
     /**
-     * 보내지 못했다. 시도를 1 늘리고 마지막 오류를 바꾼다(칸 길이를 넘으면 앞부분만). 본문은 오류에 넣지 않는다(부르는 쪽 책임).
+     * 본문은 오류에 넣지 않는다(부르는 쪽 책임).
      */
     public void recordFailure(String error) {
         this.attemptCount++;

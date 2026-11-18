@@ -13,7 +13,6 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
 
 /**
- * 알림 DLT를 DB에 보관하는 리스너(NotificationDeadLetterKafkaListener)의 컨테이너 팩토리. 구독 그룹은 kidly.notification.dlt.
  * 알림 리스너 팩토리(NotificationKafkaListenerConfig)와 달리 DLT로 보내지 않는다(DLT의 DLT는 없다).
  * DB에 저장하기 전에는 처리 완료로 넘기지 않고, 저장 실패는 1초부터 두 배씩 최대 60초 간격으로 끝없이 재시도한다.
  * 처음 읽는 그룹은 처음부터 읽는다(earliest). 같은 DLT 위치는 한 번만 저장하므로 다시 읽어도 안전하다.

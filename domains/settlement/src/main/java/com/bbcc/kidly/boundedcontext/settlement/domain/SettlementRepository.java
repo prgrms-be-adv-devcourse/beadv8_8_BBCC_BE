@@ -17,7 +17,6 @@ public interface SettlementRepository {
 
     Optional<Settlement> findByIdAndSellerId(Long id, Long sellerId);
 
-    // 지급 결과를 못 받고 COMPLETED에 머문 정산서를 완료 시각 구간(양끝 포함)에서 afterId 다음부터 id 순으로 limit건 찾는다
     List<Settlement> findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(
         SettlementStatus status, LocalDateTime from, LocalDateTime to, Long afterId, Limit limit);
 
@@ -25,7 +24,6 @@ public interface SettlementRepository {
 
     long countBySellerIdAndStatusIn(Long sellerId, Collection<SettlementStatus> statuses);
 
-    // 종료일이 같은 정산서(= 그 종료일의 정산 실행이 만든 정산서) 중 시작일이 가장 이른 것
     Optional<Settlement> findFirstByPeriodEndOnOrderByPeriodStartOnAsc(LocalDate periodEndOn);
 
     default Settlement getById(Long id) {

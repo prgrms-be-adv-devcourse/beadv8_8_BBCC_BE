@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 정산 이벤트를 kidly.settlement.events로 보낼 메시지로 저장한다.
  * 키는 correlationId(정산서 ID)라 같은 대상의 이벤트가 같은 파티션에 순서대로 쌓이고,
  * 본문은 {@link SettlementEventEnvelope} JSON이다.
  */

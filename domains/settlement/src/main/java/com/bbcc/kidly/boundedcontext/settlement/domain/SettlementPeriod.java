@@ -29,7 +29,6 @@ public record SettlementPeriod(LocalDateTime cutoffAt, LocalDate endOn) {
         return from(cutoffOn.atStartOfDay());
     }
 
-    // 기준은 실행일 0시라 전날까지 확정된 대상을 정산한다
     public static SettlementPeriod daily(LocalDate today) {
         requireNonNull(today, "today는 필수입니다");
         return from(today.atStartOfDay());

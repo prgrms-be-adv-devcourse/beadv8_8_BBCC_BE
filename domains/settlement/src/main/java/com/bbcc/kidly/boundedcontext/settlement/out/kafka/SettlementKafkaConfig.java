@@ -14,7 +14,6 @@ import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.ProducerListener;
 
 /**
- * 정산이 보내는 토픽과 정산 전용 KafkaTemplate.
  * 템플릿은 Boot 프로듀서 설정(주소 등)을 그대로 쓰고 직렬화 · 전달 보장 · 대기 시간만 덮어쓴다.
  * 빈으로 등록하지 않으므로 Boot 기본 KafkaTemplate과 앱 spring.kafka 설정은 그대로다.
  * 대기 시간을 줄이는 이유: 릴레이는 스케줄러 스레드(앱 전체 1개) · DB 트랜잭션 · 릴레이 잠금을 쥔 채 보내고 기다린다.

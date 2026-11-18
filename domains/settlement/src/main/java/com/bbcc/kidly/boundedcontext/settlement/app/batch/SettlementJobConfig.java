@@ -23,7 +23,6 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * 판매자별 정산 작업. 판매자 ID를 묶음으로 읽어 판매자마다 정산 계획을 만들고 한 트랜잭션에서 저장한다.
  * 계획을 만들 수 없는 판매자는 그 자리에서 건너뛰고, 저장이 실패하면 판매자 1명씩 다시 저장해 실패한 판매자만 건너뛴다.
  * 그 밖의 예외는 작업을 실패시킨다.
  */

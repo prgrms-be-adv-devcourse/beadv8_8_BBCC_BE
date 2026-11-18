@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 구매확정된 주문상품을 정산 대상으로 쌓는다. 판매금액은 주문상품 금액(단가 × 수량)이다.
+ * 판매금액은 주문상품 금액(단가 × 수량)이다.
  */
 @Service
 @RequiredArgsConstructor

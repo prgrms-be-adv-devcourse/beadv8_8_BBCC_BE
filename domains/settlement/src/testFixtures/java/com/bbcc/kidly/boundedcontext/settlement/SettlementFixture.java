@@ -40,7 +40,6 @@ public final class SettlementFixture {
         return new SettlementItemCreateInfo(ORDER_ID, orderItemId, SELLER_ID, 10_000L, CONFIRMED_AT);
     }
 
-    // 아직 보내지 않은 settlement.payout-requested 아웃박스 메시지. 키는 정산서 ID(31)
     public static SettlementOutboxMessage outboxMessage() {
         var message = SettlementOutboxMessage.create(UUID.randomUUID(), "settlement.payout-requested",
             "kidly.settlement.events", "31", "{\"eventType\":\"settlement.payout-requested\"}");

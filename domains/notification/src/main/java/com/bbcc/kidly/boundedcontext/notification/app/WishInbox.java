@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 import java.util.Optional;
 
 /**
- * 이름을 모르면 개수만 쓴다.
  * 상품 이름은 상품 서비스가 255자까지 받으므로 본문 한도(1000자)를 넘지 않는다.
  */
 public record WishInbox(String title, String body) {

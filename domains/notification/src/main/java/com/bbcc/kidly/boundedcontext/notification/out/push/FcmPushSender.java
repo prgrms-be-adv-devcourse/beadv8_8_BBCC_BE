@@ -46,7 +46,7 @@ public class FcmPushSender implements NotificationPushSender, AutoCloseable {
     }
 
     /**
-     * Base64로 감싼 서비스 계정 키 JSON으로 만든다. 읽지 못하면 키 내용 없이 실패한다(설정 오류라 기동을 멈춘다).
+     * 읽지 못하면 키 내용 없이 실패한다(설정 오류라 기동을 멈춘다).
      */
     public static FcmPushSender fromBase64ServiceAccount(String base64) {
         byte[] json;
@@ -106,7 +106,7 @@ public class FcmPushSender implements NotificationPushSender, AutoCloseable {
     }
 
     /**
-     * FCM 오류를 Kidly가 다루는 방식으로 묶는다. FCM 고유 코드가 없으면(네트워크 오류 등) 공통 코드로 정한다.
+     * FCM 고유 코드가 없으면(네트워크 오류 등) 공통 코드로 정한다.
      */
     static PushFailure classify(MessagingErrorCode messagingErrorCode, ErrorCode errorCode) {
         if (messagingErrorCode != null) {

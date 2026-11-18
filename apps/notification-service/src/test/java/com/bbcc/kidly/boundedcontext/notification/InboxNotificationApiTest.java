@@ -22,9 +22,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 회원 · 자녀 알림함 API. 로그인 회원은 Gateway가 붙이는 X-Member-Id 헤더로, 자녀는 X-Child-* 헤더로 보낸다.
- */
 @FunctionalTest
 class InboxNotificationApiTest {
 

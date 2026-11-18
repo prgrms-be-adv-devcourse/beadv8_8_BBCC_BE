@@ -9,7 +9,7 @@ public interface SettlementOutboxRepository {
     SettlementOutboxMessage save(SettlementOutboxMessage message);
 
     /**
-     * 보내지 않은 메시지(시도 0)로 저장한다. 같은 eventId가 이미 있으면(동시에 저장한 경우 포함) 아무것도 하지 않는다.
+     * 같은 eventId가 이미 있으면(동시에 저장한 경우 포함) 아무것도 하지 않는다.
      * 같은 이벤트를 다시 발행해도 메시지는 하나이고, 업무 트랜잭션을 실패시키지 않는다.
      */
     void saveIfAbsent(UUID eventId, String eventType, String topic, String messageKey, String payload,
@@ -29,8 +29,5 @@ public interface SettlementOutboxRepository {
 
     long countUnsent();
 
-    /**
-     * 보낸 시각이 cutoff보다 이른 메시지를 지운다. 안 보낸 메시지는 지우지 않는다.
-     */
     int deleteSentBefore(LocalDateTime cutoff);
 }

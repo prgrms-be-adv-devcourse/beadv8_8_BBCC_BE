@@ -48,7 +48,7 @@ spring:
       # 책갈피가 없으면 지금부터 새로 오는 메시지만 읽는다(회의 10-29 안건 4). kidly-app에서 쓰던 구독 그룹을 이어받아 책갈피를 이어 쓴다
       auto-offset-reset: latest
 
-# actuator는 management 포트에 둔다. k3s probe와 Alloy가 Pod에서 수집하고 공개 경로는 Gateway가 404로 막는다
+# actuator는 서비스 포트(8080)에 함께 둔다. k3s probe와 Alloy는 Pod로 직접 부르고, Gateway는 라우트에 없는 경로라 404를 낸다
 management:
   endpoints:
     web:

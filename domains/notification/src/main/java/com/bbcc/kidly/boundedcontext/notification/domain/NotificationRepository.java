@@ -43,8 +43,5 @@ public interface NotificationRepository {
      */
     long countUnsent();
 
-    /**
-     * 아직 보내지 못한 알림 중 가장 먼저 만든 것의 생성 시각.
-     */
     Optional<LocalDateTime> findOldestUnsentCreatedAt();
 }

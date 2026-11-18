@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.listener.SkipListener;
 
 /**
- * 건너뛴 판매자를 로그와 DB에 남긴다. 그 판매자의 항목은 대기로 남아 다음 정산에서 다시 계산된다.
+ * 그 판매자의 항목은 대기로 남아 다음 정산에서 다시 계산된다.
  * 기록은 보조 정보라 저장에 실패해도 정산을 멈추지 않는다(리스너 예외는 Batch가 단계 실패로 다룬다).
  */
 @Slf4j

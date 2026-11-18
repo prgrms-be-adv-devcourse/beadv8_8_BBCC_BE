@@ -27,7 +27,6 @@ import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
 /**
- * 정산이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT(받는 토픽마다 하나).
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고,
  * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT로 보낸다.
  * 다시 해도 같은 실패는 재시도 없이 보낸다: 읽지 못한 본문, 정산서와 맞지 않는 지급 결과 · 상태, eventType 헤더 없음.
@@ -67,7 +66,6 @@ class SettlementKafkaListenerConfig {
         var consumerOverrides = new Properties();
         consumerOverrides.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         factory.getContainerProperties().setKafkaConsumerProperties(consumerOverrides);
-        // 실패한 메시지는 받은 토픽의 DLT(예: kidly.payment.events.settlement.dlt) 파티션 0으로 보낸다
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         factory.setCommonErrorHandler(errorHandler((record, e) -> {

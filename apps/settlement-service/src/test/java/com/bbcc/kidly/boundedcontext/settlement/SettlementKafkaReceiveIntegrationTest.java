@@ -7,7 +7,6 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
 import com.bbcc.kidly.boundedcontext.settlement.in.SettlementKafkaListenerTestGuard;
 import com.bbcc.kidly.boundedcontext.settlement.in.SettlementOrderKafkaListener;
 import com.bbcc.kidly.boundedcontext.settlement.in.SettlementPaymentKafkaListener;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.payment.domain.PayoutFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
@@ -18,7 +17,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -132,7 +130,7 @@ class SettlementKafkaReceiveIntegrationTest {
     void purchaseConfirmed() throws Exception {
         OrderItemPurchaseConfirmedEvent event = purchaseConfirmed(orderItemId);
 
-        send(ORDER_TOPIC, orderId, event.eventType(), envelope(event));
+        send(ORDER_TOPIC, orderId, event.eventType(), KafkaEnvelope.of(jsonMapper, event));
 
         AsyncWait.until(TIMEOUT, () -> itemCount(orderItemId) == 1);
         assertThat(jdbcTemplate.queryForMap("select order_id, seller_id, sales_amount, status "
@@ -147,7 +145,7 @@ class SettlementKafkaReceiveIntegrationTest {
     @DisplayName("같은 구매확정을 두 번 받아도 정산 항목은 1건이다")
     void purchaseConfirmedOnce() throws Exception {
         OrderItemPurchaseConfirmedEvent event = purchaseConfirmed(orderItemId);
-        String body = envelope(event);
+        String body = KafkaEnvelope.of(jsonMapper, event);
 
         send(ORDER_TOPIC, orderId, event.eventType(), body);
         RecordMetadata second = send(ORDER_TOPIC, orderId, event.eventType(), body);
@@ -163,7 +161,7 @@ class SettlementKafkaReceiveIntegrationTest {
         long settlementId = saveSettlement();
         PaymentPayoutCompletedEvent event = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_000L);
 
-        send(PAYMENT_TOPIC, settlementId, event.eventType(), envelope(event));
+        send(PAYMENT_TOPIC, settlementId, event.eventType(), KafkaEnvelope.of(jsonMapper, event));
 
         AsyncWait.until(TIMEOUT, () -> "PAID".equals(settlementStatus(settlementId)));
     }
@@ -176,7 +174,7 @@ class SettlementKafkaReceiveIntegrationTest {
             new PaymentPayoutFailedEvent.Data(settlementId, sellerId, 90_000L, PayoutFailureCode.WALLET_NOT_FOUND,
                 LocalDateTime.now()));
 
-        send(PAYMENT_TOPIC, settlementId, event.eventType(), envelope(event));
+        send(PAYMENT_TOPIC, settlementId, event.eventType(), KafkaEnvelope.of(jsonMapper, event));
 
         AsyncWait.until(TIMEOUT, () -> "FAILED".equals(settlementStatus(settlementId)));
     }
@@ -190,8 +188,9 @@ class SettlementKafkaReceiveIntegrationTest {
         PaymentPayoutCompletedEvent unknown = SettlementFixture.payoutCompleted(unknownSettlementId, sellerId, 90_000L);
 
         RecordMetadata wrongAmountSent = send(PAYMENT_TOPIC, settlementId, wrongAmount.eventType(),
-            envelope(wrongAmount));
-        RecordMetadata unknownSent = send(PAYMENT_TOPIC, unknownSettlementId, unknown.eventType(), envelope(unknown));
+            KafkaEnvelope.of(jsonMapper, wrongAmount));
+        RecordMetadata unknownSent = send(PAYMENT_TOPIC, unknownSettlementId, unknown.eventType(),
+            KafkaEnvelope.of(jsonMapper, unknown));
 
         AsyncWait.until(TIMEOUT, () -> deadLetters(PAYMENT_DLT).size() == 2);
         Map<String, Long> sentAt = Map.of(String.valueOf(settlementId), wrongAmountSent.timestamp(),
@@ -207,7 +206,7 @@ class SettlementKafkaReceiveIntegrationTest {
         send(ORDER_TOPIC, orderId, "order.created", "정산이 받지 않는 종류라 읽지 않는 본문");
         // 키(주문 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
         OrderItemPurchaseConfirmedEvent event = purchaseConfirmed(orderItemId);
-        send(ORDER_TOPIC, orderId, event.eventType(), envelope(event));
+        send(ORDER_TOPIC, orderId, event.eventType(), KafkaEnvelope.of(jsonMapper, event));
 
         AsyncWait.until(TIMEOUT, () -> itemCount(orderItemId) == 1);
         assertThat(jdbcTemplate.queryForObject("select count(*) from settlement.settlement_item where order_id = ?",
@@ -222,7 +221,7 @@ class SettlementKafkaReceiveIntegrationTest {
         send(PAYMENT_TOPIC, settlementId, "payment.payout-requested", "정산이 받지 않는 종류라 읽지 않는 본문");
         // 키(정산서 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
         PaymentPayoutCompletedEvent event = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_000L);
-        send(PAYMENT_TOPIC, settlementId, event.eventType(), envelope(event));
+        send(PAYMENT_TOPIC, settlementId, event.eventType(), KafkaEnvelope.of(jsonMapper, event));
 
         AsyncWait.until(TIMEOUT, () -> "PAID".equals(settlementStatus(settlementId)));
         assertThat(deadLetters(PAYMENT_DLT)).isEmpty();
@@ -248,22 +247,6 @@ class SettlementKafkaReceiveIntegrationTest {
     private String settlementStatus(long settlementId) {
         return jdbcTemplate.queryForObject("select status from settlement.settlement where id = ?", String.class,
             settlementId);
-    }
-
-    // 보내는 쪽 본문과 같은 모양: 공통 칸 7개 + data. 이벤트 record에 없는 칸(eventType 등)도 들어 있다
-    private String envelope(DomainEvent event) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> fields = jsonMapper.convertValue(event, Map.class);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", fields.get("eventId"));
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", fields.get("occurredAt"));
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", fields.get("data"));
-        return jsonMapper.writeValueAsString(body);
     }
 
     private RecordMetadata send(String topic, long key, String eventType, String body) throws Exception {
@@ -299,7 +282,7 @@ class SettlementKafkaReceiveIntegrationTest {
         }
     }
 
-    // DLT를 처음부터 지금 끝까지 읽어 이 테스트가 보낸 메시지만 돌려준다. 다른 테스트가 넣은 DLT 메시지도 있다
+    // 다른 테스트가 넣은 DLT 메시지도 있다
     private List<ConsumerRecord<String, String>> deadLetters(String deadLetterTopic) {
         TopicPartition partition = new TopicPartition(deadLetterTopic, 0);
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(

@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 판매자 한 명의 정산 기간 정산서. 판매자 · 종료일마다 하나다(실행 하나에 판매자당 정산서 하나). 판매 합계에서 수수료를 뺀 금액의 지급을 요청하고 결제의 지급 결과를 반영한다.
+ * 판매자 · 종료일마다 하나다(실행 하나에 판매자당 정산서 하나).
  */
 @Entity
 @Table(
@@ -94,7 +94,6 @@ public class Settlement extends BaseTimeEntity {
         this.completedAt = now;
     }
 
-    // 수수료 = 판매 합계 × 수수료율, 원 미만 버림. 만들면 지급 요청 상태(COMPLETED)다
     public static Settlement create(SettlementCreateInfo info, LocalDateTime now) {
         requireNonNull(info, "info는 필수입니다");
         requireNonNull(now, "now는 필수입니다");
@@ -111,7 +110,6 @@ public class Settlement extends BaseTimeEntity {
         return new Settlement(info, feeAmount, now);
     }
 
-    // 0 이상 1 이하, 소수점 넷째 자리까지
     public static void validateFeeRate(BigDecimal feeRate) {
         requireNonNull(feeRate, "feeRate는 필수입니다");
         Assert.isTrue(

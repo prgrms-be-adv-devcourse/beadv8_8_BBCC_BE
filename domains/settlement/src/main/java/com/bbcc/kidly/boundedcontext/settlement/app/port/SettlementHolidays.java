@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 저장된 공휴일(settlement_holiday). 여러 서버가 동시에 upsert해도 결과가 같다.
+ * 여러 서버가 동시에 upsert해도 결과가 같다.
  */
 public interface SettlementHolidays {
 

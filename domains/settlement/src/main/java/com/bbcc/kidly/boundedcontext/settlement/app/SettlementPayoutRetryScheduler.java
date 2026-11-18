@@ -21,7 +21,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SettlementPayoutRetryScheduler {
 
-    // 이 시간이 지나도 지급 결과가 없으면 다시 요청한다
     private static final Duration RETRY_AFTER = Duration.ofMinutes(30);
     // 이 기간이 지난 건은 자동으로 다시 요청하지 않고 관리자에게 맡긴다
     private static final Duration RETRY_WINDOW = Duration.ofDays(7);

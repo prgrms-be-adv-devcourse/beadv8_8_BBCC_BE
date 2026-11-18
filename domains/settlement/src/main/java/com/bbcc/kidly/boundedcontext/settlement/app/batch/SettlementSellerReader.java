@@ -10,7 +10,7 @@ import org.springframework.batch.infrastructure.item.ItemReader;
 import org.springframework.util.Assert;
 
 /**
- * 정산할 판매자 ID를 오름차순으로 한 페이지씩 읽는다. 위치를 저장하지 않으므로 다시 실행하면 대기 항목이 남은 판매자만 다시 읽는다.
+ * 위치를 저장하지 않으므로 다시 실행하면 대기 항목이 남은 판매자만 다시 읽는다.
  */
 public class SettlementSellerReader implements ItemReader<Long> {
 

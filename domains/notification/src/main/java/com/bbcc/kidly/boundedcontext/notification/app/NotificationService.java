@@ -206,12 +206,12 @@ public class NotificationService {
         return notificationRepository.existsByEventIdAndChannel(eventId, NotificationChannel.EMAIL);
     }
 
-    // 정산서 하나에 하나로 정해지는 키. 지급 완료 이벤트의 ID와 겹치지 않게 이름을 붙여 만든다
+    // 같은 정산서의 메일은 한 번만 만들고, 지급 완료 이벤트의 ID와 겹치지 않도록 이름을 붙인다
     static UUID payoutKey(Long settlementId) {
         return UUID.nameUUIDFromBytes(("payment.payout-completed:" + settlementId).getBytes(UTF_8));
     }
 
-    // 알림함 중복 키 하나에 하나로 정해지는 키. 이메일 키(이벤트 ID · 정산서 키)와 채널이 달라 겹쳐도 상관없다
+    // 같은 알림함 알림의 푸시는 한 번만 만들며, 이메일 키(이벤트 ID · 정산서 키)와는 채널이 달라 겹쳐도 상관없다
     static UUID pushKey(String inboxDedupKey) {
         return UUID.nameUUIDFromBytes(("push:" + inboxDedupKey).getBytes(UTF_8));
     }
