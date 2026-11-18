@@ -111,9 +111,6 @@ public class Notification extends BaseTimeEntity {
         return notification;
     }
 
-    /**
-     * 맡을 수 있는 것: 처음 만든 알림, 다음 시도 시각이 된 실패 알림, 발송을 맡은 채로 멈춘 알림.
-     */
     public boolean startSending(LocalDateTime now) {
         if (!canStartSending(now)) {
             return false;

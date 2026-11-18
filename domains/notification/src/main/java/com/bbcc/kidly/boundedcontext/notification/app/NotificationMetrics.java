@@ -36,7 +36,6 @@ public class NotificationMetrics {
     }
 
     /**
-     * 발송 한 번이 끝난 알림의 결과를 센다. 결과는 sent · skipped · retry(다시 시도할 실패) · failed(더 시도하지 않는 실패).
      * 기록이 버전 충돌로 롤백되면 세지 않도록 커밋 뒤에 올린다. 그래서 상태를 기록하는 트랜잭션 안에서만 부른다.
      */
     public void recordResult(Notification notification) {

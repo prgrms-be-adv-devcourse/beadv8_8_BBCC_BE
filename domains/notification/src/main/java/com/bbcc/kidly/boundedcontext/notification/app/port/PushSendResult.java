@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.notification.app.port;
 import java.util.List;
 
 /**
- * 한 번의 푸시 발송 결과. 성공한 FID 수와 실패한 FID별 이유.
  * 성공도 실패도 없으면 보내지 않은 것이다(발송을 끈 환경).
  */
 public record PushSendResult(int successCount, List<Failure> failures) {
@@ -25,7 +24,7 @@ public record PushSendResult(int successCount, List<Failure> failures) {
     }
 
     /**
-     * 지울 FID: 구독이 끊긴 FID와 잘못된 FID. 아무 데도 못 보냈고 모든 FID가 INVALID_ARGUMENT면 FID보다 메시지가
+     * 아무 데도 못 보냈고 모든 FID가 INVALID_ARGUMENT면 FID보다 메시지가
      * 잘못됐을 수 있어 지우지 않는다.
      */
     public List<String> fidsToDelete() {
@@ -38,10 +37,6 @@ public record PushSendResult(int successCount, List<Failure> failures) {
             .toList();
     }
 
-    /**
-     * 알림의 결과. 하나라도 받았으면 SENT. 아무 데도 못 보냈으면: 모두 INVALID_ARGUMENT면 더 시도하지 않는 실패,
-     * 일시 오류가 있으면 다시 시도할 실패, 그 밖의 거절이 있으면 더 시도하지 않는 실패, 남은 것이 지운 FID뿐이면 SKIPPED.
-     */
     public Outcome outcome() {
         if (successCount > 0) {
             return Outcome.SENT;

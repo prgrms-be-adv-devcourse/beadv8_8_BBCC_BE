@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 같은 조르기의 같은 일은 한 건만 넣는다(중복 키 = 이벤트 종류 + 조르기 ID).
- * 보호자 알림을 누르면 그 자녀의 조르기 상세로, 자녀 알림을 누르면 자녀 화면의 그 조르기로 간다.
  */
 @Slf4j
 @Service
@@ -57,7 +56,7 @@ public class WishInboxService {
     }
 
     /**
-     * 자녀 프로필의 활성 계정 알림함에 넣는다. 활성 계정이 없으면(만들지 않았거나 지웠거나, 계정 이벤트가 아직 안 왔으면)
+     * 활성 계정이 없으면(만들지 않았거나 지웠거나, 계정 이벤트가 아직 안 왔으면)
      * 넣지 않고 ID만 INFO로 남긴다. 계정이 없는 자녀가 정상이라 재시도 · DLT로 보내지 않는다.
      */
     private void addToChild(Long wishRequestId, Long childProfileId, NotificationType type, String keyPrefix,

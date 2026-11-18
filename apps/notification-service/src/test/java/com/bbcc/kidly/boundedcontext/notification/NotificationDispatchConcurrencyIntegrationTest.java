@@ -15,7 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/** 롤링 배포로 Pod가 겹쳐도 Notification의 @Version 낙관적 잠금으로 한 곳만 보낸다(#1194). */
+/** 롤링 배포로 Pod가 겹쳐도 Notification의 @Version 낙관적 잠금으로 한 곳만 보낸다. */
 @IntegrationTest
 class NotificationDispatchConcurrencyIntegrationTest {
 

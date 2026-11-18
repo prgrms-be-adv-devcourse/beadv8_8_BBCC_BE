@@ -46,7 +46,7 @@ public class MemberWithdrawalService {
     }
 
     /**
-     * 회원 잠금을 잡고 탈퇴했는지 본다. 잠금은 호출한 트랜잭션이 끝날 때까지 쥐므로, 그 안에서 이어지는 가입 처리와 탈퇴가 엇갈리지 않는다.
+     * 잠금은 호출한 트랜잭션이 끝날 때까지 쥐므로, 그 안에서 이어지는 가입 처리와 탈퇴가 엇갈리지 않는다.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean lockAndCheckWithdrawn(Long memberId) {

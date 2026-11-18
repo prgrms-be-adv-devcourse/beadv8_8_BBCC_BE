@@ -2,9 +2,6 @@ package com.bbcc.kidly.boundedcontext.notification.app.port;
 
 import org.springframework.util.StringUtils;
 
-/**
- * 보낼 알림 메일 한 통 (일반 텍스트).
- */
 public record Email(String to, String subject, String text) implements OutgoingMessage {
 
     public Email {

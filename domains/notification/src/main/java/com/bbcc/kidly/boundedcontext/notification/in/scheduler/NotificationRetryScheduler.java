@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 주기는 설정(kidly.notification.retry-interval)으로 정한다. 발송은 비동기로 넘겨 스케줄러 스레드를 붙잡지 않는다.
+ * 발송은 비동기로 넘겨 스케줄러 스레드를 붙잡지 않는다.
  * 발송 대기열이 가득 차면 남은 알림은 그대로 두고 다음 주기에 다시 집는다.
  */
 @Slf4j

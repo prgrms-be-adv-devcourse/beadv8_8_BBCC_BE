@@ -33,7 +33,6 @@ public class NotificationSendService {
     private final NotificationMetrics notificationMetrics;
 
     /**
-         * 보낼 곳이 없으면(받을 수 없는 이메일 주소, 푸시 FID 없음) SKIPPED로 바꾸고 비어 있는 값을 돌려준다.
      * 다른 곳이 같은 알림을 먼저 맡았으면 커밋할 때 버전 충돌 예외가 난다.
      */
     @Transactional
@@ -77,7 +76,7 @@ public class NotificationSendService {
     }
 
     /**
-         * 다시 시도할 예정이면 true를 돌려준다. 다시 시도할 때는 남은 FID를 다시 찾아 보낸다.
+     * 다시 시도할 때는 남은 FID를 다시 찾아 보낸다.
      */
     @Transactional
     public boolean recordPushResult(Long notificationId, PushSendResult result) {
@@ -114,7 +113,6 @@ public class NotificationSendService {
         return Optional.of(new Email(notification.getRecipient(), notification.getTitle(), notification.getBody()));
     }
 
-    // 경로가 없는 푸시는 누르면 사이트 첫 화면을 연다
     private Optional<OutgoingMessage> push(Notification notification) {
         var fids = pushTokenRepository.findFidsOf(notification.getMemberId());
         if (fids.isEmpty()) {

@@ -20,8 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 안 읽은 수가 바뀌면(넣기 · 읽음) InboxChanged를 발행해, 커밋 뒤 열린 SSE 연결에 새 안 읽은 수를 보낸다.
- * 로그인 주체(PrincipalId)를 받는 사람(InboxRecipient)으로 바꿔 늘 종류와 ID로 거른다. 같은 숫자 ID의 다른 종류 주체 알림은 보이지도 바뀌지도 않는다.
+ * 같은 숫자 ID의 다른 종류 주체 알림은 보이지도 바뀌지도 않는다.
  */
 @Slf4j
 @Service

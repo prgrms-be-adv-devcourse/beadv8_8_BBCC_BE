@@ -9,9 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 자동 구매확정을 구매자 알림함에 넣는다. 다음에 들어왔을 때 알면 되는 일이라 메일은 보내지 않는다.
+ * 다음에 들어왔을 때 알면 되는 일이라 메일은 보내지 않는다.
  * 직접 확정은 구매자가 그 화면에서 결과를 보므로 넣지 않고, 확정 방식이 없는 예전 메시지도 넣지 않는다.
- * 누르면 그 주문 상세로 간다.
  */
 @Service
 @RequiredArgsConstructor

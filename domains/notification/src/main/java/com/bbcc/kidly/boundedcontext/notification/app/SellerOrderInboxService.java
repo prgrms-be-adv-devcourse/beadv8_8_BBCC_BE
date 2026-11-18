@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 판매자 알림함에 새 주문 · 구매확정을 넣는다. 기록으로 남길 일은 아니라 메일은 보내지 않는다.
+ * 기록으로 남길 일은 아니라 메일은 보내지 않는다.
  * 새 주문은 판매자가 사이트를 떠나 있어도 발송을 준비하도록 같은 내용을 웹 푸시로도 보낸다.
  * 판매자 센터의 주문 화면 주소가 정해지지 않아 링크는 두지 않는다(푸시는 사이트 첫 화면을 연다).
  */
@@ -25,9 +25,6 @@ public class SellerOrderInboxService {
     private final ProductNameService productNameService;
     private final NotificationService notificationService;
 
-    /**
-     * 한 주문에 판매자가 여럿이면 판매자마다 자기 상품만으로 한 건씩 넣는다(중복 키 = 주문 ID + 판매자 ID).
-     */
     @Transactional
     public void addOrderPaid(OrderPaidCommand command) {
         var itemsBySeller = command.items().stream()

@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 /**
- * 웹 푸시 발송기를 고른다. FCM 서비스 계정 키(FIREBASE_CREDENTIALS, 키 JSON의 Base64)가 있으면 FCM으로 보내고,
+ * FCM 서비스 계정 키(FIREBASE_CREDENTIALS, 키 JSON의 Base64)가 있으면 FCM으로 보내고,
  * 없으면 앱은 그대로 띄우고 보내지 않는 발송기를 쓴다(푸시 알림은 SKIPPED). 키 값은 로그에 남기지 않는다.
  */
 @Slf4j

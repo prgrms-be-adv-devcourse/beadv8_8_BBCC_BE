@@ -4,8 +4,6 @@ import java.util.List;
 import org.springframework.util.StringUtils;
 
 /**
- * 한 회원의 모든 브라우저에 한 번에 보낼 웹 푸시. 짧은 제목 · 본문과 누르면 열 주소만 담는다.
- *
  * @param fids 받는 브라우저의 FID(Firebase Installation ID). 비어 있지 않다
  * @param link 누르면 열 사이트 주소(절대 주소)
  */

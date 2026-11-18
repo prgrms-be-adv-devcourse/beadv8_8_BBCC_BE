@@ -6,7 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
- * 알림 소유 DLT 보관과 처리 결과. 쓰기는 호출자의 트랜잭션에서 수행한다.
+ * 쓰기는 호출자의 트랜잭션에서 수행한다.
  */
 public interface NotificationDeadLetters {
 

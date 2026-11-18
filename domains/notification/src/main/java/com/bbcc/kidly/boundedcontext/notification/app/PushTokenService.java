@@ -16,10 +16,6 @@ public class PushTokenService {
 
     private final PushTokenRepository pushTokenRepository;
 
-    /**
-     * FID를 이 회원의 것으로 등록한다(멱등). 다른 회원의 FID면 주인을 바꾼다.
-     * 회원당 상한을 넘으면 마지막 등록이 오래된 FID부터 지운다.
-     */
     @Transactional
     public void register(Long memberId, String fid) {
         pushTokenRepository.register(memberId, fid, LocalDateTime.now());

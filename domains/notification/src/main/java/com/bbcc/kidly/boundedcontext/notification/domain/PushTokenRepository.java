@@ -22,7 +22,7 @@ public interface PushTokenRepository {
     int deleteRegisteredBefore(LocalDateTime cutoff);
 
     /**
-     * 푸시를 보낼 회원의 FID. 마지막 등록이 최근인 순서.
+     * 마지막 등록이 최근인 순서.
      */
     List<String> findFidsOf(Long memberId);
 }
