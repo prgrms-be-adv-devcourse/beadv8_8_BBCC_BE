@@ -76,7 +76,7 @@ public interface DeliveryStatusChecker {
     /**
      * 택배 진행 이벤트 하나(#1320). 설명 · 기사 · 연락처 등 그 밖의 칸은 두지 않는다.
      *
-     * @param time 서버 시간대 시각(택배사가 주지 않았으면 null)
+     * @param time 서버 시간대 시각. 늘 있다(택배사가 시각 없이 준 이벤트는 구현이 뺀다, #1604)
      * @param location 장소 이름(없으면 null)
      * @param status 택배 조회 상태 코드(IN_TRANSIT · OUT_FOR_DELIVERY · DELIVERED 등)
      */
