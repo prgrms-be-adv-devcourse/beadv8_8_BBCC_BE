@@ -75,8 +75,8 @@ class OrderPaidEventIntegrationTest {
     void setUp() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(PRICE_A, OCCURRED_AT)));
         // 옵션명을 저장하지 않던 옛 행처럼 옵션명이 없는 상품(다른 판매자)
-        productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
-            2L, 2L, OTHER_SELLER_ID, "상품 B", null, "120", PRICE_B, 2L, "ON_SALE", null, false, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(
+            ReplicaFixture.otherSellerProduct(2L, OTHER_SELLER_ID, "상품 B", PRICE_B, OCCURRED_AT)));
         recorder.clear();
     }
 

@@ -386,8 +386,8 @@ class OrderPaymentEventKafkaIntegrationTest {
 
     private void saveReplicas() {
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
-        productReplicaRepository.save(ReplicaProduct.create(new ReplicaProduct.Values(
-            2L, 2L, OTHER_SELLER_ID, "상품 B", null, "120", 30_000L, 2L, "ON_SALE", null, false, OCCURRED_AT)));
+        productReplicaRepository.save(ReplicaProduct.create(
+            ReplicaFixture.otherSellerProduct(2L, OTHER_SELLER_ID, "상품 B", 30_000L, OCCURRED_AT)));
     }
 
     // NOT VALID라 기존 행 검사 없이 걸린다. 그 주문의 배송 INSERT만 실패한다(판매자 유니크 위반이 아니라 진 쪽으로 보지 않음)

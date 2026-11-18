@@ -30,6 +30,16 @@ public final class ReplicaFixture {
             productStatus, optionSaleStatus, soldOut, occurredAt);
     }
 
+    /**
+     * 기본 상품(상품 1 · 판매자 2) 말고 주문에 함께 담을 판매 중 상품(#1561): 상품 ID는 옵션 ID와 같고, 옵션 이름 없음 · 사이즈 120 ·
+     * 카테고리 2 · 옵션 판매 상태 없음 · 품절 아님. 판매자별 배송 · 부분 취소처럼 판매자가 둘 이상인 주문을 만들 때 쓴다.
+     */
+    public static ReplicaProduct.Values otherSellerProduct(Long optionId, Long sellerId, String productName,
+        long unitPrice, LocalDateTime occurredAt) {
+        return new ReplicaProduct.Values(optionId, optionId, sellerId, productName, null, "120", unitPrice, 2L,
+            "ON_SALE", null, false, occurredAt);
+    }
+
     public static ReplicaProduct.Values onSaleProduct(long unitPrice, LocalDateTime occurredAt) {
         return product(1L, unitPrice, "ON_SALE", false, occurredAt);
     }
