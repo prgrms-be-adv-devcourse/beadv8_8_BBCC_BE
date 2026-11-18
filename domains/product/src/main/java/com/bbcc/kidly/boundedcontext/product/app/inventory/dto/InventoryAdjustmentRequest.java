@@ -20,5 +20,5 @@ public record InventoryAdjustmentRequest(
     @Pattern(regexp = "RESTOCK|DEFECTIVE|LOST|CORRECTION", message = "재고 조정에 쓸 수 없는 사유입니다: ${validatedValue}")
     String reason) {
 
-    private static final String RANGE = "증감량은 -1000000 이상 1000000 이하여야 합니다.";
+    private static final String RANGE = "증감량은 -1,000,000 이상 1,000,000 이하여야 합니다.";
 }
