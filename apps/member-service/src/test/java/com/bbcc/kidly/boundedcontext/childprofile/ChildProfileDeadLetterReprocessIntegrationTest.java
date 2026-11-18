@@ -3,10 +3,11 @@ package com.bbcc.kidly.boundedcontext.childprofile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileDeadLetterService;
-import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileDeadLetterMessage;
-import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileDeadLetterResult;
+import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileDeadLetter;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileDeadLetterRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterResult;
 import com.bbcc.kidly.shared.childprofile.event.ChildChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.CommittedEventRecorder;
@@ -53,14 +54,15 @@ class ChildProfileDeadLetterReprocessIntegrationTest {
         childProfileRepository.save(ChildProfileFixture.child(MEMBER_ID));
         var payload = jsonMapper.writeValueAsString(new MemberWithdrawnEvent(UUID.randomUUID(), ChildProfileFixture.NOW,
             new MemberWithdrawnEvent.Data(MEMBER_ID)));
-        var id = deadLetterRepository.save(new ChildProfileDeadLetterMessage("kidly.member.events.childprofile.dlt", 0,
+        var message = new DeadLetterMessage("kidly.member.events.childprofile.dlt", 0,
             1L, "kidly.member.events", 0, 1L, String.valueOf(MEMBER_ID), "member.withdrawn",
-            UUID.randomUUID().toString(), payload, "tools.jackson.core.JacksonException").toDeadLetter()).getId();
+            UUID.randomUUID().toString(), payload, "tools.jackson.core.JacksonException");
+        var id = deadLetterRepository.save(new ChildProfileDeadLetter(message)).getId();
         committedEvents.clear();
 
         var results = reprocessConcurrently(id);
 
-        assertThat(results).extracting(ChildProfileDeadLetterResult::status).containsOnly("REPROCESSED");
+        assertThat(results).extracting(DeadLetterResult::status).containsOnly("REPROCESSED");
         var deadLetter = deadLetterRepository.getById(id);
         assertThat(deadLetter.getReplayCount()).isOne();
         assertThat(deadLetter.getLastReplayFailureType()).isNull();
@@ -69,9 +71,9 @@ class ChildProfileDeadLetterReprocessIntegrationTest {
         assertThat(output).doesNotContain("DLT 재처리 실패");
     }
 
-    private List<ChildProfileDeadLetterResult> reprocessConcurrently(Long id) throws Exception {
+    private List<DeadLetterResult> reprocessConcurrently(Long id) throws Exception {
         var start = new CountDownLatch(1);
-        Callable<ChildProfileDeadLetterResult> reprocess = () -> {
+        Callable<DeadLetterResult> reprocess = () -> {
             start.await();
             return service.reprocess(id, ADMIN_ID);
         };

@@ -1,8 +1,6 @@
 package com.bbcc.kidly.boundedcontext.childprofile.app.port;
 
-import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileDeadLetterMessage;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterReplay;
 
-public interface ChildProfileDeadLetterReplay {
-
-    void replay(ChildProfileDeadLetterMessage message);
+public interface ChildProfileDeadLetterReplay extends DeadLetterReplay {
 }

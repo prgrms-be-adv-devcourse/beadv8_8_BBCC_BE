@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.childprofile.in;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileDeadLetterService;
-import com.bbcc.kidly.boundedcontext.childprofile.in.dto.ChildProfileDeadLetterResponse;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterResponse;
 import com.bbcc.kidly.member.support.response.PageResponse;
 import com.bbcc.kidly.member.support.security.AuthAdmin;
 import com.bbcc.kidly.member.support.security.LoginAdmin;
@@ -24,23 +24,23 @@ public class AdminChildProfileDeadLetterController {
     private final ChildProfileDeadLetterService service;
 
     @GetMapping
-    public PageResponse<ChildProfileDeadLetterResponse> list(
+    public PageResponse<DeadLetterResponse> list(
         @RequestParam(defaultValue = "OPEN") @Pattern(regexp = "OPEN|REPROCESSED") String status,
         @RequestParam(defaultValue = "0") @Min(0) int page,
         @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return PageResponse.from(service.list(status, page, size).map(ChildProfileDeadLetterResponse::from));
+        return PageResponse.from(service.list(status, page, size).map(DeadLetterResponse::from));
     }
 
     @GetMapping("/{id}")
-    public ChildProfileDeadLetterResponse get(@PathVariable Long id) {
-        return ChildProfileDeadLetterResponse.from(service.get(id));
+    public DeadLetterResponse get(@PathVariable Long id) {
+        return DeadLetterResponse.from(service.get(id));
     }
 
     /**
      * 처리 실패도 200/OPEN으로 이력을 반환한다. 이미 성공했으면 재실행 없이 200이다.
      */
     @PostMapping("/{id}/reprocess")
-    public ChildProfileDeadLetterResponse reprocess(@PathVariable Long id, @LoginAdmin AuthAdmin admin) {
-        return ChildProfileDeadLetterResponse.from(service.reprocess(id, admin.id()));
+    public DeadLetterResponse reprocess(@PathVariable Long id, @LoginAdmin AuthAdmin admin) {
+        return DeadLetterResponse.from(service.reprocess(id, admin.id()));
     }
 }

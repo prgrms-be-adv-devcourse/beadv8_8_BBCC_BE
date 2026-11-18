@@ -3,9 +3,9 @@ package com.bbcc.kidly.boundedcontext.childprofile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileDeadLetterService;
-import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileDeadLetterMessage;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.ChildProfileRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
 import com.bbcc.kidly.member.support.security.TestAdmins;
 import com.bbcc.kidly.shared.auth.event.ChildAccountChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
@@ -145,7 +145,7 @@ class AdminChildProfileDeadLetterApiTest {
 
     private Long receive(String sourceTopic, long dltOffset, String eventType, String payload) {
         var eventId = UUID.randomUUID().toString();
-        service.receive(new ChildProfileDeadLetterMessage(sourceTopic + ".childprofile.dlt", 0, dltOffset, sourceTopic,
+        service.receive(new DeadLetterMessage(sourceTopic + ".childprofile.dlt", 0, dltOffset, sourceTopic,
             0, 1L, String.valueOf(MEMBER_ID), eventType, eventId, payload, "tools.jackson.core.JacksonException"));
         return jdbc.queryForObject("select id from childprofile.dead_letter where event_id = ?", Long.class, eventId);
     }
