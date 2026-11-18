@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.Assert;
 
 /**
- * 정산 설정. 기본값은 settlement.yml에 있다.
+ * 기본값은 settlement.yml에 있다.
  *
  * @param feeRate 수수료율. 0 이상 1 이하, 소수점 넷째 자리까지
  * @param payoutRetryCron 지급 결과를 못 받은 정산서를 다시 요청하는 cron (Asia/Seoul)

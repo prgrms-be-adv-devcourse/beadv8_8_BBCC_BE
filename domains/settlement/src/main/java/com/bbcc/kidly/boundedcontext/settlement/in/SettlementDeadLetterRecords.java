@@ -9,7 +9,7 @@ import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.support.KafkaHeaders;
 
 /**
- * DLT 메시지를 보관 행으로 바꾼다. 원래 위치 · 예외 종류는 DeadLetterPublishingRecoverer가 붙인 헤더에서 읽는다.
+ * 원래 위치 · 예외 종류는 DeadLetterPublishingRecoverer가 붙인 헤더에서 읽는다.
  */
 final class SettlementDeadLetterRecords {
 

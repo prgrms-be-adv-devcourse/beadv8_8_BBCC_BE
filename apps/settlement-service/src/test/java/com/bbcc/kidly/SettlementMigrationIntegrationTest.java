@@ -112,7 +112,7 @@ class SettlementMigrationIntegrationTest {
         return yaml.getObject();
     }
 
-    // 시스템 스키마를 뺀 모든 테이블을 "스키마.테이블"로. 정산 밖의 스키마에 만들어졌는지도 함께 본다
+    // 정산 밖의 스키마에 만들어졌는지도 함께 본다
     private static List<String> tables(JdbcTemplate jdbc) {
         return jdbc.queryForList("""
             SELECT schemaname || '.' || lower(tablename) FROM pg_tables

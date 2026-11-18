@@ -10,9 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-/**
- * 공휴일 API에서 올해 · 내년 공휴일을 받아 저장한다. 받지 못한 해는 저장된 행을 그대로 둔다.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

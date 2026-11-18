@@ -13,7 +13,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 정산 이벤트 아웃박스 릴레이: 안 보낸 메시지를 주기마다 Kafka로 보낸다. 주기는 kidly.settlement.outbox.relay-interval.
  * 실패는 업무와 상관없이 WARN만 남긴다. DB 오류 메시지에 행 값(본문)이 들어갈 수 있어 예외 종류만 남긴다.
  * 다만 5분 넘게 계속 실패하면(지급 요청이 결제에 가지 못하는 상태) ERROR를 5분에 한 번 남겨 Grafana 알림이 울리게 한다.
  * kidly.kafka.producer.enabled가 false면 만들지 않는다(Kafka 없이 도는 테스트). 값이 없으면 만든다. 아웃박스 저장은 그때도 한다.

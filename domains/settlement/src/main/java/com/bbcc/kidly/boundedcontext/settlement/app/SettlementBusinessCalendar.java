@@ -12,8 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * 저장된 공휴일(settlement_holiday)로 정산 영업일 · 다음 영업일을 계산한다. 공휴일 API는 부르지 않는다.
- * 그해 공휴일이 하나도 저장돼 있지 않으면 영업일을 판단하지 않고 {@link SettlementHolidayLookupException}을 던진다.
+ * 공휴일 API는 부르지 않는다.
  */
 @Slf4j
 @Service

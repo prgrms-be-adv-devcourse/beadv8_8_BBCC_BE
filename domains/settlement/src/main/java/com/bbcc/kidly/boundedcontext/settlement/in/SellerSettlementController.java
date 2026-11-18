@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 판매자 정산 API. /api/v1/seller/** 라 SELLER만 호출할 수 있다.
+ * /api/v1/seller/** 라 SELLER만 호출할 수 있다.
  */
 @RestController
 @RequestMapping("/api/v1/seller")

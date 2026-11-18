@@ -21,7 +21,6 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 구매확정된 주문상품 1건의 정산 항목. 대기로 쌓였다가 정산서에 들어가면 SETTLED가 된다.
  * 정산서는 ID로만 가리킨다.
  */
 @Entity

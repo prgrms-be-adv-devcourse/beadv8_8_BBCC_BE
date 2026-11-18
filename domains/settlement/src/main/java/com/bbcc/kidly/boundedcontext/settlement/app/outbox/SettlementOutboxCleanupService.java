@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 보낸 정산 이벤트 아웃박스 메시지를 보관 기간 뒤 지운다. DB만 쓰므로 Kafka 보내기가 꺼져 있어도 있다.
+ * DB만 쓰므로 Kafka 보내기가 꺼져 있어도 있다.
  */
 @Service
 @RequiredArgsConstructor

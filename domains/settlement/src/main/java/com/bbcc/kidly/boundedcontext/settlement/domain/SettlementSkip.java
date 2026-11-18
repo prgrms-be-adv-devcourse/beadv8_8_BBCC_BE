@@ -18,8 +18,8 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 정산 실행에서 건너뛴 판매자 한 명. 그 판매자의 대상은 대기로 남아 다음 실행에서 다시 정산된다.
- * 한 실행에서 판매자는 한 번만 건너뛴다. 기록 시각은 created_at이다.
+ * 그 판매자의 대상은 대기로 남아 다음 실행에서 다시 정산된다.
+ * 기록 시각은 created_at이다.
  */
 @Entity
 @Table(

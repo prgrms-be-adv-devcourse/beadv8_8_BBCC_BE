@@ -8,10 +8,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.util.Assert;
 
-/**
- * 판매자 1명의 정산 대상 판매 합계 · 시작일을 구하고 정산 기간의 정산서를 만든다.
- * 대상은 모두 같은 판매자 · 대기 상태 · 종료 기준일 이전이어야 한다.
- */
 public class SettlementCalculator {
 
     private final BigDecimal feeRate;
@@ -26,7 +22,6 @@ public class SettlementCalculator {
         return period;
     }
 
-    // 시작일은 가장 이른 확정일. 판매 합계가 long을 넘치면 ArithmeticException
     public SettlementSales sumSales(List<SettlementItem> items) {
         requireNonNull(items, "items는 필수입니다");
         Assert.notEmpty(items, "정산 대상이 없습니다");

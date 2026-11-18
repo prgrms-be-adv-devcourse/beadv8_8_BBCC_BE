@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 정산 DLT 보관 · 조회 · 재처리. 재처리는 원래 처리기의 트랜잭션으로 끝내고 결과와 감사 기록만 따로 한 트랜잭션으로 남긴다.
+ * 재처리는 원래 처리기의 트랜잭션으로 끝내고 결과와 감사 기록만 따로 한 트랜잭션으로 남긴다.
  * DLT 잠금을 쥔 채 새 DB 연결을 기다리지 않는다.
  */
 @Slf4j

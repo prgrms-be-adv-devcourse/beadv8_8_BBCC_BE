@@ -8,13 +8,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * 공휴일 특일정보 API(한국천문연구원) 설정. 기본값은 settlement.yml 한 곳에만 둔다.
+ * 기본값은 settlement.yml 한 곳에만 둔다.
  * 인증키는 비어 있어도 기동한다. 그때는 조회가 실패해 영업일 판단을 하지 못한다.
  *
- * @param baseUrl 특일정보 서비스 주소
  * @param serviceKey 공공데이터포털 인증키. 환경 변수 HOLIDAY_API_SERVICE_KEY로만 받는다
- * @param connectTimeout 연결 시간 제한. 1초 이상
- * @param readTimeout 응답 시간 제한. 1초 이상
  */
 @Validated
 @ConfigurationProperties("kidly.settlement.holiday")

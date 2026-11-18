@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 관리자 정산서 목록 한 줄. 판매자 응답에 판매자 ID와 지급 실패 사유(실패 전에는 null)를 더한다.
+ * 판매자 응답에 판매자 ID와 지급 실패 사유(실패 전에는 null)를 더한다.
  */
 public record AdminSettlementSummaryResponse(
     Long settlementId, Long sellerId, LocalDate periodStartOn, LocalDate periodEndOn, long totalSalesAmount,

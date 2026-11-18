@@ -39,7 +39,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 정산 작업을 실행하고 실행 기록(Batch 작업 실행)을 조회한다. 작업은 묶음마다 자기 트랜잭션을 열어야 하므로
+ * 작업은 묶음마다 자기 트랜잭션을 열어야 하므로
  * 트랜잭션을 걸지 않고, 끝날 때까지 기다린다(동기). 서버가 실행 도중 죽어 STARTED로 남은 기록은 진행(step 갱신)이
  * {@link SettlementProperties#staleRunAfter()} 넘게 없으면 다음 실행이 FAILED로 닫고 진행한다(self-heal).
  * 자동 실행이 보는 남은 자동 실행은 바로 닫는다.
@@ -57,7 +57,6 @@ public class SettlementRunService {
     private final SettlementProperties properties;
     private final SettlementAdminActions settlementAdminActions;
 
-    // 기준일은 오늘 또는 지난 날짜. 그 날 0시 전에 확정된 대기 항목을 정산한다
     public SettlementRunResult runManually(LocalDate cutoffOn, Long adminId) {
         var period = SettlementPeriod.manual(cutoffOn, LocalDate.now());
         var result = run(period.cutoffAt(), SettlementTriggerType.MANUAL, adminId);
@@ -78,7 +77,7 @@ public class SettlementRunService {
         return isCompleted(cutoffOf(SettlementPeriod.daily(today).cutoffAt()));
     }
 
-    // 오늘 0시를 기준으로 전날까지 확정된 대기 항목을 정산한다. 영업일인지는 호출한 쪽(SettlementDailyRunner)이 확인한다
+    // 영업일인지는 호출한 쪽(SettlementDailyRunner)이 확인한다
     public SettlementRunResult runScheduled(LocalDate today) {
         return run(SettlementPeriod.daily(today).cutoffAt(), SettlementTriggerType.SCHEDULED, null);
     }
@@ -101,7 +100,7 @@ public class SettlementRunService {
         return resultOf(jobOperator.recover(execution));
     }
 
-    // runId는 작업 실행 ID. JDBC 저장소는 없는 ID면 EmptyResultDataAccessException을 던진다
+    // JDBC 저장소는 없는 ID면 EmptyResultDataAccessException을 던진다
     private JobExecution findRun(Long runId) {
         JobExecution execution;
         try {
@@ -216,7 +215,6 @@ public class SettlementRunService {
         return failure;
     }
 
-    // 실행의 시작일은 그 실행이 만든 정산서(종료일이 같은 정산서) 중 가장 이른 시작일. 정산서가 없으면 종료일이다
     private SettlementRunResult resultOf(JobExecution execution) {
         var skips = settlementSkipRepository.findAllByJobExecutionIdOrderByIdAsc(execution.getId());
         var cutoffAt = execution.getJobParameters().getLocalDateTime(SettlementJobConfig.CUTOFF_AT);

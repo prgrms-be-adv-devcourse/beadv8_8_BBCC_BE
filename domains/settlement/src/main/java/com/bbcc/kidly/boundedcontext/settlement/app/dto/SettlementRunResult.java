@@ -12,9 +12,6 @@ import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.step.StepExecution;
 
 /**
- * 정산 실행 결과. 정산 작업 실행(Batch 메타데이터)에서 만든다.
- *
- * @param runId 작업 실행 ID
  * @param periodStartOn 이 실행이 만든 정산서 중 가장 이른 시작일. 만든 정산서가 없으면 periodEndOn과 같다
  * @param periodEndOn 기준일 전날
  * @param triggerType SCHEDULED · MANUAL

@@ -299,7 +299,7 @@ class SettlementKafkaReceiveIntegrationTest {
         }
     }
 
-    // DLT를 처음부터 지금 끝까지 읽어 이 테스트가 보낸 메시지만 돌려준다. 다른 테스트가 넣은 DLT 메시지도 있다
+    // 다른 테스트가 넣은 DLT 메시지도 있다
     private List<ConsumerRecord<String, String>> deadLetters(String deadLetterTopic) {
         TopicPartition partition = new TopicPartition(deadLetterTopic, 0);
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(

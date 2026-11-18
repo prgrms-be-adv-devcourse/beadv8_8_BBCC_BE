@@ -9,7 +9,7 @@ import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementItemStatus;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 
 /**
- * 판매자의 대기 항목을 읽어 판매 합계 · 시작일을 구하고 정산 계획으로 만든다. 정산할 항목이 없으면 null로 걸러낸다.
+ * 정산할 항목이 없으면 null로 걸러낸다.
  */
 public class SettlementSellerProcessor implements ItemProcessor<Long, SettlementSellerPlan> {
 

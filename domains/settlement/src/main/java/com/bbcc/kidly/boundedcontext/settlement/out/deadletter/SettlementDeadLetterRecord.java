@@ -16,7 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 기술적인 DLT 원본 보관. 읽기는 JPA, 충돌 없는 수신과 조건부 결과 기록은 저장소 어댑터(SettlementDeadLetterStore)가 맡는다.
+ * 읽기는 JPA, 충돌 없는 수신과 조건부 결과 기록은 저장소 어댑터(SettlementDeadLetterStore)가 맡는다.
  */
 @Entity(name = "SettlementDeadLetterRecord")
 @Table(schema = "settlement", name = "settlement_dead_letter")
