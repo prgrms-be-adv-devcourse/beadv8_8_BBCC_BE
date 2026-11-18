@@ -38,6 +38,15 @@
       "keepTime": false
     },
     {
+      "title": "요청 추적",
+      "type": "link",
+      "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bresource.service.name%3D~%5C%22${service:regex}%5C%22%20%26%26%20resource.deployment.environment.name%3D%5C%22${env}%5C%22%20%26%26%20kind%3Dserver%7D%22%2C%22limit%22%3A20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+      "includeVars": false,
+      "keepTime": false,
+      "icon": "external link",
+      "tooltip": "선택한 서비스 · 시간 범위의 요청 트레이스 목록(Tempo)"
+    },
+    {
       "title": "같은 시간 로그 (Explore)",
       "type": "link",
       "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22loki%22%2C%22uid%22%3A%22loki%22%7D%2C%22expr%22%3A%22%7Benv%3D%5C%22${env}%5C%22%2C%20service_name%3D~%5C%22${service:regex}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
@@ -834,13 +843,171 @@
       ]
     },
     {
+      "id": 21,
+      "type": "row",
+      "title": "요청 추적 · Agent 적용 서비스",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": "Gateway·주문·검색·결제에 Agent가 적용되어 있습니다. 미적용 서비스나 5% 샘플링으로 선택되지 않은 요청은 나타나지 않을 수 있습니다. 빈 결과는 수집 실패나 정상 판정이 아닙니다."
+    },
+    {
+      "id": 22,
+      "type": "table",
+      "title": "느린 요청 · 500ms 이상 (최근 20건)",
+      "description": "선택 시간 범위에서 서버 처리 500ms 이상인 요청입니다. Agent를 켠 서비스만 트레이스를 남깁니다(지금: 게이트웨이 · 주문 · 검색 · 결제. 다른 서비스는 비어 있음). trace ID를 누르면 게이트웨이 → 서비스 → DB(JDBC · Hibernate) · Elasticsearch 구간별 시간이 보입니다. 서비스 span 이름에 API(메서드 경로 템플릿)가 보입니다(게이트웨이는 라우트 이름). SQL은 남지 않습니다. 빈 표는 수집된(5% 샘플) 요청 중 느린 요청 · 5xx가 없다는 뜻입니다(수집 실패 아님). 정상 요청은 패널 링크 '정상 요청 트레이스 보기'로 엽니다.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=~\"${service:regex}\" && resource.deployment.environment.name=\"$env\" && kind=server && duration>=500ms}",
+          "limit": 20,
+          "spss": 3,
+          "tableType": "traces"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "links": [
+        {
+          "title": "정상 요청 트레이스 보기 (Explore)",
+          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bresource.service.name%3D~%5C%22${service:regex}%5C%22%20%26%26%20resource.deployment.environment.name%3D%5C%22${env}%5C%22%20%26%26%20kind%3Dserver%7D%22%2C%22limit%22%3A20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "table",
+      "title": "5xx 요청 (최근 20건)",
+      "description": "선택 시간 범위에서 5xx로 끝난 요청입니다. Agent를 켠 서비스만 트레이스를 남깁니다(지금: 게이트웨이 · 주문 · 검색 · 결제. 다른 서비스는 비어 있음). trace ID를 누르면 게이트웨이 → 서비스 → DB(JDBC · Hibernate) · Elasticsearch 구간별 시간이 보입니다. 서비스 span 이름에 API(메서드 경로 템플릿)가 보입니다(게이트웨이는 라우트 이름). SQL은 남지 않습니다. 빈 표는 수집된(5% 샘플) 요청 중 느린 요청 · 5xx가 없다는 뜻입니다(수집 실패 아님). 정상 요청은 패널 링크 '정상 요청 트레이스 보기'로 엽니다.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 22,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=~\"${service:regex}\" && resource.deployment.environment.name=\"$env\" && kind=server && span.http.response.status_code>=500}",
+          "limit": 20,
+          "spss": 3,
+          "tableType": "traces"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "links": [
+        {
+          "title": "정상 요청 트레이스 보기 (Explore)",
+          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bresource.service.name%3D~%5C%22${service:regex}%5C%22%20%26%26%20resource.deployment.environment.name%3D%5C%22${env}%5C%22%20%26%26%20kind%3Dserver%7D%22%2C%22limit%22%3A20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "table",
+      "title": "최근 요청 (최근 20건)",
+      "description": "선택 시간 범위의 서버 요청(5% 샘플) 최근 20건. trace ID를 누르면 구간별 시간이 보입니다.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 22,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=~\"${service:regex}\" && resource.deployment.environment.name=\"${env}\" && kind=server}",
+          "limit": 20,
+          "spss": 3,
+          "tableType": "traces"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "links": [
+        {
+          "title": "정상 요청 트레이스 보기 (Explore)",
+          "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bresource.service.name%3D~%5C%22${service:regex}%5C%22%20%26%26%20resource.deployment.environment.name%3D%5C%22${env}%5C%22%20%26%26%20kind%3Dserver%7D%22%2C%22limit%22%3A20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
       "id": 18,
       "type": "row",
       "title": "JVM · 메모리 · GC · CPU (이상할 때 펼치기)",
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 31,
         "w": 24,
         "h": 1
       },
@@ -851,7 +1018,7 @@
           "description": "사용량이 상한에 붙어 내려오지 않으면 메모리 누수 · 큰 조회를 의심하고 GC와 재시작 표시선을 함께 봅니다.",
           "gridPos": {
             "x": 0,
-            "y": 22,
+            "y": 32,
             "w": 8,
             "h": 8
           },
@@ -924,7 +1091,7 @@
           "description": "1초 중 GC로 멈춘 시간의 비율입니다. 오르면 힙 메모리와 응답시간이 같이 나빠졌는지 확인합니다.",
           "gridPos": {
             "x": 8,
-            "y": 22,
+            "y": 32,
             "w": 8,
             "h": 8
           },
@@ -988,7 +1155,7 @@
           "description": "JVM이 쓰는 CPU 비율입니다. 높게 유지되면 처리량 급증 · GC · 무거운 연산을 확인하고 서버 화면에서 호스트 CPU를 봅니다.",
           "gridPos": {
             "x": 16,
-            "y": 22,
+            "y": 32,
             "w": 8,
             "h": 8
           },
@@ -1055,7 +1222,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 32,
         "w": 24,
         "h": 1
       },
@@ -1066,7 +1233,7 @@
           "description": "사용 중이 상한에 붙고 '연결 기다림'이 생기면 느린 쿼리 · 긴 트랜잭션을 확인합니다. Gateway처럼 DB가 없는 서비스는 데이터가 없습니다.",
           "gridPos": {
             "x": 0,
-            "y": 23,
+            "y": 33,
             "w": 12,
             "h": 8
           },
@@ -1157,7 +1324,7 @@
           "description": "획득 시간이 오르거나 시간 초과가 생기면 풀이 모자란 것입니다. 같은 시간의 경로별 평균 응답과 함께 봅니다.",
           "gridPos": {
             "x": 12,
-            "y": 23,
+            "y": 33,
             "w": 12,
             "h": 8
           },
@@ -1233,7 +1400,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 33,
         "w": 24,
         "h": 1
       },
@@ -1244,7 +1411,7 @@
           "description": "이 서비스가 쓰는 구독 그룹(DLT 포함)의 토픽별 미처리입니다. member 서비스는 auth · childprofile · member · seller 그룹을 함께 씁니다. 계속 늘면 소비자 로그와 Kafka 처리 화면을 확인합니다. 구독하지 않는 서비스는 데이터가 없습니다.",
           "gridPos": {
             "x": 0,
-            "y": 24,
+            "y": 34,
             "w": 24,
             "h": 8
           },
@@ -1303,117 +1470,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": 21,
-      "type": "row",
-      "title": "요청 추적 · Agent 적용 서비스 (필요할 때 펼치기)",
-      "collapsed": true,
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 24,
-        "h": 1
-      },
-      "panels": [
-        {
-          "id": 22,
-          "type": "table",
-          "title": "느린 요청 · 500ms 이상 (최근 20건)",
-          "description": "선택 시간 범위에서 서버 처리 500ms 이상인 요청입니다. Agent를 켠 서비스만 트레이스를 남깁니다(지금: 게이트웨이 · 주문 · 검색 · 결제. 다른 서비스는 비어 있음). trace ID를 누르면 게이트웨이 → 서비스 → DB(JDBC · Hibernate) · Elasticsearch 구간별 시간이 보입니다. 지금 트레이스에는 API 경로 · SQL이 남지 않습니다(수집 설정에서 제거). 어떤 API인지는 같은 시각의 'API별' 그래프와 로그로 맞춰 봅니다. 빈 표는 수집된(5% 샘플) 요청 중 느린 요청 · 5xx가 없다는 뜻입니다(수집 실패 아님). 정상 요청은 패널 링크 '정상 요청 트레이스 보기'로 엽니다.",
-          "datasource": {
-            "type": "tempo",
-            "uid": "tempo"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 25,
-            "w": 12,
-            "h": 9
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "datasource": {
-                "type": "tempo",
-                "uid": "tempo"
-              },
-              "queryType": "traceql",
-              "query": "{resource.service.name=~\"${service:regex}\" && resource.deployment.environment.name=\"$env\" && kind=server && duration>=500ms}",
-              "limit": 20,
-              "spss": 3,
-              "tableType": "traces"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {},
-            "overrides": []
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm",
-            "footer": {
-              "show": false
-            }
-          },
-          "links": [
-            {
-              "title": "정상 요청 트레이스 보기 (Explore)",
-              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bresource.service.name%3D~%5C%22${service:regex}%5C%22%20%26%26%20resource.deployment.environment.name%3D%5C%22${env}%5C%22%20%26%26%20kind%3Dserver%7D%22%2C%22limit%22%3A20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
-              "targetBlank": false
-            }
-          ]
-        },
-        {
-          "id": 23,
-          "type": "table",
-          "title": "5xx 요청 (최근 20건)",
-          "description": "선택 시간 범위에서 5xx로 끝난 요청입니다. Agent를 켠 서비스만 트레이스를 남깁니다(지금: 게이트웨이 · 주문 · 검색 · 결제. 다른 서비스는 비어 있음). trace ID를 누르면 게이트웨이 → 서비스 → DB(JDBC · Hibernate) · Elasticsearch 구간별 시간이 보입니다. 지금 트레이스에는 API 경로 · SQL이 남지 않습니다(수집 설정에서 제거). 어떤 API인지는 같은 시각의 'API별' 그래프와 로그로 맞춰 봅니다. 빈 표는 수집된(5% 샘플) 요청 중 느린 요청 · 5xx가 없다는 뜻입니다(수집 실패 아님). 정상 요청은 패널 링크 '정상 요청 트레이스 보기'로 엽니다.",
-          "datasource": {
-            "type": "tempo",
-            "uid": "tempo"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 25,
-            "w": 12,
-            "h": 9
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "datasource": {
-                "type": "tempo",
-                "uid": "tempo"
-              },
-              "queryType": "traceql",
-              "query": "{resource.service.name=~\"${service:regex}\" && resource.deployment.environment.name=\"$env\" && kind=server && span.http.response.status_code>=500}",
-              "limit": 20,
-              "spss": 3,
-              "tableType": "traces"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {},
-            "overrides": []
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm",
-            "footer": {
-              "show": false
-            }
-          },
-          "links": [
-            {
-              "title": "정상 요청 트레이스 보기 (Explore)",
-              "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22l%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bresource.service.name%3D~%5C%22${service:regex}%5C%22%20%26%26%20resource.deployment.environment.name%3D%5C%22${env}%5C%22%20%26%26%20kind%3Dserver%7D%22%2C%22limit%22%3A20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D",
-              "targetBlank": false
-            }
-          ]
-        }
-      ],
-      "description": "Gateway·주문·검색·결제에 Agent가 적용되어 있습니다. 미적용 서비스나 5% 샘플링으로 선택되지 않은 요청은 나타나지 않을 수 있습니다. 빈 결과는 수집 실패나 정상 판정이 아닙니다."
     }
   ]
 }
