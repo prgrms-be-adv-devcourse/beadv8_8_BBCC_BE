@@ -126,6 +126,13 @@ class SettlementKafkaReceiveIntegrationTest {
     }
 
     @Test
+    @DisplayName("책갈피가 없으면 처음부터 읽어, 구독 전에 온 구매확정 · 지급 결과를 놓치지 않는다")
+    void readFromEarliest() {
+        assertThat(listeners).allSatisfy(listener -> assertThat(listener.getContainerProperties()
+            .getKafkaConsumerProperties().getProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG)).isEqualTo("earliest"));
+    }
+
+    @Test
     @DisplayName("order-item.purchase-confirmed를 받으면 이벤트 값으로 정산 항목을 쌓는다")
     void purchaseConfirmed() throws Exception {
         OrderItemPurchaseConfirmedEvent event = purchaseConfirmed(orderItemId);

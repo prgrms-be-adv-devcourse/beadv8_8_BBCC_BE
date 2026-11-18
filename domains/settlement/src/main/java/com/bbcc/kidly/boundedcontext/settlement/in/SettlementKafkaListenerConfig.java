@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.settlement.in;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementMetrics;
-import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -63,9 +62,9 @@ class SettlementKafkaListenerConfig {
         var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
         configurer.configure(factory, consumerFactory);
         factory.getContainerProperties().setAckMode(AckMode.RECORD);
-        var consumerOverrides = new Properties();
-        consumerOverrides.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        factory.getContainerProperties().setKafkaConsumerProperties(consumerOverrides);
+        // 팩토리의 kafkaConsumerProperties는 만들어지는 컨테이너로 복사되지 않아 컨테이너마다 넣는다(ConsumerFactory는 그대로)
+        factory.setContainerCustomizer(container -> container.getContainerProperties().getKafkaConsumerProperties()
+            .setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"));
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         factory.setCommonErrorHandler(errorHandler((record, e) -> {
