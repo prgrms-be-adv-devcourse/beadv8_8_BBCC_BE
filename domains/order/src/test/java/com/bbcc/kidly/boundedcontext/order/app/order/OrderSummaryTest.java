@@ -41,6 +41,22 @@ class OrderSummaryTest {
     }
 
     @Test
+    @DisplayName("대표 상품명 · 상품 ID · 썸네일(#1328)은 모두 주문상품 ID가 가장 작은 같은 주문상품에서 나온다(담긴 순서와 무관)")
+    void representativeFieldsComeFromSameItem() {
+        Order order = withItemIds(Order.place(1L, List.of(
+            item(101L, "맨투맨", "https://cdn.kidly.test/101.jpg"),
+            item(102L, "바지", "https://cdn.kidly.test/102.jpg"),
+            item(103L, "양말", "https://cdn.kidly.test/103.jpg")), ADDRESS, POLICY,
+            LocalDateTime.of(2026, 10, 15, 9, 0)), 30L, 10L, 20L);
+
+        OrderSummary summary = OrderSummary.from(order, Map.of());
+
+        assertThat(summary.representativeProductName()).isEqualTo("바지");
+        assertThat(summary.representativeProductId()).isEqualTo(102L);
+        assertThat(summary.representativeThumbnailUrl()).isEqualTo("https://cdn.kidly.test/102.jpg");
+    }
+
+    @Test
     @DisplayName("상호명은 대표 주문상품 판매자의 지금 상호명이고, 그 판매자 복사본이 없으면 null")
     void sellerNameOfRepresentativeItem() {
         Order order = withItemIds(place("맨투맨", "바지"), 20L, 10L);
@@ -76,6 +92,13 @@ class OrderSummaryTest {
             optionId++;
         }
         return Order.place(1L, items, ADDRESS, POLICY, LocalDateTime.of(2026, 10, 15, 9, 0));
+    }
+
+    // 상품 ID · 옵션 ID가 같고 썸네일이 있는 주문상품 하나(수량 1, 10,000원, 판매자 2)
+    private static Order.RequestedItem item(Long productId, String name, String thumbnailUrl) {
+        return new Order.RequestedItem(
+            new OrderItem.ProductSnapshot(productId, productId, 2L, name, null, null, 10_000L, 1L, thumbnailUrl),
+            true, null, 1, 10_000L);
     }
 
     /**

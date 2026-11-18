@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bbcc.kidly.boundedcontext.delivery.app.DeliveryService;
@@ -31,6 +32,7 @@ import com.bbcc.kidly.boundedcontext.order.out.delivery.OrderDeliveriesAdapter;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -422,6 +424,32 @@ class OrderQueryServiceTest {
             }
             verify(orderRepository, never()).findAllByMemberIdAndStatusOrderByIdDesc(any(), any(), any());
             verify(orderRepository, never()).findAllByStatusOrderByIdDesc(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("관리자 취소일 기준 조회(#1325) 분기")
+    class CancelledFrom {
+
+        @Test
+        @DisplayName("status가 CANCELLED가 아니면(PAID) cancelledFrom과 AND라 0건이고 주문 · 이력 저장소를 부르지 않는다")
+        void otherStatusIsEmptyWithoutQuery() {
+            Page<AdminOrderSummary> page = orderQueries.getAllOrders("PAID", "2026-11-12T00:00:00", 0, 20);
+
+            assertThat(page.getContent()).isEmpty();
+            assertThat(page.getTotalElements()).isZero();
+            verifyNoInteractions(orderRepository, historyRepository);
+        }
+
+        @Test
+        @DisplayName("cancelledFrom 형식이 틀리면 INVALID_CANCELLED_FROM이고 주문 · 이력 저장소를 부르지 않는다(status가 있어도 같다)")
+        void invalidCancelledFromIsRejectedBeforeQuery() {
+            for (String status : Arrays.asList(null, "CANCELLED", "PAID")) {
+                assertThatThrownBy(() -> orderQueries.getAllOrders(status, "2026-11-12", 0, 20))
+                    .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(OrderErrorCode.INVALID_CANCELLED_FROM));
+            }
+            verifyNoInteractions(orderRepository, historyRepository);
         }
     }
 }

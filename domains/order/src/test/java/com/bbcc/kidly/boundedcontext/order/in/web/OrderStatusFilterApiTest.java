@@ -181,6 +181,20 @@ class OrderStatusFilterApiTest {
         }
     }
 
+    @Test
+    @DisplayName("status를 여러 번 주면(?status=PAID&status=CANCELLED) 구매자 · 관리자 모두 400 INVALID_ORDER_STATUS(값 하나만 받는다)")
+    void repeatedStatusIsBadRequest() {
+        for (Map.Entry<String, Consumer<HttpHeaders>> caller : Map.of(
+            ORDERS_PATH, TestMembers.buyer(BUYER_ID), ADMIN_ORDERS_PATH, TestAdmins.of(ADMIN_ID)).entrySet()) {
+            client.get().uri(uri -> uri.path(caller.getKey()).queryParam("status", "PAID", "CANCELLED").build())
+                .headers(caller.getValue())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.title").isEqualTo(INVALID_TITLE);
+        }
+    }
+
     private RestTestClient.BodyContentSpec list(String uri, Consumer<HttpHeaders> headers) {
         return client.get().uri(uri)
             .headers(headers)

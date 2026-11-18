@@ -633,10 +633,15 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("자동 확정: 주문이 없으면 아무것도 하지 않는다")
-        void autoIgnoresMissingOrder() {
+        @DisplayName("자동 확정: 없는 주문 ID면 WARN 한 줄(작업 이름 · 주문 ID)만 남기고 이력 · 아웃박스 · 이벤트를 남기지 않는다")
+        void autoMissingOrderWarnsWithoutChanges(CapturedOutput output) {
+            when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.empty());
+
             orderConfirmationService.confirmAutomatically(ORDER_ID, ORDER_ITEM_ID);
 
+            assertThat(output).containsPattern("WARN.*이벤트의 주문 없음: event=auto-confirm orderId=" + ORDER_ID + "\\b");
+            verify(historyRepository, never()).save(any());
+            verify(outbox, never()).append(any());
             verify(eventPublisher, never()).publish(any());
         }
 
