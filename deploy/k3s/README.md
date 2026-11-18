@@ -9,7 +9,7 @@ dev(운영 서버로 쓴다)의 앱을 compose 대신 t3.large 에 단독으로 
 | namespace | `kidly-<환경>`. Deployment · Service 이름은 compose profile 이름(`search`, `member` 등) |
 | 설정 | 서버의 `docker-compose.yml` · `.env` 의 그 서비스 설정을 그대로 쓴다. 환경 변수는 Secret `<이름>-env`, jwt 키는 Secret `<이름>-jwt`, 메모리는 `mem_limit` 을 request · limit 으로, 이미지는 `image.env` 의 그 서비스 이미지 |
 | Gateway → 서비스 | `KIDLY_<서비스>_URI=http://<이름>:8080`(같은 namespace 의 Service). NodePort 는 보안 그룹에서 밖으로 열지 않는다(서비스는 `X-Member-*` 헤더를 그대로 믿는다) |
-| Traefik → Gateway | 엣지 Traefik(`deploy/traefik`, namespace `edge`)이 Service `gateway` 의 `http` 포트로 넘긴다 |
+| Traefik → Gateway | 엣지 Traefik(`deploy/traefik`, k3s 내장 `kube-system/traefik`)이 Service `gateway` 의 `http` 포트로 넘긴다 |
 | 배포 | 하나씩 차례로. 새 Pod 가 준비된 뒤 옛 Pod 를 내린다. 순서는 롤링 서비스 → 상품(스케줄러가 두 번 돌면 안 돼서 옛 Pod 를 먼저 내림, `SINGLE_INSTANCE`) → Gateway(다른 서비스가 다 뜬 뒤, `EDGE`). 소스가 바뀌지 않았거나(#1169, `.github/scripts/image-key.sh`) 소스는 바뀌어도 실행 jar 가 쓰는 코드가 같은(#1192, `.github/scripts/runtime-key.sh`) 서비스는 이미지 digest 가 같아 다시 뜨지 않는다 |
 | 자동 확장 | 추천만 HPA(CPU 70%가 5분 이어질 때, 1 ~ 2개). 나머지는 1개 |
 | 하루 한 번 실행(CronJob) | 정산은 매일 한국 시간 10시에 같은 이미지로 일회 실행한다. 영업일과 중복 실행은 앱이 판단한다 |
@@ -68,6 +68,6 @@ curl -s localhost:8085/actuator/health  # 별도 터미널에서 Gateway actuato
 - **compose 의 `oom_score_adj` · healthcheck 는 쓰지 않는다.** 대신 startup · readiness · liveness probe(`/actuator/health/*`)를 쓴다. healthcheck 포트가 서비스 포트와 다르면(Gateway) management 포트를 열고 probe · 지표 수집(`prometheus.io/port` annotation)에 쓴다
 - **추천 HPA 와 스케줄러**: 추천 Pod 가 여럿이면 상품 임베딩 스케줄러도 Pod 마다 돈다(#1028 부터 같은 상태)
 - **메모리**: request 합이 노드 할당량(약 7.6Gi)을 넘으면 새 Pod 가 Pending 이 된다. compose 컨테이너 몫은 스케줄러가 모르므로 `free -m` 으로 함께 본다
-  - request 합은 6,720Mi(dev 서비스 10개 5,760 · Gateway 512 · kafka-exporter 128 · Redis 128, 수집기 Alloy 128(namespace monitoring, #1210), Traefik 64(namespace edge, #1423))다. 추천이 2개로 늘면 7,296Mi. 정산 Job Pod 가 10시에 640Mi를 잠깐 더 요청하면 추천이 1개일 때 7,360Mi, 2개일 때 7,936Mi다. 2개일 때는 할당량을 넘어 정산 Job Pod 가 자리가 날 때까지 Pending 으로 기다린다(#1369). Traefik 은 우선순위 `kidly-edge` 라 자리가 없으면 다른 Pod 를 밀어내고 뜬다. 여기에 k3s 자체(coredns · metrics-server 140Mi)가 더해진다
+  - request 합은 6,720Mi(dev 서비스 10개 5,760 · Gateway 512 · kafka-exporter 128 · Redis 128, 수집기 Alloy 128(namespace monitoring, #1210), Traefik 64(namespace kube-system, #1423 · #1599))다. 추천이 2개로 늘면 7,296Mi. 정산 Job Pod 가 10시에 640Mi를 잠깐 더 요청하면 추천이 1개일 때 7,360Mi, 2개일 때 7,936Mi다. 2개일 때는 할당량을 넘어 정산 Job Pod 가 자리가 날 때까지 Pending 으로 기다린다(#1369). Traefik 은 우선순위 `kidly-edge` 라 자리가 없으면 다른 Pod 를 밀어내고 뜬다. 여기에 k3s 자체(coredns · metrics-server 140Mi)가 더해진다
   - 롤링 배포는 새 Pod 를 먼저 띄우므로 그 서비스 request 만큼 자리가 더 있어야 한다. 가장 큰 검색(768Mi)이 7,488Mi 로 들어간다. 검색이 1g 일 때는 챗봇을 더한 뒤 7,840Mi 로 넘어 배포가 멈췄다(#1191)
   - 추천은 Pod 하나가 576Mi 라 3개를 둘 자리가 없어 HPA 최대를 2개로 둔다(#1237)
