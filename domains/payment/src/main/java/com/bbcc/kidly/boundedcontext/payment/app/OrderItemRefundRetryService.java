@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 환불하지 못한 주문상품 취소를 관리자가 보고, 다시 처리하거나 닫는다(#1390).
+ * 환불하지 못한 주문상품 취소를 관리자가 보고, 다시 처리하거나 닫는다.
  * 다시 처리는 받은 내용 그대로 OrderItemCancellationService를 다시 부른다. 환불되면 기록이 지워지고, 또 실패하면 시도 · 오류가 바뀐다.
  */
 @Slf4j

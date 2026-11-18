@@ -21,7 +21,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.BatchSize;
 
 /**
- * 환불하지 못한 주문상품 취소(order-item.cancelled, #1390). 받은 내용을 그대로 남겨 관리자가 다시 처리하거나 닫는다.
+ * 환불하지 못한 주문상품 취소(order-item.cancelled). 받은 내용을 그대로 남겨 관리자가 다시 처리하거나 닫는다.
  * 취소마다 하나다(cancellation_id UK). 같은 취소가 다시 실패하면 시도 · 마지막 오류만 바꾸고, 환불되면 지운다.
  */
 @Entity

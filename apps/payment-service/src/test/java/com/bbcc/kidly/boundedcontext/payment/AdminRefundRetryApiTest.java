@@ -21,7 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 환불하지 못한 주문상품 취소는 재처리 기록으로 남고, 관리자가 다시 처리하거나 닫는다(#1390).
+ * 환불하지 못한 주문상품 취소는 재처리 기록으로 남고, 관리자가 다시 처리하거나 닫는다.
  */
 @FunctionalTest
 class AdminRefundRetryApiTest {

@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.payment;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
@@ -14,7 +13,6 @@ import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -47,7 +45,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 결제가 회원 · 주문 이벤트를 Kafka로 받아 Spring 이벤트로 받았을 때와 같이 처리하는지 실제 Kafka로 본다(#593).
+ * 결제가 회원 · 주문 이벤트를 Kafka로 받아 Spring 이벤트로 받았을 때와 같이 처리하는지 실제 Kafka로 본다.
  * 테스트 설정은 스위치를 꺼 다른 테스트가 Spring 경로로 돌게 하므로, 여기서만 결제 리스너를 직접 켜고 끈다.
  * 메시지는 보내는 쪽과 같은 모양(키 = correlationId, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data)으로 직접 넣는다.
  */
@@ -103,8 +101,9 @@ class PaymentKafkaReceiveIntegrationTest {
     @Test
     @DisplayName("member.registered를 받으면 잔액 0인 지갑을 만든다")
     void memberRegistered() throws Exception {
-        send(MEMBER_TOPIC, memberId, "member.registered", envelope(new MemberRegisteredEvent(UUID.randomUUID(),
-            LocalDateTime.now(), new MemberRegisteredEvent.Data(memberId, "buyer@kidly.test"))));
+        send(MEMBER_TOPIC, memberId, "member.registered", KafkaEnvelope.of(jsonMapper,
+            new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new MemberRegisteredEvent.Data(memberId, "buyer@kidly.test"))));
 
         AsyncWait.until(TIMEOUT, () -> balance() != null);
         assertThat(balance()).isZero();
@@ -115,8 +114,8 @@ class PaymentKafkaReceiveIntegrationTest {
     void memberWithdrawn() throws Exception {
         createWallet(3_000L);
 
-        send(MEMBER_TOPIC, memberId, "member.withdrawn", envelope(new MemberWithdrawnEvent(UUID.randomUUID(),
-            LocalDateTime.now(), new MemberWithdrawnEvent.Data(memberId))));
+        send(MEMBER_TOPIC, memberId, "member.withdrawn", KafkaEnvelope.of(jsonMapper,
+            new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.now(), new MemberWithdrawnEvent.Data(memberId))));
 
         AsyncWait.until(TIMEOUT, () -> frozenAt() != null);
         assertThat(balance()).isEqualTo(3_000L);
@@ -126,7 +125,7 @@ class PaymentKafkaReceiveIntegrationTest {
     @DisplayName("order.payment-requested를 받으면 예치금으로 결제하고, 같은 메시지를 두 번 받아도 한 번만 결제한다")
     void paymentRequestedOnce() throws Exception {
         createWallet(20_000L);
-        String body = envelope(paymentRequested(15_000L));
+        String body = KafkaEnvelope.of(jsonMapper, paymentRequested(15_000L));
 
         send(ORDER_TOPIC, orderId, "order.payment-requested", body);
         RecordMetadata second = send(ORDER_TOPIC, orderId, "order.payment-requested", body);
@@ -140,9 +139,9 @@ class PaymentKafkaReceiveIntegrationTest {
     @DisplayName("결제된 주문의 order.cancelled를 받으면 전액 환불한다")
     void cancelledAfterPayment() throws Exception {
         createWallet(20_000L);
-        send(ORDER_TOPIC, orderId, "order.payment-requested", envelope(paymentRequested(15_000L)));
+        send(ORDER_TOPIC, orderId, "order.payment-requested", KafkaEnvelope.of(jsonMapper, paymentRequested(15_000L)));
         // 키(주문 ID)가 같아 같은 파티션이므로 결제 요청 뒤에 취소를 처리한다
-        send(ORDER_TOPIC, orderId, "order.cancelled", envelope(orderCancelled()));
+        send(ORDER_TOPIC, orderId, "order.cancelled", KafkaEnvelope.of(jsonMapper, orderCancelled()));
 
         AsyncWait.until(TIMEOUT, () -> paymentStatuses().equals(List.of("REFUNDED")));
         assertThat(balance()).isEqualTo(20_000L);
@@ -152,13 +151,15 @@ class PaymentKafkaReceiveIntegrationTest {
     @DisplayName("결제된 주문의 order-item.cancelled를 받으면 그 주문상품 금액만 환불하고, 같은 취소를 두 번 받아도 한 번만 환불한다")
     void itemCancelledAfterPayment() throws Exception {
         createWallet(20_000L);
-        send(ORDER_TOPIC, orderId, "order.payment-requested", envelope(new OrderPaymentRequestedEvent(UUID.randomUUID(),
-            LocalDateTime.now(), new OrderPaymentRequestedEvent.Data(orderId, memberId, 15_000L, List.of(
-                new OrderPaymentRequestedEvent.Item(orderId * 10, 10_000L),
-                new OrderPaymentRequestedEvent.Item(orderId * 10 + 1, 5_000L))))));
-        String cancelled = envelope(new OrderItemCancelledEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new OrderItemCancelledEvent.Data(orderId, memberId, 7L, orderId, "OUT_OF_STOCK",
-                List.of(new OrderItemCancelledEvent.Item(orderId * 10 + 1, 1L, 1, 5_000L)))));
+        send(ORDER_TOPIC, orderId, "order.payment-requested", KafkaEnvelope.of(jsonMapper,
+            new OrderPaymentRequestedEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new OrderPaymentRequestedEvent.Data(orderId, memberId, 15_000L, List.of(
+                    new OrderPaymentRequestedEvent.Item(orderId * 10, 10_000L),
+                    new OrderPaymentRequestedEvent.Item(orderId * 10 + 1, 5_000L))))));
+        String cancelled = KafkaEnvelope.of(jsonMapper,
+            new OrderItemCancelledEvent(UUID.randomUUID(), LocalDateTime.now(),
+                new OrderItemCancelledEvent.Data(orderId, memberId, 7L, orderId, "OUT_OF_STOCK",
+                    List.of(new OrderItemCancelledEvent.Item(orderId * 10 + 1, 1L, 1, 5_000L)))));
         send(ORDER_TOPIC, orderId, "order-item.cancelled", cancelled);
         RecordMetadata second = send(ORDER_TOPIC, orderId, "order-item.cancelled", cancelled);
 
@@ -176,7 +177,7 @@ class PaymentKafkaReceiveIntegrationTest {
         createWallet(20_000L);
         send(ORDER_TOPIC, orderId, "order.created", "결제가 받지 않는 종류라 읽지 않는 본문");
         // 키(주문 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
-        send(ORDER_TOPIC, orderId, "order.payment-requested", envelope(paymentRequested(15_000L)));
+        send(ORDER_TOPIC, orderId, "order.payment-requested", KafkaEnvelope.of(jsonMapper, paymentRequested(15_000L)));
 
         AsyncWait.until(TIMEOUT, () -> paymentStatuses().equals(List.of("COMPLETED")));
         assertThat(deadLetters()).isEmpty();
@@ -231,22 +232,6 @@ class PaymentKafkaReceiveIntegrationTest {
     private List<String> paymentStatuses() {
         return jdbcTemplate.queryForList("select status from payment.payment where order_id = ?", String.class,
             orderId);
-    }
-
-    // 보내는 쪽 본문과 같은 모양: 공통 칸 7개 + data. 이벤트 record에 없는 칸(eventType 등)도 들어 있다
-    private String envelope(DomainEvent event) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> fields = jsonMapper.convertValue(event, Map.class);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", fields.get("eventId"));
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", fields.get("occurredAt"));
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", fields.get("data"));
-        return jsonMapper.writeValueAsString(body);
     }
 
     private RecordMetadata send(String topic, long key, String eventType, String body) throws Exception {

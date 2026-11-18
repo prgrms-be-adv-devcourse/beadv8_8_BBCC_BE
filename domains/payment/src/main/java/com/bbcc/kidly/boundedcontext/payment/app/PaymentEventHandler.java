@@ -17,7 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * 결제가 받는 회원 · 주문 · 정산 이벤트의 처리(#593, #607, #711). 주문 · 정산의 Kafka와 Spring 리스너가 같은 처리를 부른다.
+ * 결제가 받는 회원 · 주문 · 정산 이벤트의 처리. 주문 · 정산의 Kafka와 Spring 리스너가 같은 처리를 부른다.
  * 이벤트 필드가 바뀌면 여기 변환만 고친다. 각 처리는 자기 트랜잭션을 연다(지갑 만들기 · 결제 · 취소 · 다시 처리할 기록).
  * 같은 이벤트를 다시 받아도 결과는 1회분이다: 지갑은 없을 때만 만들고 탈퇴한 회원의 지갑은 한 번만 동결하며, 주문당 결제는 한 번이며, 같은 취소는 한 번만 환불하고,
  * 정산서마다 한 번만 입금한다(이미 처리한 정산서는 저장된 결과를 다시 발행).
@@ -44,7 +44,7 @@ public class PaymentEventHandler {
     }
 
     /**
-     * 회원이 탈퇴하면 지갑을 동결한다(#670). 잔액은 그대로 두고, 같은 탈퇴를 다시 받아도 한 번만 동결한다.
+     * 회원이 탈퇴하면 지갑을 동결한다. 잔액은 그대로 두고, 같은 탈퇴를 다시 받아도 한 번만 동결한다.
      * 지갑이 없으면 동결된 빈 지갑을 만든다.
      */
     public void memberWithdrawn(MemberWithdrawnEvent event) {
@@ -64,7 +64,7 @@ public class PaymentEventHandler {
 
     /**
      * order.cancelled: 결제된 주문은 환불하고, 결제 전이면 그 뒤 결제 요청을 거절하게 한다.
-     * 처리는 별도 트랜잭션이라 실패하면 처리한 것만 롤백된다. 실패한 취소는 남겨 결제 스케줄러가 다시 처리한다(#350).
+     * 처리는 별도 트랜잭션이라 실패하면 처리한 것만 롤백된다. 실패한 취소는 남겨 결제 스케줄러가 다시 처리한다.
      * 남기기까지 실패하면 예외가 나가 받는 쪽이 다시 시도한다(Kafka: 재시도 뒤 DLT).
      */
     public void orderCancelled(OrderCancelledEvent event) {
@@ -79,7 +79,7 @@ public class PaymentEventHandler {
     }
 
     /**
-     * order-item.cancelled: 판매자가 취소한 주문상품의 금액만큼 환불한다(#711). Kafka로만 받는다.
+     * order-item.cancelled: 판매자가 취소한 주문상품의 금액만큼 환불한다. Kafka로만 받는다.
      * 실패하면 예외가 나가 Kafka가 재시도한 뒤 DLT로 보낸다. 같은 취소는 한 번만 환불하므로 다시 처리해도 된다.
      */
     public void orderItemCancelled(OrderItemCancelledEvent event) {

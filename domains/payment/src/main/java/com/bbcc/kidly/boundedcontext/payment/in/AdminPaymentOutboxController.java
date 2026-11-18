@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자의 격리된 결제 이벤트 조회 · 다시 보내기(#1389). /api/v1/admin/**라 관리자만 호출할 수 있다.
+ * 관리자의 격리된 결제 이벤트 조회 · 다시 보내기. /api/v1/admin/**라 관리자만 호출할 수 있다.
  */
 @RestController
 @RequestMapping("/api/v1/admin/payments/parked-events")

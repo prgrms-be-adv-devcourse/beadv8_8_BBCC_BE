@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자의 환불하지 못한 주문상품 취소 조회 · 다시 처리 · 닫기(#1390). /api/v1/admin/**라 관리자만 호출할 수 있다.
+ * 관리자의 환불하지 못한 주문상품 취소 조회 · 다시 처리 · 닫기. /api/v1/admin/**라 관리자만 호출할 수 있다.
  */
 @RestController
 @RequestMapping("/api/v1/admin/payments/refund-retries")

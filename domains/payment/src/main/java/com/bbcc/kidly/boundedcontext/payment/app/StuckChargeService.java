@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 충전 정리 스케줄러가 끝내지 못하고 승인 중으로 남긴 충전을 관리자가 찾아 끝낸다(#1392).
+ * 충전 정리 스케줄러가 끝내지 못하고 승인 중으로 남긴 충전을 관리자가 찾아 끝낸다.
  * 토스 승인 금액이 충전 금액과 다르거나 토스에서 부분 취소된 충전이 여기 남는다(ChargeReconcileService.reconcile).
  * 운영자는 토스 상점관리자에서 돈을 먼저 정리한 뒤 실패로 끝낸다. 입금하는 길은 두지 않는다.
  * 고객에게 입금하려면 토스 승인을 충전 금액대로 두면 스케줄러가 입금한다.

@@ -53,7 +53,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 결제 이벤트가 아웃박스를 거쳐 kidly.payment.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다(#534, #550).
+ * 결제 이벤트가 아웃박스를 거쳐 kidly.payment.events에 규칙대로(키 · 헤더 · 본문) 도착하는지 본다.
  * 받는 쪽(주문 · 정산)이 Spring 이벤트로 받는 것은 기존 테스트가 본다.
  * 스케줄러는 테스트 설정으로 멈춰 두고 릴레이를 직접 부른다.
  * 다른 테스트의 결제 이벤트도 같은 토픽에 쌓이므로 헤더 eventId로 이 테스트의 메시지를 찾는다.

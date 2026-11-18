@@ -21,7 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * member.withdrawn 처리 → 지갑 동결(#670).
+ * member.withdrawn 처리 → 지갑 동결.
  * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않는다.
  */
 @IntegrationTest

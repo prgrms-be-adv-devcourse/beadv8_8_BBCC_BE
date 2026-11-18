@@ -14,7 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * 격리된 결제 이벤트는 같은 키의 뒤 메시지와 함께 릴레이 대상에서 빠지고, 관리자가 풀면 순서대로 다시 대상이 된다(#1389).
+ * 격리된 결제 이벤트는 같은 키의 뒤 메시지와 함께 릴레이 대상에서 빠지고, 관리자가 풀면 순서대로 다시 대상이 된다.
  */
 @FunctionalTest
 class AdminPaymentOutboxApiTest {

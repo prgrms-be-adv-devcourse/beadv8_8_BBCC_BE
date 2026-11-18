@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * order.cancelled를 Spring 이벤트로 받는다. Kafka 수신 스위치(kidly.payment.kafka.consumer.enabled)를 끈 경우에만 뜬다(#593).
+ * order.cancelled를 Spring 이벤트로 받는다. Kafka 수신 스위치(kidly.payment.kafka.consumer.enabled)를 끈 경우에만 뜬다.
  * 켜져 있으면 Kafka 리스너(in.event)가 받으므로, 같은 이벤트를 양쪽에서 받지 않는다. 처리는 PaymentEventHandler에 있다.
  */
 @Component

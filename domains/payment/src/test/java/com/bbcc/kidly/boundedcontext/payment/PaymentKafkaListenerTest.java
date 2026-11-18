@@ -13,7 +13,6 @@ import com.bbcc.kidly.boundedcontext.payment.app.PaymentEventHandler;
 import com.bbcc.kidly.boundedcontext.payment.in.event.PaymentMemberEventListener;
 import com.bbcc.kidly.boundedcontext.payment.in.event.PaymentOrderEventListener;
 import com.bbcc.kidly.boundedcontext.payment.in.event.PaymentSettlementEventListener;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
 import com.bbcc.kidly.shared.order.event.OrderCancelledEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemCancelledEvent;
@@ -22,9 +21,7 @@ import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +36,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 회원 · 주문 토픽에서 받은 메시지를 eventType 헤더로 골라 결제 처리에 넘기는지 본다(#593).
+ * 회원 · 주문 토픽에서 받은 메시지를 eventType 헤더로 골라 결제 처리에 넘기는지 본다.
  * 본문은 보내는 쪽과 같은 모양(공통 칸 7개 + data)이다.
  */
 @ExtendWith(MockitoExtension.class)
@@ -69,7 +66,7 @@ class PaymentKafkaListenerTest {
             new MemberRegisteredEvent.Data(MEMBER_ID, "buyer@kidly.test"));
 
         memberListener.on(record("kidly.member.events", "member.registered",
-            envelope(registered, "member.registered")));
+            KafkaEnvelope.of(JSON_MAPPER, registered)));
         memberListener.on(record("kidly.member.events", "member.changed", "결제가 받지 않는 종류라 읽지 않는 본문"));
 
         ArgumentCaptor<MemberRegisteredEvent> captor = ArgumentCaptor.forClass(MemberRegisteredEvent.class);
@@ -89,8 +86,8 @@ class PaymentKafkaListenerTest {
                 List.of(new OrderCancelledEvent.Item(1000L, 1L, 1))));
 
         orderListener.on(record("kidly.order.events", "order.payment-requested",
-            envelope(requested, "order.payment-requested")));
-        orderListener.on(record("kidly.order.events", "order.cancelled", envelope(cancelled, "order.cancelled")));
+            KafkaEnvelope.of(JSON_MAPPER, requested)));
+        orderListener.on(record("kidly.order.events", "order.cancelled", KafkaEnvelope.of(JSON_MAPPER, cancelled)));
         orderListener.on(record("kidly.order.events", "order.created", "결제가 받지 않는 종류라 읽지 않는 본문"));
 
         ArgumentCaptor<OrderPaymentRequestedEvent> requestedCaptor =
@@ -103,14 +100,14 @@ class PaymentKafkaListenerTest {
     }
 
     @Test
-    @DisplayName("order-item.cancelled는 부분 취소 환불에 넘긴다(#711)")
+    @DisplayName("order-item.cancelled는 부분 취소 환불에 넘긴다")
     void orderItemCancelled() {
         OrderItemCancelledEvent cancelled = new OrderItemCancelledEvent(UUID.randomUUID(), NOW,
             new OrderItemCancelledEvent.Data(ORDER_ID, MEMBER_ID, 7L, 70L, "OUT_OF_STOCK",
                 List.of(new OrderItemCancelledEvent.Item(1000L, 1L, 2, 12_000L))));
 
         orderListener.on(record("kidly.order.events", "order-item.cancelled",
-            envelope(cancelled, "order-item.cancelled")));
+            KafkaEnvelope.of(JSON_MAPPER, cancelled)));
 
         ArgumentCaptor<OrderItemCancelledEvent> captor = ArgumentCaptor.forClass(OrderItemCancelledEvent.class);
         then(handler).should().orderItemCancelled(captor.capture());
@@ -127,7 +124,7 @@ class PaymentKafkaListenerTest {
                 LocalDate.of(2026, 10, 31)));
 
         settlementListener.on(record("kidly.settlement.events", "settlement.payout-requested",
-            envelope(requested, "settlement.payout-requested")));
+            KafkaEnvelope.of(JSON_MAPPER, requested)));
         settlementListener.on(record("kidly.settlement.events", "settlement.closed", "결제가 받지 않는 종류라 읽지 않는 본문"));
 
         ArgumentCaptor<SettlementPayoutRequestedEvent> captor =
@@ -174,22 +171,6 @@ class PaymentKafkaListenerTest {
             assertThat(kafkaListener.autoStartup()).isEqualTo("${kidly.payment.kafka.consumer.enabled:true}");
             assertThat(kafkaListener.groupId()).isEqualTo("kidly.payment");
         }
-    }
-
-    // 보내는 쪽 본문과 같은 모양: 공통 칸 7개 + data. 이벤트 record에 없는 칸(eventType 등)도 들어 있다
-    @SuppressWarnings("unchecked")
-    private static String envelope(DomainEvent event, String eventType) {
-        Map<String, Object> fields = JSON_MAPPER.convertValue(event, Map.class);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", fields.get("eventId"));
-        body.put("eventType", eventType);
-        body.put("schemaVersion", 1);
-        body.put("occurredAt", fields.get("occurredAt"));
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", fields.get("data"));
-        return JSON_MAPPER.writeValueAsString(body);
     }
 
     private static ConsumerRecord<String, String> record(String topic, String eventType, String body) {

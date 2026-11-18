@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 릴레이가 격리한 결제 아웃박스 메시지를 관리자가 보고 다시 보내게 한다(#1389).
+ * 릴레이가 격리한 결제 아웃박스 메시지를 관리자가 보고 다시 보내게 한다.
  * 원인(예: 브로커가 받지 않는 크기)을 고친 뒤 다시 보낸다. 풀면 다음 릴레이가 그 메시지부터 같은 키의 뒤 메시지까지 순서대로 보낸다.
  */
 @Slf4j

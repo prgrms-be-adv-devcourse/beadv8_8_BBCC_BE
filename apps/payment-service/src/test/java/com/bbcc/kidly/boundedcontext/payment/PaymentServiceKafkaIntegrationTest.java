@@ -11,7 +11,6 @@ import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -108,19 +107,7 @@ class PaymentServiceKafkaIntegrationTest {
 
     // 보내는 쪽과 같은 모양: 키 = correlationId, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data
     private void send(String topic, String eventType, DomainEvent event) throws Exception {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> fields = jsonMapper.convertValue(event, Map.class);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", fields.get("eventId"));
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", fields.get("occurredAt"));
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", fields.get("data"));
-
-        var record = new ProducerRecord<>(topic, event.correlationId(), jsonMapper.writeValueAsString(body));
+        var record = new ProducerRecord<>(topic, event.correlationId(), KafkaEnvelope.of(jsonMapper, event));
         record.headers().add("eventId", event.eventId().toString().getBytes(UTF_8));
         record.headers().add("eventType", eventType.getBytes(UTF_8));
         try (var producer = new KafkaProducer<String, String>(Map.of(
