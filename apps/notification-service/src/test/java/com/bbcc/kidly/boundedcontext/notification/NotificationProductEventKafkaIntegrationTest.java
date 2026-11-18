@@ -15,7 +15,6 @@ import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -187,16 +186,7 @@ class NotificationProductEventKafkaIntegrationTest {
     }
 
     private void send(ProductChangedEvent event, Long key) throws Exception {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body), key);
+        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(EventEnvelope.of(event)), key);
     }
 
     private RecordMetadata sendRaw(String eventType, UUID eventId, String body) throws Exception {

@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
  * 주문상품 수에 상한이 없어, 본문 한도(4000자)를 넘지 않도록 상품은 앞의 5개까지만 적고 나머지는 "외 N건"으로 줄인다
  * (상품명 · 옵션명은 각각 255자까지라 한 줄이 600자를 넘지 않는다).
  */
-public record OrderPaidEmail(String title, String body) {
+public record OrderPaidEmail(String title, String body) implements EmailContent {
 
     private static final int MAX_LINES = 5;
     private static final String TITLE = "[Kidly] 주문이 결제됐어요";

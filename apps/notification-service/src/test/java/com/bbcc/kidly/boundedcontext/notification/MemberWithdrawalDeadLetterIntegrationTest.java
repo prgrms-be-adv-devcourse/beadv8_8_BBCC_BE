@@ -14,8 +14,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
@@ -156,18 +154,9 @@ class MemberWithdrawalDeadLetterIntegrationTest {
     private Long receive(Long memberId, long dltOffset) {
         var event = new MemberRegisteredEvent(UUID.randomUUID(), LocalDateTime.now(),
             new MemberRegisteredEvent.Data(memberId, "member-" + memberId + "@kidly.co.kr"));
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
         deadLetterService.receive(new Received(MEMBER_EVENTS + ".notification.dlt", 0, dltOffset, MEMBER_EVENTS, 0,
             dltOffset, event.correlationId(), event.eventType(), event.eventId().toString(),
-            jsonMapper.writeValueAsString(body), IllegalStateException.class.getName()));
+            jsonMapper.writeValueAsString(EventEnvelope.of(event)), IllegalStateException.class.getName()));
         return jdbcTemplate.queryForObject("select id from notification.dead_letter where dlt_offset = ?",
             Long.class, dltOffset);
     }

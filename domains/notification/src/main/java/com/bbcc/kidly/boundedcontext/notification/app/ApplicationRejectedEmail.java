@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
-public record ApplicationRejectedEmail(String title, String body) {
+public record ApplicationRejectedEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 판매자 신청이 거절됐어요";
     private static final String BODY = "보내 주신 판매자 신청이 거절됐어요.\n";

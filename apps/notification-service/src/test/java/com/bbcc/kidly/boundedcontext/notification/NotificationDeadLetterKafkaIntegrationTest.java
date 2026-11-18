@@ -18,7 +18,6 @@ import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -144,16 +143,8 @@ class NotificationDeadLetterKafkaIntegrationTest {
     }
 
     private RecordMetadata send(DomainEvent event) throws Exception {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        var record = new ProducerRecord<>(SELLER_TOPIC, event.correlationId(), jsonMapper.writeValueAsString(body));
+        var record = new ProducerRecord<>(SELLER_TOPIC, event.correlationId(),
+            jsonMapper.writeValueAsString(EventEnvelope.of(event)));
         record.headers().add("eventId", event.eventId().toString().getBytes(UTF_8));
         record.headers().add("eventType", event.eventType().getBytes(UTF_8));
         try (var producer = new KafkaProducer<String, String>(Map.of(

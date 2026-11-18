@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 /**
  * 가입 이벤트에 닉네임이 없어 넣지 않는다.
  */
-public record WelcomeEmail(String title, String body) {
+public record WelcomeEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 가입을 환영합니다";
     private static final String BODY = """

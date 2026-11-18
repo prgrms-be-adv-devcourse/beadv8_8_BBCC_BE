@@ -11,12 +11,12 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaMemberContactRepository;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
 import com.bbcc.kidly.shared.member.event.MemberRegisteredEvent;
+import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -221,34 +221,13 @@ class NotificationMemberEventKafkaIntegrationTest {
     }
 
     private void send(MemberRegisteredEvent event) throws Exception {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", event.eventId());
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", event.occurredAt());
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", event.data());
-        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body));
+        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(EventEnvelope.of(event)));
     }
 
     private void sendWithdrawn() throws Exception {
-        sendEnvelope("member.withdrawn", Map.of("memberId", memberId));
-    }
-
-    private void sendEnvelope(String eventType, Map<String, Object> data) throws Exception {
-        var eventId = UUID.randomUUID();
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", eventId);
-        body.put("eventType", eventType);
-        body.put("schemaVersion", 1);
-        body.put("occurredAt", LocalDateTime.now());
-        body.put("producer", "member");
-        body.put("aggregateId", String.valueOf(memberId));
-        body.put("correlationId", String.valueOf(memberId));
-        body.put("data", data);
-        sendRaw(eventType, eventId, jsonMapper.writeValueAsString(body));
+        var event = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new MemberWithdrawnEvent.Data(memberId));
+        sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(EventEnvelope.of(event)));
     }
 
     private MemberRegisteredEvent memberRegistered(String recipient) {

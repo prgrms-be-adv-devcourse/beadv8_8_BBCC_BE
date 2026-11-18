@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
-public record PayoutEmail(String title, String body) {
+public record PayoutEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 정산금이 입금됐어요";
     private static final String BODY = """

@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 /**
  * 상품 변경 이벤트에는 중지 사유가 없어 넣지 않는다.
  */
-public record ProductStoppedByAdminEmail(String title, String body) {
+public record ProductStoppedByAdminEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 상품 판매가 중지됐어요";
     private static final String BODY = """

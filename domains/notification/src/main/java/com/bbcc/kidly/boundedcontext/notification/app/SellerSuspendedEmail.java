@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 /**
  * 판매자 변경 이벤트에는 정지 사유가 없어 넣지 않는다.
  */
-public record SellerSuspendedEmail(String title, String body) {
+public record SellerSuspendedEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 판매자 자격이 정지됐어요";
     private static final String BODY = "관리자가 %s 상호의 판매자 자격을 정지했어요.\n";

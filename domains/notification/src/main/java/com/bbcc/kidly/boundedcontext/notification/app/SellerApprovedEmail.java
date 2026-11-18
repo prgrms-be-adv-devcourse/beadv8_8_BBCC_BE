@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
-public record SellerApprovedEmail(String title, String body) {
+public record SellerApprovedEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 판매자 신청이 승인됐어요";
     private static final String BODY = """

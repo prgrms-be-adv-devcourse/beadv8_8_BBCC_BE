@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
-public record RefundEmail(String title, String body) {
+public record RefundEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 환불이 완료됐어요";
     private static final String BODY = """

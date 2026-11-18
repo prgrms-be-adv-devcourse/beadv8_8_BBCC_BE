@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.notification.app;
 /**
  * 사유가 없으면 사유 줄을 넣지 않는다.
  */
-public record SuspendedEmail(String title, String body) {
+public record SuspendedEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 계정 이용이 정지됐어요";
     private static final String BODY = "관리자가 회원님의 계정 이용을 정지했어요.\n";
