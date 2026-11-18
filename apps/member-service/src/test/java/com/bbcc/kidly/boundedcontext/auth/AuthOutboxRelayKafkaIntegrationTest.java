@@ -3,7 +3,7 @@ package com.bbcc.kidly.boundedcontext.auth;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthEventOutbox;
 import com.bbcc.kidly.shared.auth.event.ChildAccountChangedEvent;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import com.bbcc.kidly.support.AsyncWait;

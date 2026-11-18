@@ -1,7 +1,6 @@
 package com.bbcc.kidly.boundedcontext.auth.app.port.outbox;
 
-import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxSender;
 
-public interface AuthOutboxSender {
-    void send(AuthOutboxMessage message);
+public interface AuthOutboxSender extends OutboxSender {
 }

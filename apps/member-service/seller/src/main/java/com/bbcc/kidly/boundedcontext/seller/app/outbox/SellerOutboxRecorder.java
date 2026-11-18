@@ -1,6 +1,5 @@
 package com.bbcc.kidly.boundedcontext.seller.app.outbox;
 
-import com.bbcc.kidly.boundedcontext.seller.app.port.outbox.SellerEventOutbox;
 import com.bbcc.kidly.shared.event.DomainEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

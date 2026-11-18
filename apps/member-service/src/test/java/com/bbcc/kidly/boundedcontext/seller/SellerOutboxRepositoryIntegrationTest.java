@@ -117,14 +117,14 @@ class SellerOutboxRepositoryIntegrationTest {
     private UUID saveUnsent() {
         var eventId = UUID.randomUUID();
         transactionTemplate.executeWithoutResult(status -> outboxRepository.save(
-            SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(eventId))));
+            new SellerOutboxMessage(SellerOutboxMessageFixture.changed(eventId))));
         return eventId;
     }
 
     private UUID saveSent(LocalDateTime sentAt) {
         var eventId = UUID.randomUUID();
         transactionTemplate.executeWithoutResult(status -> {
-            var message = SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(eventId));
+            var message = new SellerOutboxMessage(SellerOutboxMessageFixture.changed(eventId));
             message.markSent(sentAt);
             outboxRepository.save(message);
         });

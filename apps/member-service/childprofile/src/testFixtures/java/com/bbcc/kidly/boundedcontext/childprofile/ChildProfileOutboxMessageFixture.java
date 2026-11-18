@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.childprofile;
 
-import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxMessage;
 import java.util.UUID;
 
 public final class ChildProfileOutboxMessageFixture {
@@ -13,12 +13,12 @@ public final class ChildProfileOutboxMessageFixture {
     private ChildProfileOutboxMessageFixture() {
     }
 
-    public static ChildProfileOutboxMessage.CreateInfo childChanged() {
+    public static OutboxMessage.CreateInfo childChanged() {
         return childChanged(EVENT_ID);
     }
 
-    public static ChildProfileOutboxMessage.CreateInfo childChanged(UUID eventId) {
-        return new ChildProfileOutboxMessage.CreateInfo(
+    public static OutboxMessage.CreateInfo childChanged(UUID eventId) {
+        return new OutboxMessage.CreateInfo(
             eventId, "child.changed", "kidly.childprofile.events", "3", PAYLOAD);
     }
 }

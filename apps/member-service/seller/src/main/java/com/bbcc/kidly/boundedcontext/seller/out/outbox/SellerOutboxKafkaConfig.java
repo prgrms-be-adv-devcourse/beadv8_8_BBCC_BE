@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.seller.out.outbox;
 
 import com.bbcc.kidly.boundedcontext.seller.app.port.outbox.SellerOutboxSender;
+import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
 import java.time.Duration;
 import java.util.Map;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -15,12 +16,10 @@ import org.springframework.kafka.support.ProducerListener;
 @Configuration
 class SellerOutboxKafkaConfig {
 
-    static final String TOPIC = "kidly.seller.events";
-
     // 파티션 수는 만든 뒤 바꾸지 않는다(늘리면 키가 들어가는 파티션이 바뀌어 순서가 깨진다)
     @Bean
     NewTopic sellerEventsTopic() {
-        return TopicBuilder.name(TOPIC).partitions(3).replicas(1).build();
+        return TopicBuilder.name(SellerOutboxMessage.TOPIC).partitions(3).replicas(1).build();
     }
 
     // 브로커가 응답하지 않거나 토픽 정보가 없을 때 send가 기다리는 시간이다. 기본 60초는 메시지 하나에 너무 길다

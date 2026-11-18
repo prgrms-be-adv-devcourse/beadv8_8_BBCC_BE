@@ -6,9 +6,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.childprofile.app.ChildProfileService;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.GuardianVerificationRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileRequest;
-import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelay;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxRepository;
+import com.bbcc.kidly.member.support.outbox.OutboxMessage;
 import com.bbcc.kidly.shared.childprofile.domain.BodyType;
 import com.bbcc.kidly.shared.childprofile.domain.Gender;
 import com.bbcc.kidly.shared.childprofile.domain.PreferredFit;
@@ -60,7 +61,7 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     private ChildProfileService childProfileService;
 
     @Autowired
-    private ChildProfileOutboxRelayService relayService;
+    private ChildProfileOutboxRelay relayService;
 
     @Autowired
     private ChildProfileOutboxRepository outboxRepository;
@@ -135,10 +136,10 @@ class ChildProfileOutboxRelayKafkaIntegrationTest {
     void stopAtFailureAndRetryFromSameMessage() {
         var failingId = UUID.randomUUID();
         var afterId = UUID.randomUUID();
-        outboxRepository.save(ChildProfileOutboxMessage.create(new ChildProfileOutboxMessage.CreateInfo(
+        outboxRepository.save(new ChildProfileOutboxMessage(new OutboxMessage.CreateInfo(
             failingId, "child.changed", "kidly.childprofile.missing-" + failingId, "3",
             ChildProfileOutboxMessageFixture.PAYLOAD)));
-        outboxRepository.save(ChildProfileOutboxMessage.create(
+        outboxRepository.save(new ChildProfileOutboxMessage(
             ChildProfileOutboxMessageFixture.childChanged(afterId)));
         jdbcTemplate.update("update childprofile.child_profile_outbox set created_at = ? where event_id in (?, ?)",
             LocalDateTime.now().minusMinutes(6), failingId, afterId);

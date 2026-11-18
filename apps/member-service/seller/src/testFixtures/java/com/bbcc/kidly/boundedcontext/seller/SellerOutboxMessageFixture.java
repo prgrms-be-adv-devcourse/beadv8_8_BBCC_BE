@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.seller;
 
-import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxMessage;
 import java.util.UUID;
 
 public final class SellerOutboxMessageFixture {
@@ -13,11 +13,11 @@ public final class SellerOutboxMessageFixture {
     private SellerOutboxMessageFixture() {
     }
 
-    public static SellerOutboxMessage.CreateInfo changed() {
+    public static OutboxMessage.CreateInfo changed() {
         return changed(EVENT_ID);
     }
 
-    public static SellerOutboxMessage.CreateInfo changed(UUID eventId) {
-        return new SellerOutboxMessage.CreateInfo(eventId, "seller.changed", "kidly.seller.events", "1", PAYLOAD);
+    public static OutboxMessage.CreateInfo changed(UUID eventId) {
+        return new OutboxMessage.CreateInfo(eventId, "seller.changed", "kidly.seller.events", "1", PAYLOAD);
     }
 }

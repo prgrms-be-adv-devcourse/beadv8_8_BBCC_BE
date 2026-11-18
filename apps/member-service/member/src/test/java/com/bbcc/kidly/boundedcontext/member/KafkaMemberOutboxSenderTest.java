@@ -8,9 +8,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
-import com.bbcc.kidly.boundedcontext.member.app.port.outbox.MemberOutboxSendException;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.out.outbox.KafkaMemberOutboxSender;
+import com.bbcc.kidly.member.support.outbox.OutboxSendException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -32,7 +32,7 @@ class KafkaMemberOutboxSenderTest {
     private static final Duration SEND_TIMEOUT = Duration.ofSeconds(1);
 
     private static final MemberOutboxMessage MESSAGE =
-        MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn());
+        new MemberOutboxMessage(MemberOutboxMessageFixture.withdrawn());
 
     @Mock
     private KafkaTemplate<String, String> kafkaTemplate;
@@ -65,7 +65,7 @@ class KafkaMemberOutboxSenderTest {
             new TimeoutException("Topic kidly.member.events not present in metadata after 3000 ms.")));
 
         assertThatThrownBy(() -> sender().send(MESSAGE))
-            .isInstanceOf(MemberOutboxSendException.class)
+            .isInstanceOf(OutboxSendException.class)
             .hasMessageContaining("Topic kidly.member.events not present in metadata after 3000 ms.")
             .hasMessageContaining("key=1")
             .hasMessageNotContaining(MemberOutboxMessageFixture.PAYLOAD);
@@ -79,7 +79,7 @@ class KafkaMemberOutboxSenderTest {
         Thread.currentThread().interrupt();
         try {
             assertThatThrownBy(() -> sender().send(MESSAGE))
-                .isInstanceOf(MemberOutboxSendException.class)
+                .isInstanceOf(OutboxSendException.class)
                 .hasMessageContaining("응답 대기 중 인터럽트");
             assertThat(Thread.currentThread().isInterrupted()).isTrue();
         } finally {
@@ -97,7 +97,7 @@ class KafkaMemberOutboxSenderTest {
                 new TimeoutException("Expiring 1 record(s) for kidly.member.events-0"))));
 
         assertThatThrownBy(() -> sender().send(MESSAGE))
-            .isInstanceOf(MemberOutboxSendException.class)
+            .isInstanceOf(OutboxSendException.class)
             .hasMessageContaining("Expiring 1 record(s) for kidly.member.events-0")
             .hasMessageNotContaining("reason=Failed to send")
             .hasMessageNotContaining(MemberOutboxMessageFixture.PAYLOAD);
@@ -111,7 +111,7 @@ class KafkaMemberOutboxSenderTest {
         var sender = new KafkaMemberOutboxSender(kafkaTemplate, Duration.ofMillis(100));
 
         assertTimeoutPreemptively(Duration.ofSeconds(2), () -> assertThatThrownBy(() -> sender.send(MESSAGE))
-            .isInstanceOf(MemberOutboxSendException.class)
+            .isInstanceOf(OutboxSendException.class)
             .hasMessageContaining("응답 대기 시간 100ms 초과")
             .hasMessageNotContaining(MemberOutboxMessageFixture.PAYLOAD));
     }

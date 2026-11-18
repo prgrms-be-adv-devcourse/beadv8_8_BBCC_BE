@@ -3,18 +3,18 @@ package com.bbcc.kidly;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.AuthOutboxMessageFixture;
-import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelay;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.ChildProfileOutboxMessageFixture;
-import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelay;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxMessage;
 import com.bbcc.kidly.boundedcontext.childprofile.domain.outbox.ChildProfileOutboxRepository;
 import com.bbcc.kidly.boundedcontext.member.MemberOutboxMessageFixture;
-import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelay;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
 import com.bbcc.kidly.boundedcontext.seller.SellerOutboxMessageFixture;
-import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelay;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxRepository;
 import com.bbcc.kidly.support.AsyncWait;
@@ -39,10 +39,10 @@ class OutboxGraceKafkaIntegrationTest {
     @Autowired private SellerOutboxRepository sellers;
     @Autowired private ChildProfileOutboxRepository children;
     @Autowired private AuthOutboxRepository auth;
-    @Autowired private MemberOutboxRelayService memberRelay;
-    @Autowired private SellerOutboxRelayService sellerRelay;
-    @Autowired private ChildProfileOutboxRelayService childRelay;
-    @Autowired private AuthOutboxRelayService authRelay;
+    @Autowired private MemberOutboxRelay memberRelay;
+    @Autowired private SellerOutboxRelay sellerRelay;
+    @Autowired private ChildProfileOutboxRelay childRelay;
+    @Autowired private AuthOutboxRelay authRelay;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private KafkaContainer kafka;
 
@@ -50,8 +50,8 @@ class OutboxGraceKafkaIntegrationTest {
     void memberRelaysOnlyOld() {
         var old = UUID.randomUUID();
         var recent = UUID.randomUUID();
-        members.save(MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn(old)));
-        members.save(MemberOutboxMessage.create(MemberOutboxMessageFixture.withdrawn(recent)));
+        members.save(new MemberOutboxMessage(MemberOutboxMessageFixture.withdrawn(old)));
+        members.save(new MemberOutboxMessage(MemberOutboxMessageFixture.withdrawn(recent)));
         verifyRelay("member.member_outbox", "kidly.member.events", old, recent, memberRelay::relay);
     }
 
@@ -59,8 +59,8 @@ class OutboxGraceKafkaIntegrationTest {
     void sellerRelaysOnlyOld() {
         var old = UUID.randomUUID();
         var recent = UUID.randomUUID();
-        sellers.save(SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(old)));
-        sellers.save(SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(recent)));
+        sellers.save(new SellerOutboxMessage(SellerOutboxMessageFixture.changed(old)));
+        sellers.save(new SellerOutboxMessage(SellerOutboxMessageFixture.changed(recent)));
         verifyRelay("seller.seller_outbox", "kidly.seller.events", old, recent, sellerRelay::relay);
     }
 
@@ -68,8 +68,8 @@ class OutboxGraceKafkaIntegrationTest {
     void childRelaysOnlyOld() {
         var old = UUID.randomUUID();
         var recent = UUID.randomUUID();
-        children.save(ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(old)));
-        children.save(ChildProfileOutboxMessage.create(ChildProfileOutboxMessageFixture.childChanged(recent)));
+        children.save(new ChildProfileOutboxMessage(ChildProfileOutboxMessageFixture.childChanged(old)));
+        children.save(new ChildProfileOutboxMessage(ChildProfileOutboxMessageFixture.childChanged(recent)));
         verifyRelay("childprofile.child_profile_outbox", "kidly.childprofile.events",
             old, recent, childRelay::relay);
     }

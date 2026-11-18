@@ -2,7 +2,7 @@ package com.bbcc.kidly.boundedcontext.auth.app;
 
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountResult;
-import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.domain.AuthErrorCode;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccount;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
