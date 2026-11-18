@@ -32,11 +32,28 @@ SITE_PATTERN = ('at com[.]bbcc[.]kidly[.](?:[A-Za-z0-9_]+[.])*'
                 '(?P<site>[A-Z][A-Za-z0-9_]*[.][A-Za-z0-9_]+[(][A-Za-z0-9_]+[.]java:[0-9]+[)])')
 SITE = re.compile(r'([A-Z][A-Za-z0-9_]{0,80})\.([A-Za-z_][A-Za-z0-9_]{0,80})\([A-Za-z0-9_]+\.java:([0-9]{1,6})\)')
 # 비어 있으면 '없음'이 정상인 지표(빠진 지표 목록에 넣지 않는다)
-EMPTY_IS_NONE = ('restarted_minutes_ago',)
+EMPTY_IS_NONE = ('restarted_minutes_ago', 'business_stuck_items', 'business_outbox_unsent', 'business_outbox_blocked',
+                 'business_outbox_oldest_seconds', 'business_dlt_open', 'business_dlt_new_30m')
+# 업무 적체(멈춘 주문 · 결제, outbox, DLT). 0 은 근거로 보내지 않는다(값이 있는 서비스만 근거)
+BUSINESS = 'business_'
+BUSINESS_NOTE = ('business_*: business backlog per service (stuck orders/charges, outbox unsent/blocked/oldest age, open DLT, '
+                 'new payment DLT); only nonzero values are sent. business_dlt_new_30m is the number of payment messages newly sent to DLT '
+                 'in 30 minutes (payment has no DLT reprocessing, so no open count). '
+                 'Absence means none observed or not collected, not proof of health.')
 
 
 def opener():
     return urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
+
+
+def business(aggregate, app, *metrics):
+    """서비스마다 자기 지표 하나라 job 별로 모아 or 로 잇는다. 1분 안에 수집된 값만 쓴다(다른 지표와 같은 신선도 조건)."""
+    parts = []
+    for metric in metrics:
+        name, _, extra = metric.partition('{')
+        selector = name + '{' + app + (',' + extra.rstrip('}') if extra else '') + '}'
+        parts.append(f'{aggregate} by (job) ({selector} and (time()-timestamp({selector})<60))')
+    return ' or '.join(parts)
 
 
 def queries(env):
@@ -68,6 +85,21 @@ def queries(env):
         'restarted_minutes_ago': ('minutes', f'min by (job) ((time() - process_start_time_seconds{{{app}}}) / 60) < 30'),
         # member 서비스는 auth · childprofile · member · seller 그룹을 함께 쓴다(대시보드 상태판과 같은 규칙)
         'kafka_lag_by_service': ('count', f'sum by (job) (label_replace(label_replace((kafka_consumergroup_lag{{{lag}}} >= 0) and (time()-timestamp(kafka_consumergroup_lag{{{lag}}})<60), "job", "kidly-$1", "consumergroup", "kidly[.]([a-z]+)"), "job", "kidly-member", "consumergroup", "kidly[.](auth|childprofile|member|seller)"))'),
+        # 업무 적체: 서비스별 합(최고령은 최댓값). 멈춘 주문은 kind, 멈춘 결제는 status 별 값을 더한다
+        'business_stuck_items': ('count', business('sum', app, 'kidly_order_stuck_orders', 'kidly_payment_charges_stuck')),
+        'business_outbox_unsent': ('count', business(
+            'sum', app, 'kidly_order_outbox_unsent_messages', 'kidly_community_outbox_messages{state="pending"}',
+            'kidly_payment_outbox_unsent_messages', 'kidly_notification_unsent', 'settlement_outbox_unsent')),
+        'business_outbox_blocked': ('count', business(
+            'sum', app, 'kidly_order_outbox_quarantined_messages', 'kidly_community_outbox_messages{state="quarantined"}',
+            'kidly_payment_outbox_parked_messages')),
+        'business_outbox_oldest_seconds': ('seconds', business(
+            'max', app, 'kidly_order_outbox_oldest_unsent_age_seconds', 'kidly_community_outbox_oldest_age_seconds',
+            'kidly_payment_outbox_oldest_unsent_age_seconds', 'kidly_notification_oldest_unsent_age_seconds')),
+        'business_dlt_open': ('count', business(
+            'sum', app, 'kidly_order_dlt_messages{state="open"}', 'kidly_community_dlt_messages{state="open"}')),
+        # 결제 DLT 는 재처리 장치가 없어 열린 건수가 없다. 누적 counter 라 30분 증가량(새로 DLT 로 간 수)을 쓴다
+        'business_dlt_new_30m': ('estimated_count', f'sum by (job) (increase(kidly_payment_dlt_messages_total{{{app}}}[30m]))'),
         'host_memory_available': ('percent', 'min(100*node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes and (time()-timestamp(node_memory_MemAvailable_bytes)<60))'),
         'host_disk_used': ('percent', 'max(100*(1-node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}/node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) and (time()-timestamp(node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"})<60))'),
     }
@@ -195,7 +227,8 @@ def collect(environment, now=None, *, compare_http=False):
         for row in rows:
             service = row['metric'].get('app_job') if name == 'app_expected' else row['metric'].get('job')
             per_service = name in ('app_expected', 'up', 'requests_30m', 'errors_30m', 'duration_sum_30m', 'hikari_pending', 'hikari_utilization',
-                                   'error_logs_30m', 'restarts_30m', 'kafka_lag_by_service', 'restarted_minutes_ago')
+                                   'error_logs_30m', 'restarts_30m', 'kafka_lag_by_service', 'restarted_minutes_ago') \
+                or name.startswith(BUSINESS)
             if per_service and service not in JOBS:
                 continue
             if name == 'duration_sum_30m' and service == NO_DURATION:
@@ -204,6 +237,8 @@ def collect(environment, now=None, *, compare_http=False):
                 service = None
             value = float(row['value'][1])
             if not math.isfinite(value) or value < 0 or (unit == 'boolean' and value not in (0, 1)):
+                continue
+            if name.startswith(BUSINESS) and value == 0:
                 continue
             if service in seen:
                 raise ValueError('ambiguous aggregate')
@@ -255,6 +290,8 @@ def collect(environment, now=None, *, compare_http=False):
         limitations.append(
             'restarted_minutes_ago: minutes since the newest process start, only for services started within 30 minutes '
             '(deploy, crash or manual; not which). Timing alignment is not causation.')
+    if any(fact.metric.startswith(BUSINESS) for fact in facts):
+        limitations.append(BUSINESS_NOTE)
     if compare_http:
         try:
             comparison = list(previous_http_facts(environment, now, facts))

@@ -38,16 +38,17 @@ def output_schema(evidence_ids):
 ANALYSIS_FOCUS = {
     'overview': ('전체 점검', ''),
     'latency': ('응답 지연', 'Focus on same-service mean latency, request volume and measured DB pool pressure.'),
-    'errors': ('오류 증가', 'Focus on measured HTTP 5xx, request volume, error_type_30m exception classes and error_site_30m code locations by service; note missing pairs.'),
+    'errors': ('오류 증가', 'Focus on measured HTTP 5xx, request volume, error_type_30m exception classes and error_site_30m code locations by service; note missing pairs, and nonzero business_* backlog.'),
     'resources': ('서버 자원', 'Focus on observed host CPU, memory, root disk and OOM within their stated scope.'),
 }
 
 
 MCP_ONLY_METRICS = ('error_logs_30m', 'restarts_30m', 'kafka_lag_by_service')
-# 입력 상한을 넘으면 이 순서로 보조 근거를 줄인다(코드 위치는 건수가 적은 것부터, 재시작은 오래된 것부터)
-OPTIONAL_EVIDENCE = (('error_site_30m:', 'error_site_30m:<'), ('restarted_minutes_ago', 'restarted_minutes_ago:'))
+# 입력 상한을 넘으면 이 순서로 보조 근거를 줄인다(코드 위치는 건수가 적은 것부터, 재시작은 오래된 것부터, 업무 지표는 값이 작은 것부터)
+OPTIONAL_EVIDENCE = (('error_site_30m:', 'error_site_30m:<'), ('restarted_minutes_ago', 'restarted_minutes_ago:'),
+                     ('business_', 'business_*:'))
 INPUT_LIMIT = 24000
-TRIMMED = 'Some error_site_30m/restarted_minutes_ago evidence was omitted for input size.'
+TRIMMED = 'Some error_site_30m/restarted_minutes_ago/business_* evidence was omitted for input size.'
 MISSING_PREFIX = 'No finite fresh/available result for: '
 MISSING_SUFFIX = '; absence is not healthy zero.'
 
@@ -94,6 +95,8 @@ error_type_30m:<Class> is the count of ERROR log events with that exception clas
 Use it to name what failed, together with the HTTP or DB evidence it explains. It is not a count of failed requests.
 error_site_30m:<Exception>:<Class>:<method>:<line> is where our code was in those ERROR events. Name the class, method and line in the check.
 restarted_minutes_ago means the service started that many minutes ago. If errors or latency changed after it, say the timing aligns as a hypothesis.
+business_* are business backlog counts per service. When nonzero, treat a stopped business flow as a candidate finding even if HTTP looks normal.
+For outbox or DLT backlog, check 서비스 상세 → 오류 로그 예외 위치, then the owning service's outbox/DLT.
 If a pair is missing or traffic is too low, state that comparison is limited. Two windows are not a trend.
 Describe possible causes as hypotheses.
 For a service with 5xx or down targets, check 운영 홈 서비스 상태판 → 서비스 상세(재시작 표시선) → 오류 로그 예외 위치.
@@ -111,15 +114,15 @@ UNSUPPORTED_HEALTH = re.compile(
 
 
 def trim_optional(snapshot):
-    """보조 근거(코드 위치 → 재시작) 하나를 뺀다. 종류가 다 빠지면 그 설명 줄도 뺀다. 뺄 것이 없으면 False."""
+    """보조 근거(코드 위치 → 재시작 → 업무 지표) 하나를 뺀다. 종류가 다 빠지면 그 설명 줄도 뺀다. 뺄 것이 없으면 False."""
     evidence = snapshot['evidence']
     for prefix, line in OPTIONAL_EVIDENCE:
         items = [item for item in evidence if item['metric'].startswith(prefix)]
         if not items:
             continue
-        # 코드 위치는 건수가 가장 적은 것, 재시작은 가장 오래된 것을 뺀다
-        evidence.remove(min(items, key=lambda item: item['value']) if prefix.startswith('error_site')
-                        else max(items, key=lambda item: item['value']))
+        # 재시작은 가장 오래된 것, 코드 위치 · 업무 지표는 값이 가장 작은 것을 뺀다
+        evidence.remove(max(items, key=lambda item: item['value']) if prefix == 'restarted_minutes_ago'
+                        else min(items, key=lambda item: item['value']))
         if len(items) == 1:
             snapshot['limitations'] = [text for text in snapshot['limitations'] if not text.startswith(line)]
         if TRIMMED not in snapshot['limitations']:
