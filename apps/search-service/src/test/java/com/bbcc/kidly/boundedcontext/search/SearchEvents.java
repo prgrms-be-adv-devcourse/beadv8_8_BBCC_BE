@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.search;
 
+import static com.bbcc.kidly.boundedcontext.search.ProductChangedFixture.aProductChanged;
+
 import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
@@ -36,9 +38,10 @@ final class SearchEvents {
         ProductChangedEvent.Option option = new ProductChangedEvent.Option(productId * 10, "기본", "110", price,
             null, null, false, OptionSaleStatus.ON_SALE,
             List.of(new ProductChangedEvent.AttributeEntry("COLOR", colorValueId, "색상 " + colorValueId)));
-        return new ProductChangedEvent(UUID.randomUUID(), occurredAt, new ProductChangedEvent.Data(productId, sellerId,
-            name, categoryId, status, "https://cdn.kidly.test/" + productId + ".jpg",
-            LocalDateTime.of(2026, 10, createdDay, 9, 0), false, List.of(option), List.of(), brand, null, List.of()));
+        return aProductChanged().productId(productId).sellerId(sellerId).name(name).categoryId(categoryId)
+            .status(status).thumbnailUrl("https://cdn.kidly.test/" + productId + ".jpg")
+            .createdAt(LocalDateTime.of(2026, 10, createdDay, 9, 0)).options(option).brand(brand)
+            .occurredAt(occurredAt).event();
     }
 
     static SellerChangedEvent seller(long sellerId, String businessName) {

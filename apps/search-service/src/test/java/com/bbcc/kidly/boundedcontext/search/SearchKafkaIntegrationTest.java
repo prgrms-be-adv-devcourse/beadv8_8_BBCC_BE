@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.search;
 
+import static com.bbcc.kidly.boundedcontext.search.ProductChangedFixture.aProductChanged;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -159,9 +160,8 @@ class SearchKafkaIntegrationTest {
     @Test
     @DisplayName("검색 문서로 만들 수 없는 상품(옵션 없음)은 재시도 없이 DLT로 보낸다")
     void deadLetterProductWithoutOptions() throws Exception {
-        ProductChangedEvent noOptions = new ProductChangedEvent(UUID.randomUUID(), SearchEvents.OCCURRED_AT,
-            new ProductChangedEvent.Data(productId, sellerId, "옵션 없는 상품", 3L, ProductStatus.SALE_PENDING, null,
-                SearchEvents.OCCURRED_AT.minusDays(1), false, List.of()));
+        ProductChangedEvent noOptions = aProductChanged().productId(productId).sellerId(sellerId).name("옵션 없는 상품")
+            .status(ProductStatus.SALE_PENDING).createdAt(SearchEvents.OCCURRED_AT.minusDays(1)).options().event();
         String body = envelope(noOptions, "product.changed", "product");
 
         RecordMetadata sent = sendProduct("product.changed", body);

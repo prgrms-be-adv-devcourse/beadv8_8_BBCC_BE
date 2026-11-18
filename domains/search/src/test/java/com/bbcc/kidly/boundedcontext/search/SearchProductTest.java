@@ -1,12 +1,6 @@
 package com.bbcc.kidly.boundedcontext.search;
 
-import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.CATEGORY_ID;
-import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.NAME;
-import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.OCCURRED_AT;
-import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.PRODUCT_CREATED_AT;
-import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.PRODUCT_ID;
-import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.SELLER_ID;
-import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.THUMBNAIL_URL;
+import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.aChangeInfo;
 import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.changeInfo;
 import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.option;
 import static com.bbcc.kidly.boundedcontext.search.SearchProductFixture.value;
@@ -100,10 +94,11 @@ class SearchProductTest {
     void copiesOtherValues() {
         LocalDateTime productCreatedAt = LocalDateTime.of(2026, 10, 2, 11, 0);
         LocalDateTime occurredAt = LocalDateTime.of(2026, 10, 15, 12, 30);
-        SearchProduct product = SearchProduct.create(new SearchProduct.ChangeInfo(
-            5L, 9L, "아기 모자", 4L, ProductStatus.STOPPED, "https://cdn.kidly.test/hat.jpg", "키들리", productCreatedAt,
-            true,
-            List.of(option(18_000L, false, OptionSaleStatus.ON_SALE)), List.of(), occurredAt));
+        SearchProduct product = SearchProduct.create(aChangeInfo()
+            .productId(5L).sellerId(9L).name("아기 모자").categoryId(4L).status(ProductStatus.STOPPED)
+            .thumbnailUrl("https://cdn.kidly.test/hat.jpg").brand("키들리").productCreatedAt(productCreatedAt)
+            .sizeFree(true).options(List.of(option(18_000L, false, OptionSaleStatus.ON_SALE))).occurredAt(occurredAt)
+            .build());
 
         assertThat(product)
             .extracting(SearchProduct::getProductId, SearchProduct::getName, SearchProduct::getThumbnailUrl,
@@ -117,9 +112,7 @@ class SearchProductTest {
     @Test
     @DisplayName("썸네일 · 브랜드는 선택 입력이라 없어도 만든다")
     void createsWithoutThumbnailAndBrand() {
-        SearchProduct product = SearchProduct.create(new SearchProduct.ChangeInfo(
-            PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, ProductStatus.ON_SALE, null, null, PRODUCT_CREATED_AT, false,
-            List.of(option(25_000L, false, OptionSaleStatus.ON_SALE)), List.of(), OCCURRED_AT));
+        SearchProduct product = SearchProduct.create(aChangeInfo().thumbnailUrl(null).brand(null).build());
 
         assertThat(product.getThumbnailUrl()).isNull();
         assertThat(product.getBrand()).isNull();
@@ -181,34 +174,22 @@ class SearchProductTest {
     }
 
     private static SearchProduct.ChangeInfo withText(String name, String brand, String description) {
-        return new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, name, CATEGORY_ID, ProductStatus.ON_SALE,
-            THUMBNAIL_URL, brand, PRODUCT_CREATED_AT, false,
-            List.of(option(25_000L, false, OptionSaleStatus.ON_SALE)), List.of(), OCCURRED_AT, description);
+        return aChangeInfo().name(name).brand(brand).description(description).build();
     }
 
     static Stream<Arguments> changeInfosMissingRequiredValue() {
         List<SearchProduct.OptionInfo> options = List.of(option(25_000L, false, OptionSaleStatus.ON_SALE));
-        ProductStatus onSale = ProductStatus.ON_SALE;
         return Stream.of(
             arguments("info", null),
-            arguments("productId", new SearchProduct.ChangeInfo(null, SELLER_ID, NAME, CATEGORY_ID, onSale,
-                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
-            arguments("sellerId", new SearchProduct.ChangeInfo(PRODUCT_ID, null, NAME, CATEGORY_ID, onSale,
-                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
-            arguments("name", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, null, CATEGORY_ID, onSale,
-                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
-            arguments("categoryId", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, null, onSale,
-                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
-            arguments("status", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID, null,
-                THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), OCCURRED_AT)),
-            arguments("productCreatedAt", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME,
-                CATEGORY_ID, onSale, THUMBNAIL_URL, null, null, false, options, List.of(), OCCURRED_AT)),
-            arguments("occurredAt", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
-                onSale, THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, List.of(), null)),
-            arguments("options", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
-                onSale, THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, null, List.of(), OCCURRED_AT)),
-            arguments("infoValues", new SearchProduct.ChangeInfo(PRODUCT_ID, SELLER_ID, NAME, CATEGORY_ID,
-                onSale, THUMBNAIL_URL, null, PRODUCT_CREATED_AT, false, options, null, OCCURRED_AT)),
+            arguments("productId", aChangeInfo().productId(null).build()),
+            arguments("sellerId", aChangeInfo().sellerId(null).build()),
+            arguments("name", aChangeInfo().name(null).build()),
+            arguments("categoryId", aChangeInfo().categoryId(null).build()),
+            arguments("status", aChangeInfo().status(null).build()),
+            arguments("productCreatedAt", aChangeInfo().productCreatedAt(null).build()),
+            arguments("occurredAt", aChangeInfo().occurredAt(null).build()),
+            arguments("options", aChangeInfo().options(null).build()),
+            arguments("infoValues", aChangeInfo().infoValues(null).build()),
             arguments("saleStatus", changeInfo(List.of(
                 new SearchProduct.OptionInfo(25_000L, false, null, List.of())))),
             arguments("values", changeInfo(List.of(
