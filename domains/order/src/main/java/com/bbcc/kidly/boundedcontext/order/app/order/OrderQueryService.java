@@ -153,23 +153,7 @@ public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
         if (pageable.getOffset() > Integer.MAX_VALUE) {
             return new PageImpl<>(List.of(), pageable, orderRepository.countByMemberId(memberId));
         }
-        Page<Order> orders = orderRepository.findAllByMemberIdOrderByIdDesc(memberId, pageable);
-        if (orders.isEmpty()) {
-            return orders.map(OrderSummary::withoutItems);
-        }
-        Map<Long, Order> withItems = orderRepository.findAllWithItemsByIdIn(
-                orders.getContent().stream().map(Order::getId).toList())
-            .stream()
-            .collect(Collectors.toMap(Order::getId, Function.identity()));
-        Map<Long, String> sellerNames = sellerNamesOf(withItems.values());
-        return orders.map(order -> {
-            Order loaded = withItems.get(order.getId());
-            if (loaded == null) {
-                log.warn("주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
-                return OrderSummary.withoutItems(order);
-            }
-            return OrderSummary.from(loaded, sellerNames);
-        });
+        return toSummaries(orderRepository.findAllByMemberIdOrderByIdDesc(memberId, pageable));
     }
 
     /**
@@ -182,22 +166,7 @@ public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
         if (pageable.getOffset() > Integer.MAX_VALUE) {
             return new PageImpl<>(List.of(), pageable, orderRepository.count());
         }
-        Page<Order> orders = orderRepository.findAllByOrderByIdDesc(pageable);
-        if (orders.isEmpty()) {
-            return orders.map(AdminOrderSummary::withoutItems);
-        }
-        Map<Long, Order> withItems = orderRepository.findAllWithItemsByIdIn(
-                orders.getContent().stream().map(Order::getId).toList())
-            .stream()
-            .collect(Collectors.toMap(Order::getId, Function.identity()));
-        return orders.map(order -> {
-            Order loaded = withItems.get(order.getId());
-            if (loaded == null) {
-                log.warn("관리자 주문 목록 주문상품 없음: reason=order-items-not-found orderId={}", order.getId());
-                return AdminOrderSummary.withoutItems(order);
-            }
-            return AdminOrderSummary.from(loaded);
-        });
+        return toAdminSummaries(orderRepository.findAllByOrderByIdDesc(pageable));
     }
 
     /**
@@ -287,7 +256,7 @@ public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
             .orElseThrow(() -> new BusinessException(OrderErrorCode.INVALID_ORDER_STATUS));
     }
 
-    // 상태로 거른 목록의 요약 조립(상태 없는 getOrders와 같은 규칙: 주문상품 · 상호명은 한 번씩 읽고, 못 읽은 주문은 대표 상품 없이)
+    // 구매자 목록의 요약 조립(상태 필터 유무와 같은 규칙, #1562: 주문상품 · 상호명은 한 번씩 읽고, 못 읽은 주문은 대표 상품 없이 + WARN)
     private Page<OrderSummary> toSummaries(Page<Order> orders) {
         if (orders.isEmpty()) {
             return orders.map(OrderSummary::withoutItems);
@@ -304,7 +273,7 @@ public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
         });
     }
 
-    // 상태로 거른 관리자 목록의 요약 조립(상태 없는 getAllOrders와 같은 규칙)
+    // 관리자 목록의 요약 조립(상태 필터 · 취소일 조회와 같은 규칙, #1562: 주문상품은 한 번에 읽고, 못 읽은 주문은 주문상품 수 0 + WARN)
     private Page<AdminOrderSummary> toAdminSummaries(Page<Order> orders) {
         if (orders.isEmpty()) {
             return orders.map(AdminOrderSummary::withoutItems);

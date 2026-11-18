@@ -24,7 +24,8 @@ import org.springframework.web.client.RestClient;
 
 /**
  * DeliveryStatusChecker의 Delivery Tracker 구현. 택배사 enum → Delivery Tracker 택배사 ID 변환,
- * 응답 → TrackingResult 변환, 호출 간격 유지(호출 한도 초당 10회), 서킷브레이커(#708)를 맡는다. 외부 서비스 ID는 domain에 두지 않는다.
+ * 응답 → TrackingResult 변환, 호출 간격 유지(min-call-interval 기본 0.2초 = 초당 최대 5회,
+ * 택배사 한도 초당 10회 안쪽), 서킷브레이커(#708)를 맡는다. 외부 서비스 ID는 domain에 두지 않는다.
  * 서킷이 열려 있으면 부르지 않고(호출 간격도 기다리지 않음) UNAVAILABLE(사유 CIRCUIT_OPEN)을 돌려준다: 기존 일시 오류처럼 다음 실행에서
  * 다시 조회한다.
  */
@@ -49,7 +50,6 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
      * 구매자 진행 이력(#1320)이 호출 간격 자리를 기다리는 최대 시간. 넘으면 부르지 않고 일시 오류(요청 스레드를 오래 잡지 않게).
      */
     static final Duration HISTORY_MAX_WAIT = Duration.ofSeconds(1);
-    static final String CALL_SLOT_BUSY = "CALL_SLOT_BUSY";
 
     private final DeliveryTrackerClient client;
     private final TrackerCircuitBreaker circuitBreaker;
@@ -125,7 +125,7 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
         }
         // 꺼져 있으면(인증값 없음) 부르지 않는다. 서킷에 실패로 세지 않게 호출 전에 거른다
         if (!client.isEnabled()) {
-            return TrackingHistory.unavailable("DISABLED");
+            return TrackingHistory.unavailable(TrackingHistory.DISABLED);
         }
         // 서킷 허락을 먼저 받는다: 열림 → 반열림 전환은 허락을 물을 때만 일어나므로 열렸는지 미리 보고 거르면 다시 닫히지 않는다.
         // 열려 있으면 호출 간격 자리를 쓰지 않는다
@@ -134,7 +134,7 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
         }
         if (!tryWaitForCallInterval(historyMaxWaitNanos)) {
             historyCircuitBreaker.releasePermission();
-            return TrackingHistory.unavailable(CALL_SLOT_BUSY);
+            return TrackingHistory.unavailable(TrackingHistory.CALL_SLOT_BUSY);
         }
         try {
             List<TrackEventRow> rows = historyCircuitBreaker.callPermitted(
@@ -145,6 +145,7 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
                     row.location(), row.statusCode()))
                 .toList());
         } catch (DeliveryTrackerException e) {
+            // 택배사 API 오류 코드 NOT_FOUND(운송장 미등록)를 우리 이유 코드(NOT_REGISTERED)로 옮긴다. 값은 같지만 출처가 다르다
             if ("NOT_FOUND".equals(e.code())) {
                 return TrackingHistory.notRegistered();
             }
@@ -154,7 +155,7 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
         }
     }
 
-    // 호출 한도(초당 10회)를 넘지 않게 호출 사이를 띄운다. 스케줄러 한 스레드가 부르지만 다른 호출이 생겨도 지켜지게 동기화한다
+    // 설정한 최소 간격(min-call-interval, 기본 0.2초 = 초당 최대 5회)만큼 호출 사이를 띄운다. 스케줄러 한 스레드가 부르지만 다른 호출이 생겨도 지켜지게 동기화한다
     private void waitForCallInterval() {
         callIntervalLock.lock();
         try {

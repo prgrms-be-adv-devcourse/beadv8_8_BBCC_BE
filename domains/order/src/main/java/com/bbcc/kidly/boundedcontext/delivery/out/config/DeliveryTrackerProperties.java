@@ -15,7 +15,7 @@ import org.springframework.validation.annotation.Validated;
  * @param clientSecret 환경변수 DELIVERY_TRACKER_CLIENT_SECRET
  * @param connectTimeout 연결 제한 시간
  * @param readTimeout 응답 제한 시간
- * @param minCallInterval 호출 사이 최소 간격(호출 한도 초당 10회)
+ * @param minCallInterval 호출 사이 최소 간격(order.yml 기본 PT0.2S = 초당 최대 5회, 택배사 호출 한도 초당 10회 안쪽)
  */
 @Validated
 @ConfigurationProperties("kidly.order.delivery-tracker")
