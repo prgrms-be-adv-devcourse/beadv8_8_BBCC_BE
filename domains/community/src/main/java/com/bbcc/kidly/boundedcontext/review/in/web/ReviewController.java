@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.review.in.web;
 
+import com.bbcc.kidly.boundedcontext.review.app.ReviewChange;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewService;
 import com.bbcc.kidly.boundedcontext.review.in.web.dto.ReviewResponse;
 import com.bbcc.kidly.boundedcontext.review.in.web.dto.UpdateReviewRequest;
@@ -52,7 +53,7 @@ public class ReviewController {
     @PatchMapping("/{reviewId}")
     public ReviewResponse update(@LoginMember AuthMember member, @PathVariable Long reviewId,
         @RequestBody UpdateReviewRequest request) {
-        return ReviewResponse.from(reviewService.update(member.id(), reviewId, new ReviewService.ReviewChange(
+        return ReviewResponse.from(reviewService.update(member.id(), reviewId, new ReviewChange(
             request.ratingGiven(), request.ratingValue(), request.contentGiven(), request.contentValue(),
             request.fitInput(), request.imageUrlsInput())));
     }

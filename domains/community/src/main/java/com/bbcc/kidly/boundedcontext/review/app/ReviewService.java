@@ -16,7 +16,6 @@ import com.bbcc.kidly.boundedcontext.review.domain.ReviewRule;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewRuleException;
 import com.bbcc.kidly.boundedcontext.review.domain.ReviewTimes;
 import com.bbcc.kidly.global.error.BusinessException;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -124,7 +123,7 @@ public class ReviewService {
      * 별점 · 본문을 둘 다 고친다.
      */
     public ReviewView update(Long memberId, Long reviewId, Integer rating, String content) {
-        return update(memberId, reviewId, new ReviewChange(true, rating, true, content));
+        return update(memberId, reviewId, ReviewChange.rating(rating).withContent(content));
     }
 
     /**
@@ -332,89 +331,6 @@ public class ReviewService {
     }
 
     /**
-     * 수정 요청 값. given이 false면 그 값은 보내지 않은 것(그대로 둔다), true인데 값이 null이면 규칙 위반(400)이다.
-     */
-    public record ReviewChange(boolean ratingGiven, Integer rating, boolean contentGiven, String content,
-                               FitInput fit, ImageUrlsInput images) {
-
-        /**
-         * 사진은 바꾸지 않는다.
-         */
-        public ReviewChange(boolean ratingGiven, Integer rating, boolean contentGiven, String content,
-            FitInput fit) {
-            this(ratingGiven, rating, contentGiven, content, fit, ImageUrlsInput.absent());
-        }
-
-        /**
-         * 핏 · 사진은 바꾸지 않는다.
-         */
-        public ReviewChange(boolean ratingGiven, Integer rating, boolean contentGiven, String content) {
-            this(ratingGiven, rating, contentGiven, content, FitInput.absent());
-        }
-
-        Review.Change toDomain(Fit fitValue) {
-            return new Review.Change(ratingGiven, rating, contentGiven, content, fit.given(), fitValue,
-                images.given());
-        }
-    }
-
-    /**
-     * 요청의 사진 주소 목록. 키가 없으면 absent(작성은 사진 없음, 수정은 그대로), 문자열 목록이면 of(빈 목록 = 사진 없음 · 모두 지움),
-     * 목록이 아니거나 문자열 아닌 항목이 있으면 invalid(INVALID_IMAGE_URL).
-     */
-    public record ImageUrlsInput(boolean given, boolean valid, List<String> urls) {
-
-        public static ImageUrlsInput absent() {
-            return new ImageUrlsInput(false, true, List.of());
-        }
-
-        public static ImageUrlsInput of(List<String> urls) {
-            return new ImageUrlsInput(true, true, urls);
-        }
-
-        public static ImageUrlsInput invalid() {
-            return new ImageUrlsInput(true, false, List.of());
-        }
-    }
-
-    /**
-     * 요청의 핏 값. 키가 없으면 absent(그대로 둠), null을 보냈으면 cleared(핏을 지움), 문자열이면 text, 그 밖의 타입이면 invalid.
-     * 값은 SMALL · TRUE_TO_SIZE · LARGE와 정확히 같아야 한다(대소문자 포함, 아니면 INVALID_FIT).
-     */
-    public record FitInput(boolean given, boolean valid, String text) {
-
-        public static FitInput absent() {
-            return new FitInput(false, true, null);
-        }
-
-        public static FitInput cleared() {
-            return new FitInput(true, true, null);
-        }
-
-        public static FitInput text(String text) {
-            return new FitInput(true, true, text);
-        }
-
-        public static FitInput invalid() {
-            return new FitInput(true, false, null);
-        }
-
-        Fit toFit() {
-            if (!valid) {
-                throw new BusinessException(ReviewErrorCode.INVALID_FIT);
-            }
-            if (text == null) {
-                return null;
-            }
-            try {
-                return Fit.valueOf(text);
-            } catch (IllegalArgumentException e) {
-                throw new BusinessException(ReviewErrorCode.INVALID_FIT);
-            }
-        }
-    }
-
-    /**
      * 핏별 수 증감(이전 값 −1 · 새 값 +1, 같으면 0).
      */
     record FitDelta(int small, int trueToSize, int large) {
@@ -436,32 +352,6 @@ public class ReviewService {
 
         boolean isZero() {
             return small == 0 && trueToSize == 0 && large == 0;
-        }
-    }
-
-    /**
-     * 리뷰 한 건(응답용).
-     */
-    public record ReviewView(
-        Long reviewId,
-        Long orderItemId,
-        Long productId,
-        int rating,
-        String content,
-        String nickname,
-        boolean authorWithdrawn,
-        String fit,
-        String purchasedSize,
-        List<String> imageUrls,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt) {
-
-        static ReviewView from(Review review, String purchasedSize, List<String> imageUrls) {
-            boolean withdrawn = review.isAuthorWithdrawn();
-            return new ReviewView(review.getId(), review.getOrderItemId(), review.getProductId(), review.getRating(),
-                review.getContent(), AuthorDisplay.nickname(review.getNickname(), withdrawn), withdrawn,
-                review.getFit() == null ? null : review.getFit().name(), purchasedSize, List.copyOf(imageUrls),
-                review.getCreatedAt(), review.getUpdatedAt());
         }
     }
 }

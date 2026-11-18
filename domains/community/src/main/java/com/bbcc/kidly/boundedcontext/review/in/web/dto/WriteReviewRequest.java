@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.review.in.web.dto;
 
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.FitInput;
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
+import com.bbcc.kidly.boundedcontext.review.app.FitInput;
+import com.bbcc.kidly.boundedcontext.review.app.ImageUrlsInput;
 import tools.jackson.databind.JsonNode;
 
 /**
