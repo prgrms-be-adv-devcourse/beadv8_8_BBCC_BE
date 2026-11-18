@@ -52,8 +52,7 @@ ready "$service"
 test -s /opt/app/kidly-tracing/opentelemetry-javaagent.jar
 mkdir -p "$(dirname "$marker")"
 
-patch
-if ready "$service" && touch "$marker"; then
+if patch && ready "$service" && touch "$marker"; then
   echo 'Selected service Agent ready at the existing 5% sampling rate'
 else
   rollback || echo 'Selected service Agent restoration requires follow-up' >&2
