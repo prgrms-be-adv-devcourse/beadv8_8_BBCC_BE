@@ -3,7 +3,6 @@ package com.bbcc.kidly.boundedcontext.payment;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.settlement.event.SettlementPayoutRequestedEvent;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
@@ -11,7 +10,6 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,7 +42,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 정산이 Kafka로 보내기 시작했을 때 결제가 지급 요청을 받아 입금하는지 미리 본다(#607).
+ * 정산이 Kafka로 보내기 시작했을 때 결제가 지급 요청을 받아 입금하는지 미리 본다.
  * 정산은 아직 kidly.settlement.events를 선언하지 않으므로 테스트가 만든다. 결제의 정산 리스너는 기본으로 꺼져 있어 여기서만 켠다.
  * 메시지는 팀 규칙의 모양(키 = 정산서 ID, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data)으로 직접 넣는다.
  */
@@ -94,7 +92,7 @@ class PaymentSettlementKafkaReceiveIntegrationTest {
     @Test
     @DisplayName("settlement.payout-requested를 받으면 판매자 예치금에 입금하고, 같은 메시지를 두 번 받아도 한 번만 입금한다")
     void payoutOnce() throws Exception {
-        String body = envelope(payoutRequested(270_000L));
+        String body = KafkaEnvelope.of(jsonMapper, payoutRequested(270_000L));
 
         send("settlement.payout-requested", body);
         RecordMetadata second = send("settlement.payout-requested", body);
@@ -110,7 +108,7 @@ class PaymentSettlementKafkaReceiveIntegrationTest {
     void skipOtherEventType() throws Exception {
         send("settlement.closed", "결제가 받지 않는 종류라 읽지 않는 본문");
         // 키(정산서 ID)가 같아 같은 파티션이므로, 뒤 메시지를 처리했으면 앞 메시지는 이미 처리됐다
-        send("settlement.payout-requested", envelope(payoutRequested(10_000L)));
+        send("settlement.payout-requested", KafkaEnvelope.of(jsonMapper, payoutRequested(10_000L)));
 
         AsyncWait.until(TIMEOUT, () -> Long.valueOf(10_000L).equals(balance()));
         assertThat(deadLetters()).isEmpty();
@@ -141,22 +139,6 @@ class PaymentSettlementKafkaReceiveIntegrationTest {
         List<Long> balances = jdbcTemplate.queryForList(
             "select balance from payment.wallet where member_id = ?", Long.class, sellerId);
         return balances.isEmpty() ? null : balances.getFirst();
-    }
-
-    // 팀 규칙의 본문 모양: 공통 칸 7개 + data. 이벤트 record에 없는 칸(eventType 등)도 들어 있다
-    private String envelope(DomainEvent event) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> fields = jsonMapper.convertValue(event, Map.class);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", fields.get("eventId"));
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", fields.get("occurredAt"));
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", fields.get("data"));
-        return jsonMapper.writeValueAsString(body);
     }
 
     private RecordMetadata send(String eventType, String body) throws Exception {

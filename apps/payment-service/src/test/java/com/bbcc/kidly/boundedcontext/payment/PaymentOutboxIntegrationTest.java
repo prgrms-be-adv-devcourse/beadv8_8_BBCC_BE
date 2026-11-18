@@ -26,7 +26,7 @@ import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 결제 이벤트를 업무와 같은 트랜잭션에서 아웃박스에 저장하는지, 정리가 보관 기간이 지난 보낸 메시지만 지우는지 본다(#550).
+ * 결제 이벤트를 업무와 같은 트랜잭션에서 아웃박스에 저장하는지, 정리가 보관 기간이 지난 보낸 메시지만 지우는지 본다.
  * Kafka 전송은 PaymentKafkaPublishIntegrationTest가 본다.
  */
 @IntegrationTest

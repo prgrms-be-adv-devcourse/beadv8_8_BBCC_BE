@@ -33,7 +33,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * 결제가 받는 이벤트의 처리. Spring 리스너와 Kafka 리스너가 같은 처리를 부른다(#593).
+ * 결제가 받는 이벤트의 처리. Spring 리스너와 Kafka 리스너가 같은 처리를 부른다.
  */
 @ExtendWith(MockitoExtension.class)
 class PaymentEventHandlerTest {

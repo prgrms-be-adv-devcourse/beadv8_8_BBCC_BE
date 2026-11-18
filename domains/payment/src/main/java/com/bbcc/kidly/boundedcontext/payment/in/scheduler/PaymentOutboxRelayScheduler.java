@@ -13,7 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 결제 이벤트 아웃박스 릴레이(#550): 안 보낸 메시지를 주기마다 Kafka로 보낸다. 주기는 kidly.payment.outbox.relay-interval.
+ * 결제 이벤트 아웃박스 릴레이: 안 보낸 메시지를 주기마다 Kafka로 보낸다. 주기는 kidly.payment.outbox.relay-interval.
  * 실패는 업무와 상관없이 WARN만 남긴다. DB 오류 메시지에 행 값(본문)이 들어갈 수 있어 예외 종류만 남긴다.
  * kidly.kafka.producer.enabled가 false면 만들지 않는다(Kafka 없이 도는 테스트). 값이 없으면 만든다. 아웃박스 저장은 그때도 한다.
  */

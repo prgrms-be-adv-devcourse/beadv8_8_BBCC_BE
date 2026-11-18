@@ -12,7 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * local · test · dev에서 토스 결제창 없이 넣은 개발용 예치금 기록(#1010). 원장 DEV_CHARGE의 ref_id가 이 기록의 ID다.
+ * local · test · dev에서 토스 결제창 없이 넣은 개발용 예치금 기록. 원장 DEV_CHARGE의 ref_id가 이 기록의 ID다.
  * 토스 충전(Charge)이 아니라서 취소 · 대사 대상이 아니다.
  */
 @Entity

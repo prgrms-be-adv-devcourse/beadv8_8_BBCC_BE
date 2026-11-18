@@ -53,7 +53,7 @@ class PaymentServiceApplicationApiTest {
             .jsonPath("$.instance").isEqualTo("/api/v1/orders");
     }
 
-    // baseline-version은 kidly-app이 결제를 가졌을 때 마지막으로 적용한 결제 버전이다(#525). 빈 DB에서는 그 버전까지 모두 적용한다
+    // baseline-version은 kidly-app이 결제를 가졌을 때 마지막으로 적용한 결제 버전이다. 빈 DB에서는 그 버전까지 모두 적용한다
     @Value("${spring.flyway.baseline-version}")
     private String baselineVersion;
 

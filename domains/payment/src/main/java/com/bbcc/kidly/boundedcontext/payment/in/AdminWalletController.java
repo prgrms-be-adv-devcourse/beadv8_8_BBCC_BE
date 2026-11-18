@@ -20,9 +20,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자의 예치금 지갑 조회(#670). /api/v1/admin/**라 ADMIN만 호출할 수 있다.
+ * 관리자의 예치금 지갑 조회. /api/v1/admin/**라 ADMIN만 호출할 수 있다.
  * 탈퇴한 회원의 남은 잔액을 환급하려고 {@code ?frozen=true&hasBalance=true}로 동결됐고 잔액이 남은 지갑을 보고,
- * 시스템 밖에서 돌려준 뒤 환급을 기록한다(#731).
+ * 시스템 밖에서 돌려준 뒤 환급을 기록한다.
  */
 @RestController
 @RequestMapping("/api/v1/admin/wallets")

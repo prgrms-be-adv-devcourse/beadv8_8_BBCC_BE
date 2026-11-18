@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 토스 결제창 없이 회원 지갑에 개발용 예치금을 넣는다(#1010). dev에서 시드 회원으로 결제 · 환불을 확인하려고 쓴다.
+ * 토스 결제창 없이 회원 지갑에 개발용 예치금을 넣는다. dev에서 시드 회원으로 결제 · 환불을 확인하려고 쓴다.
  * local · test · dev 프로필에서만 등록된다. prod에 열리면 누구나 예치금을 만들 수 있다.
  * 토스 충전이 아니라서 충전(charge) · 충전 지표에 넣지 않고, 기록(dev_charge)과 원장 DEV_CHARGE만 남긴다.
  */

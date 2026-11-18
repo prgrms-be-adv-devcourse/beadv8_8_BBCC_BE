@@ -23,7 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 결제 지표(#786)가 실제 DB 조회 · 커밋으로 값을 만드는지 본다.
+ * 결제 지표가 실제 DB 조회 · 커밋으로 값을 만드는지 본다.
  */
 @IntegrationTest
 class PaymentMetricsIntegrationTest {

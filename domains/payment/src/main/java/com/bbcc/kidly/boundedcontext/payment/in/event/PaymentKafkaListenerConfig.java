@@ -28,7 +28,7 @@ import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
 /**
- * 결제가 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT(받는 토픽마다 하나, #593).
+ * 결제가 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT(받는 토픽마다 하나).
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고,
  * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT로 보낸다.
  * 다시 해도 같은 실패는 재시도 없이 보낸다: 읽지 못한 본문, 업무 규칙 위반, 잘못된 값 · 상태, eventType 헤더 없음.
@@ -45,7 +45,7 @@ class PaymentKafkaListenerConfig {
     static final String SETTLEMENT_EVENTS = "kidly.settlement.events";
     static final String GROUP = "kidly.payment";
     static final String AUTO_STARTUP = "${kidly.payment.kafka.consumer.enabled:true}";
-    // 정산 지급 요청도 Kafka로만 온다(#525, 결제 서비스는 정산과 다른 JVM). 끄는 것은 같은 JVM 테스트용이다
+    // 정산 지급 요청도 Kafka로만 온다(결제 서비스는 정산과 다른 JVM). 끄는 것은 같은 JVM 테스트용이다
     static final String SETTLEMENT_AUTO_STARTUP = "${kidly.payment.kafka.settlement-consumer.enabled:true}";
     private static final String DLT_SUFFIX = ".payment.dlt";
 

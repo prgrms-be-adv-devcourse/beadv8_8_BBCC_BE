@@ -94,7 +94,7 @@ public class Refund extends BaseTimeEntity {
     }
 
     /**
-     * 실패했던 주문상품 취소 환불을 다시 처리해 환불했다(#1390). 취소당 환불 기록은 하나라 새로 만들지 않고 이 기록을 완료로 바꾼다.
+     * 실패했던 주문상품 취소 환불을 다시 처리해 환불했다. 취소당 환불 기록은 하나라 새로 만들지 않고 이 기록을 완료로 바꾼다.
      */
     public void completeRetried(List<RefundItem> items, LocalDateTime refundedAt) {
         requireFailed();

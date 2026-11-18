@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 관리자의 멈춘 충전 조회 · 종료(#1392). Gateway가 결제 서비스로 넘기는 관리자 경로가
+ * 관리자의 멈춘 충전 조회 · 종료. Gateway가 결제 서비스로 넘기는 관리자 경로가
  * /api/v1/admin/payments/** · /api/v1/admin/wallets/**뿐이라 지갑 아래에 둔다.
  */
 @RestController

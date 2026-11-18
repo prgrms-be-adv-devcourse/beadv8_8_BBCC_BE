@@ -12,7 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 탈퇴 회원 지갑의 잔액 환급 기록(#731). 운영자가 시스템 밖에서 돌려줬다고 보고 지갑 잔액을 정리한 일이다.
+ * 탈퇴 회원 지갑의 잔액 환급 기록. 운영자가 시스템 밖에서 돌려줬다고 보고 지갑 잔액을 정리한 일이다.
  * 실제 송금은 하지 않는다(토스는 테스트 결제). 원장 BALANCE_RETURN의 ref_id가 이 기록의 ID다.
  */
 @Entity

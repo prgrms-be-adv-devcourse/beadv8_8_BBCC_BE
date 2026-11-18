@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
- * 같은 이벤트를 Spring · Kafka 양쪽에서 받지 않도록, 스위치가 꺼져 있을 때만 Spring 리스너가 뜬다(#593).
+ * 같은 이벤트를 Spring · Kafka 양쪽에서 받지 않도록, 스위치가 꺼져 있을 때만 Spring 리스너가 뜬다.
  * Kafka 리스너는 스위치로 시작 여부를 정한다(PaymentKafkaListenerTest).
  */
 class PaymentEventSwitchTest {

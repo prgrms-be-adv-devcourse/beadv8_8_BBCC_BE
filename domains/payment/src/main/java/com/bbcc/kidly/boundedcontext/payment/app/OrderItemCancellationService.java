@@ -30,10 +30,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 판매자가 발송 전에 취소한 주문상품(order-item.cancelled)의 금액을 구매자 예치금으로 환불한다(#711).
+ * 판매자가 발송 전에 취소한 주문상품(order-item.cancelled)의 금액을 구매자 예치금으로 환불한다.
  * 결제 요청 · 주문 취소와 같은 회원 지갑 락을 먼저 잡고, 취소(cancellationId)마다 환불 기록을 하나만 남긴다(refund.cancellation_id UK).
  * 같은 취소가 다시 오면 완료된 환불이 있어 건너뛴다. 환불하면 환불 이벤트(payment.refunded)를 발행한다.
- * 환불할 수 없으면(결제 없음 · 회원 불일치 · 환불 불가) 입금하지 않고 받은 내용을 재처리 기록으로 남긴다(#1390). 환불 불가는 실패한 환불도 남긴다.
+ * 환불할 수 없으면(결제 없음 · 회원 불일치 · 환불 불가) 입금하지 않고 받은 내용을 재처리 기록으로 남긴다. 환불 불가는 실패한 환불도 남긴다.
  * 관리자가 같은 내용으로 다시 처리하면 실패한 환불을 완료로 바꾸고 재처리 기록을 지운다.
  */
 @Slf4j

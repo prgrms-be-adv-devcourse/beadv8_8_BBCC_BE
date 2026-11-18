@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 
 /**
- * 결제 업무 · 아웃박스 · DLT 지표(#786). 지표 이름 · 태그 값은 이 클래스에만 둔다. 태그에 회원 · 주문 ID 같은 값을 넣지 않는다.
+ * 결제 업무 · 아웃박스 · DLT 지표. 지표 이름 · 태그 값은 이 클래스에만 둔다. 태그에 회원 · 주문 ID 같은 값을 넣지 않는다.
  * 게이지는 수집할 때마다 부분 인덱스 · 작은 표만 읽는다. 업무 결과 카운터는 커밋된 뒤에만 센다(롤백된 일은 세지 않는다).
  */
 @Component
@@ -140,7 +140,7 @@ public class PaymentMetrics {
     }
 
     /**
-     * 받는 토픽의 DLT 카운터를 0으로 미리 만든다(#1391). 첫 DLT 때 카운터가 1로 처음 생기면 increase()가 비교할 앞 값이 없어
+     * 받는 토픽의 DLT 카운터를 0으로 미리 만든다. 첫 DLT 때 카운터가 1로 처음 생기면 increase()가 비교할 앞 값이 없어
      * 알림이 그 한 건을 놓친다. 결제에는 DLT 재처리 장치가 없어 한 건도 놓치면 안 된다.
      */
     public void registerDeadLetterTopics(Collection<String> topics) {
