@@ -71,7 +71,7 @@ Gateway·주문 시범에 성공한 뒤 `kubectl kustomize deploy/tracing-ops/ap
 
 ## Alloy에서 Tempo까지 확인
 
-수신 경로를 준비한 뒤 `tracing-verify-alloy`를 수동 실행합니다. 전용 Alloy에 합성 span 한 개를 넣고 Tempo에서 같은 ID를 조회합니다. 기존 Alloy가 허용하는 Gateway 서비스 이름과 별도 합성 계측 scope를 사용합니다. 검증 실행에 표시된 합성 trace ID는 실제 요청 검증에서 제외합니다. 앱이나 DB는 변경하지 않습니다. 운영 Grafana에서 실제 요청의 Gateway·주문·DB 추적은 Agent 적용 후 확인합니다.
+수신 경로를 준비한 뒤 `tracing-verify-alloy`를 수동 실행합니다. 전용 Alloy에 합성 span 두 개(주문 API · 헬스 체크)를 넣고 Tempo에서 같은 ID를 조회해 주문 span만 남았는지 확인합니다(`/actuator` 경로의 span은 수집 설정에서 버립니다). 기존 Alloy가 허용하는 Gateway 서비스 이름과 별도 합성 계측 scope를 사용합니다. 검증 실행에 표시된 합성 trace ID는 실제 요청 검증에서 제외합니다. 앱이나 DB는 변경하지 않습니다. 운영 Grafana에서 실제 요청의 Gateway·주문·DB 추적은 Agent 적용 후 확인합니다.
 
 ## Gateway·주문 Agent 시범 적용
 

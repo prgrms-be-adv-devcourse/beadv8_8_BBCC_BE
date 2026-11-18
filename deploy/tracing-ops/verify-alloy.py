@@ -26,8 +26,18 @@ EXPECTED_ATTRIBUTES = [
 ]
 
 
+# 헬스 체크 서버 span 은 수집 설정에서 버려져 Tempo 에 없어야 한다
+HEALTH_ROUTE = '/actuator/health'
+
+
 def attribute_key(attribute):
     return str(attribute.get('key'))
+
+
+def is_health(span):
+    routes = [attribute.get('value', {}).get('stringValue') for attribute in span.get('attributes') or []
+              if attribute.get('key') == 'http.route']
+    return '/actuator' in str(span.get('name', '')) or any(str(route).startswith('/actuator') for route in routes)
 
 
 def fixture(trace_id, now):
@@ -45,6 +55,14 @@ def fixture(trace_id, now):
                 'attributes': [
                     {'key': 'http.request.method', 'value': {'stringValue': 'GET'}},
                     {'key': 'http.route', 'value': {'stringValue': '/api/v1/orders/{orderId}'}},
+                ],
+            }, {
+                'traceId': trace_id, 'spanId': '0000000000000002',
+                'name': 'health fixture', 'kind': 2,
+                'startTimeUnixNano': str(now - 1_000_000), 'endTimeUnixNano': str(now),
+                'attributes': [
+                    {'key': 'http.request.method', 'value': {'stringValue': 'GET'}},
+                    {'key': 'http.route', 'value': {'stringValue': HEALTH_ROUTE}},
                 ],
             }],
         }],
@@ -94,15 +112,20 @@ def verify(client, base, trace_id):
             with client.open(request, timeout=3) as response:
                 if response.status == 200:
                     payload = json.load(response)
+                    found = False
                     for resource in payload.get('batches', payload.get('resourceSpans', [])):
                         for scope in resource.get('scopeSpans', []):
                             if scope.get('scope', {}).get('name') != 'kidly.tracing.synthetic':
                                 continue
                             for span in scope.get('spans', []):
                                 attributes = span.get('attributes') or []
+                                if is_health(span):
+                                    raise OrderTagMismatch
                                 if span.get('name') == EXPECTED_NAME and \
                                         sorted(attributes, key=attribute_key) == EXPECTED_ATTRIBUTES:
-                                    return
+                                    found = True
+                    if found:
+                        return
                     raise OrderTagMismatch
         except HTTPError as error:
             if error.code != 404:
@@ -124,13 +147,13 @@ def main():
         if args.mode == 'send':
             with tunnel('kidly-dev', 'tracing-alloy', 4318) as base:
                 send(client, base, args.trace_id)
-            print('Alloy accepted one synthetic span')
+            print('Alloy accepted two synthetic spans (order API, health check)')
         else:
             with tunnel('monitoring', 'tempo', 3200) as base:
                 verify(client, base, args.trace_id)
-            print('Tempo returned the tagged synthetic order trace')
+            print('Tempo returned the tagged synthetic order span without the health check span')
     except OrderTagMismatch:
-        print('Order fixture did not retain only the expected operation tag')
+        print('Order fixture did not retain only the expected tags, or the health check span was kept')
         return 1
     except (OSError, ValueError, RuntimeError, TypeError, AttributeError):
         print('Could not complete the synthetic ' + args.mode)

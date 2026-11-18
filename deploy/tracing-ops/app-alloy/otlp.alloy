@@ -27,6 +27,7 @@ otelcol.processor.filter "tracing_ops" {
       `resource.attributes["deployment.environment.name"] != "dev"`,
       `resource.attributes["service.name"] == nil or not IsMatch(resource.attributes["service.name"], "` + sys.env("TRACING_ALLOWED_SERVICES") + `")`,
       `attributes["http.request.method"] == nil and attributes["http.method"] == nil and instrumentation_scope.name != "io.opentelemetry.jdbc" and instrumentation_scope.name != "io.opentelemetry.hibernate-6.0" and instrumentation_scope.name != "io.opentelemetry.spring-data-1.8" and not (resource.attributes["service.name"] == "kidly-search" and (attributes["db.system.name"] == "elasticsearch" or attributes["db.system"] == "elasticsearch"))`,
+      `attributes["http.route"] != nil and IsMatch(attributes["http.route"], "^/actuator(/.*)?$")`,
     ]
     spanevent = ["true"]
   }

@@ -22,7 +22,17 @@ def span_statements():
     return re.findall(r'^ +`(.+)`,$', block, re.M)
 
 
+def filter_statements():
+    text = ALLOY.read_text()
+    block = text[text.index('otelcol.processor.filter'):]
+    block = block[block.index('span = ['):block.index('\n    ]\n')]
+    return re.findall(r'^ +`(.+)`,$', block, re.M)
+
+
 def stored(result):
+    # 수집 설정을 지난 결과: 헬스 체크 span 은 버려지고 주문 span 만 남는다
+    spans = result['resourceSpans'][0]['scopeSpans'][0]['spans']
+    del spans[1:]
     result['resourceSpans'][0]['scopeSpans'][0]['spans'][0]['name'] = probe.EXPECTED_NAME
     # Tempo 가 속성 순서를 바꿔도 받는다
     result['resourceSpans'][0]['scopeSpans'][0]['spans'][0]['attributes'] = list(reversed(probe.EXPECTED_ATTRIBUTES))
@@ -30,7 +40,7 @@ def stored(result):
 
 
 class AlloyTransportProofTest(unittest.TestCase):
-    def test_send_only_one_synthetic_span(self):
+    def test_send_order_and_health_synthetic_spans(self):
         client = MagicMock()
         response = client.open.return_value.__enter__.return_value
         response.status = 200
@@ -40,7 +50,11 @@ class AlloyTransportProofTest(unittest.TestCase):
         self.assertEqual(request.get_method(), 'POST')
         resource, = json.loads(request.data)['resourceSpans']
         scope, = resource['scopeSpans']
-        span, = scope['spans']
+        span, health = scope['spans']
+        self.assertEqual(health['traceId'], TRACE_ID)
+        self.assertNotEqual(health['spanId'], span['spanId'])
+        self.assertEqual(health['kind'], 2)
+        self.assertIn({'key': 'http.route', 'value': {'stringValue': '/actuator/health'}}, health['attributes'])
         self.assertIn({'key': 'service.name', 'value': {'stringValue': 'kidly-order'}},
                       resource['resource']['attributes'])
         self.assertEqual(span['traceId'], TRACE_ID)
@@ -68,7 +82,9 @@ class AlloyTransportProofTest(unittest.TestCase):
         client = MagicMock()
         response = client.open.return_value.__enter__.return_value
         response.status = 200
-        response.read.return_value = json.dumps(probe.fixture(TRACE_ID, 1000000))
+        result = probe.fixture(TRACE_ID, 1000000)
+        del result['resourceSpans'][0]['scopeSpans'][0]['spans'][1:]
+        response.read.return_value = json.dumps(result)
         with self.assertRaises(probe.OrderTagMismatch):
             probe.verify(client, 'http://127.0.0.1:3200', TRACE_ID)
 
@@ -110,11 +126,37 @@ class AlloyTransportProofTest(unittest.TestCase):
         self.assertIn('attributes["http.method"], attributes["http.route"]', route[1])
         self.assertIn('attributes["http.request.method"] == nil', route[1])
 
+    def test_check_rejects_kept_health_check_span(self):
+        for name, route in (('GET /actuator/health', '/actuator/health'), ('HTTP', '/actuator/health'),
+                            ('GET /actuator/health', None)):
+            client = MagicMock()
+            response = client.open.return_value.__enter__.return_value
+            response.status = 200
+            result = stored(probe.fixture(TRACE_ID, 1000000))
+            attributes = [{'key': 'http.request.method', 'value': {'stringValue': 'GET'}}]
+            if route:
+                attributes.append({'key': 'http.route', 'value': {'stringValue': route}})
+            result['resourceSpans'][0]['scopeSpans'][0]['spans'].append(
+                {'spanId': '0000000000000002', 'name': name, 'attributes': attributes})
+            response.read.return_value = json.dumps(result)
+            with self.subTest(name=name, route=route), self.assertRaises(probe.OrderTagMismatch):
+                probe.verify(client, 'http://127.0.0.1:3200', TRACE_ID)
+
+    def test_filter_drops_actuator_routes_only(self):
+        statements = filter_statements()
+        health = [s for s in statements if '/actuator' in s]
+        self.assertEqual(health, ['attributes["http.route"] != nil and IsMatch(attributes["http.route"], "^/actuator(/.*)?$")'])
+        pattern = re.compile(r'^/actuator(/.*)?$')
+        for route in ('/actuator', '/actuator/health', '/actuator/health/**', '/actuator/prometheus'):
+            self.assertTrue(pattern.match(route), route)
+        for route in ('/api/v1/orders/{orderId}', '/api/v1/actuator', '/actuatorx', '/api/v1/admin/actuator/x'):
+            self.assertFalse(pattern.match(route), route)
+
     def test_check_rejects_attribute_without_key(self):
         client = MagicMock()
         response = client.open.return_value.__enter__.return_value
         response.status = 200
-        result = probe.fixture(TRACE_ID, 1000000)
+        result = stored(probe.fixture(TRACE_ID, 1000000))
         result['resourceSpans'][0]['scopeSpans'][0]['spans'][0]['attributes'] = [
             {'value': {'stringValue': 'order.detail'}},
         ]
