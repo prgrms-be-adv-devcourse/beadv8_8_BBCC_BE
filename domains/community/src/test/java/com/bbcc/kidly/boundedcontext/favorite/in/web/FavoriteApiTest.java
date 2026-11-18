@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.favorite.in.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteErrorCode;
+import com.bbcc.kidly.boundedcontext.favorite.fixture.FavoriteRows;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestChildren;
 import com.bbcc.kidly.global.security.TestMembers;
@@ -35,9 +37,9 @@ class FavoriteApiTest {
 
     @BeforeEach
     void replicas() {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (14, '상품 A', 'https://img/14.png', 'ON_SALE', "
-            + "now(), now(), now()), (15, '판매 끝', null, 'SALE_ENDED', now(), now(), now())");
+        ReviewRows rows = new ReviewRows(jdbcTemplate);
+        rows.replicaProduct(14).name("상품 A").thumbnailUrl("https://img/14.png").insert();
+        rows.replicaProduct(15).name("판매 끝").status("SALE_ENDED").insert();
     }
 
     @Test
@@ -115,8 +117,7 @@ class FavoriteApiTest {
     @Test
     @DisplayName("자녀 토큰: PUT · DELETE 204, 목록은 자기 찜만(회원 1과 자녀 계정 1은 섞이지 않음), 요약은 회원 · 자녀 찜 합계")
     void childFavorites() {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (16, '상품 C', null, 'ON_SALE', now(), now(), now())");
+        new ReviewRows(jdbcTemplate).replicaProduct(16).name("상품 C").insert();
         client.put().uri(PATH + "/14").headers(TestChildren.of(ME, GUARDIAN)).exchange().expectStatus().isNoContent();
         client.put().uri(PATH + "/16").headers(TestChildren.of(ME, GUARDIAN)).exchange().expectStatus().isNoContent();
         put("14").expectStatus().isNoContent();
@@ -170,8 +171,7 @@ class FavoriteApiTest {
     @Test
     @DisplayName("지운 자녀 계정의 PUT · DELETE · GET은 403 FAVORITE_CHILD_ACCOUNT_DELETED, 같은 ID의 회원 · 다른 자녀 계정은 그대로")
     void deletedChildForbidden() {
-        jdbcTemplate.update("insert into community.deleted_child_account (account_id, guardian_id, deleted_at, "
-            + "created_at) values (?, ?, now(), now())", ME, GUARDIAN);
+        new FavoriteRows(jdbcTemplate).deletedChildAccount(ME, GUARDIAN);
 
         expectProblem(client.put().uri(PATH + "/14").headers(TestChildren.of(ME, GUARDIAN)).exchange(), 403,
             FavoriteErrorCode.FAVORITE_CHILD_ACCOUNT_DELETED);

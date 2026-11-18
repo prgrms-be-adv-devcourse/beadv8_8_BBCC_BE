@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.review.app.port.ReplicaProducts;
 import com.bbcc.kidly.boundedcontext.review.domain.ReplicaProduct;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,9 +49,7 @@ class JpaReplicaProductRepositoryIntegrationTest {
     @Test
     @DisplayName("더 늦은 행이 이미 커밋된 상품에 이른 값을 저장하면 UPDATE가 아니라 PK 위반이고 행은 그대로다")
     void insertOverCommittedRowViolatesPrimaryKey() {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, '늦은 값', null, 'ON_SALE', ?, now(), now())",
-            PRODUCT_ID, NEWER);
+        new ReviewRows(jdbcTemplate).replicaProduct(PRODUCT_ID).name("늦은 값").occurredAt(NEWER).insert();
         List<Map<String, Object>> before = row();
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> replicaProducts.insert(

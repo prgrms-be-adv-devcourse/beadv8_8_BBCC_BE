@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.review.in.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.favorite.fixture.FavoriteRows;
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.auth.event.ChildAccountChangedEvent;
@@ -82,10 +83,10 @@ class CommunityAuthEventKafkaIntegrationTest {
     void deletionAppliedOnce() {
         long account = newId();
         long guardian = newId();
-        favorite("CHILD", account, guardian, 14);
-        favorite("CHILD", account, guardian, 15);
-        favorite("MEMBER", account, account, 14);
-        favorite("MEMBER", guardian, guardian, 15);
+        childFavorite(account, guardian, 14);
+        childFavorite(account, guardian, 15);
+        memberFavorite(account, 14);
+        memberFavorite(guardian, 15);
         var event = changed(account, guardian, true);
 
         kafkaClient.awaitProcessed(kafkaClient.send(TOPIC, event));
@@ -105,7 +106,7 @@ class CommunityAuthEventKafkaIntegrationTest {
     @DisplayName("만들어짐(deleted = false) · 다른 인증 이벤트는 건너뛰고, 필수값(보호자 ID)이 없으면 WARN 한 줄 후 무시한다(DLT 없음)")
     void skipsCreatedOtherAndMissing(CapturedOutput output) {
         long account = newId();
-        favorite("CHILD", account, 70, 14);
+        childFavorite(account, 70, 14);
         var created = changed(account, 70L, false);
         String otherId = CommunityKafkaTestClient.newEventId();
         var missing = new ChildAccountChangedEvent(UUID.randomUUID(), DELETED_AT,
@@ -129,7 +130,7 @@ class CommunityAuthEventKafkaIntegrationTest {
     @DisplayName("처리가 실패하면 재시도 뒤 kidly.auth.events.community.dlt(파티션 0)에 보내고, 찜은 그대로이며 DLT는 DB에 보관된다")
     void processingFailureToDeadLetter() {
         long account = newId();
-        favorite("CHILD", account, 70, 16);
+        childFavorite(account, 70, 16);
         breakDeletionOf(account);
         var event = changed(account, 70L, true);
 
@@ -176,13 +177,16 @@ class CommunityAuthEventKafkaIntegrationTest {
             + "()");
     }
 
-    private void favorite(String ownerType, long ownerId, long guardianId, long productId) {
-        jdbcTemplate.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
-            + "created_at, updated_at) values (?, ?, ?, ?, ?, now(), now())", guardianId, ownerType, ownerId,
-            guardianId, productId);
-        jdbcTemplate.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
-            + "values (?, 1, now(), now()) on conflict (product_id) do update "
-            + "set favorite_count = community.favorite_stats.favorite_count + 1", productId);
+    private void childFavorite(long accountId, long guardianId, long productId) {
+        FavoriteRows rows = new FavoriteRows(jdbcTemplate);
+        rows.childFavorite(accountId, guardianId, productId).insert();
+        rows.increaseFavoriteCount(productId);
+    }
+
+    private void memberFavorite(long memberId, long productId) {
+        FavoriteRows rows = new FavoriteRows(jdbcTemplate);
+        rows.memberFavorite(memberId, productId).insert();
+        rows.increaseFavoriteCount(productId);
     }
 
     private long count(long productId) {

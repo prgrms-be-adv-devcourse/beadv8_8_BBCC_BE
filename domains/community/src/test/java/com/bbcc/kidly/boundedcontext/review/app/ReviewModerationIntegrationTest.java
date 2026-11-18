@@ -5,12 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationRecorder.Recorded;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationService.Candidate;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationService.ModerationRun;
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.FailureCause;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Result;
 import com.bbcc.kidly.boundedcontext.review.app.port.ModerationRunLock;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationReason;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.FakeModerationAdapter;
 import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
@@ -79,7 +79,7 @@ class ReviewModerationIntegrationTest {
         String image = imageStorage.ownImageUrlPrefix(ME) + "0b6f3c1e-8a2d-4c5b-9e7f-1a2b3c4d5e6f.jpg";
         uploadChecker.markUploaded(image);
         long id = reviewService.write(ME, "닉", String.valueOf(eligible(11, ME)), 4, "좋은 옷",
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of(image))).reviewId();
+            FitInput.absent(), ImageUrlsInput.of(List.of(image))).reviewId();
 
         ModerationRun run = moderationService.processPending();
 
@@ -98,7 +98,7 @@ class ReviewModerationIntegrationTest {
     void hides() {
         long sized = eligible(11, ME, "110");
         long id = reviewService.write(ME, "닉", String.valueOf(sized), 5, "좋아요",
-            ReviewService.FitInput.text("SMALL")).reviewId();
+            FitInput.text("SMALL")).reviewId();
         long banned = reviewService.write(ME + 1, "닉", String.valueOf(eligible(12, ME + 1)), 1, "이건 금 칙 어 입니다")
             .reviewId();
         fake.willReturn(Result.flagged(ModerationReason.HATE));
@@ -185,7 +185,7 @@ class ReviewModerationIntegrationTest {
     void editDuringCheckDiscardsResult() {
         long id = write(11);
         fake.duringNextCall(() -> reviewService.update(ME, id,
-            new ReviewService.ReviewChange(false, null, true, "검사 중에 고친 글")));
+            ReviewChange.content("검사 중에 고친 글")));
         fake.willReturn(Result.flagged(ModerationReason.HATE), Result.passed());
 
         ModerationRun run = moderationService.processPending();
@@ -275,9 +275,8 @@ class ReviewModerationIntegrationTest {
     }
 
     private long eligible(long orderItemId, long memberId, String size) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (?, 12, ?, ?, 15, ?, now(), now(), now())",
-            orderItemId, memberId, PRODUCT, size);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, memberId, PRODUCT).orderId(12).optionId(15).size(size)
+            .insert();
         return orderItemId;
     }
 

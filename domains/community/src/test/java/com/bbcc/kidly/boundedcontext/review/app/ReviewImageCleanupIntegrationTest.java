@@ -8,6 +8,7 @@ import com.bbcc.kidly.boundedcontext.review.app.ReviewImageCleanupService.Pendin
 import com.bbcc.kidly.boundedcontext.review.app.ReviewImageCleanupService.SweepRun;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageCleanupStorage;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageObjectStore;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.support.QueryCounter;
@@ -136,8 +137,7 @@ class ReviewImageCleanupIntegrationTest {
     @DisplayName("지우기 직전에 그 주소가 지금 리뷰에 붙어 있으면 지우지 않고 대기만 지운다")
     void keepsAttached() {
         long reviewId = insertReview();
-        jdbcTemplate.update("insert into community.review_image (review_id, position, image_url, created_at) "
-            + "values (?, 0, ?, now())", reviewId, url(0));
+        new ReviewRows(jdbcTemplate).reviewImage(reviewId, 0, url(0)).insert();
         insertPending(key(0), LocalDateTime.now().minusSeconds(1), 0);
 
         PendingRun run = service.processPending();
@@ -199,8 +199,7 @@ class ReviewImageCleanupIntegrationTest {
         Instant old = Instant.now().minus(properties.orphanGrace()).minusSeconds(60);
         Instant fresh = Instant.now().minus(properties.orphanGrace()).plusSeconds(600);
         long reviewId = insertReview();
-        jdbcTemplate.update("insert into community.review_image (review_id, position, image_url, created_at) "
-            + "values (?, 0, ?, now())", reviewId, url(1));
+        new ReviewRows(jdbcTemplate).reviewImage(reviewId, 0, url(1)).insert();
         insertPending(key(3), LocalDateTime.now().plusHours(1), 0);
         store.put(key(0), old);
         store.put(key(1), old);
@@ -335,9 +334,7 @@ class ReviewImageCleanupIntegrationTest {
     }
 
     private long insertReview() {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status) values (11, 14, ?, '닉', 4, '본문', now(), now(), "
-            + "'PASSED')", ME);
+        new ReviewRows(jdbcTemplate).review(11, 14, ME).insert();
         return jdbcTemplate.queryForObject("select id from community.review where order_item_id = 11", Long.class);
     }
 

@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.favorite.app;
 import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,9 +38,7 @@ class FavoriteConcurrencyIntegrationTest {
 
     @BeforeEach
     void replica() {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, '상품', null, 'ON_SALE', now(), now(), now())",
-            PRODUCT);
+        new ReviewRows(jdbcTemplate).replicaProduct(PRODUCT).insert();
     }
 
     @Test

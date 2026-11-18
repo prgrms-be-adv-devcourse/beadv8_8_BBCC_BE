@@ -6,6 +6,8 @@ import static org.assertj.core.groups.Tuple.tuple;
 
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteQueryService.FavoriteItem;
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteQueryService.FavoritePage;
+import com.bbcc.kidly.boundedcontext.favorite.fixture.FavoriteRows;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.support.QueryCounter;
 import java.time.LocalDateTime;
@@ -108,14 +110,11 @@ class FavoriteQueryIntegrationTest {
     }
 
     private void favorite(long memberId, long productId, LocalDateTime createdAt) {
-        jdbcTemplate.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
-            + "created_at, updated_at) values (?, 'MEMBER', ?, ?, ?, ?, ?)", memberId, memberId, memberId, productId,
-            createdAt, createdAt);
+        new FavoriteRows(jdbcTemplate).memberFavorite(memberId, productId).at(createdAt).insert();
     }
 
     private void replica(long productId, String name, String status) {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
-            productId, name, "https://img/" + productId + ".png", status, BASE, BASE, BASE);
+        new ReviewRows(jdbcTemplate).replicaProduct(productId).name(name)
+            .thumbnailUrl("https://img/" + productId + ".png").status(status).at(BASE).insert();
     }
 }

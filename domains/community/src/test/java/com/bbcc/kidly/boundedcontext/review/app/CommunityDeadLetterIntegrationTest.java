@@ -3,9 +3,11 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.favorite.fixture.FavoriteRows;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.Received;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.State;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.shared.auth.event.ChildAccountChangedEvent;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
@@ -163,13 +165,9 @@ class CommunityDeadLetterIntegrationTest {
     @DisplayName("회원 탈퇴 DLT도 보관 뒤 재처리하면 찜을 지우고 리뷰 작성자를 탈퇴로 표시한다(한 번만)")
     void replaysMemberWithdrawn() {
         long member = 31L;
-        jdbc.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
-            + "created_at, updated_at) values (?, 'MEMBER', ?, ?, 14, now(), now())", member, member, member);
-        jdbc.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
-            + "values (14, 1, now(), now())");
-        jdbc.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, content, "
-            + "created_at, updated_at, moderation_status) values (501, 14, ?, '닉', 4, '본문', now(), now(), 'PASSED')",
-            member);
+        new FavoriteRows(jdbc).memberFavorite(member, 14).insert();
+        new FavoriteRows(jdbc).favoriteCount(14, 1);
+        new ReviewRows(jdbc).review(501, 14, member).insert();
         var event = new MemberWithdrawnEvent(UUID.randomUUID(), LocalDateTime.of(2026, 11, 2, 10, 0, 0, 123_456_123),
             new MemberWithdrawnEvent.Data(member));
         service.receive(memberMessage(event, 11L));
@@ -199,10 +197,8 @@ class CommunityDeadLetterIntegrationTest {
     @Test
     @DisplayName("자녀 계정 삭제 DLT도 보관 뒤 재처리하면 그 계정의 찜을 지우고 계정을 막는다(한 번만). 보호자 ID가 없으면 성공이 아니다")
     void replaysChildAccountDeleted() {
-        jdbc.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
-            + "created_at, updated_at) values (70, 'CHILD', 7, 70, 14, now(), now())");
-        jdbc.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
-            + "values (14, 1, now(), now())");
+        new FavoriteRows(jdbc).childFavorite(7, 70, 14).insert();
+        new FavoriteRows(jdbc).favoriteCount(14, 1);
         var deleted = new ChildAccountChangedEvent(UUID.randomUUID(), LocalDateTime.of(2026, 11, 16, 10, 0),
             new ChildAccountChangedEvent.Data(7L, 3L, 70L, true));
         service.receive(authMessage(deleted, 21L));

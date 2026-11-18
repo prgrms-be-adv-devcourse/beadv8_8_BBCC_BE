@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.review.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.error.CommonErrorCode;
 import com.bbcc.kidly.global.filter.RequestLoggingFilter;
@@ -43,22 +44,16 @@ class CommunityMcpApiTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status, moderation_reason, moderated_at) "
-            + "values (11, 14, ?, ?, 4, ?, ?, ?, 'HIDDEN', 'HATE', ?)",
-            MEMBER, "닉" + MARK, "본문" + MARK, AT, AT, AT);
+        new ReviewRows(jdbcTemplate).review(11, 14, MEMBER).nickname("닉" + MARK).content("본문" + MARK).at(AT)
+            .status("HIDDEN").reason("HATE").moderatedAt(AT).insert();
         Long reviewId = jdbcTemplate.queryForObject("select id from community.review where order_item_id = 11",
             Long.class);
-        jdbcTemplate.update("insert into community.review_image (review_id, position, image_url, created_at) "
-            + "values (?, 0, ?, ?)", reviewId, "https://img.example/" + MARK + ".jpg", AT);
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status) values (12, 14, ?, ?, 5, ?, ?, ?, 'PASSED')",
-            MEMBER + 1, "닉2" + MARK, "본문2" + MARK, AT, AT);
-        jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, created_at, "
-            + "updated_at) values (14, 1, 5, ?, ?)", AT, AT);
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (14, ?, ?, 'ON_SALE', ?, ?, ?)",
-            "상품" + MARK, "https://img.example/thumb" + MARK + ".png", AT, AT, AT);
+        new ReviewRows(jdbcTemplate).reviewImage(reviewId, 0, "https://img.example/" + MARK + ".jpg").at(AT).insert();
+        new ReviewRows(jdbcTemplate).review(12, 14, MEMBER + 1).nickname("닉2" + MARK).rating(5).content("본문2" + MARK)
+            .at(AT).insert();
+        new ReviewRows(jdbcTemplate).reviewStats(14, 1, 5).at(AT).insert();
+        new ReviewRows(jdbcTemplate).replicaProduct(14).name("상품" + MARK)
+            .thumbnailUrl("https://img.example/thumb" + MARK + ".png").at(AT).insert();
         jdbcTemplate.update("""
             insert into community.dead_letter
               (dlt_topic, dlt_partition, dlt_offset, source_topic, source_partition, source_offset,

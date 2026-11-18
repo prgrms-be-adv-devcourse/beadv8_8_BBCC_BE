@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Result;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.MemberWithdrawalRecorder;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationReason;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.FakeModerationAdapter;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.time.LocalDateTime;
@@ -60,8 +61,7 @@ class ReviewModerationStatsIntegrationTest {
         moderationService.processPending();
         assertStatsMatchPublicRecount();
 
-        reviewService.update(A, a, new ReviewService.ReviewChange(true, 1, false, null,
-            ReviewService.FitInput.text("TRUE_TO_SIZE")));
+        reviewService.update(A, a, ReviewChange.rating(1).withFit(FitInput.text("TRUE_TO_SIZE")));
         assertStatsMatchPublicRecount();
 
         adminService.changeVisibility(ADMIN, a, "VISIBLE");
@@ -84,7 +84,7 @@ class ReviewModerationStatsIntegrationTest {
         adminService.changeVisibility(ADMIN, a, "HIDDEN");
         adminService.changeVisibility(ADMIN, a, "HIDDEN");
         assertStatsMatchPublicRecount();
-        reviewService.update(A, a, new ReviewService.ReviewChange(true, 5, true, "고친 글"));
+        reviewService.update(A, a, ReviewChange.rating(5).withContent("고친 글"));
         assertStatsMatchPublicRecount();
         reviewService.delete(A, a);
         assertStatsMatchPublicRecount();
@@ -100,7 +100,7 @@ class ReviewModerationStatsIntegrationTest {
         adminService.changeVisibility(ADMIN, a, "VISIBLE");
         assertStatsMatchPublicRecount();
 
-        reviewService.update(A, a, new ReviewService.ReviewChange(false, null, true, "고친 글"));
+        reviewService.update(A, a, ReviewChange.content("고친 글"));
         assertStatsMatchPublicRecount();
         fake.willReturn(Result.flagged(ModerationReason.SEXUAL));
         moderationService.processPending();
@@ -130,11 +130,10 @@ class ReviewModerationStatsIntegrationTest {
     }
 
     private long write(long memberId, int rating, String fit) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (?, 12, ?, ?, 15, '110', now(), now(), "
-            + "now())", memberId, memberId, PRODUCT);
+        new ReviewRows(jdbcTemplate).eligibility(memberId, memberId, PRODUCT).orderId(12).optionId(15).size("110")
+            .insert();
         return reviewService.write(memberId, "닉", String.valueOf(memberId), rating, "좋아요",
-            fit == null ? ReviewService.FitInput.absent() : ReviewService.FitInput.text(fit)).reviewId();
+            fit == null ? FitInput.absent() : FitInput.text(fit)).reviewId();
     }
 
     private Map<String, Object> stats() {

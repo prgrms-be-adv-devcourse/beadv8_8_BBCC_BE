@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.util.List;
@@ -83,15 +84,15 @@ class ReviewStatsIntegrationTest {
         eligible(401, PRODUCT);
         long id = reviewService.write(ME, "닉", "401", 3, "처음 본문").reviewId();
 
-        reviewService.update(ME, id, new ReviewService.ReviewChange(false, null, true, "본문만"));
+        reviewService.update(ME, id, ReviewChange.content("본문만"));
         assertThat(review(id)).containsEntry("rating", 3).containsEntry("content", "본문만");
         assertThat(stats()).containsEntry("review_count", 1).containsEntry("rating_sum", 3);
 
-        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 5, false, null));
+        reviewService.update(ME, id, ReviewChange.rating(5));
         assertThat(review(id)).containsEntry("rating", 5).containsEntry("content", "본문만");
         assertThat(stats()).containsEntry("review_count", 1).containsEntry("rating_sum", 5);
 
-        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 1, true, "둘 다"));
+        reviewService.update(ME, id, ReviewChange.rating(1).withContent("둘 다"));
         assertThat(review(id)).containsEntry("rating", 1).containsEntry("content", "둘 다");
         assertThat(stats()).containsEntry("review_count", 1).containsEntry("rating_sum", 1);
     }
@@ -106,21 +107,19 @@ class ReviewStatsIntegrationTest {
     void fitCountsFollowRows() {
         sizedEligible(501, PRODUCT);
         sizedEligible(502, PRODUCT);
-        long first = reviewService.write(ME, "닉", "501", 4, "좋아요", ReviewService.FitInput.text("SMALL"))
+        long first = reviewService.write(ME, "닉", "501", 4, "좋아요", FitInput.text("SMALL"))
             .reviewId();
-        long second = reviewService.write(ME, "닉", "502", 5, "최고", ReviewService.FitInput.text("SMALL"))
+        long second = reviewService.write(ME, "닉", "502", 5, "최고", FitInput.text("SMALL"))
             .reviewId();
         assertFitsMatchRows();
         assertThat(fits()).containsExactly(2L, 0L, 0L);
 
-        ReviewService.ReviewChange toLarge = new ReviewService.ReviewChange(false, null, false, null,
-            ReviewService.FitInput.text("LARGE"));
+        ReviewChange toLarge = ReviewChange.none().withFit(FitInput.text("LARGE"));
         reviewService.update(ME, first, toLarge);
         reviewService.update(ME, first, toLarge);
         assertThat(fits()).containsExactly(1L, 0L, 1L);
 
-        reviewService.update(ME, second, new ReviewService.ReviewChange(false, null, false, null,
-            ReviewService.FitInput.cleared()));
+        reviewService.update(ME, second, ReviewChange.none().withFit(FitInput.cleared()));
         assertThat(fits()).containsExactly(0L, 0L, 1L);
 
         reviewService.delete(ME, first);
@@ -148,16 +147,11 @@ class ReviewStatsIntegrationTest {
     }
 
     private void sizedEligible(long orderItemId, long productId) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) "
-            + "values (?, 1, ?, ?, 1, '110', now(), now(), now())", orderItemId, ME, productId);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, ME, productId).size("110").insert();
     }
 
     private void eligible(long orderItemId, long productId) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) "
-            + "values (?, 1, ?, ?, 1, null, now(), now(), now())",
-            orderItemId, ME, productId);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, ME, productId).insert();
     }
 
     private Map<String, Object> stats() {

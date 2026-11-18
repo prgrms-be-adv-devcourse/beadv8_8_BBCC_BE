@@ -3,12 +3,12 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.port.CommunityDeadLetters.Received;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.FailureCause;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Result;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationReason;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.FakeModerationAdapter;
 import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
@@ -85,9 +85,7 @@ class CommunityMetricsIntegrationTest {
         pendingReview(103, 1);
         pendingReview(104, 2);
         pendingReview(105, 3);
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status) values (106, 14, 13, '닉', 4, '본문', now(), now(), "
-            + "'PASSED')");
+        new ReviewRows(jdbcTemplate).review(106, 14, 13).insert();
 
         assertThat(gauge(CommunityMetrics.MODERATION_PENDING, "stage", "waiting")).isEqualTo(2.0);
         assertThat(gauge(CommunityMetrics.MODERATION_PENDING, "stage", "retrying")).isEqualTo(2.0);
@@ -102,8 +100,7 @@ class CommunityMetricsIntegrationTest {
         pendingReview(202, 0);
         pendingReview(203, 0);
         // 걸린 리뷰는 숨기며 집계에서 뺀다(집계 행이 있어야 한다)
-        jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, created_at, "
-            + "updated_at) values (14, 3, 12, now(), now())");
+        new ReviewRows(jdbcTemplate).reviewStats(14, 3, 12).insert();
         double passed = counter(CommunityMetrics.MODERATION_CHECKS, "result", "passed", "cause", "none");
         double flagged = counter(CommunityMetrics.MODERATION_CHECKS, "result", "flagged", "cause", "none");
         double timeout = counter(CommunityMetrics.MODERATION_CHECKS, "result", "undecided", "cause", "timeout");
@@ -123,9 +120,7 @@ class CommunityMetricsIntegrationTest {
     @Test
     @DisplayName("사진 확인 불가 카운터는 503(IMAGE_STORAGE_UNAVAILABLE) 경로에서만 는다(올리지 않음 400 · 성공은 그대로)")
     void storageUnavailableOnlyOn503() {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, null, now(), now(), "
-            + "now())", ME);
+        new ReviewRows(jdbcTemplate).eligibility(11, ME, 14).orderId(12).optionId(15).insert();
         double before = counter(CommunityMetrics.IMAGE_STORAGE_UNAVAILABLE, "operation", "upload_check");
         String missing = url(0);
         String unavailable = url(1);
@@ -151,7 +146,7 @@ class CommunityMetricsIntegrationTest {
     }
 
     private void write(List<String> urls) {
-        reviewService.write(ME, "닉", "11", 4, "좋아요", ReviewService.FitInput.absent(), ImageUrlsInput.of(urls));
+        reviewService.write(ME, "닉", "11", 4, "좋아요", FitInput.absent(), ImageUrlsInput.of(urls));
     }
 
     private String url(int index) {
@@ -159,9 +154,7 @@ class CommunityMetricsIntegrationTest {
     }
 
     private void pendingReview(long orderItemId, int attempts) {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status, moderation_attempts) "
-            + "values (?, 14, 13, '닉', 4, '본문', now(), now(), 'PENDING', ?)", orderItemId, attempts);
+        new ReviewRows(jdbcTemplate).review(orderItemId, 14, 13).status("PENDING").attempts(attempts).insert();
     }
 
     private static Received received(long offset) {

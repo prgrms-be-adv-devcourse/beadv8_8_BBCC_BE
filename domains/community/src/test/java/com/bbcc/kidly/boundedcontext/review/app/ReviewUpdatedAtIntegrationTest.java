@@ -2,13 +2,11 @@ package com.bbcc.kidly.boundedcontext.review.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.FitInput;
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ReviewChange;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.FailureCause;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Result;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationReason;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.FakeModerationAdapter;
 import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
@@ -118,11 +116,10 @@ class ReviewUpdatedAtIntegrationTest {
         String image = imageStorage.ownImageUrlPrefix(ME) + "0b6f3c1e-8a2d-4c5b-9e7f-1a2b3c4d5e6f.jpg";
         uploadChecker.markUploaded(image);
         List<Consumer<Long>> edits = List.of(
-            id -> reviewService.update(ME, id, new ReviewChange(true, 2, false, null)),
-            id -> reviewService.update(ME, id, new ReviewChange(false, null, true, "바뀐 본문")),
-            id -> reviewService.update(ME, id, new ReviewChange(false, null, false, null, FitInput.text("LARGE"))),
-            id -> reviewService.update(ME, id, new ReviewChange(false, null, false, null, FitInput.absent(),
-                ImageUrlsInput.of(List.of(image)))));
+            id -> reviewService.update(ME, id, ReviewChange.rating(2)),
+            id -> reviewService.update(ME, id, ReviewChange.content("바뀐 본문")),
+            id -> reviewService.update(ME, id, ReviewChange.none().withFit(FitInput.text("LARGE"))),
+            id -> reviewService.update(ME, id, ReviewChange.none().withImages(ImageUrlsInput.of(List.of(image)))));
         long orderItem = 40;
         for (Consumer<Long> edit : edits) {
             long id = writeAged(orderItem++);
@@ -133,7 +130,7 @@ class ReviewUpdatedAtIntegrationTest {
             assertThat(updatedAt(id)).isAfter(start);
         }
         long id = writeAged(orderItem);
-        ReviewService.ReviewView view = reviewService.update(ME, id, new ReviewChange(true, 1, false, null));
+        ReviewView view = reviewService.update(ME, id, ReviewChange.rating(1));
         assertThat(view.updatedAt()).isEqualTo(updatedAt(id)).isNotEqualTo(BEFORE);
     }
 
@@ -143,7 +140,7 @@ class ReviewUpdatedAtIntegrationTest {
         long id = writeAged();
         adminService.changeVisibility(ADMIN, id, "HIDDEN");
 
-        reviewService.update(ME, id, new ReviewChange(false, null, true, "고친 글"));
+        reviewService.update(ME, id, ReviewChange.content("고친 글"));
 
         assertThat(updatedAt(id)).isAfter(BEFORE);
     }
@@ -153,7 +150,7 @@ class ReviewUpdatedAtIntegrationTest {
     void sameValueKeeps() {
         long id = writeAged();
 
-        reviewService.update(ME, id, new ReviewChange(true, 4, true, "좋은 옷"));
+        reviewService.update(ME, id, ReviewChange.rating(4).withContent("좋은 옷"));
 
         assertThat(updatedAt(id)).isEqualTo(BEFORE);
     }
@@ -167,9 +164,7 @@ class ReviewUpdatedAtIntegrationTest {
         uploadChecker.markUploaded(first);
         uploadChecker.markUploaded(second);
         uploadChecker.markUploaded(third);
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (51, 12, ?, ?, 15, null, now(), now(), "
-            + "now())", ME, PRODUCT);
+        new ReviewRows(jdbcTemplate).eligibility(51, ME, PRODUCT).orderId(12).optionId(15).insert();
         long id = reviewService.write(ME, "닉", "51", 4, "좋은 옷", FitInput.absent(),
             ImageUrlsInput.of(List.of(first, second))).reviewId();
         jdbcTemplate.update("update community.review set updated_at = ? where id = ?", Timestamp.valueOf(BEFORE), id);
@@ -191,7 +186,7 @@ class ReviewUpdatedAtIntegrationTest {
     }
 
     private static ReviewChange imagesOnly(List<String> urls) {
-        return new ReviewChange(false, null, false, null, FitInput.absent(), ImageUrlsInput.of(urls));
+        return ReviewChange.none().withImages(ImageUrlsInput.of(urls));
     }
 
     private long reviewUpdatedRows(long id) {
@@ -204,9 +199,8 @@ class ReviewUpdatedAtIntegrationTest {
     }
 
     private long writeAged(long orderItemId) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (?, 12, ?, ?, 15, '110', now(), now(), "
-            + "now())", orderItemId, ME, PRODUCT);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, ME, PRODUCT).orderId(12).optionId(15).size("110")
+            .insert();
         long id = reviewService.write(ME, "닉", String.valueOf(orderItemId), 4, "좋은 옷").reviewId();
         jdbcTemplate.update("update community.review set updated_at = ? where id = ?", Timestamp.valueOf(BEFORE), id);
         return id;

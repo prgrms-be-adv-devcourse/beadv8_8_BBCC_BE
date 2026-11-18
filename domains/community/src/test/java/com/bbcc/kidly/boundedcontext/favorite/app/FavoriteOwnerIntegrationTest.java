@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.in.ChildFavoritesRemover;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.in.MemberFavoritesRemover;
 import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
@@ -50,9 +51,7 @@ class FavoriteOwnerIntegrationTest {
     @BeforeEach
     void products() {
         for (long product = 14; product <= 17; product++) {
-            jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, "
-                + "display_status, source_occurred_at, created_at, updated_at) values (?, '상품', null, 'ON_SALE', "
-                + "now(), now(), now())", product);
+            new ReviewRows(jdbcTemplate).replicaProduct(product).insert();
         }
     }
 

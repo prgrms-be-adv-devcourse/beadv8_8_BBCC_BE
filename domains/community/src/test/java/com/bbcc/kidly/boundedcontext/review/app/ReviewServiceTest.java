@@ -3,8 +3,6 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ReviewView;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewEligibilities;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImages;
@@ -178,9 +176,9 @@ class ReviewServiceTest {
         stats.deltas.clear();
 
         ReviewView ratingOnly = service.update(ME, reviewId,
-            new ReviewService.ReviewChange(true, 2, false, null));
+            ReviewChange.rating(2));
         ReviewView contentOnly = service.update(ME, reviewId,
-            new ReviewService.ReviewChange(false, null, true, "본문만 고침"));
+            ReviewChange.content("본문만 고침"));
 
         assertThat(ratingOnly.rating()).isEqualTo(2);
         assertThat(ratingOnly.content()).isEqualTo("좋아요");
@@ -195,9 +193,9 @@ class ReviewServiceTest {
         eligibility.mine(ORDER_ITEM, ME, PRODUCT);
         long reviewId = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요").reviewId();
 
-        assertError(() -> service.update(ME, reviewId, new ReviewService.ReviewChange(false, null, false, null)),
+        assertError(() -> service.update(ME, reviewId, ReviewChange.none()),
             ReviewErrorCode.NO_FIELDS_TO_UPDATE);
-        assertError(() -> service.update(ME, reviewId, new ReviewService.ReviewChange(true, null, false, null)),
+        assertError(() -> service.update(ME, reviewId, ReviewChange.rating(null)),
             ReviewErrorCode.INVALID_RATING);
     }
 
@@ -206,14 +204,14 @@ class ReviewServiceTest {
     void fitStats() {
         eligibility.mine(ORDER_ITEM, ME, PRODUCT, "110");
         ReviewView written = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
-            ReviewService.FitInput.text("SMALL"));
+            FitInput.text("SMALL"));
         long id = written.reviewId();
 
-        service.update(ME, id, change(ReviewService.FitInput.text("LARGE")));
-        service.update(ME, id, change(ReviewService.FitInput.text("LARGE")));
-        service.update(ME, id, new ReviewService.ReviewChange(true, 2, false, null));
-        service.update(ME, id, change(ReviewService.FitInput.cleared()));
-        service.update(ME, id, change(ReviewService.FitInput.text("TRUE_TO_SIZE")));
+        service.update(ME, id, change(FitInput.text("LARGE")));
+        service.update(ME, id, change(FitInput.text("LARGE")));
+        service.update(ME, id, ReviewChange.rating(2));
+        service.update(ME, id, change(FitInput.cleared()));
+        service.update(ME, id, change(FitInput.text("TRUE_TO_SIZE")));
         service.delete(ME, id);
 
         assertThat(written.fit()).isEqualTo("SMALL");
@@ -228,25 +226,25 @@ class ReviewServiceTest {
     void fitErrors() {
         eligibility.mine(ORDER_ITEM, ME, PRODUCT);
         assertError(() -> service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
-            ReviewService.FitInput.text("SMALL")), ReviewErrorCode.FIT_NOT_APPLICABLE);
+            FitInput.text("SMALL")), ReviewErrorCode.FIT_NOT_APPLICABLE);
         assertError(() -> service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
-            ReviewService.FitInput.text("small")), ReviewErrorCode.INVALID_FIT);
+            FitInput.text("small")), ReviewErrorCode.INVALID_FIT);
         assertError(() -> service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
-            ReviewService.FitInput.invalid()), ReviewErrorCode.INVALID_FIT);
+            FitInput.invalid()), ReviewErrorCode.INVALID_FIT);
         assertThat(reviews.saves).isZero();
         assertThat(stats.deltas).isEmpty();
 
         long id = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요").reviewId();
         List<Delta> afterWrite = List.copyOf(stats.deltas);
         List<List<Integer>> fitsAfterWrite = List.copyOf(stats.fitDeltas);
-        assertError(() -> service.update(ME, id, change(ReviewService.FitInput.text("LARGE"))),
+        assertError(() -> service.update(ME, id, change(FitInput.text("LARGE"))),
             ReviewErrorCode.FIT_NOT_APPLICABLE);
         assertThat(stats.deltas).isEqualTo(afterWrite);
         assertThat(stats.fitDeltas).isEqualTo(fitsAfterWrite);
         // 남의 리뷰는 핏 값이 틀려도 작성자 확인이 먼저다(별점 · 본문과 같은 순서)
-        assertError(() -> service.update(ME + 1, id, change(ReviewService.FitInput.text("small"))),
+        assertError(() -> service.update(ME + 1, id, change(FitInput.text("small"))),
             ReviewErrorCode.REVIEW_FORBIDDEN);
-        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(false, null, false, null)),
+        assertError(() -> service.update(ME, id, ReviewChange.none()),
             ReviewErrorCode.NO_FIELDS_TO_UPDATE);
     }
 
@@ -296,7 +294,7 @@ class ReviewServiceTest {
         assertThat(replaced.imageUrls()).containsExactly(own(2, "png"), own(0, "jpg"));
         assertThat(images.urlsOf(id)).containsExactly(own(2, "png"), own(0, "jpg"));
 
-        ReviewView kept = service.update(ME, id, new ReviewService.ReviewChange(false, null, true, "본문만"));
+        ReviewView kept = service.update(ME, id, ReviewChange.content("본문만"));
         assertThat(kept.imageUrls()).containsExactly(own(2, "png"), own(0, "jpg"));
         assertThat(images.urlsOf(id)).containsExactly(own(2, "png"), own(0, "jpg"));
 
@@ -313,13 +311,13 @@ class ReviewServiceTest {
         long id = writeWith(ORDER_ITEM, ImageUrlsInput.of(List.of(own(0, "jpg")))).reviewId();
         List<Delta> afterWrite = List.copyOf(stats.deltas);
 
-        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(true, 1, true, "바꿈",
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of("https://evil.example.com/a.jpg")))),
+        assertError(() -> service.update(ME, id, ReviewChange.rating(1).withContent("바꿈")
+            .withImages(ImageUrlsInput.of(List.of("https://evil.example.com/a.jpg")))),
             ReviewErrorCode.INVALID_IMAGE_URL);
-        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(true, 1, false, null,
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(ownUrls(6)))), ReviewErrorCode.TOO_MANY_IMAGES);
-        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(false, null, false, null,
-            ReviewService.FitInput.text("SMALL"), ImageUrlsInput.of(List.of(own(1, "png"))))),
+        assertError(() -> service.update(ME, id, ReviewChange.rating(1).withImages(ImageUrlsInput.of(ownUrls(6)))),
+            ReviewErrorCode.TOO_MANY_IMAGES);
+        assertError(() -> service.update(ME, id, ReviewChange.none().withFit(FitInput.text("SMALL"))
+            .withImages(ImageUrlsInput.of(List.of(own(1, "png"))))),
             ReviewErrorCode.FIT_NOT_APPLICABLE);
         assertError(() -> service.update(ME + 1, id, imagesChange(ImageUrlsInput.invalid())),
             ReviewErrorCode.REVIEW_FORBIDDEN);
@@ -338,9 +336,9 @@ class ReviewServiceTest {
         eligibility.mine(ORDER_ITEM, ME, PRODUCT);
 
         assertThatThrownBy(() -> two.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(ownUrls(3))))
+            FitInput.absent(), ImageUrlsInput.of(ownUrls(3))))
             .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getDetail()).contains("2장"));
-        long id = two.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요", ReviewService.FitInput.absent(),
+        long id = two.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요", FitInput.absent(),
             ImageUrlsInput.of(ownUrls(2))).reviewId();
         assertError(() -> two.update(ME, id, imagesChange(ImageUrlsInput.of(ownUrls(3)))),
             ReviewErrorCode.TOO_MANY_IMAGES);
@@ -356,13 +354,13 @@ class ReviewServiceTest {
         assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
         ReflectionTestUtils.setField(review, "moderationStatus", ModerationStatus.PASSED);
 
-        service.update(ME, id, new ReviewService.ReviewChange(true, 2, false, null));
-        service.update(ME, id, new ReviewService.ReviewChange(false, null, true, " 좋아요 "));
+        service.update(ME, id, ReviewChange.rating(2));
+        service.update(ME, id, ReviewChange.content(" 좋아요 "));
         service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(0, "jpg")))));
         assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.PASSED);
         assertThat(review.getContentVersion()).isZero();
 
-        service.update(ME, id, new ReviewService.ReviewChange(false, null, true, "바뀐 글"));
+        service.update(ME, id, ReviewChange.content("바뀐 글"));
         assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.PENDING);
         assertThat(review.getContentVersion()).isEqualTo(1L);
 
@@ -380,7 +378,7 @@ class ReviewServiceTest {
         Review review = reviews.findForUpdate(id).orElseThrow();
         ReflectionTestUtils.setField(review, "moderationStatus", ModerationStatus.CONFIRMED_HIDDEN);
 
-        service.update(ME, id, new ReviewService.ReviewChange(false, null, true, "고친 글"));
+        service.update(ME, id, ReviewChange.content("고친 글"));
 
         assertThat(review.getModerationStatus()).isEqualTo(ModerationStatus.CONFIRMED_HIDDEN);
     }
@@ -391,12 +389,11 @@ class ReviewServiceTest {
     void hiddenReviewLeavesStats(ModerationStatus status) {
         eligibility.mine(ORDER_ITEM, ME, PRODUCT, "110");
         long id = service.write(ME, "닉", String.valueOf(ORDER_ITEM), 4, "좋아요",
-            ReviewService.FitInput.text("SMALL")).reviewId();
+            FitInput.text("SMALL")).reviewId();
         ReflectionTestUtils.setField(reviews.findForUpdate(id).orElseThrow(), "moderationStatus", status);
         List<Delta> afterWrite = List.copyOf(stats.deltas);
 
-        service.update(ME, id, new ReviewService.ReviewChange(true, 1, false, null,
-            ReviewService.FitInput.text("LARGE")));
+        service.update(ME, id, ReviewChange.rating(1).withFit(FitInput.text("LARGE")));
         service.delete(ME, id);
 
         assertThat(stats.deltas).isEqualTo(afterWrite);
@@ -447,7 +444,7 @@ class ReviewServiceTest {
         assertThat(storage.checks).containsExactly(List.of(own(1, "png")));
         storage.checks.clear();
 
-        service.update(ME, id, new ReviewService.ReviewChange(true, 2, false, null));
+        service.update(ME, id, ReviewChange.rating(2));
         service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(1, "png"), own(0, "jpg")))));
         service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of())));
         assertThat(storage.checks).isEmpty();
@@ -462,8 +459,8 @@ class ReviewServiceTest {
         storage.checks.clear();
         storage.missing.add(own(2, "png"));
 
-        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(true, 1, true, "바꿈",
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of(own(2, "png"))))),
+        assertError(() -> service.update(ME, id, ReviewChange.rating(1).withContent("바꿈")
+            .withImages(ImageUrlsInput.of(List.of(own(2, "png"))))),
             ReviewErrorCode.IMAGE_NOT_UPLOADED);
         storage.unavailable = true;
         assertError(() -> service.update(ME, id, imagesChange(ImageUrlsInput.of(List.of(own(3, "png"))))),
@@ -471,8 +468,8 @@ class ReviewServiceTest {
         int checksBefore = storage.checks.size();
         assertError(() -> service.update(ME + 1, id, imagesChange(ImageUrlsInput.of(List.of(own(3, "png"))))),
             ReviewErrorCode.REVIEW_FORBIDDEN);
-        assertError(() -> service.update(ME, id, new ReviewService.ReviewChange(true, 9, false, null,
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of(own(3, "png"))))),
+        assertError(() -> service.update(ME, id, ReviewChange.rating(9)
+            .withImages(ImageUrlsInput.of(List.of(own(3, "png"))))),
             ReviewErrorCode.INVALID_RATING);
         assertError(() -> service.update(ME, 999L, imagesChange(ImageUrlsInput.of(List.of(own(3, "png"))))),
             ReviewErrorCode.REVIEW_NOT_FOUND);
@@ -493,12 +490,12 @@ class ReviewServiceTest {
     }
 
     private ReviewView writeWith(long orderItemId, ImageUrlsInput imageUrls) {
-        return service.write(ME, "닉", String.valueOf(orderItemId), 4, "좋아요", ReviewService.FitInput.absent(),
+        return service.write(ME, "닉", String.valueOf(orderItemId), 4, "좋아요", FitInput.absent(),
             imageUrls);
     }
 
-    private static ReviewService.ReviewChange imagesChange(ImageUrlsInput imageUrls) {
-        return new ReviewService.ReviewChange(false, null, false, null, ReviewService.FitInput.absent(), imageUrls);
+    private static ReviewChange imagesChange(ImageUrlsInput imageUrls) {
+        return ReviewChange.none().withImages(imageUrls);
     }
 
     private static String own(int index, String extension) {
@@ -513,8 +510,8 @@ class ReviewServiceTest {
         return urls;
     }
 
-    private static ReviewService.ReviewChange change(ReviewService.FitInput fit) {
-        return new ReviewService.ReviewChange(false, null, false, null, fit);
+    private static ReviewChange change(FitInput fit) {
+        return ReviewChange.none().withFit(fit);
     }
 
     private static void assertError(Runnable call, ReviewErrorCode code) {

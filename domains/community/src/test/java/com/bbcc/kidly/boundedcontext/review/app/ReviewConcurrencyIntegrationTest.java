@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.review.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -56,7 +57,7 @@ class ReviewConcurrencyIntegrationTest {
         eligible(11);
         List<Object> results = runConcurrently(2, i -> () -> reviewService.write(ME, NICKNAME, "11", 5, CONTENT));
 
-        assertThat(results).filteredOn(ReviewService.ReviewView.class::isInstance).hasSize(1);
+        assertThat(results).filteredOn(ReviewView.class::isInstance).hasSize(1);
         assertThat(results).filteredOn(BusinessException.class::isInstance).singleElement()
             .satisfies(e -> assertThat(((BusinessException) e).getErrorCode())
                 .isEqualTo(ReviewErrorCode.REVIEW_ALREADY_WRITTEN));
@@ -72,10 +73,7 @@ class ReviewConcurrencyIntegrationTest {
         CountDownLatch inserted = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         CompletableFuture<Void> other = CompletableFuture.runAsync(() -> transactionTemplate.executeWithoutResult(s -> {
-            jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-                + "content, created_at, updated_at, moderation_status) values (12, ?, ?, '먼저', 3, '먼저 쓴 리뷰', "
-                + "now(), now(), 'PASSED')",
-                PRODUCT, ME);
+            new ReviewRows(jdbcTemplate).review(12, PRODUCT, ME).nickname("먼저").rating(3).content("먼저 쓴 리뷰").insert();
             inserted.countDown();
             await(release);
         }));
@@ -213,7 +211,7 @@ class ReviewConcurrencyIntegrationTest {
         List<Object> writes = runConcurrently(9, i -> {
             sizedEligible(700 + i, 100L + i);
             return () -> reviewService.write(100L + i, "닉", String.valueOf(700 + i), 4, "본문",
-                ReviewService.FitInput.text(fits[i % 3]));
+                FitInput.text(fits[i % 3]));
         });
         assertThat(Outcomes.of(writes).technical()).isEmpty();
         assertFitsMatchRows();
@@ -221,16 +219,15 @@ class ReviewConcurrencyIntegrationTest {
         for (int round = 0; round < ROUNDS; round++) {
             sizedEligible(800 + round, ME);
             long reviewId = reviewService.write(ME, "닉", String.valueOf(800 + round), 3, "처음",
-                ReviewService.FitInput.text("SMALL")).reviewId();
+                FitInput.text("SMALL")).reviewId();
 
             Outcomes changes = Outcomes.of(runConcurrently(6, i -> () -> reviewService.update(ME, reviewId,
-                new ReviewService.ReviewChange(false, null, false, null, ReviewService.FitInput.text(fits[i % 3])))));
+                ReviewChange.none().withFit(FitInput.text(fits[i % 3])))));
             assertThat(changes.technical()).as("기술 오류").isEmpty();
             assertFitsMatchRows();
 
             Outcomes changeAndDelete = Outcomes.of(runConcurrently(2, i -> i == 0
-                ? () -> reviewService.update(ME, reviewId, new ReviewService.ReviewChange(false, null, false, null,
-                    ReviewService.FitInput.text("LARGE")))
+                ? () -> reviewService.update(ME, reviewId, ReviewChange.none().withFit(FitInput.text("LARGE")))
                 : () -> {
                     reviewService.delete(ME, reviewId);
                     return "deleted";
@@ -253,9 +250,7 @@ class ReviewConcurrencyIntegrationTest {
     }
 
     private void sizedEligible(long orderItemId, long memberId) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) "
-            + "values (?, 1, ?, ?, 1, '110', now(), now(), now())", orderItemId, memberId, PRODUCT);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, memberId, PRODUCT).size("110").insert();
     }
 
     private long writeReview(long orderItemId, int rating) {
@@ -346,10 +341,7 @@ class ReviewConcurrencyIntegrationTest {
     }
 
     private void eligible(long orderItemId) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) "
-            + "values (?, 1, ?, ?, 1, null, now(), now(), now())",
-            orderItemId, ME, PRODUCT);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, ME, PRODUCT).insert();
     }
 
     private int reviewCount(long orderItemId) {

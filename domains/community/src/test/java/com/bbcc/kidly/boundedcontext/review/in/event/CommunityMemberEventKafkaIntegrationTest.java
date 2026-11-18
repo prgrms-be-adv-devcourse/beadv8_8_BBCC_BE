@@ -2,6 +2,8 @@ package com.bbcc.kidly.boundedcontext.review.in.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.favorite.fixture.FavoriteRows;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
@@ -156,19 +158,12 @@ class CommunityMemberEventKafkaIntegrationTest {
     }
 
     private void favorite(long memberId, long productId) {
-        jdbcTemplate.update("insert into community.favorite (member_id, owner_type, owner_id, guardian_id, product_id, "
-            + "created_at, updated_at) values (?, 'MEMBER', ?, ?, ?, now(), now())", memberId, memberId, memberId,
-            productId);
-        jdbcTemplate.update("insert into community.favorite_stats (product_id, favorite_count, created_at, updated_at) "
-            + "values (?, 1, now(), now()) on conflict (product_id) do update "
-            + "set favorite_count = community.favorite_stats.favorite_count + 1", productId);
+        new FavoriteRows(jdbcTemplate).memberFavorite(memberId, productId).insert();
+        new FavoriteRows(jdbcTemplate).increaseFavoriteCount(productId);
     }
 
     private void review(long memberId, long orderItemId) {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status) values (?, 14, ?, '닉', 4, '본문', now(), now(), "
-            + "'PASSED')",
-            orderItemId, memberId);
+        new ReviewRows(jdbcTemplate).review(orderItemId, 14, memberId).insert();
     }
 
     private Map<String, Object> review(Long orderItemId) {

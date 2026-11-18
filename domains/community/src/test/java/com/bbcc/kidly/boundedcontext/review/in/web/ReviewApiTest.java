@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.review.in.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewErrorCode;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import com.bbcc.kidly.shared.auth.Role;
@@ -39,9 +40,7 @@ class ReviewApiTest {
 
     @BeforeEach
     void eligibility() {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, '110', now(), now(), "
-            + "now())", ME);
+        new ReviewRows(jdbcTemplate).eligibility(11, ME, 14).orderId(12).optionId(15).size("110").insert();
     }
 
     @Test
@@ -326,9 +325,7 @@ class ReviewApiTest {
             .body(Map.of("orderItemId", "11", "rating", 5, "content", "좋아요", "fit", "small")).exchange(),
             400, ReviewErrorCode.INVALID_FIT);
 
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (21, 12, ?, 14, 15, null, now(), now(), "
-            + "now())", ME);
+        new ReviewRows(jdbcTemplate).eligibility(21, ME, 14).orderId(12).optionId(15).insert();
         client.post().uri(PATH).headers(TestMembers.buyer(ME)).contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("orderItemId", "21", "rating", 5, "content", "사이즈 없는 상품", "fit", "SMALL"))
             .exchange()

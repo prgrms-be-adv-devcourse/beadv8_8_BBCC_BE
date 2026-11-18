@@ -7,11 +7,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.activity.app.port.in.ActivityRecorder;
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteService;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.in.MemberFavoritesRemover;
+import com.bbcc.kidly.boundedcontext.review.app.FitInput;
+import com.bbcc.kidly.boundedcontext.review.app.ImageUrlsInput;
+import com.bbcc.kidly.boundedcontext.review.app.ReviewChange;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationAdminService;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationRecorder;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationService.Candidate;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewService;
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Content;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.FailureCause;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Result;
@@ -19,6 +21,7 @@ import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder.PurchaseConfirmed;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationReason;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -84,9 +87,7 @@ class ActivityRecordingIntegrationTest {
     @BeforeEach
     void seed() {
         uploadChecker.reset();
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, '상품', null, 'ON_SALE', now(), now(), now())",
-            PRODUCT);
+        new ReviewRows(jdbcTemplate).replicaProduct(PRODUCT).insert();
     }
 
     @Test
@@ -111,11 +112,11 @@ class ActivityRecordingIntegrationTest {
         double created = counter("kidly.community.reviews", "action", "created");
         double updated = counter("kidly.community.reviews", "action", "updated");
         double deleted = counter("kidly.community.reviews", "action", "deleted");
-        long id = reviewService.write(ME, "닉", "11", 4, "좋아요", ReviewService.FitInput.absent(),
+        long id = reviewService.write(ME, "닉", "11", 4, "좋아요", FitInput.absent(),
             ImageUrlsInput.of(List.of(own(0)))).reviewId();
 
-        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 4, false, null));
-        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 2, true, "고친 본문"));
+        reviewService.update(ME, id, ReviewChange.rating(4));
+        reviewService.update(ME, id, ReviewChange.rating(2).withContent("고친 본문"));
         reviewService.delete(ME, id);
 
         assertThat(rows("REVIEW_CREATED")).singleElement().satisfies(row -> {
@@ -161,9 +162,7 @@ class ActivityRecordingIntegrationTest {
     @DisplayName("회원 탈퇴로 지운 찜은 지운 행마다 까닭 withdrawn으로 남고, 카운터는 그 수만큼 오른다")
     void withdrawnFavorites() {
         for (long product = 21; product <= 23; product++) {
-            jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, "
-                + "display_status, source_occurred_at, created_at, updated_at) values (?, '상품', null, 'ON_SALE', "
-                + "now(), now(), now())", product);
+            new ReviewRows(jdbcTemplate).replicaProduct(product).insert();
             favoriteService.add(FavoriteOwner.member(ME), String.valueOf(product));
         }
         favoriteService.add(FavoriteOwner.member(ME + 1), "21");
@@ -209,8 +208,7 @@ class ActivityRecordingIntegrationTest {
         long flagged = review(32, 0, 0);
         long stale = review(33, 0, 0);
         long undecided = review(34, 0, 0);
-        jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, created_at, "
-            + "updated_at) values (?, 4, 16, now(), now())", PRODUCT);
+        new ReviewRows(jdbcTemplate).reviewStats(PRODUCT, 4, 16).insert();
         double passedCount = counter("kidly.community.moderation.decisions", "by", "moderator", "status", "passed");
         double hiddenCount = counter("kidly.community.moderation.decisions", "by", "moderator", "status", "hidden");
 
@@ -241,8 +239,7 @@ class ActivityRecordingIntegrationTest {
     @DisplayName("관리자 숨김 확정 · 다시 공개는 상태가 바뀔 때만 by=admin으로 남는다(같은 값 다시 보내기는 없음)")
     void adminDecisions() {
         long id = review(41, 0, 0);
-        jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, created_at, "
-            + "updated_at) values (?, 1, 4, now(), now())", PRODUCT);
+        new ReviewRows(jdbcTemplate).reviewStats(PRODUCT, 1, 4).insert();
         double confirmed = counter("kidly.community.moderation.decisions", "by", "admin", "status", "confirmed_hidden");
         double restored = counter("kidly.community.moderation.decisions", "by", "admin", "status", "restored");
 
@@ -303,10 +300,8 @@ class ActivityRecordingIntegrationTest {
     }
 
     private long review(long orderItemId, int attempts, long contentVersion) {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status, moderation_attempts, content_version) "
-            + "values (?, ?, ?, '닉', 4, '본문', now(), now(), 'PENDING', ?, ?)", orderItemId, PRODUCT, ME, attempts,
-            contentVersion);
+        new ReviewRows(jdbcTemplate).review(orderItemId, PRODUCT, ME).status("PENDING").attempts(attempts)
+            .contentVersion(contentVersion).insert();
         return jdbcTemplate.queryForObject("select id from community.review where order_item_id = ?", Long.class,
             orderItemId);
     }

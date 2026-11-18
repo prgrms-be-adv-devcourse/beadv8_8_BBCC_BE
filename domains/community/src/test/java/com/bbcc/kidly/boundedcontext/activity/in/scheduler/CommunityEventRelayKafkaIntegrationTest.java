@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.activity.app.CommunityEventMetrics;
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteService;
+import com.bbcc.kidly.boundedcontext.review.app.FitInput;
+import com.bbcc.kidly.boundedcontext.review.app.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewService;
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder.PurchaseConfirmed;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.KafkaIntegrationTest;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -68,13 +70,11 @@ class CommunityEventRelayKafkaIntegrationTest {
         long member = ThreadLocalRandom.current().nextLong(1_000_000, 9_000_000);
         long product = member;
         long orderItem = member;
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, '상품', null, 'ON_SALE', now(), now(), now())",
-            product);
+        new ReviewRows(jdbcTemplate).replicaProduct(product).insert();
         eligibilityRecorder.record(new PurchaseConfirmed(orderItem, 1L, member, product, 1L, null,
             LocalDateTime.of(2026, 11, 12, 10, 0)));
         long reviewId = reviewService.write(member, "닉", String.valueOf(orderItem), 5, "좋아요",
-            ReviewService.FitInput.absent(), ImageUrlsInput.absent()).reviewId();
+            FitInput.absent(), ImageUrlsInput.absent()).reviewId();
         favoriteService.add(FavoriteOwner.member(member), String.valueOf(product));
 
         List<ConsumerRecord<String, String>> review = awaitRecords(String.valueOf(reviewId), "review.changed");
