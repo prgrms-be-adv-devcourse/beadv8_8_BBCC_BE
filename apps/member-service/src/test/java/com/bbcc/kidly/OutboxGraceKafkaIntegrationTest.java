@@ -14,7 +14,7 @@ import com.bbcc.kidly.boundedcontext.member.app.outbox.MemberOutboxRelay;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxMessage;
 import com.bbcc.kidly.boundedcontext.member.domain.outbox.MemberOutboxRepository;
 import com.bbcc.kidly.boundedcontext.seller.SellerOutboxMessageFixture;
-import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerOutboxRelay;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxRepository;
 import com.bbcc.kidly.support.AsyncWait;
@@ -40,7 +40,7 @@ class OutboxGraceKafkaIntegrationTest {
     @Autowired private ChildProfileOutboxRepository children;
     @Autowired private AuthOutboxRepository auth;
     @Autowired private MemberOutboxRelay memberRelay;
-    @Autowired private SellerOutboxRelayService sellerRelay;
+    @Autowired private SellerOutboxRelay sellerRelay;
     @Autowired private ChildProfileOutboxRelayService childRelay;
     @Autowired private AuthOutboxRelayService authRelay;
     @Autowired private JdbcTemplate jdbc;
@@ -59,8 +59,8 @@ class OutboxGraceKafkaIntegrationTest {
     void sellerRelaysOnlyOld() {
         var old = UUID.randomUUID();
         var recent = UUID.randomUUID();
-        sellers.save(SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(old)));
-        sellers.save(SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(recent)));
+        sellers.save(new SellerOutboxMessage(SellerOutboxMessageFixture.changed(old)));
+        sellers.save(new SellerOutboxMessage(SellerOutboxMessageFixture.changed(recent)));
         verifyRelay("seller.seller_outbox", "kidly.seller.events", old, recent, sellerRelay::relay);
     }
 

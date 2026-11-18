@@ -2,9 +2,9 @@ package com.bbcc.kidly.boundedcontext.seller.out.outbox;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.bbcc.kidly.boundedcontext.seller.app.port.outbox.SellerOutboxSendException;
 import com.bbcc.kidly.boundedcontext.seller.app.port.outbox.SellerOutboxSender;
-import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxSendException;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +22,7 @@ public class KafkaSellerOutboxSender implements SellerOutboxSender, DisposableBe
     private final Duration sendTimeout;
 
     @Override
-    public void send(SellerOutboxMessage message) {
+    public void send(OutboxMessage message) {
         var record = new ProducerRecord<>(message.getTopic(), message.getMessageKey(), message.getPayload());
         record.headers()
             .add("eventType", message.getEventType().getBytes(UTF_8))
@@ -41,8 +41,8 @@ public class KafkaSellerOutboxSender implements SellerOutboxSender, DisposableBe
         }
     }
 
-    private SellerOutboxSendException failure(SellerOutboxMessage message, String reason, Throwable cause) {
-        return new SellerOutboxSendException(
+    private OutboxSendException failure(OutboxMessage message, String reason, Throwable cause) {
+        return new OutboxSendException(
             "판매자 이벤트를 Kafka로 보냈는지 확인하지 못했습니다. eventType=%s eventId=%s key=%s reason=%s"
                 .formatted(message.getEventType(), message.getEventId(), message.getMessageKey(), reason),
             cause);

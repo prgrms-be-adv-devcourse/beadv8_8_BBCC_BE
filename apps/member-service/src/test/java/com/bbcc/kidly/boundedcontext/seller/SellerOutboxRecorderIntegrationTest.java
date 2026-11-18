@@ -70,7 +70,7 @@ class SellerOutboxRecorderIntegrationTest {
     @DisplayName("아웃박스 저장 실패는 업무 저장도 롤백한다")
     void rollsBackBusinessWhenOutboxFails() {
         var eventId = UUID.randomUUID();
-        outboxRepository.save(SellerOutboxMessage.create(SellerOutboxMessageFixture.changed(eventId)));
+        outboxRepository.save(new SellerOutboxMessage(SellerOutboxMessageFixture.changed(eventId)));
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             applicationRepository.save(SellerFixture.application(1L));
             publisher.publishEvent(new SellerChangedEvent(eventId, LocalDateTime.now(),

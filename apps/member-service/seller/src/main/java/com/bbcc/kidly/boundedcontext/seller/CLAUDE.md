@@ -3,7 +3,7 @@
 ## Kafka 발행 (`app/outbox/SellerOutboxRecorder` #1382)
 - 승인 · 정지 · 탈퇴와 상호명 수정 시 `seller.changed`를 발행한다. 같은 상호명으로 수정하면 발행하지 않는다
 - 판매자가 발행한 이벤트(`seller.*`)를 토픽 `kidly.seller.events`로 보낸다. 롤백되거나 트랜잭션 밖에서 발행하면 보내지 않는다. 규칙은 팀 「Kafka 토픽 규칙」을 따른다
-- 키 = `correlationId`(`seller.changed`는 판매자 ID, `seller.application-rejected`는 신청 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON, `out/outbox/SellerEventEnvelope`). `__TypeId__`는 붙이지 않는다
+- 키 = `correlationId`(`seller.changed`는 판매자 ID, `seller.application-rejected`는 신청 ID), 헤더 = `eventType` · `eventId`, 본문 = 공통 칸 7개 + `data`(JSON, support `outbox.EventEnvelope`). `__TypeId__`는 붙이지 않는다
 - 받는 쪽은 각 도메인이 Kafka로 옮긴다(받는 도메인의 일). 회원은 Kafka로 받는다(#608)
 - 모든 판매자 이벤트를 아웃박스로 보낸다.
 

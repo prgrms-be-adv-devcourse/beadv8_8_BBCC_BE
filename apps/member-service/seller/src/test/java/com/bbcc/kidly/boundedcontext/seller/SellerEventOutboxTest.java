@@ -4,9 +4,9 @@ import static com.bbcc.kidly.boundedcontext.seller.SellerFixture.NOW;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
+import com.bbcc.kidly.boundedcontext.seller.app.outbox.SellerEventOutbox;
 import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxMessage;
-import com.bbcc.kidly.boundedcontext.seller.out.outbox.JpaSellerEventOutbox;
-import com.bbcc.kidly.boundedcontext.seller.out.outbox.JpaSellerOutboxRepository;
+import com.bbcc.kidly.boundedcontext.seller.domain.outbox.SellerOutboxRepository;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import java.util.UUID;
@@ -21,7 +21,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(MockitoExtension.class)
-class JpaSellerEventOutboxTest {
+class SellerEventOutboxTest {
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final UUID EVENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000077");
@@ -29,7 +29,7 @@ class JpaSellerEventOutboxTest {
         new SellerChangedEvent(EVENT_ID, NOW, new SellerChangedEvent.Data(1L, "상호", SellerStatus.ACTIVE));
 
     @Mock
-    private JpaSellerOutboxRepository outboxRepository;
+    private SellerOutboxRepository outboxRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -67,7 +67,7 @@ class JpaSellerEventOutboxTest {
     }
 
     private SellerOutboxMessage appendAndCapture() {
-        new JpaSellerEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(CHANGED);
+        new SellerEventOutbox(outboxRepository, JSON_MAPPER, eventPublisher).append(CHANGED);
         var captor = ArgumentCaptor.forClass(SellerOutboxMessage.class);
         verify(outboxRepository).save(captor.capture());
         return captor.getValue();
