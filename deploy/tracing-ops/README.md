@@ -111,3 +111,7 @@ GitHub Actions에서 `tracing-preflight`를 develop 기준으로 수동 실행�
 `tracing-switch-additional-agent`에서 payment 또는 chatbot을 선택해 apply합니다. 선택한 서비스의 Pod가 교체되고, 준비 상태를 통과하면 선택 파일을 남깁니다. 샘플링은 5%입니다. 결제는 기존 예치금·거래 내역 조회로 확인합니다. 챗봇 정상 응답은 외부 AI 호출 비용과 데이터 전달 범위를 확인한 뒤 검증하고, 먼저 입력 검증 오류로 HTTP 경로를 확인합니다.
 
 원복은 각 서비스에 rollback을 실행합니다. 두 Agent와 선택 파일이 제거된 뒤 수집기 rollback으로 검색 수집 구성에 돌아갈 수 있습니다. 검색·주문·Gateway는 계속 수집합니다.
+
+### 적용 후 확인
+
+`tracing-preflight`의 `applied`는 기본 Gateway·주문과 서버에서 Agent를 켠 서비스의 배포·연결을 함께 검사합니다. 현재 Pod의 준비 상태·재시작 합계·직전 OOM 여부도 표시합니다. 재시작 수는 현재 Pod 기준이며 신규 장애 발생 건수는 아닙니다. 실제 요청의 종단 추적과 계측 전후 성능 비교는 별도 검증입니다.

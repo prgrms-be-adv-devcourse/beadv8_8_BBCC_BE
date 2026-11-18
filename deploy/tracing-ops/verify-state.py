@@ -10,6 +10,8 @@ import subprocess
 from urllib.parse import urlsplit
 
 AGENT = '/opt/kidly-tracing/opentelemetry-javaagent.jar'
+SERVICES = ('gateway', 'order', 'search', 'payment', 'chatbot', 'product', 'member',
+            'recommend', 'community', 'notification', 'settlement')
 COLLECTOR = 'http://tracing-alloy.kidly-dev.svc:4318/v1/traces'
 PRIVATE_NETWORKS = tuple(map(IPv4Network, ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')))
 
@@ -100,10 +102,12 @@ def agent_matches(deployment, name, applied):
             and env.get('OTEL_SERVICE_NAME') != f'kidly-{name}')
 
 
-def app_checks(read, applied):
+def app_checks(read, applied, services=('gateway', 'order')):
     namespace = 'kidly-dev'
-    for name in ('gateway', 'order'):
+    for name in services:
         deployment = read(namespace, 'deployment', name)
+        if not applied and not deployment and name not in ('gateway', 'order'):
+            continue
         yield f'{name} rollout', ready(deployment)
         yield f'{name} Agent wiring', agent_matches(deployment, name, applied)
     collector = read(namespace, 'deployment', 'tracing-alloy')
@@ -144,10 +148,47 @@ def monitoring_checks(read, applied):
         yield 'private Tempo network policy removed', not policy
 
 
+def selected_services(app_root):
+    operations = app_root / 'dev' / 'operations' / 'tracing-agent'
+    markers = {path.stem for path in operations.glob('*.enabled')}
+    if not markers.issubset(SERVICES):
+        raise RuntimeError('Unknown Agent selection file')
+    return tuple(name for name in SERVICES if name in markers or name in ('gateway', 'order'))
+
+
+def read_pods(namespace, name):
+    try:
+        output = subprocess.check_output(
+            ['kubectl', '-n', namespace, 'get', 'pods', '-l', f'app={name}', '-o', 'json'],
+            text=True, stderr=subprocess.PIPE,
+        )
+        return json.loads(output)['items']
+    except (OSError, subprocess.CalledProcessError, ValueError, KeyError) as error:
+        raise RuntimeError(f'Kubernetes pod read failed for {namespace}/{name}') from error
+
+
+def pod_status(namespace, name, read=read_pods):
+    pods = [pod for pod in read(namespace, name)
+            if not pod.get('metadata', {}).get('deletionTimestamp')]
+    statuses = [status for pod in pods for status in pod.get('status', {}).get('containerStatuses', [])]
+    healthy = bool(pods) and all(
+        pod.get('status', {}).get('phase') == 'Running'
+        and any(condition.get('type') == 'Ready' and condition.get('status') == 'True'
+                for condition in pod.get('status', {}).get('conditions', []))
+        for pod in pods
+    )
+    restarts = sum(status.get('restartCount', 0) for status in statuses)
+    previous_oom = sum(status.get('lastState', {}).get('terminated', {}).get('reason') == 'OOMKilled'
+                       for status in statuses)
+    # Report counters for current Pods, not a new-OOM alert or a lifetime restart total.
+    return healthy, f'{name} current Pods: count={len(pods)}, restarts={restarts}, previousOOM={previous_oom}'
+
+
 def selection_checks(role, app_root):
     if role == 'app':
         operations = app_root / 'dev' / 'operations' / 'tracing-agent'
-        for service in ('gateway', 'order'):
+        yield 'Agent selection files removed', not any(operations.glob('*.enabled'))
+        for service in SERVICES:
             yield f'{service} Agent selection removed', not (operations / f'{service}.enabled').exists()
     else:
         marker = app_root / 'monitoring' / 'operations' / 'tempo-private-receiver.enabled'
@@ -160,9 +201,19 @@ def main():
     parser.add_argument('state', choices=('applied', 'rolled-back'))
     args = parser.parse_args()
     os.environ['KUBECONFIG'] = str(Path.home() / '.kube' / 'config')
-    checks = app_checks if args.role == 'app' else monitoring_checks
+    applied = args.state == 'applied'
+    reports = []
     try:
-        results = list(checks(get, args.state == 'applied'))
+        services = selected_services(Path('/opt/app')) if args.role == 'app' and applied else SERVICES
+        results = list(app_checks(get, applied, services) if args.role == 'app'
+                       else monitoring_checks(get, applied))
+        if applied:
+            namespace = 'kidly-dev' if args.role == 'app' else 'monitoring'
+            workloads = (*services, 'tracing-alloy') if args.role == 'app' else ('grafana', 'tempo')
+            for name in workloads:
+                healthy, report = pod_status(namespace, name)
+                results.append((f'{name} current Pods ready', healthy))
+                reports.append(report)
     except RuntimeError as error:
         print(f'{error}: CHECK REQUIRED')
         return 1
@@ -170,6 +221,8 @@ def main():
         results.extend(selection_checks(args.role, Path('/opt/app')))
     for description, passed in results:
         print(f'{description}: {"OK" if passed else "CHECK REQUIRED"}')
+    for report in reports:
+        print(report)
     return 0 if all(passed for _, passed in results) else 1
 
 
