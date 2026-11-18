@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.companion.CompanionSimil
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,5 +59,18 @@ class CompanionSimilarityReaderIntegrationTest {
         PreferenceTestData.insertProduct(jdbc, VIEWED_PRODUCT_ID, 10L, "Nike", PreferenceTestData.unitVector(0, 1f));
 
         assertThat(reader.similarities(VIEWED_PRODUCT_ID, List.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("후보 상품 ID가 드라이버의 파라미터 한도(65,535개)보다 많아도 유사도를 읽는다")
+    void readSimilaritiesForMoreCandidatesThanDriverParameterLimit() {
+        PreferenceTestData.insertProduct(jdbc, VIEWED_PRODUCT_ID, 10L, "Nike", PreferenceTestData.unitVector(0, 1f));
+        PreferenceTestData.insertProduct(jdbc, 100L, 20L, "Nike", PreferenceTestData.unitVector(0, 1f));
+        List<Long> candidates = LongStream.rangeClosed(100L, 70_099L).boxed().toList();
+
+        Map<Long, Double> similarities = reader.similarities(VIEWED_PRODUCT_ID, candidates);
+
+        assertThat(similarities).containsOnlyKeys(100L);
+        assertThat(similarities.get(100L)).isCloseTo(1.0, within(1e-6));
     }
 }

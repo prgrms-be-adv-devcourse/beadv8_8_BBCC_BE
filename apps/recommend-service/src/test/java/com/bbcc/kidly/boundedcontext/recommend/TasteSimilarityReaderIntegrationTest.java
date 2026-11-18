@@ -7,6 +7,7 @@ import com.bbcc.kidly.boundedcontext.recommend.app.port.preference.TasteSimilari
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,5 +46,17 @@ class TasteSimilarityReaderIntegrationTest {
     @DisplayName("상품 ID가 비어 있으면 빈 Map을 읽는다")
     void readNoSimilaritiesForEmptyProductIds() {
         assertThat(reader.similarities(PreferenceTestData.unitVector(0, 1f), List.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("상품 ID가 드라이버의 파라미터 한도(65,535개)보다 많아도 유사도를 읽는다")
+    void readSimilaritiesForMoreProductsThanDriverParameterLimit() {
+        PreferenceTestData.insertProduct(jdbc, 100L, 10L, "Nike", PreferenceTestData.unitVector(0, 1f));
+        List<Long> productIds = LongStream.rangeClosed(100L, 70_099L).boxed().toList();
+
+        Map<Long, Double> similarities = reader.similarities(PreferenceTestData.unitVector(0, 1f), productIds);
+
+        assertThat(similarities).containsOnlyKeys(100L);
+        assertThat(similarities.get(100L)).isCloseTo(1.0, within(1e-6));
     }
 }
