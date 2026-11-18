@@ -1065,7 +1065,7 @@
     {
       "title": "서비스 상세",
       "type": "link",
-      "url": "/d/kidly-service?var-env=${env}&${__url_time_range}",
+      "url": "/d/kidly-service?var-env=${env:percentencode}&var-service=${service:percentencode}&${__url_time_range}",
       "includeVars": false,
       "keepTime": false,
       "icon": "dashboard",

@@ -104,18 +104,23 @@ class GrafanaAnalysisAPITest(unittest.TestCase):
     def test_dashboard_uses_existing_prometheus_and_same_origin_post(self):
         dashboard_path = Path(__file__).parents[1] / 'grafana/dashboards/kidly-ai-notes.json'
         dashboard = json.loads(dashboard_path.read_text())
-        priority, run, status, history, details, shortcuts = dashboard['panels']
+        panels = {panel['id']: panel for panel in dashboard['panels']}
+        priority, run, status, history, details, shortcuts = (panels[id] for id in (3, 201, 202, 205, 5, 206))
+        self.assertLess(panels[1]['gridPos']['y'], run['gridPos']['y'])
+        self.assertIn('kidly_ai_notes_last_observed_seconds', panels[208]['targets'][0]['expr'])
         # Links live next to the run button instead of a separate link row under the selectors.
         self.assertEqual(dashboard['links'], [])
-        self.assertEqual((shortcuts['type'], shortcuts['gridPos']['y']), ('text', 0))
+        self.assertEqual(shortcuts['type'], 'text')
+        self.assertEqual(shortcuts['gridPos']['y'], run['gridPos']['y'])
         self.assertIn('/d/kidly-home', shortcuts['options']['content'])
         self.assertIn('/d/kidly-http?var-env=${env}', shortcuts['options']['content'])
         self.assertTrue(history['collapsed'])
         self.assertEqual(history['panels'][0]['targets'][0]['maxLines'], 15)
         self.assertIn(['X-Kidly-AI-Focus', '${analysis_focus:raw}'],
                       run['fieldConfig']['overrides'][0]['properties'][1]['value'][0]['fetch']['headers'])
-        # Run button and status sit right under the provider/focus selectors, the priority note below them.
-        self.assertEqual((run['gridPos']['y'], status['gridPos']['y'], priority['gridPos']['y']), (0, 0, 3))
+        # Freshness precedes the action controls, followed by the recorded proposal.
+        self.assertEqual(run['gridPos']['y'], status['gridPos']['y'])
+        self.assertLess(run['gridPos']['y'], priority['gridPos']['y'])
         self.assertIn('{{if .priority}}{{.priority}}{{else}}{{.headline}}',
                       priority['targets'][0]['expr'])
         self.assertTrue(details['collapsed'])
