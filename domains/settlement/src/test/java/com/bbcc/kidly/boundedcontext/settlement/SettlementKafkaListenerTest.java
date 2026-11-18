@@ -11,15 +11,12 @@ import com.bbcc.kidly.boundedcontext.settlement.app.SettlementItemService;
 import com.bbcc.kidly.boundedcontext.settlement.app.SettlementPayoutResultService;
 import com.bbcc.kidly.boundedcontext.settlement.in.SettlementOrderKafkaListener;
 import com.bbcc.kidly.boundedcontext.settlement.in.SettlementPaymentKafkaListener;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.order.event.OrderItemPurchaseConfirmedEvent;
 import com.bbcc.kidly.shared.payment.domain.PayoutFailureCode;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutFailedEvent;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +60,7 @@ class SettlementKafkaListenerTest {
         OrderItemPurchaseConfirmedEvent confirmed = new OrderItemPurchaseConfirmedEvent(UUID.randomUUID(), NOW,
             new OrderItemPurchaseConfirmedEvent.Data(101L, 1L, 2L, 10L, null, 3L, 4L, "110", 2, 50_000L, NOW));
 
-        orderListener.on(record("kidly.order.events", confirmed.eventType(), envelope(confirmed)));
+        orderListener.on(record("kidly.order.events", confirmed.eventType(), KafkaEnvelope.of(JSON_MAPPER, confirmed)));
         orderListener.on(record("kidly.order.events", "order.payment-requested", "정산이 받지 않는 종류라 읽지 않는 본문"));
 
         ArgumentCaptor<OrderItemPurchaseConfirmedEvent.Data> captor =
@@ -80,8 +77,9 @@ class SettlementKafkaListenerTest {
         PaymentPayoutFailedEvent failed = new PaymentPayoutFailedEvent(UUID.randomUUID(), NOW,
             new PaymentPayoutFailedEvent.Data(32L, 10L, 9_000L, PayoutFailureCode.WALLET_NOT_FOUND, NOW));
 
-        paymentListener.on(record("kidly.payment.events", completed.eventType(), envelope(completed)));
-        paymentListener.on(record("kidly.payment.events", failed.eventType(), envelope(failed)));
+        paymentListener.on(record("kidly.payment.events", completed.eventType(),
+            KafkaEnvelope.of(JSON_MAPPER, completed)));
+        paymentListener.on(record("kidly.payment.events", failed.eventType(), KafkaEnvelope.of(JSON_MAPPER, failed)));
         paymentListener.on(record("kidly.payment.events", "payment.charge-completed", "정산이 받지 않는 종류라 읽지 않는 본문"));
 
         then(settlementPayoutResultService).should().markPaid(completed.data());
@@ -115,22 +113,6 @@ class SettlementKafkaListenerTest {
             assertThat(kafkaListener.groupId()).isEqualTo("kidly.settlement");
             assertThat(kafkaListener.containerFactory()).isEqualTo("settlementKafkaListenerContainerFactory");
         }
-    }
-
-    // 보내는 쪽 본문과 같은 모양: 공통 칸 7개 + data. 이벤트 record에 없는 칸(eventType 등)도 들어 있다
-    @SuppressWarnings("unchecked")
-    private static String envelope(DomainEvent event) {
-        Map<String, Object> fields = JSON_MAPPER.convertValue(event, Map.class);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("eventId", fields.get("eventId"));
-        body.put("eventType", event.eventType());
-        body.put("schemaVersion", event.schemaVersion());
-        body.put("occurredAt", fields.get("occurredAt"));
-        body.put("producer", event.producer());
-        body.put("aggregateId", event.aggregateId());
-        body.put("correlationId", event.correlationId());
-        body.put("data", fields.get("data"));
-        return JSON_MAPPER.writeValueAsString(body);
     }
 
     private static ConsumerRecord<String, String> record(String topic, String eventType, String body) {
