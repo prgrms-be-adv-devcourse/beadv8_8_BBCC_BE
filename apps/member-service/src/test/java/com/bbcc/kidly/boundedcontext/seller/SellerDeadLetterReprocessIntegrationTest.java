@@ -3,10 +3,11 @@ package com.bbcc.kidly.boundedcontext.seller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.seller.app.SellerDeadLetterService;
-import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerDeadLetterMessage;
-import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerDeadLetterResult;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerApplicationRepository;
+import com.bbcc.kidly.boundedcontext.seller.domain.SellerDeadLetter;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerDeadLetterRepository;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterResult;
 import com.bbcc.kidly.shared.member.event.MemberChangedEvent;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.util.List;
@@ -48,13 +49,14 @@ class SellerDeadLetterReprocessIntegrationTest {
         var applicationId = sellerApplicationRepository.save(SellerFixture.application(MEMBER_ID)).getId();
         var payload = jsonMapper.writeValueAsString(new MemberChangedEvent(UUID.randomUUID(), SellerFixture.NOW, new
             MemberChangedEvent.Data(MEMBER_ID, "하은맘")));
-        var id = deadLetterRepository.save(new SellerDeadLetterMessage("kidly.member.events.seller.dlt", 0, 1L,
+        var message = new DeadLetterMessage("kidly.member.events.seller.dlt", 0, 1L,
             "kidly.member.events", 0, 1L, String.valueOf(MEMBER_ID), "member.changed", UUID.randomUUID().toString(),
-            payload, "tools.jackson.core.JacksonException").toDeadLetter()).getId();
+            payload, "tools.jackson.core.JacksonException");
+        var id = deadLetterRepository.save(new SellerDeadLetter(message)).getId();
 
         var results = reprocessConcurrently(id);
 
-        assertThat(results).extracting(SellerDeadLetterResult::status).containsOnly("REPROCESSED");
+        assertThat(results).extracting(DeadLetterResult::status).containsOnly("REPROCESSED");
         var deadLetter = deadLetterRepository.getById(id);
         assertThat(deadLetter.getReplayCount()).isOne();
         assertThat(deadLetter.getLastReplayFailureType()).isNull();
@@ -62,9 +64,9 @@ class SellerDeadLetterReprocessIntegrationTest {
         assertThat(output).doesNotContain("DLT 재처리 실패");
     }
 
-    private List<SellerDeadLetterResult> reprocessConcurrently(Long id) throws Exception {
+    private List<DeadLetterResult> reprocessConcurrently(Long id) throws Exception {
         var start = new CountDownLatch(1);
-        Callable<SellerDeadLetterResult> reprocess = () -> {
+        Callable<DeadLetterResult> reprocess = () -> {
             start.await();
             return service.reprocess(id, ADMIN_ID);
         };
