@@ -40,9 +40,7 @@ class AdminOrderCancelledApiTest {
     private static final Long ADMIN_ID = 99L;
     private static final Map<String, String> ADDRESS = Map.of(
         "recipientName", "홍길동", "phone", "010-0000-0000", "zipCode", "12345", "address", "서울시 테스트로 1");
-    private static final String TODAY = LocalDate.now().atStartOfDay()
-        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
-    private static final LocalDateTime YESTERDAY_NOON = LocalDate.now().minusDays(1).atTime(12, 0);
+    private static final DateTimeFormatter CANCELLED_FROM = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @Autowired
     private RestTestClient client;
@@ -59,6 +57,11 @@ class AdminOrderCancelledApiTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    // 기준 날짜(#1561): 클래스 로드 때가 아니라 테스트마다 데이터를 만들기 직전에 정한다. 그 뒤의 취소는 같은 날이거나
+    // (자정을 넘기면) 다음 날이라 "오늘 0시 이후"에 그대로 든다
+    private LocalDate today;
+    private String todayStart;
+    private LocalDateTime yesterdayNoon;
     private String createdYesterdayCancelledToday;
     private String cancelledYesterday;
     private String notCancelled;
@@ -66,16 +69,19 @@ class AdminOrderCancelledApiTest {
 
     @BeforeEach
     void setUp() {
+        today = LocalDate.now();
+        todayStart = today.atStartOfDay().format(CANCELLED_FROM);
+        yesterdayNoon = today.minusDays(1).atTime(12, 0);
         productReplicaRepository.save(ReplicaProduct.create(ReplicaFixture.onSaleProduct(25_000L, OCCURRED_AT)));
         createdYesterdayCancelledToday = placeOrder();
-        jdbcTemplate.update("update orders.orders set created_at = ? where id = ?", YESTERDAY_NOON,
+        jdbcTemplate.update("update orders.orders set created_at = ? where id = ?", yesterdayNoon,
             Long.valueOf(createdYesterdayCancelledToday));
         orderService.cancelForPaymentFailure(Long.valueOf(createdYesterdayCancelledToday));
 
         cancelledYesterday = placeOrder();
         orderService.cancelForPaymentFailure(Long.valueOf(cancelledYesterday));
         jdbcTemplate.update("update orders.order_status_history set occurred_at = ? where order_id = ? "
-            + "and target_type = 'ORDER' and to_status = 'CANCELLED'", YESTERDAY_NOON,
+            + "and target_type = 'ORDER' and to_status = 'CANCELLED'", yesterdayNoon,
             Long.valueOf(cancelledYesterday));
 
         notCancelled = placeOrder();
@@ -94,19 +100,19 @@ class AdminOrderCancelledApiTest {
             .value(values -> assertThat((List<?>) values).hasSize(1).allMatch(Objects::isNull))
             .jsonPath("$.content[?(@.orderId == '" + cancelledYesterday + "')].cancelledAt")
             .value(values -> assertThat(String.valueOf(((List<?>) values).getFirst()))
-                .startsWith(YESTERDAY_NOON.toLocalDate() + "T12:00"))
+                .startsWith(yesterdayNoon.toLocalDate() + "T12:00"))
             .jsonPath("$.content[?(@.orderId == '" + expired + "')].status").isEqualTo(List.of("CANCELLED"))
             .jsonPath("$.content[?(@.orderId == '" + expired + "')].cancelledAt")
             .value(values -> assertThat(((List<?>) values).getFirst()).isNotNull())
             .jsonPath("$.content[?(@.orderId == '" + createdYesterdayCancelledToday + "')].cancelledAt")
-            .value(values -> assertThat(String.valueOf(((List<?>) values).getFirst()))
-                .startsWith(LocalDate.now().toString()));
+            .value(values -> assertThat(LocalDateTime.parse(String.valueOf(((List<?>) values).getFirst())))
+                .isAfterOrEqualTo(today.atStartOfDay()));
     }
 
     @Test
     @DisplayName("cancelledFrom=오늘 0시: 어제 생성 · 오늘 취소와 만료 자동 취소는 포함, 오늘 생성 · 어제 취소와 취소 아닌 주문은 제외(최근 주문부터)")
     void cancelledFromToday() {
-        list("?cancelledFrom=" + TODAY)
+        list("?cancelledFrom=" + todayStart)
             .jsonPath("$.content[*].orderId").isEqualTo(List.of(expired, createdYesterdayCancelledToday))
             .jsonPath("$.content[*].cancelledAt").value(values -> assertThat((List<?>) values).doesNotContainNull())
             .jsonPath("$.totalElements").isEqualTo(2);
@@ -115,13 +121,13 @@ class AdminOrderCancelledApiTest {
     @Test
     @DisplayName("status=CANCELLED&cancelledFrom=오늘 0시&size=1의 totalElements가 오늘 취소 건수(2), status가 다르면 0건")
     void todayCancelledCount() {
-        list("?status=CANCELLED&cancelledFrom=" + TODAY + "&size=1")
+        list("?status=CANCELLED&cancelledFrom=" + todayStart + "&size=1")
             .jsonPath("$.content.length()").isEqualTo(1)
             .jsonPath("$.totalElements").isEqualTo(2)
             .jsonPath("$.totalPages").isEqualTo(2);
-        list("?status=PAID&cancelledFrom=" + TODAY).jsonPath("$.totalElements").isEqualTo(0);
-        list("?status=PENDING_PAYMENT&cancelledFrom=" + TODAY).jsonPath("$.totalElements").isEqualTo(0);
-        list("?cancelledFrom=" + TODAY + "&page=1073741824&size=2")
+        list("?status=PAID&cancelledFrom=" + todayStart).jsonPath("$.totalElements").isEqualTo(0);
+        list("?status=PENDING_PAYMENT&cancelledFrom=" + todayStart).jsonPath("$.totalElements").isEqualTo(0);
+        list("?cancelledFrom=" + todayStart + "&page=1073741824&size=2")
             .jsonPath("$.content.length()").isEqualTo(0)
             .jsonPath("$.totalElements").isEqualTo(2);
     }
@@ -129,7 +135,7 @@ class AdminOrderCancelledApiTest {
     @Test
     @DisplayName("cancelledFrom은 그 시각을 포함한다(>=): 어제 취소 시각 그대로 주면 어제 취소도 나온다")
     void cancelledFromIsInclusive() {
-        list("?cancelledFrom=" + YESTERDAY_NOON.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")))
+        list("?cancelledFrom=" + yesterdayNoon.format(CANCELLED_FROM))
             .jsonPath("$.totalElements").isEqualTo(3);
     }
 
