@@ -29,7 +29,7 @@ public record ProductUpdateRequest(
     String brand,
     @NotNull(message = "카테고리를 골라 주세요.")
     Long categoryId,
-    @Size(max = 5000, message = "상품 설명은 5000자 이하로 입력해 주세요.")
+    @Size(max = 5000, message = "상품 설명은 5,000자 이하로 입력해 주세요.")
     String description,
     String thumbnailUrl,
     @NotNull(message = "이미지 목록이 필요합니다.")

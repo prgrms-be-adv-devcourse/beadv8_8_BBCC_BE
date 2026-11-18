@@ -163,7 +163,7 @@ class InventoryAdjustmentApiTest {
     }
 
     static Stream<Arguments> incompleteRequests() {
-        String range = "deltaQuantity: 증감량은 -1000000 이상 1000000 이하여야 합니다.";
+        String range = "deltaQuantity: 증감량은 -1,000,000 이상 1,000,000 이하여야 합니다.";
         return Stream.of(
             arguments(named("증감량 없음", Map.of("reason", "RESTOCK")), "deltaQuantity: 증감량을 넣어 주세요."),
             arguments(named("사유 없음", Map.of("deltaQuantity", 3)), "reason: 사유를 넣어 주세요."),
