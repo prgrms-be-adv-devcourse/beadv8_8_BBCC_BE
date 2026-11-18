@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.search;
 
+import static com.bbcc.kidly.boundedcontext.search.ProductDocumentFixture.aProductDocument;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
@@ -557,9 +558,8 @@ class ElasticsearchProductSearchTest {
     }
 
     private static ProductDocument product(Long productId, Long sellerId) {
-        return new ProductDocument(productId, "상품 " + productId, "https://cdn.kidly.test/" + productId + ".jpg",
-            null, sellerId, 3L, "ON_SALE", true, "2026-10-01T09:00:00", 15_000L, false, List.of(),
-            "2026-10-15T10:00:00");
+        return aProductDocument().productId(productId).name("상품 " + productId)
+            .thumbnailUrl("https://cdn.kidly.test/" + productId + ".jpg").sellerId(sellerId).sizeFree(true).build();
     }
 
     private static MultiGetResponseItem<SellerDocument> found(String id, SellerDocument document) {

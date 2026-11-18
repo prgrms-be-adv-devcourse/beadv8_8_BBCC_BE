@@ -1,6 +1,8 @@
 package com.bbcc.kidly.boundedcontext.search;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static com.bbcc.kidly.boundedcontext.search.ProductChangedFixture.aProductChanged;
+import static com.bbcc.kidly.boundedcontext.search.ProductChangedFixture.option;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -10,14 +12,11 @@ import static org.mockito.Mockito.never;
 import com.bbcc.kidly.boundedcontext.search.app.SearchIndexService;
 import com.bbcc.kidly.boundedcontext.search.in.SearchProductEventListener;
 import com.bbcc.kidly.boundedcontext.search.in.SearchSellerEventListener;
-import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
-import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -110,10 +109,8 @@ class SearchEventListenerTest {
     }
 
     private static ProductChangedEvent productChangedEvent() {
-        ProductChangedEvent.Option option = new ProductChangedEvent.Option(10L, "기본", "110", 15_000L, null, null,
-            false, OptionSaleStatus.ON_SALE, List.of(new ProductChangedEvent.AttributeEntry("COLOR", 3L, "분홍")));
-        return new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT, new ProductChangedEvent.Data(1L, 7L,
-            "여아 원피스", 3L, ProductStatus.ON_SALE, null, OCCURRED_AT.minusDays(1), false, List.of(option)));
+        return aProductChanged().name("여아 원피스").createdAt(OCCURRED_AT.minusDays(1))
+            .options(option(15_000L, false, new ProductChangedEvent.AttributeEntry("COLOR", 3L, "분홍"))).event();
     }
 
     // 보내는 쪽 본문과 같은 모양: 공통 칸 7개 + data. 이벤트 record에 없는 칸(eventType 등)도 들어 있다

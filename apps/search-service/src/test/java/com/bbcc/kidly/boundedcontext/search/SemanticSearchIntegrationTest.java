@@ -1,5 +1,6 @@
 package com.bbcc.kidly.boundedcontext.search;
 
+import static com.bbcc.kidly.boundedcontext.search.ProductDocumentFixture.aProductDocument;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
@@ -11,7 +12,6 @@ import com.bbcc.kidly.boundedcontext.search.domain.EmbeddingRefillTarget;
 import com.bbcc.kidly.boundedcontext.search.domain.ProductEmbedding;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProductRepository;
-import com.bbcc.kidly.boundedcontext.search.out.ProductDocument;
 import com.bbcc.kidly.boundedcontext.search.out.SearchEmbeddingProperties;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexMetrics;
 import com.bbcc.kidly.boundedcontext.search.out.SearchIndexProperties;
@@ -168,8 +168,8 @@ class SemanticSearchIntegrationTest {
     @DisplayName("문장 없이 저장된 예전 문서는 다시 만들 수 없어 찾지 않는다(상품 다시 발행으로 채운다)")
     void skipsOldDocumentsWithoutText() throws IOException {
         client.index(request -> request.index(indexProperties.productIndex()).id("7")
-            .document(new ProductDocument(7L, "예전 원피스", null, null, 7L, 3L, "ON_SALE", false,
-                "2026-10-01T09:00:00", 15_000L, false, List.of(), "2026-11-03T10:00:00")));
+            .document(aProductDocument().productId(7L).name("예전 원피스").occurredAt("2026-11-03T10:00:00")
+                .build()));
         indexes.refresh();
 
         assertThat(repository.findOnSaleWithoutEmbedding(null, 20)).extracting(EmbeddingRefillTarget::productId)
@@ -237,10 +237,12 @@ class SemanticSearchIntegrationTest {
 
     private static SearchProduct product(long productId, String name, ProductStatus status,
         LocalDateTime occurredAt) {
-        return SearchProduct.create(new SearchProduct.ChangeInfo(productId, 7L, name, 3L, status, null, null,
-            OCCURRED_AT.minusDays(productId), false,
-            List.of(new SearchProduct.OptionInfo(15_000L, false, OptionSaleStatus.ON_SALE, List.of())), List.of(),
-            occurredAt));
+        return SearchProduct.create(SearchProductFixture.aChangeInfo()
+            .productId(productId).name(name).status(status).thumbnailUrl(null)
+            .productCreatedAt(OCCURRED_AT.minusDays(productId))
+            .options(List.of(new SearchProduct.OptionInfo(15_000L, false, OptionSaleStatus.ON_SALE, List.of())))
+            .occurredAt(occurredAt)
+            .build());
     }
 
     private static List<Float> axis(int index) {

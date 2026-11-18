@@ -76,13 +76,6 @@ public class SearchProduct {
     public record ChangeInfo(Long productId, Long sellerId, String name, Long categoryId, ProductStatus status,
         String thumbnailUrl, String brand, LocalDateTime productCreatedAt, boolean sizeFree, List<OptionInfo> options,
         List<AttributeEntryInfo> infoValues, LocalDateTime occurredAt, String description) {
-
-        public ChangeInfo(Long productId, Long sellerId, String name, Long categoryId, ProductStatus status,
-            String thumbnailUrl, String brand, LocalDateTime productCreatedAt, boolean sizeFree,
-            List<OptionInfo> options, List<AttributeEntryInfo> infoValues, LocalDateTime occurredAt) {
-            this(productId, sellerId, name, categoryId, status, thumbnailUrl, brand, productCreatedAt, sizeFree,
-                options, infoValues, occurredAt, null);
-        }
     }
 
     public record OptionInfo(long price, boolean soldOut, OptionSaleStatus saleStatus,

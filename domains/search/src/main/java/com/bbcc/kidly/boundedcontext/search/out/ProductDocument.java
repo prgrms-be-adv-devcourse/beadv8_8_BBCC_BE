@@ -38,14 +38,6 @@ public record ProductDocument(
     @JsonInclude(JsonInclude.Include.NON_NULL) String embeddingTextHash,
     @JsonInclude(JsonInclude.Include.NON_NULL) String embeddingText) {
 
-    // 벡터 없는 문서다(테스트 · 예전 문서와 같은 모양)
-    public ProductDocument(Long productId, String name, String thumbnailUrl, String brand, Long sellerId,
-        Long categoryId, String status, boolean sizeFree, String productCreatedAt, long minPrice, boolean soldOut,
-        List<String> attributeValues, String occurredAt) {
-        this(productId, name, thumbnailUrl, brand, sellerId, categoryId, status, sizeFree, productCreatedAt, minPrice,
-            soldOut, attributeValues, occurredAt, null, null, null);
-    }
-
     // 벡터를 붙이고, 다시 만들려고 둔 문장은 뺀다
     ProductDocument withEmbedding(ProductEmbedding embedding) {
         return new ProductDocument(productId, name, thumbnailUrl, brand, sellerId, categoryId, status, sizeFree,

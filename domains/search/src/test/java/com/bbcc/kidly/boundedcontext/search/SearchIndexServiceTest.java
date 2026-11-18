@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.search;
 
+import static com.bbcc.kidly.boundedcontext.search.ProductChangedFixture.aProductChanged;
+import static com.bbcc.kidly.boundedcontext.search.ProductChangedFixture.option;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -18,7 +20,6 @@ import com.bbcc.kidly.boundedcontext.search.domain.SearchProduct;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchProductRepository;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchSeller;
 import com.bbcc.kidly.boundedcontext.search.domain.SearchSellerRepository;
-import com.bbcc.kidly.shared.product.domain.OptionSaleStatus;
 import com.bbcc.kidly.shared.product.domain.ProductStatus;
 import com.bbcc.kidly.shared.product.event.ProductChangedEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
@@ -68,13 +69,14 @@ class SearchIndexServiceTest {
     @Test
     @DisplayName("상품 정보 변경됨의 값과 발생 시각으로 검색 문서를 만들어 늦은 것만 저장하도록 넘긴다")
     void appliesProductChanged() {
-        ProductChangedEvent event = new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
-            new ProductChangedEvent.Data(1L, 7L, "여아 원피스", 3L, ProductStatus.ON_SALE,
-                "https://cdn.kidly.test/a-thumb.jpg", PRODUCT_CREATED_AT, false,
-                List.of(
-                    option(25_000L, false, new ProductChangedEvent.AttributeEntry("COLOR", 5L, "네이비")),
-                    option(22_000L, true, new ProductChangedEvent.AttributeEntry("COLOR", 3L, "아이보리"))),
-                List.of(new ProductChangedEvent.AttributeEntry("FABRIC_COMPOSITION", null, "면 100%"))));
+        ProductChangedEvent event = aProductChanged()
+            .name("여아 원피스")
+            .thumbnailUrl("https://cdn.kidly.test/a-thumb.jpg")
+            .options(
+                option(25_000L, false, new ProductChangedEvent.AttributeEntry("COLOR", 5L, "네이비")),
+                option(22_000L, true, new ProductChangedEvent.AttributeEntry("COLOR", 3L, "아이보리")))
+            .infoValues(new ProductChangedEvent.AttributeEntry("FABRIC_COMPOSITION", null, "면 100%"))
+            .event();
 
         searchIndexService.applyProductChanged(event);
 
@@ -203,12 +205,9 @@ class SearchIndexServiceTest {
     @Test
     @DisplayName("상품 정보 변경됨의 브랜드를 검색 문서에 옮긴다. 브랜드 칸이 없는 예전 메시지면 null이다")
     void copiesBrand() {
-        ProductChangedEvent withBrand = new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
-            new ProductChangedEvent.Data(1L, 7L, "여아 원피스", 3L, ProductStatus.ON_SALE, null, PRODUCT_CREATED_AT,
-                false, List.of(option(25_000L, false)), List.of(), "키들리", "봄에 입기 좋은 원피스", List.of()));
-        ProductChangedEvent withoutBrand = new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
-            new ProductChangedEvent.Data(2L, 7L, "남아 셔츠", 4L, ProductStatus.ON_SALE, null, PRODUCT_CREATED_AT,
-                false, List.of(option(9_000L, false)), List.of()));
+        ProductChangedEvent withBrand = dressEvent("봄에 입기 좋은 원피스");
+        ProductChangedEvent withoutBrand = aProductChanged()
+            .productId(2L).name("남아 셔츠").categoryId(4L).options(option(9_000L, false)).event();
 
         searchIndexService.applyProductChanged(withBrand);
         searchIndexService.applyProductChanged(withoutBrand);
@@ -232,23 +231,16 @@ class SearchIndexServiceTest {
     }
 
     private static ProductChangedEvent dressEvent(String description) {
-        return new ProductChangedEvent(UUID.randomUUID(), OCCURRED_AT,
-            new ProductChangedEvent.Data(1L, 7L, "여아 원피스", 3L, ProductStatus.ON_SALE, null, PRODUCT_CREATED_AT,
-                false, List.of(option(25_000L, false)), List.of(), "키들리", description, List.of()));
+        return aProductChanged().name("여아 원피스").brand("키들리").description(description).event();
     }
 
     // 서비스가 이벤트를 옮기는 것과 같은 값으로 검색 문서를 만든다(문장 해시를 미리 구하려는 것이다)
     private static SearchProduct.ChangeInfo changeInfoOf(ProductChangedEvent event) {
         ProductChangedEvent.Data data = event.data();
-        return new SearchProduct.ChangeInfo(data.productId(), data.sellerId(), data.name(), data.categoryId(),
-            data.status(), data.thumbnailUrl(), data.brand(), data.createdAt(), data.sizeFree(),
-            List.of(new SearchProduct.OptionInfo(25_000L, false, OptionSaleStatus.ON_SALE, List.of())), List.of(),
-            event.occurredAt(), data.description());
-    }
-
-    private static ProductChangedEvent.Option option(
-        long price, boolean soldOut, ProductChangedEvent.AttributeEntry... values) {
-        return new ProductChangedEvent.Option(1L, "옵션", "110", price, null, null, soldOut,
-            OptionSaleStatus.ON_SALE, List.of(values));
+        return SearchProductFixture.aChangeInfo()
+            .productId(data.productId()).sellerId(data.sellerId()).name(data.name()).categoryId(data.categoryId())
+            .status(data.status()).thumbnailUrl(data.thumbnailUrl()).brand(data.brand())
+            .productCreatedAt(data.createdAt()).sizeFree(data.sizeFree()).occurredAt(event.occurredAt())
+            .description(data.description()).build();
     }
 }
