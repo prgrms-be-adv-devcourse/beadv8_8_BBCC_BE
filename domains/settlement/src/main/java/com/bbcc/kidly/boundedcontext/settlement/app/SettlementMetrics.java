@@ -63,7 +63,6 @@ public class SettlementMetrics {
         this.payoutFailed = Counter.builder(PAYOUT_FAILED)
             .description("지급 실패로 바뀐 정산서 수")
             .register(registry);
-        // 수집 주기마다 count 쿼리를 한 번 읽는다
         Gauge.builder(OUTBOX_UNSENT, outboxRepository, SettlementOutboxRepository::countUnsent)
             .description("아직 Kafka로 보내지 않은 정산 아웃박스 행 수")
             .register(registry);

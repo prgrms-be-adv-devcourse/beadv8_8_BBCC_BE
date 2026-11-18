@@ -18,7 +18,7 @@ public class InternalSellerSettlementController {
 
     private final SellerSettlementService sellerSettlementService;
 
-    // 회원 서비스가 판매자 탈퇴 전에 부른다(#1091). 정산은 판매자 원본이 없으므로 모르는 판매자도 빈 목록이다
+    // 회원 서비스가 판매자 탈퇴 전에 부른다. 정산은 판매자 원본이 없으므로 모르는 판매자도 빈 목록이다
     @GetMapping("/{sellerId}/withdrawal-blockers")
     public SellerWithdrawalBlockersResponse withdrawalBlockers(@PathVariable Long sellerId) {
         return SellerWithdrawalBlockersResponse.from(sellerSettlementService.getWithdrawalBlockers(sellerId));

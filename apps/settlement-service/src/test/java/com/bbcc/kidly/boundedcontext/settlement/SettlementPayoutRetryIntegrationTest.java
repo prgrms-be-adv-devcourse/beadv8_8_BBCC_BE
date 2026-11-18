@@ -28,8 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 관리자 지급 재요청 · 자동 재요청이 지급 요청을 다시 보내고, 지급 결과가 정산서에 반영되는지 확인한다.
- * 정산서를 바로 저장해 지급 결과를 받지 못한(COMPLETED) 상태를 만든다. 입금은 결제 서비스가 하므로(#525)
+ * 정산서를 바로 저장해 지급 결과를 받지 못한(COMPLETED) 상태를 만든다. 입금은 결제 서비스가 하므로
  * 지급 요청은 정산 아웃박스로 보고, 결과는 테스트가 결제 서비스 대신 발행한다(PayoutRequests).
  */
 @IntegrationTest
@@ -159,7 +158,6 @@ class SettlementPayoutRetryIntegrationTest {
         return settlementRepository.findById(settlement.getId()).orElseThrow();
     }
 
-    // 두 작업을 출발 신호 하나로 함께 시작하고, 실패한 작업의 예외를 돌려준다
     private static List<Throwable> runTwiceAtOnce(Runnable task) throws InterruptedException {
         var executor = Executors.newFixedThreadPool(2);
         var start = new CountDownLatch(1);

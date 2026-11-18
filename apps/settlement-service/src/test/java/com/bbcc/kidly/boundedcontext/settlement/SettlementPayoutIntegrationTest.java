@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
-// 정산이 지급을 요청하고, 지급 결과가 정산서에 반영되는 흐름을 검증한다. 입금은 결제 서비스가 하므로(#525) 결과는 테스트가 발행한다(PayoutRequests)
+// 입금은 결제 서비스가 하므로 결과는 테스트가 발행한다(PayoutRequests)
 @IntegrationTest
 class SettlementPayoutIntegrationTest {
 

@@ -28,7 +28,6 @@ public interface SettlementRepository {
     // 종료일이 같은 정산서(= 그 종료일의 정산 실행이 만든 정산서) 중 시작일이 가장 이른 것
     Optional<Settlement> findFirstByPeriodEndOnOrderByPeriodStartOnAsc(LocalDate periodEndOn);
 
-    // 없으면 404
     default Settlement getById(Long id) {
         return findById(id).orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND));
     }

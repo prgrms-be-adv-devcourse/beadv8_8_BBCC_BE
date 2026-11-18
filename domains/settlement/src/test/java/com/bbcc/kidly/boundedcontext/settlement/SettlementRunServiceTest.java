@@ -360,7 +360,6 @@ class SettlementRunServiceTest {
         verify(jobOperator, never()).start(any(Job.class), any(JobParameters.class));
     }
 
-    // 1시간 전에 시작해 step이 stepLastUpdated에 마지막으로 갱신된 실행 중 기록
     private static JobExecution runningExecution(LocalDateTime stepLastUpdated) {
         return runningExecution(stepLastUpdated, null);
     }
@@ -395,7 +394,6 @@ class SettlementRunServiceTest {
         settlementRunService.runScheduled(LocalDate.of(2026, 11, 15));
     }
 
-    // 실행 전 확인(완료 · 실행 중)은 통과하고 시작에서 실패한다
     private void startFails(Exception failure) throws Exception {
         given(jobRepository.getLastJobExecution(eq(SettlementJobConfig.JOB_NAME), any(JobParameters.class)))
             .willReturn(null);

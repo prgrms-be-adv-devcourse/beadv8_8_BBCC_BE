@@ -24,11 +24,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-
-/**
- * 정산이 발행한 지급 요청을 업무와 같은 트랜잭션에서 아웃박스에 저장하는지 본다.
- * 지급 요청을 발행하는 세 경로(정산 실행 · 관리자 재요청 · 자동 재요청)와 롤백 · 중복 발행을 확인한다.
- */
 @IntegrationTest
 class SettlementOutboxIntegrationTest {
 

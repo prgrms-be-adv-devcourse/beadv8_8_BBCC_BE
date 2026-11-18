@@ -17,7 +17,7 @@ import org.testcontainers.utility.DockerImageName;
 
 /**
  * 서비스 Flyway(application.yml의 spring.flyway)가 빈 DB에서는 정산 스키마를 만들고, 정산 테이블이 이미 있는 DB(dev · prod · 공유 로컬)에서는
- * baseline을 잡고 넘어가는지 본다(#729). 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
+ * baseline을 잡고 넘어가는지 본다. 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
  */
 @Tag("integration")
 class SettlementMigrationIntegrationTest {

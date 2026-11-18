@@ -20,7 +20,6 @@ public record SettlementPeriod(LocalDateTime cutoffAt, LocalDate endOn) {
         return new SettlementPeriod(cutoffAt, cutoffAt.toLocalDate().minusDays(1));
     }
 
-    // 수동 실행 기준일은 오늘 또는 지난 날짜
     public static SettlementPeriod manual(LocalDate cutoffOn, LocalDate today) {
         requireNonNull(cutoffOn, "cutoffOn은 필수입니다");
         requireNonNull(today, "today는 필수입니다");

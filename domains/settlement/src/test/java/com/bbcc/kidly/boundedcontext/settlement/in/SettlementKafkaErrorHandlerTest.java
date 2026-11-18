@@ -20,7 +20,6 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 정산 에러 처리기가 다시 해도 같은 실패만 바로 DLT로 보내고, 나머지는 재시도하는지 본다.
  * 리스너가 던진 예외는 ListenerExecutionFailedException에 싸여 오므로 같은 모양으로 넘긴다.
  */
 class SettlementKafkaErrorHandlerTest {

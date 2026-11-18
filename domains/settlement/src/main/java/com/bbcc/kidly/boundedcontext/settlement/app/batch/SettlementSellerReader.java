@@ -28,7 +28,6 @@ public class SettlementSellerReader implements ItemReader<Long> {
         this.pageSize = pageSize;
     }
 
-    // 덜 찬 페이지를 받으면 더 읽지 않는다
     @Override
     public Long read() {
         if (buffer.isEmpty() && !lastPage) {

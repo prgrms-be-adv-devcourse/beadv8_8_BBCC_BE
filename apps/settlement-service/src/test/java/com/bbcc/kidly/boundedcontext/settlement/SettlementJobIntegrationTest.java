@@ -81,7 +81,7 @@ class SettlementJobIntegrationTest {
         assertThat(sellerSettlement.getTotalSalesAmount()).isEqualTo(15_009L);
         assertThat(sellerSettlement.getFeeAmount()).isEqualTo(1_500L);
         assertThat(sellerSettlement.getSettlementAmount()).isEqualTo(13_509L);
-        // 지급을 요청한 상태다. 입금과 지급 완료 결과는 결제 서비스가 한다(#525)
+        // 지급을 요청한 상태다. 입금과 지급 완료 결과는 결제 서비스가 한다
         assertThat(sellerSettlement.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
         assertThat(sellerSettlement.getPeriodStartOn()).isEqualTo(PERIOD_START);
         assertThat(sellerSettlement.getPeriodEndOn()).isEqualTo(PERIOD_END);
@@ -403,7 +403,6 @@ class SettlementJobIntegrationTest {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.settlement_skip", Integer.class);
     }
 
-    // 정산이 보낸 지급 요청(정산 아웃박스)의 판매자. 입금은 결제 서비스가 한다(#525)
     private List<Long> payoutSellerIds() {
         return PayoutRequests.all(jdbcTemplate).stream().map(PayoutRequests.Request::sellerId).toList();
     }
@@ -417,7 +416,6 @@ class SettlementJobIntegrationTest {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM settlement.BATCH_JOB_EXECUTION", Integer.class);
     }
 
-    // 서버가 단계 도중 죽은 것처럼 작업 · 단계 실행을 STARTED로 남긴다
     private JobExecution startExecution(LocalDateTime cutoffAt) {
         var execution = createExecution(cutoffAt);
         execution.setStatus(BatchStatus.STARTED);

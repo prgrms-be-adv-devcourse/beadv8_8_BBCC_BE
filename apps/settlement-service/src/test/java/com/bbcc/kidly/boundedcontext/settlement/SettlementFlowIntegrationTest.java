@@ -22,8 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 구매확정부터 지급 요청 · 지급 완료까지 실제 리스너로 이어지는 정산 흐름을 한 번에 확인한다.
- * 입금은 결제 서비스가 한다(#525). 테스트가 결제 서비스 대신 지급 완료 결과를 발행한다(PayoutRequests).
+ * 입금은 결제 서비스가 한다. 테스트가 결제 서비스 대신 지급 완료 결과를 발행한다(PayoutRequests).
  * 리스너는 발행한 트랜잭션이 커밋된 뒤 같은 스레드에서 실행되므로 각 단계가 끝난 뒤 바로 검증할 수 있다.
  */
 @IntegrationTest
@@ -44,7 +43,6 @@ class SettlementFlowIntegrationTest {
     @Autowired
     private SettlementRunService settlementRunService;
 
-    // 저장된 정산 항목 전체를 읽으려고 JpaRepository의 기본 조회를 쓴다
     @Autowired
     private JpaSettlementItemRepository settlementItemRepository;
 

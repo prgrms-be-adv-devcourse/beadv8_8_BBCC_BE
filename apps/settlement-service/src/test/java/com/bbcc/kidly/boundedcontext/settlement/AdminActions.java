@@ -2,10 +2,6 @@ package com.bbcc.kidly.boundedcontext.settlement;
 
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
-
-/**
- * 정산 관리자 행위 감사 기록(settlement.settlement_admin_action)을 남은 순서대로 읽는다.
- */
 final class AdminActions {
 
     private AdminActions() {

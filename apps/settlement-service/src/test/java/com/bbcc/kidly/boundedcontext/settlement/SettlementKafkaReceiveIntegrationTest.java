@@ -51,7 +51,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 정산이 구매확정 · 지급 결과를 Kafka로 받아 Spring 이벤트로 받았을 때와 같이 처리하는지 실제 Kafka로 본다.
  * 테스트 설정은 스위치를 꺼 다른 테스트가 Spring 경로로 돌게 하고, 컨텍스트를 다시 쓸 때도 리스너가 켜지지 않게
  * SettlementKafkaListenerTestGuard가 리스너를 들고 있으므로, 여기서만 가드에서 꺼내 직접 켜고 끈다.
  * 메시지는 보내는 쪽과 같은 모양(키 = correlationId, 헤더 eventType · eventId, 본문 = 공통 칸 7개 + data)으로 직접 넣는다.
@@ -108,7 +107,7 @@ class SettlementKafkaReceiveIntegrationTest {
         AsyncWait.until(TIMEOUT, () -> listeners.stream().noneMatch(l -> l.getAssignedPartitions().isEmpty()));
     }
 
-    // 결제 토픽은 결제 서비스가 선언한다(#525). 테스트가 같은 모양(파티션 3)으로 만든다
+    // 결제 토픽은 결제 서비스가 선언한다. 테스트가 같은 모양(파티션 3)으로 만든다
     private void createPaymentTopic() {
         try (Admin admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
             kafka.getBootstrapServers()))) {

@@ -25,7 +25,6 @@ public class SettlementPayoutRetryScheduler {
     private static final Duration RETRY_AFTER = Duration.ofMinutes(30);
     // 이 기간이 지난 건은 자동으로 다시 요청하지 않고 관리자에게 맡긴다
     private static final Duration RETRY_WINDOW = Duration.ofDays(7);
-    // 한 번에 다시 요청하는 최대 건수
     private static final int BATCH_SIZE = 100;
 
     private final SettlementRepository settlementRepository;
@@ -41,7 +40,7 @@ public class SettlementPayoutRetryScheduler {
     }
 
     /**
-     * 다시 요청한 건수를 돌려준다. 한 건이 실패해도 나머지는 계속한다.
+     * 한 건이 실패해도 나머지는 계속한다.
      */
     public int retryStuckPayouts(LocalDateTime now) {
         var stuck = settlementRepository.findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(

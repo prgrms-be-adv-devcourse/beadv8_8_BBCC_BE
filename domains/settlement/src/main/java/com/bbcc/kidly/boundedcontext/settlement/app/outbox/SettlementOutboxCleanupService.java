@@ -16,11 +16,6 @@ public class SettlementOutboxCleanupService {
     private final SettlementOutboxRepository outboxRepository;
     private final SettlementOutboxProperties properties;
 
-    /**
-     * 보관 기간보다 먼저 보낸 메시지를 지운다. 안 보낸 메시지는 남긴다.
-     *
-     * @return 지운 건수
-     */
     @Transactional
     public int cleanUp() {
         return outboxRepository.deleteSentBefore(LocalDateTime.now().minus(properties.retention()));

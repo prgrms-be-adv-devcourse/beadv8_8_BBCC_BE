@@ -47,7 +47,6 @@ public class SettlementSkip extends BaseTimeEntity {
     @Column(name = "phase", nullable = false, length = 20)
     private SettlementSkipPhase phase;
 
-    // 200자를 넘으면 자른다
     @Column(name = "reason", nullable = false, length = REASON_MAX_LENGTH)
     private String reason;
 

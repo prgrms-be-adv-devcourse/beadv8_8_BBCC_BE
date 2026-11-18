@@ -16,7 +16,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 구매확정을 받아 정산항목을 저장하는 흐름을 확인한다.
  * 리스너는 발행한 트랜잭션이 커밋된 뒤에 실행되므로 테스트에 @Transactional을 붙이지 않고 발행만 트랜잭션 안에서 한다.
  */
 @IntegrationTest
@@ -34,7 +33,6 @@ class SettlementPurchaseConfirmedIntegrationTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
-    // 저장된 정산항목 전체를 읽으려고 JpaRepository의 기본 조회를 쓴다
     @Autowired
     private JpaSettlementItemRepository settlementItemRepository;
 

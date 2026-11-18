@@ -45,7 +45,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 처리하지 못한 지급 결과가 DLT를 거쳐 DB에 보관되고, 관리자가 원인을 고친 뒤 재처리하면 정산서에 반영되는지 실제 Kafka로 본다.
  * 지급 결과 리스너와 DLT 보관 리스너만 가드에서 꺼내 켠다. DLT에는 앞 테스트가 남긴 메시지도 있으므로 이 테스트의 eventId로 고른다.
  */
 @KafkaIntegrationTest
@@ -131,9 +130,7 @@ class SettlementDeadLetterKafkaIntegrationTest {
         assertThat(deadLetterService.list("REPROCESSED", 0, 100).getContent()).extracting(Summary::getId)
             .contains(id);
 
-        // 이미 성공한 기록은 다시 실행하지 않는다
         assertThat(deadLetterService.reprocess(id, ADMIN_ID).getReplayCount()).isEqualTo(2);
-        // 실패 · 성공한 재처리만 남고, 실행하지 않은 마지막 요청은 남지 않는다
         assertThat(AdminActions.of(jdbcTemplate, "DEAD_LETTER_REPROCESS", id)).hasSize(2)
             .allSatisfy(row -> assertThat(row.adminId()).isEqualTo(ADMIN_ID));
     }

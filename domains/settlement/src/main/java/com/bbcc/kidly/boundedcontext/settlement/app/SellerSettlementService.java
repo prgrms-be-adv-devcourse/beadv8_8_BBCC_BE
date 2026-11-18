@@ -33,7 +33,7 @@ public class SellerSettlementService {
     private final SettlementItemRepository settlementItemRepository;
     private final SettlementBusinessCalendar businessCalendar;
 
-    // 예정일은 확정일 다음 영업일(#732). 공휴일을 조회하지 못하면 목록은 주되 예정일만 비운다
+    // 예정일은 확정일 다음 영업일. 공휴일을 조회하지 못하면 목록은 주되 예정일만 비운다
     @Transactional(readOnly = true)
     public Page<SettlementTargetResult> getTargets(Long sellerId, Pageable pageable) {
         var rows = settlementTargetQuery.findPending(sellerId, pageable);

@@ -198,7 +198,7 @@ class AdminSettlementApiTest {
 
         retry(settlement.getId()).expectStatus().isNoContent();
 
-        // 입금과 지급 완료 결과는 결제 서비스가 한다(#525). 테스트가 결과를 대신 발행한다
+        // 입금과 지급 완료 결과는 결제 서비스가 한다. 테스트가 결과를 대신 발행한다
         var requests = PayoutRequests.of(jdbcTemplate, settlement.getId());
         assertThat(requests).hasSize(1);
         PayoutRequests.complete(eventPublisher, transactionTemplate, requests.getFirst());
