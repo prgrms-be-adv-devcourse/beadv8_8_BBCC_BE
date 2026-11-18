@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.review.in.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewErrorCode;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import java.time.LocalDateTime;
@@ -34,19 +35,12 @@ class ReviewListApiTest {
 
     @BeforeEach
     void data() {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (14, '상품 A', 'https://img/14.png', 'SALE_ENDED', "
-            + "?, ?, ?)", CREATED_AT, CREATED_AT, CREATED_AT);
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, '110', ?, ?, ?)",
-            ME, CREATED_AT, CREATED_AT, CREATED_AT);
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, fit, created_at, updated_at, moderation_status) "
-            + "values (11, 14, ?, '닉', 4, '좋아요', 'LARGE', ?, ?, 'PASSED')",
-            ME, CREATED_AT, CREATED_AT);
-        jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, fit_small, "
-            + "fit_true_to_size, fit_large, created_at, updated_at) values (14, 3, 13, 1, 0, 2, ?, ?)",
-            CREATED_AT, CREATED_AT);
+        new ReviewRows(jdbcTemplate).replicaProduct(14).name("상품 A").thumbnailUrl("https://img/14.png")
+            .status("SALE_ENDED").at(CREATED_AT).insert();
+        new ReviewRows(jdbcTemplate).eligibility(11, ME, 14).orderId(12).optionId(15).size("110")
+            .confirmedAt(CREATED_AT).at(CREATED_AT).insert();
+        new ReviewRows(jdbcTemplate).review(11, 14, ME).content("좋아요").fit("LARGE").at(CREATED_AT).insert();
+        new ReviewRows(jdbcTemplate).reviewStats(14, 3, 13).fits(1, 0, 2).at(CREATED_AT).insert();
     }
 
     @Test
@@ -78,10 +72,8 @@ class ReviewListApiTest {
     @Test
     @DisplayName("탈퇴한 회원의 리뷰는 남고 nickname \"탈퇴한 회원\" · authorWithdrawn true로 보인다")
     void withdrawnAuthorReview() {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, author_withdrawn_at, moderation_status) values (12, 14, 99, null, 5, "
-            + "'탈퇴 전 리뷰', ?, ?, ?, 'PASSED')",
-            CREATED_AT.plusMinutes(1), CREATED_AT.plusMinutes(1), CREATED_AT.plusMinutes(2));
+        new ReviewRows(jdbcTemplate).review(12, 14, 99).nickname(null).rating(5).content("탈퇴 전 리뷰")
+            .at(CREATED_AT.plusMinutes(1)).authorWithdrawnAt(CREATED_AT.plusMinutes(2)).insert();
 
         client.get().uri(PATH + "?productId=14")
             .exchange()

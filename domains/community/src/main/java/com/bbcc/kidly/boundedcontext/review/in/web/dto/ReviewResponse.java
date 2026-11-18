@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.review.in.web.dto;
 
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ReviewView;
+import com.bbcc.kidly.boundedcontext.review.app.ReviewView;
 import java.time.LocalDateTime;
 import java.util.List;
 

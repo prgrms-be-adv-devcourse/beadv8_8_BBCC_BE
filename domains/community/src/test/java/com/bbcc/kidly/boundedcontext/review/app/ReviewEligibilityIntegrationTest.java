@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder.PurchaseConfirmed;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -115,9 +116,8 @@ class ReviewEligibilityIntegrationTest {
         CountDownLatch inserted = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         CompletableFuture<Void> other = CompletableFuture.runAsync(() -> transactionTemplate.executeWithoutResult(s -> {
-            jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, "
-                + "product_id, option_id, size, confirmed_at, created_at, updated_at) "
-                + "values (?, 12, 13, 14, 15, ?, ?, now(), now())", ORDER_ITEM_ID, OTHER_SIZE, CONFIRMED_AT);
+            new ReviewRows(jdbcTemplate).eligibility(ORDER_ITEM_ID, 13, 14).orderId(12).optionId(15).size(OTHER_SIZE)
+                .confirmedAt(CONFIRMED_AT).insert();
             inserted.countDown();
             await(release);
         }));

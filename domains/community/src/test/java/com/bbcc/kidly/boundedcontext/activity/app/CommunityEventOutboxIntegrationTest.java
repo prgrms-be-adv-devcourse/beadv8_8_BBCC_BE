@@ -6,17 +6,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteService;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.in.MemberFavoritesRemover;
+import com.bbcc.kidly.boundedcontext.review.app.FitInput;
+import com.bbcc.kidly.boundedcontext.review.app.ImageUrlsInput;
+import com.bbcc.kidly.boundedcontext.review.app.ReviewChange;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationAdminService;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationRecorder;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationService.Candidate;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewService;
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Content;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.FailureCause;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Result;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder.PurchaseConfirmed;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationReason;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -69,9 +72,7 @@ class CommunityEventOutboxIntegrationTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, '상품', null, 'ON_SALE', now(), now(), now())",
-            PRODUCT);
+        new ReviewRows(jdbcTemplate).replicaProduct(PRODUCT).insert();
     }
 
     @Test
@@ -79,10 +80,10 @@ class CommunityEventOutboxIntegrationTest {
     void reviewLifecycle() {
         eligibilityRecorder.record(confirmed(11));
         assertThat(messages()).isEmpty();
-        long id = reviewService.write(ME, "닉", "11", 4, "좋아요", ReviewService.FitInput.absent(),
+        long id = reviewService.write(ME, "닉", "11", 4, "좋아요", FitInput.absent(),
             ImageUrlsInput.absent()).reviewId();
-        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 4, false, null));
-        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 2, false, null));
+        reviewService.update(ME, id, ReviewChange.rating(4));
+        reviewService.update(ME, id, ReviewChange.rating(2));
         reviewService.delete(ME, id);
 
         List<Map<String, Object>> messages = messages();
@@ -113,8 +114,7 @@ class CommunityEventOutboxIntegrationTest {
         long flagged = review(32);
         long stale = review(33);
         long undecided = review(34);
-        jdbcTemplate.update("insert into community.review_stats (product_id, review_count, rating_sum, created_at, "
-            + "updated_at) values (?, 4, 16, now(), now())", PRODUCT);
+        new ReviewRows(jdbcTemplate).reviewStats(PRODUCT, 4, 16).insert();
 
         moderationRecorder.record(candidate(passed, 0), Result.passed());
         moderationRecorder.record(candidate(flagged, 0), Result.flagged(ModerationReason.HATE));
@@ -207,9 +207,7 @@ class CommunityEventOutboxIntegrationTest {
     }
 
     private long review(long orderItemId) {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status, moderation_attempts) "
-            + "values (?, ?, ?, '닉', 4, '본문', now(), now(), 'PENDING', 0)", orderItemId, PRODUCT, ME);
+        new ReviewRows(jdbcTemplate).review(orderItemId, PRODUCT, ME).status("PENDING").attempts(0).insert();
         return jdbcTemplate.queryForObject("select id from community.review where order_item_id = ?", Long.class,
             orderItemId);
     }

@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.review.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
@@ -31,9 +32,7 @@ class ReviewSummaryIntegrationTest {
     @DisplayName("작성 · 수정 · 삭제 뒤 요약이 집계와 맞고, 모두 지우면 0 · null")
     void summaryFollowsWrites() {
         for (long item = 101; item <= 103; item++) {
-            jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, "
-                + "product_id, option_id, size, confirmed_at, created_at, updated_at) "
-                + "values (?, 1, ?, ?, 1, null, now(), now(), now())", item, ME, PRODUCT);
+            new ReviewRows(jdbcTemplate).eligibility(item, ME, PRODUCT).insert();
         }
         long first = reviewService.write(ME, "닉", "101", 5, "최고").reviewId();
         long second = reviewService.write(ME, "닉", "102", 4, "좋아요").reviewId();
@@ -55,13 +54,11 @@ class ReviewSummaryIntegrationTest {
     @DisplayName("요약의 핏 분포: 핏별 리뷰 수, 핏 없는 리뷰는 세지 않는다")
     void fitSummary() {
         for (long item = 201; item <= 204; item++) {
-            jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, "
-                + "product_id, option_id, size, confirmed_at, created_at, updated_at) "
-                + "values (?, 1, ?, ?, 1, '110', now(), now(), now())", item, ME, PRODUCT);
+            new ReviewRows(jdbcTemplate).eligibility(item, ME, PRODUCT).size("110").insert();
         }
-        reviewService.write(ME, "닉", "201", 5, "작아요", ReviewService.FitInput.text("SMALL"));
-        reviewService.write(ME, "닉", "202", 5, "작아요", ReviewService.FitInput.text("SMALL"));
-        reviewService.write(ME, "닉", "203", 5, "커요", ReviewService.FitInput.text("LARGE"));
+        reviewService.write(ME, "닉", "201", 5, "작아요", FitInput.text("SMALL"));
+        reviewService.write(ME, "닉", "202", 5, "작아요", FitInput.text("SMALL"));
+        reviewService.write(ME, "닉", "203", 5, "커요", FitInput.text("LARGE"));
         reviewService.write(ME, "닉", "204", 5, "핏 없음");
 
         assertThat(queryService.summary(String.valueOf(PRODUCT)).fitSummary())

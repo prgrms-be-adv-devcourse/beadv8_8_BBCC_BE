@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.favorite.app;
 import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,8 +56,6 @@ class FavoriteStatsIntegrationTest {
     }
 
     private void replica(long productId, String status) {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, '상품', null, ?, now(), now(), now())",
-            productId, status);
+        new ReviewRows(jdbcTemplate).replicaProduct(productId).status(status).insert();
     }
 }

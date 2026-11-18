@@ -2,6 +2,7 @@ package com.bbcc.kidly.boundedcontext.review.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.AsyncWait;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
@@ -116,9 +117,8 @@ class ProductReplicaIntegrationTest {
     @Test
     @DisplayName("더 늦은 값이 이미 커밋된 상품에 이른 이벤트가 오면 값을 유지하고, 예외 · ERROR 로그가 없다")
     void olderEventOverCommittedNewerKeepsValue(CapturedOutput output) {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, ?, null, 'ON_SALE', ?, now(), now())",
-            PRODUCT_ID, OTHER_NAME, OCCURRED_AT.plusMinutes(1));
+        new ReviewRows(jdbcTemplate).replicaProduct(PRODUCT_ID).name(OTHER_NAME).occurredAt(OCCURRED_AT.plusMinutes(1))
+            .insert();
         List<Map<String, Object>> committed = rows();
 
         deliver(changed(NAME_MARKER, ProductStatus.STOPPED, false, OCCURRED_AT));
@@ -136,9 +136,8 @@ class ProductReplicaIntegrationTest {
         CountDownLatch inserted = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         CompletableFuture<Void> other = CompletableFuture.runAsync(() -> transactionTemplate.executeWithoutResult(s -> {
-            jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, "
-                + "display_status, source_occurred_at, created_at, updated_at) "
-                + "values (?, ?, null, 'ON_SALE', ?, now(), now())", PRODUCT_ID, OTHER_NAME, otherOccurredAt);
+            new ReviewRows(jdbcTemplate).replicaProduct(PRODUCT_ID).name(OTHER_NAME).occurredAt(otherOccurredAt)
+                .insert();
             inserted.countDown();
             await(release);
         }));

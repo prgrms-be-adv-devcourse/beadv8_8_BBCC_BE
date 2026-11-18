@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.review.app.ReplicaHealthService.ReplicaHealth;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationAdminService.ModerationOverview;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationAdminService.RecentHidden;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -91,18 +92,14 @@ class CommunityOpsQueryIntegrationTest {
     }
 
     private void replica(long productId, String status, LocalDateTime updatedAt, LocalDateTime occurredAt) {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, ?, null, ?, ?, ?, ?)",
-            productId, "상품 " + productId, status, micros(occurredAt), micros(updatedAt), micros(updatedAt));
+        new ReviewRows(jdbcTemplate).replicaProduct(productId).name("상품 " + productId).status(status)
+            .occurredAt(micros(occurredAt)).createdAt(micros(updatedAt)).updatedAt(micros(updatedAt)).insert();
     }
 
     private void review(long orderItemId, String status, int attempts, String reason, LocalDateTime moderatedAt,
         LocalDateTime createdAt) {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status, moderation_attempts, moderation_reason, "
-            + "moderated_at) values (?, 14, ?, '닉', 4, '본문', ?, ?, ?, ?, ?, ?)",
-            orderItemId, 100 + orderItemId, micros(createdAt), micros(createdAt), status, attempts, reason,
-            micros(moderatedAt));
+        new ReviewRows(jdbcTemplate).review(orderItemId, 14, 100 + orderItemId).at(micros(createdAt)).status(status)
+            .attempts(attempts).reason(reason).moderatedAt(micros(moderatedAt)).insert();
     }
 
     // 앱은 마이크로초로 잘라 저장한다(ReviewTimes). DB에 직접 넣는 값도 같게 맞춘다(DB는 반올림한다)

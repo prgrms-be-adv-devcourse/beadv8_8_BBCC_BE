@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.DeletedChildAccounts;
 import com.bbcc.kidly.boundedcontext.favorite.app.port.in.ChildFavoritesRemover;
 import com.bbcc.kidly.boundedcontext.favorite.domain.FavoriteOwner;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
 import java.time.LocalDateTime;
@@ -55,9 +56,7 @@ class ChildFavoriteDeletionConcurrencyIntegrationTest {
     @BeforeEach
     void products() {
         for (String product : PRODUCTS) {
-            jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, "
-                + "display_status, source_occurred_at, created_at, updated_at) values (?, '상품', null, 'ON_SALE', "
-                + "now(), now(), now())", Long.valueOf(product));
+            new ReviewRows(jdbcTemplate).replicaProduct(Long.valueOf(product)).insert();
         }
     }
 

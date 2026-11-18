@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewEligibilityQueryService.EligibleItem;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewEligibilityQueryService.EligiblePage;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.ReviewEligibilityRecorder;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.support.QueryCounter;
 import java.time.LocalDateTime;
@@ -170,14 +171,10 @@ class ReviewEligibilityQueryIntegrationTest {
     }
 
     private void insert(long orderItemId, long memberId, long productId, LocalDateTime confirmedAt) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, "
-            + "product_id, option_id, size, confirmed_at, created_at, updated_at) "
-            + "values (?, 1, ?, ?, 1, null, ?, now(), now())", orderItemId, memberId, productId, confirmedAt);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, memberId, productId).confirmedAt(confirmedAt).insert();
     }
 
     private void insertReplica(long productId, String name, String thumbnailUrl) {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, ?, ?, 'ON_SALE', now(), now(), now())",
-            productId, name, thumbnailUrl);
+        new ReviewRows(jdbcTemplate).replicaProduct(productId).name(name).thumbnailUrl(thumbnailUrl).insert();
     }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewErrorCode;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
@@ -46,9 +47,7 @@ class ReviewImageApiTest {
     @BeforeEach
     void eligibility() {
         uploadChecker.reset();
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, '110', now(), now(), "
-            + "now())", ME);
+        new ReviewRows(jdbcTemplate).eligibility(11, ME, 14).orderId(12).optionId(15).size("110").insert();
     }
 
     @Test

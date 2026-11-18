@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.favorite.app.FavoriteService;
 import com.bbcc.kidly.boundedcontext.review.app.port.in.MemberWithdrawalRecorder;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.eventpublisher.EventPublisher;
 import com.bbcc.kidly.shared.member.event.MemberWithdrawnEvent;
@@ -60,9 +61,7 @@ class MemberWithdrawalIntegrationTest {
     @BeforeEach
     void data() {
         for (long product = 14; product <= 16; product++) {
-            jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, "
-                + "display_status, source_occurred_at, created_at, updated_at) "
-                + "values (?, '상품', null, 'ON_SALE', now(), now(), now())", product);
+            new ReviewRows(jdbcTemplate).replicaProduct(product).insert();
         }
         favoriteService.add(FavoriteOwner.member(A), "14");
         favoriteService.add(FavoriteOwner.member(A), "15");
@@ -195,9 +194,7 @@ class MemberWithdrawalIntegrationTest {
     }
 
     private void eligible(long orderItemId, long memberId, long productId) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) "
-            + "values (?, 1, ?, ?, 1, null, now(), now(), now())", orderItemId, memberId, productId);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, memberId, productId).insert();
     }
 
     private void deliver(MemberWithdrawnEvent event) {

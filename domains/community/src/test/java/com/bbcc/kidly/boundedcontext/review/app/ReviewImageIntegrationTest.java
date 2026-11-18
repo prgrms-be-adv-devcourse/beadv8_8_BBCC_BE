@@ -3,8 +3,8 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.global.error.BusinessException;
@@ -46,9 +46,7 @@ class ReviewImageIntegrationTest {
     @BeforeEach
     void eligibility() {
         uploadChecker.reset();
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (11, 12, ?, 14, 15, null, now(), now(), "
-            + "now())", ME);
+        new ReviewRows(jdbcTemplate).eligibility(11, ME, 14).orderId(12).optionId(15).insert();
     }
 
     @Test
@@ -70,12 +68,12 @@ class ReviewImageIntegrationTest {
         Map<String, Object> before = review(id);
         List<String> next = List.of(own(2));
 
-        assertError(() -> reviewService.update(ME, id, new ReviewService.ReviewChange(true, 0, false, null,
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(next))), ReviewErrorCode.INVALID_RATING);
-        assertError(() -> reviewService.update(ME, id, new ReviewService.ReviewChange(false, null, true, " ",
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(next))), ReviewErrorCode.INVALID_CONTENT);
-        assertError(() -> reviewService.update(ME, id, new ReviewService.ReviewChange(true, 1, false, null,
-            ReviewService.FitInput.text("SMALL"), ImageUrlsInput.of(next))), ReviewErrorCode.FIT_NOT_APPLICABLE);
+        assertError(() -> reviewService.update(ME, id, ReviewChange.rating(0).withImages(ImageUrlsInput.of(next))),
+            ReviewErrorCode.INVALID_RATING);
+        assertError(() -> reviewService.update(ME, id, ReviewChange.content(" ").withImages(ImageUrlsInput.of(next))),
+            ReviewErrorCode.INVALID_CONTENT);
+        assertError(() -> reviewService.update(ME, id, ReviewChange.rating(1).withFit(FitInput.text("SMALL"))
+            .withImages(ImageUrlsInput.of(next))), ReviewErrorCode.FIT_NOT_APPLICABLE);
 
         assertThat(rows(id)).containsExactly(own(0), own(1));
         assertThat(review(id)).isEqualTo(before);
@@ -102,8 +100,7 @@ class ReviewImageIntegrationTest {
         long id = write(List.of(own(0)));
         uploadChecker.duringNextCheck(() -> adminService.changeVisibility(99L, id, "HIDDEN"));
 
-        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 1, false, null,
-            ReviewService.FitInput.absent(), ImageUrlsInput.of(List.of(own(1), own(0)))));
+        reviewService.update(ME, id, ReviewChange.rating(1).withImages(ImageUrlsInput.of(List.of(own(1), own(0)))));
 
         assertThat(rows(id)).containsExactly(own(1), own(0));
         assertThat(jdbcTemplate.queryForMap("select moderation_status, rating from community.review where id = ?", id))
@@ -142,13 +139,12 @@ class ReviewImageIntegrationTest {
     }
 
     private long write(List<String> urls) {
-        return reviewService.write(ME, "닉", "11", 4, "좋아요", ReviewService.FitInput.absent(),
+        return reviewService.write(ME, "닉", "11", 4, "좋아요", FitInput.absent(),
             ImageUrlsInput.of(urls)).reviewId();
     }
 
-    private static ReviewService.ReviewChange imagesChange(List<String> urls) {
-        return new ReviewService.ReviewChange(false, null, false, null, ReviewService.FitInput.absent(),
-            ImageUrlsInput.of(urls));
+    private static ReviewChange imagesChange(List<String> urls) {
+        return ReviewChange.none().withImages(ImageUrlsInput.of(urls));
     }
 
     // 올린 것으로 친 본인 주소(가짜 업로드 확인기에 등록)

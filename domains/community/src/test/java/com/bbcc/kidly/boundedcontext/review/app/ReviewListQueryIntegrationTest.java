@@ -6,6 +6,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewQueryService.ReviewItem;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewQueryService.ReviewPage;
 import com.bbcc.kidly.boundedcontext.review.domain.DisplayStatus;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import com.bbcc.kidly.boundedcontext.support.QueryCounter;
 import java.time.LocalDateTime;
@@ -134,23 +135,20 @@ class ReviewListQueryIntegrationTest {
     }
 
     private long review(long orderItemId, long productId, long memberId, LocalDateTime createdAt) {
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status) values (?, ?, ?, '닉', 4, '본문', ?, ?, 'PASSED')",
-            orderItemId, productId, memberId, createdAt, createdAt);
+        new ReviewRows(jdbcTemplate).review(orderItemId, productId, memberId).at(createdAt).insert();
         return jdbcTemplate.queryForObject("select id from community.review where order_item_id = ?", Long.class,
             orderItemId);
     }
 
     private void images(long reviewId, int count) {
         for (int i = 0; i < count; i++) {
-            jdbcTemplate.update("insert into community.review_image (review_id, position, image_url, created_at) "
-                + "values (?, ?, ?, ?)", reviewId, i, "https://img/" + reviewId + "/" + i + ".jpg", BASE);
+            new ReviewRows(jdbcTemplate).reviewImage(reviewId, i, "https://img/" + reviewId + "/" + i + ".jpg").at(BASE)
+                .insert();
         }
     }
 
     private void replica(long productId, String name, DisplayStatus status) {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
-            productId, name, "https://img/" + productId + ".png", status.name(), BASE, BASE, BASE);
+        new ReviewRows(jdbcTemplate).replicaProduct(productId).name(name)
+            .thumbnailUrl("https://img/" + productId + ".png").status(status.name()).at(BASE).insert();
     }
 }

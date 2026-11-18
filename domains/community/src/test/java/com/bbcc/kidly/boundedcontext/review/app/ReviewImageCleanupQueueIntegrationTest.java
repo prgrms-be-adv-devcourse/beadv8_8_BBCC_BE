@@ -3,9 +3,9 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
-import com.bbcc.kidly.boundedcontext.review.app.ReviewService.ImageUrlsInput;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageCleanupStorage;
 import com.bbcc.kidly.boundedcontext.review.app.port.ReviewImageStorage;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.storage.FakeReviewImageUploadChecker;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import java.time.Duration;
@@ -50,9 +50,7 @@ class ReviewImageCleanupQueueIntegrationTest {
     void eligibility() {
         uploadChecker.reset();
         for (long orderItem : List.of(11L, 21L)) {
-            jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, "
-                + "product_id, option_id, size, confirmed_at, created_at, updated_at) values (?, 12, ?, 14, 15, null, "
-                + "now(), now(), now())", orderItem, ME);
+            new ReviewRows(jdbcTemplate).eligibility(orderItem, ME, 14).orderId(12).optionId(15).insert();
         }
     }
 
@@ -79,7 +77,7 @@ class ReviewImageCleanupQueueIntegrationTest {
     void unchangedImagesNotQueued() {
         long id = write("11", List.of(own(0), own(1)));
 
-        reviewService.update(ME, id, new ReviewService.ReviewChange(true, 2, false, null));
+        reviewService.update(ME, id, ReviewChange.rating(2));
         reviewService.update(ME, id, imagesChange(List.of(own(0), own(1))));
         reviewService.update(ME, id, imagesChange(List.of(own(1), own(0))));
 
@@ -138,13 +136,12 @@ class ReviewImageCleanupQueueIntegrationTest {
     }
 
     private long write(String orderItemId, List<String> urls) {
-        return reviewService.write(ME, "닉", orderItemId, 4, "좋아요", ReviewService.FitInput.absent(),
+        return reviewService.write(ME, "닉", orderItemId, 4, "좋아요", FitInput.absent(),
             ImageUrlsInput.of(urls)).reviewId();
     }
 
-    private static ReviewService.ReviewChange imagesChange(List<String> urls) {
-        return new ReviewService.ReviewChange(false, null, false, null, ReviewService.FitInput.absent(),
-            ImageUrlsInput.of(urls));
+    private static ReviewChange imagesChange(List<String> urls) {
+        return ReviewChange.none().withImages(ImageUrlsInput.of(urls));
     }
 
     // 올린 것으로 친 본인 주소(가짜 업로드 확인기에 등록)

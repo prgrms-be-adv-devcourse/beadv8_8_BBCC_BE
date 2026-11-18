@@ -3,6 +3,7 @@ package com.bbcc.kidly.boundedcontext.review.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,9 +33,7 @@ class ReviewModerationStatusColumnIntegrationTest {
             .isInstanceOf(DataIntegrityViolationException.class)
             .hasMessageContaining("moderation_status");
 
-        jdbcTemplate.update("insert into community.review (order_item_id, product_id, member_id, nickname, rating, "
-            + "content, created_at, updated_at, moderation_status) values (11, 14, 13, '닉', 4, '본문', now(), now(), "
-            + "'PENDING')");
+        new ReviewRows(jdbcTemplate).review(11, 14, 13).status("PENDING").insert();
         assertThat(jdbcTemplate.queryForObject("select moderation_status from community.review", String.class))
             .isEqualTo("PENDING");
     }

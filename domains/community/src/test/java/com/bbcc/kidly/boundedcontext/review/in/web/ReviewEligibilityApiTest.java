@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.review.in.web;
 
 import com.bbcc.kidly.boundedcontext.review.app.ReviewErrorCode;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestMembers;
 import java.time.LocalDateTime;
@@ -29,12 +30,9 @@ class ReviewEligibilityApiTest {
     @Test
     @DisplayName("로그인하면 200: 내 자격 목록, ID는 문자열, 상품 정보는 복사본에서, 마지막 쪽은 nextCursor null")
     void listsMine() {
-        jdbcTemplate.update("insert into community.replica_product (product_id, name, thumbnail_url, display_status, "
-            + "source_occurred_at, created_at, updated_at) values (14, '상품 A', 'https://img/14.png', 'ON_SALE', "
-            + "now(), now(), now())");
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, "
-            + "product_id, option_id, size, confirmed_at, created_at, updated_at) "
-            + "values (11, 12, 1, 14, 15, '110', ?, now(), now())", CONFIRMED_AT);
+        new ReviewRows(jdbcTemplate).replicaProduct(14).name("상품 A").thumbnailUrl("https://img/14.png").insert();
+        new ReviewRows(jdbcTemplate).eligibility(11, 1, 14).orderId(12).optionId(15).size("110")
+            .confirmedAt(CONFIRMED_AT).insert();
 
         client.get().uri(PATH)
             .headers(TestMembers.buyer(1L))

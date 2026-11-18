@@ -6,6 +6,7 @@ import com.bbcc.kidly.boundedcontext.review.app.ReviewErrorCode;
 import com.bbcc.kidly.boundedcontext.review.app.ReviewModerationService;
 import com.bbcc.kidly.boundedcontext.review.app.port.ContentModerator.Result;
 import com.bbcc.kidly.boundedcontext.review.domain.ModerationReason;
+import com.bbcc.kidly.boundedcontext.review.fixture.ReviewRows;
 import com.bbcc.kidly.boundedcontext.review.out.moderation.FakeModerationAdapter;
 import com.bbcc.kidly.boundedcontext.support.FunctionalTest;
 import com.bbcc.kidly.global.security.TestAdmins;
@@ -258,9 +259,7 @@ class ReviewModerationApiTest {
     }
 
     private String write(long memberId, long orderItemId, int rating) {
-        jdbcTemplate.update("insert into community.review_eligibility (order_item_id, order_id, member_id, product_id, "
-            + "option_id, size, confirmed_at, created_at, updated_at) values (?, 12, ?, 14, 15, null, now(), now(), "
-            + "now())", orderItemId, memberId);
+        new ReviewRows(jdbcTemplate).eligibility(orderItemId, memberId, 14).orderId(12).optionId(15).insert();
         Map<?, ?> body = client.post().uri(REVIEWS).headers(TestMembers.buyer(memberId))
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of("orderItemId", String.valueOf(orderItemId), "rating", rating, "content", "리뷰 " + memberId))
