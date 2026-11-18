@@ -39,7 +39,6 @@ class DatabaseCleanerExtension implements AfterEachCallback {
         }
     }
 
-    // 실행 중인 작업 없음 + 큐 비어 있음. 제한 시간 안에 안 되면 실패한다(그래도 테이블은 비운다)
     private static void awaitAsyncIdle(ThreadPoolTaskExecutor executor) {
         long deadline = System.nanoTime() + ASYNC_TIMEOUT.toNanos();
         while (executor.getActiveCount() > 0 || !executor.getThreadPoolExecutor().getQueue().isEmpty()) {

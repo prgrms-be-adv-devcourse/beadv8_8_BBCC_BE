@@ -11,9 +11,6 @@ public interface PushTokenRepository {
      */
     void register(Long memberId, String fid, LocalDateTime now);
 
-    /**
-     * 이 회원의 FID 중 마지막 등록이 최근인 {@code keep}개만 남기고 지운다. 지운 개수.
-     */
     int deleteAllButNewest(Long memberId, int keep);
 
     int deleteByMemberIdAndFid(Long memberId, String fid);

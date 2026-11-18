@@ -4,7 +4,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.InboxNotificationView;
 import java.time.LocalDateTime;
 
 /**
- * 알림함 목록의 한 건. linkPath는 없으면 null.
+ * linkPath는 없으면 null.
  */
 public record InboxNotificationResponse(
     Long notificationId,

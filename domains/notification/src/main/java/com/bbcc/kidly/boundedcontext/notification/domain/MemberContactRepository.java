@@ -10,6 +10,5 @@ public interface MemberContactRepository {
 
     boolean existsById(Long memberId);
 
-    // 없는 회원이면 아무것도 하지 않는다
     void deleteById(Long memberId);
 }

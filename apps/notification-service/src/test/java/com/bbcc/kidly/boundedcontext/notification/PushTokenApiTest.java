@@ -16,9 +16,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-/**
- * 웹 푸시 FID 등록 · 해제 API. 로그인 회원은 Gateway가 붙이는 X-Member-Id 헤더로 보낸다.
- */
 @FunctionalTest
 class PushTokenApiTest {
 

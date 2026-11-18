@@ -18,9 +18,8 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 보낼 알림 한 건. 채널 하나에 한 건이고, 같은 이벤트 · 같은 채널은 한 건만 만든다((event_id, channel) 유니크).
+ * 같은 이벤트 · 같은 채널은 한 건만 만든다((event_id, channel) 유니크).
  * 제목과 본문은 만들 때 완성해 두어 재시도해도 같은 내용이 나간다.
- * 이메일은 받는 주소(recipient)를, 푸시는 누르면 이동할 경로(linkPath)를 가진다. 푸시를 받을 FID는 보낼 때 회원 ID로 찾는다.
  * 커밋 뒤 비동기 발송과 재시도 스케줄러가 같은 알림을 동시에 맡으려 하면 {@code @Version}으로 한쪽만 저장된다.
  */
 @Entity
@@ -71,7 +70,6 @@ public class Notification extends BaseTimeEntity {
 
     private LocalDateTime nextAttemptAt;
 
-    // 마지막으로 발송을 맡은 시각
     private LocalDateTime claimedAt;
 
     private LocalDateTime sentAt;
@@ -114,7 +112,6 @@ public class Notification extends BaseTimeEntity {
     }
 
     /**
-     * 발송을 맡는다. 맡을 수 있으면 SENDING으로 바꾸고 true를 돌려준다.
      * 맡을 수 있는 것: 처음 만든 알림, 다음 시도 시각이 된 실패 알림, 발송을 맡은 채로 멈춘 알림.
      */
     public boolean startSending(LocalDateTime now) {
@@ -141,7 +138,6 @@ public class Notification extends BaseTimeEntity {
         this.status = NotificationStatus.SKIPPED;
     }
 
-    // 실패를 기록한다. 다음 시도 시각은 NotificationPolicy가 정한다
     public void markFailed(String error, boolean retryable, LocalDateTime now) {
         requireSending();
         this.attemptCount++;

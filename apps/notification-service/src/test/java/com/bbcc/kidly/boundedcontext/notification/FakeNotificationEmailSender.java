@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 /**
- * 통합 · 기능 테스트에서 SMTP 대신 쓴다. 보낸 메일을 모아 두고, 정해 둔 주소로는 실패를 던진다.
  * 비동기 스레드에서도 불리므로 스레드 안전한 목록을 쓴다. SMTP 발송은 SmtpEmailSenderTest가 확인한다.
  */
 @Primary

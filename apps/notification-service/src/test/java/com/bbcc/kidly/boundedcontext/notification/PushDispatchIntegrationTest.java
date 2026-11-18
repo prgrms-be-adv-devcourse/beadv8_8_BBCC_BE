@@ -19,9 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * 웹 푸시 발송: 회원의 모든 FID로 보내기 · 결과 기록 · 무효 FID 정리. FCM 대신 FakeNotificationPushSender를 쓴다.
- */
 @IntegrationTest
 class PushDispatchIntegrationTest {
 

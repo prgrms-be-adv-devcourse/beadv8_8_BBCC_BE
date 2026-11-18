@@ -22,9 +22,6 @@ public record InboxRecipient(InboxRecipientType type, Long id) {
         return new InboxRecipient(InboxRecipientType.CHILD, childAccountId);
     }
 
-    /**
-     * 로그인 주체의 알림함. 관리자는 알림함이 없다(IllegalArgumentException).
-     */
     public static InboxRecipient of(PrincipalId principal) {
         return switch (principal.type()) {
             case MEMBER -> member(principal.id());

@@ -25,9 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
-/**
- * 안 읽은 알림 수 SSE. 연결하면 지금 수를, 알림이 들어오거나 읽으면 새 수를 받는다. 다른 받는 사람의 변화는 받지 않는다.
- */
 @FunctionalTest
 class UnreadCountStreamApiTest {
 

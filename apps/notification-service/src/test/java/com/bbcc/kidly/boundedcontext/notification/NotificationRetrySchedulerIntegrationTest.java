@@ -91,7 +91,6 @@ class NotificationRetrySchedulerIntegrationTest {
         AsyncWait.until(() -> statusOf(pending) == NotificationStatus.SENT
             && statusOf(sending) == NotificationStatus.SENT);
 
-        // 다음 재시도 주기에 다시 맡을 알림이 없다(보낸 알림 · 아직 보내는 중인 알림 모두)
         assertThat(notificationSendService.findRetryTargets()).isEmpty();
         assertThat(statusOf(inFlight)).isEqualTo(NotificationStatus.SENDING);
         assertThat(fakeNotificationEmailSender.sent()).extracting(Email::to)

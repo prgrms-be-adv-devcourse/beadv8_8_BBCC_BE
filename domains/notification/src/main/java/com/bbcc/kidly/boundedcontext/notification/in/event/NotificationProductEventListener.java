@@ -10,8 +10,6 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.product.events에서 product.changed를 받아 알림 문구에 쓸 상품 이름 복사본을 저장하고,
- * 판매자에게 관리자 판매 중지 · 옵션 품절을 알린다.
  * 같은 메시지를 다시 받거나 옛 메시지가 늦게 와도 ProductName이 발생 시각으로 거른다.
  */
 @Component

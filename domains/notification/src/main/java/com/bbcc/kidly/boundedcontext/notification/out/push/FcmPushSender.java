@@ -23,11 +23,10 @@ import java.util.ArrayList;
 import java.util.Base64;
 
 /**
- * 웹 푸시를 FCM HTTP v1(Firebase Admin SDK)로 한 회원의 모든 FID에 한 번에 보낸다(sendEachForMulticast).
  * 대상은 등록 토큰이 아닌 FID(Firebase Installation ID)다. 등록 토큰 API는 Admin SDK 9.10.0부터 deprecated다.
  * FCM 오류 코드는 PushFailure로 묶는다: UNREGISTERED · INVALID_ARGUMENT는 FID 정리, UNAVAILABLE · INTERNAL ·
  * QUOTA_EXCEEDED는 재시도, 그 밖(발신자 불일치 · 웹 푸시 인증 오류 · 서비스 계정 권한)은 재시도하지 않는다.
- * 예외 메시지에는 FID · 키를 넣지 않는다. 앱이 내려갈 때 Firebase 앱을 지운다(close).
+ * 예외 메시지에는 FID · 키를 넣지 않는다.
  */
 public class FcmPushSender implements NotificationPushSender, AutoCloseable {
 

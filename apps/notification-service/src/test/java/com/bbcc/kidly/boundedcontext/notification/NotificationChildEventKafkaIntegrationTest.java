@@ -38,10 +38,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 회원(인증)이 kidly.auth.events에 보낸 자녀 계정 생성 · 삭제로 자녀 계정 복사본을 두고,
- * 주문이 kidly.order.events에 보낸 조르기 거절을 그 자녀 계정의 알림함에 넣는다.
  * 보내는 쪽 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 + data)으로 토픽에 직접 넣는다.
- * 자녀 계정 · 프로필 · 조르기 ID를 테스트마다 새로 만들고, 결과는 그 자녀 계정의 알림함으로 걸러 본다.
  */
 @KafkaIntegrationTest
 class NotificationChildEventKafkaIntegrationTest {
@@ -146,7 +143,6 @@ class NotificationChildEventKafkaIntegrationTest {
             .toList();
     }
 
-    // 보내는 쪽 형식 그대로 넣는다
     private void send(String topic, DomainEvent event) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("eventId", event.eventId());

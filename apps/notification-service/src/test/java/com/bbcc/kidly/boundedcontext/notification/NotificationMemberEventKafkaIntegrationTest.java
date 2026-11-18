@@ -46,7 +46,6 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * member.registered가 커밋되면 kidly.member.events를 거쳐 환영 메일을 저장하고 별도 스레드에서 보낸다(#567).
  * 이 서비스에는 회원 도메인이 없으므로(회원 서비스) 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId,
  * 본문 공통 칸 7개 + data)으로 토픽에 직접 넣는다. 리스너는 이 테스트 안에서만 켜고 끈다. 같은 토픽에는 다른 테스트의 회원 이벤트도 쌓여 이어서 받을 수 있으므로
  * 회원 ID · 이메일을 테스트마다 새로 만들고, 결과는 이 테스트의 받는 사람 · 키로 걸러 본다.
@@ -221,7 +220,6 @@ class NotificationMemberEventKafkaIntegrationTest {
         return fakeNotificationEmailSender.sent().stream().filter(sent -> sent.to().equals(recipient)).toList();
     }
 
-    // 회원이 보내는 형식 그대로 넣는다. 키는 correlationId(회원 ID)다
     private void send(MemberRegisteredEvent event) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("eventId", event.eventId());
@@ -235,7 +233,6 @@ class NotificationMemberEventKafkaIntegrationTest {
         sendRaw(event.eventType(), event.eventId(), jsonMapper.writeValueAsString(body));
     }
 
-    // 탈퇴 이벤트를 회원이 보내는 형식(공통 칸 + data)으로 넣는다
     private void sendWithdrawn() throws Exception {
         sendEnvelope("member.withdrawn", Map.of("memberId", memberId));
     }
@@ -259,7 +256,6 @@ class NotificationMemberEventKafkaIntegrationTest {
             new MemberRegisteredEvent.Data(memberId, recipient));
     }
 
-    // 회원이 보내지 않는 메시지(다른 종류 · 깨진 본문)를 이 테스트의 회원 ID 키로 직접 넣는다
     private RecordMetadata sendRaw(String eventType, String body) throws Exception {
         return sendRaw(eventType, UUID.randomUUID(), body);
     }

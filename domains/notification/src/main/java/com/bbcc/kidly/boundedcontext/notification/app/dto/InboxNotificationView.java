@@ -3,9 +3,6 @@ package com.bbcc.kidly.boundedcontext.notification.app.dto;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotification;
 import java.time.LocalDateTime;
 
-/**
- * 알림함 목록의 한 건. type은 알림 유형 이름이다.
- */
 public record InboxNotificationView(
     Long notificationId,
     String type,

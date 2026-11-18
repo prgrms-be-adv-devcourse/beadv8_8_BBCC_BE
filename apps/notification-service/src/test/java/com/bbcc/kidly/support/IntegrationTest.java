@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 통합 테스트: 스프링 컨텍스트 + 실제 DB(Testcontainers). 테스트가 끝나면 모든 테이블을 비운다.
  * 모든 통합 테스트가 같은 설정을 써야 컨텍스트가 재사용되므로 설정을 추가하지 않는다.
  */
 @Target(ElementType.TYPE)

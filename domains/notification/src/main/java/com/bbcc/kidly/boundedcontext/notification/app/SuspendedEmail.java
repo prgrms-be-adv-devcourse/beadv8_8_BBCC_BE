@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
 /**
- * 계정 정지 메일. 갑자기 로그인이 막힌 회원에게 정지 사실과 사유를 알린다. 사유가 없으면 사유 줄을 넣지 않는다.
+ * 사유가 없으면 사유 줄을 넣지 않는다.
  */
 public record SuspendedEmail(String title, String body) {
 

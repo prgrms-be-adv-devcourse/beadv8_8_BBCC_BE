@@ -7,7 +7,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 오래 다시 등록되지 않은 푸시 FID를 하루 한 번 지운다. 시각은 설정(kidly.notification.push-token-cleanup-cron)으로 정한다.
  * 서버가 여러 대면 모두 실행되지만 같은 DELETE라 결과가 같다.
  */
 @Slf4j

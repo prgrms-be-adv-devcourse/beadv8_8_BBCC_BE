@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 알림함. 알림을 넣고, 로그인 주체(회원 · 자녀 계정)가 자기 알림을 보고 읽음 처리한다. 오래된 알림은 정리한다.
  * 안 읽은 수가 바뀌면(넣기 · 읽음) InboxChanged를 발행해, 커밋 뒤 열린 SSE 연결에 새 안 읽은 수를 보낸다.
  * 로그인 주체(PrincipalId)를 받는 사람(InboxRecipient)으로 바꿔 늘 종류와 ID로 거른다. 같은 숫자 ID의 다른 종류 주체 알림은 보이지도 바뀌지도 않는다.
  */
@@ -34,7 +33,7 @@ public class InboxNotificationService {
     private final ApplicationEventPublisher eventPublisher;
 
     /**
-     * 알림함에 넣는다. 같은 dedupKey가 이미 있으면 넣지 않는다(같은 이벤트를 다시 받거나 동시에 받아도 한 건).
+     * 같은 dedupKey가 이미 있으면 넣지 않는다(같은 이벤트를 다시 받거나 동시에 받아도 한 건).
      * 탈퇴한 회원에게는 넣지 않는다. 탈퇴 뒤에 늦게 온 이벤트(판매자 탈퇴로 취소된 주문 등)가 지운 알림함을 되살리지 않게 한다.
      * 탈퇴 처리(MemberWithdrawalService.purge)와 같은 회원 잠금을 잡고 탈퇴 표시를 보므로, 탈퇴와 엇갈려도 행이 남지 않는다.
      */
@@ -64,9 +63,6 @@ public class InboxNotificationService {
         return inboxNotificationRepository.countUnread(InboxRecipient.of(principal));
     }
 
-    /**
-     * 읽음 처리. 이미 읽었으면 그대로 둔다. 없거나 남의 알림이면 NOTIFICATION_NOT_FOUND.
-     */
     @Transactional
     public void read(PrincipalId principal, Long notificationId) {
         inboxNotificationRepository.findByIdAndRecipient(notificationId, InboxRecipient.of(principal))
@@ -75,9 +71,6 @@ public class InboxNotificationService {
         eventPublisher.publishEvent(new InboxChanged(principal));
     }
 
-    /**
-     * 내 안 읽은 알림을 모두 읽음 처리. 이미 읽은 알림의 읽은 시각은 그대로 둔다. 안 읽은 알림이 없어도 된다.
-     */
     @Transactional
     public void readAll(PrincipalId principal) {
         if (inboxNotificationRepository.readAllUnread(InboxRecipient.of(principal), LocalDateTime.now()) > 0) {
@@ -85,17 +78,11 @@ public class InboxNotificationService {
         }
     }
 
-    /**
-     * 이 받는 사람의 알림을 모두 지운다(자녀 계정 삭제 · 회원 탈퇴). 없어도 된다.
-     */
     @Transactional
     public void deleteAllOf(InboxRecipient recipient) {
         inboxNotificationRepository.deleteAllOf(recipient);
     }
 
-    /**
-     * 보존 기간(NotificationPolicy.INBOX_RETENTION)이 지난 알림을 지운다. 지운 개수.
-     */
     @Transactional
     public int deleteExpired() {
         return inboxNotificationRepository.deleteCreatedBefore(

@@ -87,7 +87,6 @@ class OrderCancelInboxServiceTest {
     private InboxNotificationInfo captured() {
         var info = ArgumentCaptor.forClass(InboxNotificationInfo.class);
         verify(inboxNotificationService).add(info.capture());
-        // 알림함과 같은 내용을 푸시로도 보낸다
         verify(notificationService).createPush(info.getValue());
         return info.getValue();
     }

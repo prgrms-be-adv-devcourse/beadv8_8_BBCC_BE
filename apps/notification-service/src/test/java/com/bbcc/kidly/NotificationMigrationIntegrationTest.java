@@ -18,7 +18,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 서비스 Flyway가 DB 상태에 따라 알림 테이블을 만들거나 건너뛰는지 본다.
  * kidly-app이 알림을 가지고 있는 동안 쓰던 DB(dev · prod · 공유 로컬)에는 kidly-app이 baseline 버전까지의 알림 테이블을 이미 만들어 두었다.
  * 그런 DB에서는 baseline을 잡고 그 뒤에 더한 알림 마이그레이션(도메인 모듈의 db/migration/notification)만 적용해,
  * 빈 DB에서 처음부터 적용한 것과 스키마가 같아야 한다.
@@ -60,7 +59,6 @@ class NotificationMigrationIntegrationTest {
 
             serviceFlyway(dataSource).load().migrate();
 
-            // kidly-app이 만든 알림 테이블은 빈 DB에도 같은 모양으로 생긴다
             assertThat(schema(jdbc)).containsAll(schema(new JdbcTemplate(kidlyAppDataSource)));
             assertThat(historyTypes(jdbc)).first().isEqualTo("SQL " + BASELINE_VERSION);
         }
@@ -91,7 +89,6 @@ class NotificationMigrationIntegrationTest {
         jdbc.execute("DROP TABLE notification.kidly_app_history");
     }
 
-    // 서비스 application.yml의 spring.flyway 값 그대로
     private static FluentConfiguration serviceFlyway(DriverManagerDataSource dataSource) {
         var config = serviceConfig();
         return Flyway.configure()
@@ -111,7 +108,6 @@ class NotificationMigrationIntegrationTest {
         return yaml.getObject();
     }
 
-    // 알림 스키마의 칸(표 · 칸 · 타입 · null 허용), 제약 이름, 인덱스 정의. 이력 테이블은 뺀다
     private static List<String> schema(JdbcTemplate jdbc) {
         var columns = jdbc.queryForList("""
             SELECT table_name || '.' || column_name || ' ' || data_type || ' ' || is_nullable

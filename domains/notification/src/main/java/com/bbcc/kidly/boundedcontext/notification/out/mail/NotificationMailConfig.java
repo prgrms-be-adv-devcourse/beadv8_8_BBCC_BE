@@ -11,7 +11,6 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.util.StringUtils;
 
 /**
- * 알림 메일 발송기를 고른다. 기본은 켬(kidly.mail.enabled=true)이고, 끄려면 MAIL_ENABLED=false로 둔다.
  * 켜져 있어도 SMTP 계정(MAIL_USERNAME · MAIL_PASSWORD)이 없으면 앱은 그대로 띄우고 로그 발송기를 쓴다 (계정이 없는 로컬 · 서버)
  */
 @Slf4j

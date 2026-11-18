@@ -28,7 +28,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 도메인 이벤트로 알림을 만든다. 같은 이벤트 · 같은 채널은 한 건만 만들고, 커밋된 뒤에 비동기 발송을 넘긴다.
+ * 같은 이벤트 · 같은 채널은 한 건만 만들고, 커밋된 뒤에 비동기 발송을 넘긴다.
  * 커밋 전에 넘기면 다른 스레드가 아직 저장되지 않은 알림을 찾지 못한다.
  * 계정 정지를 뺀 메일은 같은 일을 받는 사람 알림함에도 한 건 남긴다(같은 트랜잭션). 알림함은 이메일이 필요 없어
  * 이메일 복사본이 없어 메일을 못 만들어도 남긴다. 계정 정지는 로그인이 막혀 알림함을 볼 수 없어 메일만 만든다.
@@ -58,7 +58,7 @@ public class NotificationService {
     }
 
     /**
-     * 정산금 지급 메일. 같은 정산서의 지급 요청이 다시 오면 결제가 새 eventId로 지급 완료를 다시 발행하므로,
+     * 같은 정산서의 지급 요청이 다시 오면 결제가 새 eventId로 지급 완료를 다시 발행하므로,
      * 이벤트 ID 대신 정산서 ID로 만든 고정 키로 한 통만 만든다. 0원 정산은 입금이 없어 보내지 않는다.
      */
     @Transactional
@@ -201,7 +201,7 @@ public class NotificationService {
     }
 
     /**
-     * 알림함 알림과 같은 제목 · 본문 · 경로로 회원 웹 푸시를 만든다. 알림함 중복 키로 만든 고정 키로 한 건만 만든다.
+     * 알림함 중복 키로 만든 고정 키로 한 건만 만든다.
      * 자녀 계정 푸시는 보호자 동의 정책이 정해지지 않아 보내지 않는다.
      */
     @Transactional
@@ -218,9 +218,6 @@ public class NotificationService {
         dispatchAfterCommit(notification.getId());
     }
 
-    /**
-     * 보존 기간(NotificationPolicy.HISTORY_RETENTION)이 지난 끝난 발송 기록을 지운다. 아직 보낼 것은 남긴다. 지운 개수.
-     */
     @Transactional
     public int deleteExpired() {
         return notificationRepository.deleteFinishedCreatedBefore(

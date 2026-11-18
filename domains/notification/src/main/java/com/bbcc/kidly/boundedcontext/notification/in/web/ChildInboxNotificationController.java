@@ -33,9 +33,6 @@ public class ChildInboxNotificationController {
     private final InboxNotificationService inboxNotificationService;
     private final UnreadCountStream unreadCountStream;
 
-    /**
-     * 내 알림 최신순. size는 1~100.
-     */
     @GetMapping
     public PageResponse<InboxNotificationResponse> findMine(
         @LoginChild AuthChild child,

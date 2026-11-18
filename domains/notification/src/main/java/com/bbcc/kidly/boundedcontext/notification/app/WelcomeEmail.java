@@ -1,7 +1,7 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
 /**
- * 회원가입 환영 메일. 가입 이벤트에 닉네임이 없어 넣지 않는다. 문구는 기획과 맞춘다.
+ * 가입 이벤트에 닉네임이 없어 넣지 않는다.
  */
 public record WelcomeEmail(String title, String body) {
 

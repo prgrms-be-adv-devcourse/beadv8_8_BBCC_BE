@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 알림 문구에 쓸 상품 이름 복사본을 저장하고 찾는다.
  * 복사본보다 늦은 변경에서 판매 중이던 상품을 관리자가 중지했으면 판매자에게 메일 · 알림함을, 재고가 있던 옵션이 새로 품절됐으면
  * 알림함만 남긴다(품절은 다음에 들어와서 알면 되는 일). 처음 받은 상품은 이전 상태를 몰라 알리지 않는다.
  * 판매 중이던 상품을 관리자가 멈춘 경우만 판매 중지를 알린다. 품절은 주문 차감과 판매자 재고 조정 모두 알린다.

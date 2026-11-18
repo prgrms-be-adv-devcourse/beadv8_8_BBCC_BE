@@ -1,8 +1,5 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
-/**
- * 판매자 승인 메일. 결과를 기다리는 신청자에게 승인 사실과 판매자 센터 주소를 알린다.
- */
 public record SellerApprovedEmail(String title, String body) {
 
     private static final String TITLE = "[Kidly] 판매자 신청이 승인됐어요";
