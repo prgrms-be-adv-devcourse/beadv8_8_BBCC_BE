@@ -10,7 +10,7 @@ import lombok.Getter;
 /**
  * 조르기 엔티티의 생성 · 수정 시각(created_at, updated_at). 장바구니(CartTimeEntity)와 같은 시점 · 값으로 채운다:
  * 저장할 때 둘을 같은 시각으로, 바뀐 엔티티를 flush할 때 수정 시각만. domain이 공통 모듈 · Spring을 쓰지 않게 JPA 콜백으로 둔다.
- * #617 컨텍스트별 복사(#640).
+ * 컨텍스트 사이에는 코드를 나눠 쓰지 않아(#617) 주문의 OrderTimeEntity를 조르기 컨텍스트(#640)에 따로 둔다.
  */
 @Getter
 @MappedSuperclass

@@ -7,7 +7,7 @@ import lombok.experimental.Accessors;
 import org.springframework.http.HttpStatus;
 
 /**
- * 장바구니 오류. #617 컨텍스트별 복사: 주문과 같이 쓰는 항목은 주문 OrderErrorCode의 같은 이름 항목과 응답(상태 · title ·
+ * 장바구니 오류. 컨텍스트 사이에는 코드를 나눠 쓰지 않아(#617) 오류 코드를 따로 둔다: 주문과 같이 쓰는 항목은 주문 OrderErrorCode의 같은 이름 항목과 응답(상태 · title ·
  * detail)이 같고, CART_ITEM_NOT_FOUND는 주문에서 옮겼다.
  */
 @Getter
@@ -25,7 +25,7 @@ public enum CartErrorCode implements ErrorCode {
     CHILD_NOT_FOUND(HttpStatus.NOT_FOUND, "자녀를 찾을 수 없습니다", "없는 자녀입니다. 자녀를 다시 선택해 주세요."),
     CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "장바구니 상품을 찾을 수 없습니다",
         "이미 장바구니에서 빠진 상품입니다. 장바구니를 새로고침해 주세요."),
-    // #998 주인별 장바구니 · 아이 장바구니 · 칸 예약
+    // 주인별 장바구니 · 아이 장바구니 · 칸 예약(#998)에서 생긴 오류
     CART_FORBIDDEN(HttpStatus.FORBIDDEN, "다른 사람의 장바구니입니다", "자기 장바구니만 보고 바꿀 수 있습니다."),
     CHILD_ACCOUNT_FORBIDDEN(HttpStatus.FORBIDDEN, "장바구니를 쓸 수 없는 자녀 계정입니다",
         "자녀 계정 연결을 확인할 수 없습니다. 다시 로그인해 주세요."),

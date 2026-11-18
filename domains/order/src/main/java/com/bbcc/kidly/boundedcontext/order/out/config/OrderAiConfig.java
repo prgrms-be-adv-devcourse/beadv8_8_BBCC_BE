@@ -15,7 +15,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 멈춘 주문 진단 포트 구현을 kidly.order.ai.provider로 고른다(#926). 꺼졌거나 키가 없으면 꺼진 구현.
- * 서킷브레이커는 빈으로 두지 않고 어댑터 안에서 만든다(#708과 같음). 설정은 common의 @ConfigurationPropertiesScan이 등록한다.
+ * 서킷브레이커는 빈으로 두지 않고 어댑터 안에서 만든다(택배 조회 서킷브레이커 #708과 같음). 설정은 common의 @ConfigurationPropertiesScan이 등록한다.
  */
 @Slf4j
 @Configuration

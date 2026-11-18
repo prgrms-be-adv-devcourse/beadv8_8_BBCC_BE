@@ -24,7 +24,7 @@ public interface DeliveryRecorder {
         String reason, LocalDateTime occurredAt);
 
     /**
-     * 배송된 주문상품 한 줄(#1061).
+     * 배송된 주문상품 한 줄(#1061): 배송 완료 이벤트의 주문상품 목록 · 자동 구매확정 예정 시각을 이 값으로 채운다.
      *
      * @param deliveredAt 주문상품에 남은 배송 완료 시각
      * @param autoConfirmAt 자동 구매확정 예정 시각 = deliveredAt + 자동 구매확정 기간(자동 확정과 같은 기준)

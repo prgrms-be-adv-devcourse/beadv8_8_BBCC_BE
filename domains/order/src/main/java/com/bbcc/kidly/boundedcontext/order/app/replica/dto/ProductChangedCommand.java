@@ -21,7 +21,7 @@ public record ProductChangedCommand(
     String thumbnailUrl) {
 
     /**
-     * 썸네일 없이(#1328 전 입력 모양). 썸네일은 null.
+     * 썸네일 없이: 썸네일 칸을 더하기(#1328) 전 입력 모양이다. 썸네일은 null.
      */
     public ProductChangedCommand(Long productId, Long sellerId, String productName, Long categoryId,
         String productStatus, List<Option> options, LocalDateTime occurredAt) {

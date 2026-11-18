@@ -5,7 +5,8 @@ import com.bbcc.kidly.global.error.BusinessException;
 
 /**
  * domain의 조르기 규칙 위반을 오류 응답용 업무 예외로 바꾼다. 규칙마다 같은 이름의 WishErrorCode로,
- * detail은 그 코드의 기본 설명 그대로다. #617 컨텍스트별 복사(#640).
+ * detail은 그 코드의 기본 설명 그대로다. 컨텍스트 사이에는 코드를 나눠 쓰지 않아(#617) 주문의 OrderErrors를
+ * 조르기 컨텍스트(#640)에 따로 둔다.
  */
 public final class WishErrors {
 

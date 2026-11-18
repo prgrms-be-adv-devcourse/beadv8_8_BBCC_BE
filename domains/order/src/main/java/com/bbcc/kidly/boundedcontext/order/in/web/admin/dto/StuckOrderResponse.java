@@ -47,7 +47,7 @@ public record StuckOrderResponse(
     }
 
     /**
-     * AI 진단 메모(#926).
+     * AI 진단 메모(#926): 멈춘 주문을 AI가 본 요약 · 권장 조치 · 확신도. 제안일 뿐이고 조치는 관리자가 한다.
      *
      * @param confidence LOW · MEDIUM · HIGH
      * @param provider 답한 곳(예: api.groq.com)

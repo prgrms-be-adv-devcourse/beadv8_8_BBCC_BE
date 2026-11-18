@@ -206,7 +206,8 @@ public class OrderQueryService implements SellerOrderItems, MemberOrderHistory {
      * 관리자 전체 주문 목록(#1280 상태 필터 + #1325 취소 시각). 줄마다 cancelledAt(취소 주문만, 상태 이력의 취소 시각)을 페이지 단위로
      * 한 번에 읽어 붙인다(주문마다 조회하지 않음).
      * cancelledFrom(한국 시간 yyyy-MM-ddTHH:mm:ss, 포함)이 있으면 그 시각 이후 취소된 주문만이다: status 없이 와도 취소된 주문만,
-     * status와 함께면 AND라 CANCELLED가 아니면 0건. 형식이 틀리면 INVALID_CANCELLED_FROM(400). 없으면 #1280과 같다.
+     * status와 함께면 AND라 CANCELLED가 아니면 0건. 형식이 틀리면 INVALID_CANCELLED_FROM(400). 없으면 상태 필터 목록
+     * (#1280, getAllOrders(status, page, size))과 같다.
      */
     public Page<AdminOrderSummary> getAllOrders(String status, String cancelledFrom, int page, int size) {
         if (cancelledFrom == null) {

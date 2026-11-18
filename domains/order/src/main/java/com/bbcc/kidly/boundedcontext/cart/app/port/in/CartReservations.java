@@ -80,7 +80,8 @@ public interface CartReservations {
     }
 
     /**
-     * 예약의 결제 가능 기한(#1008).
+     * 예약의 결제 가능 기한(#1008). 예약한 쪽(조르기)의 만료 기한 사본이라, 이 시각과 같거나 지나면 그 예약 칸으로는
+     * 주문할 수 없다(RESERVATION_EXPIRED 409).
      *
      * @param validUntil null이면 기한 없음
      */
