@@ -1,6 +1,7 @@
 package com.bbcc.kidly.boundedcontext.auth;
 
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxMessage;
+import com.bbcc.kidly.member.support.outbox.OutboxMessage;
 import java.util.UUID;
 
 public final class AuthOutboxMessageFixture {
@@ -18,6 +19,7 @@ public final class AuthOutboxMessageFixture {
     }
 
     public static AuthOutboxMessage childAccountChanged(UUID eventId) {
-        return AuthOutboxMessage.create(eventId, "child-account.changed", "1", PAYLOAD);
+        return new AuthOutboxMessage(new OutboxMessage.CreateInfo(
+            eventId, "child-account.changed", AuthOutboxMessage.TOPIC, "1", PAYLOAD));
     }
 }

@@ -3,7 +3,7 @@ package com.bbcc.kidly;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.AuthOutboxMessageFixture;
-import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelayService;
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthOutboxRelay;
 import com.bbcc.kidly.boundedcontext.auth.domain.outbox.AuthOutboxRepository;
 import com.bbcc.kidly.boundedcontext.childprofile.ChildProfileOutboxMessageFixture;
 import com.bbcc.kidly.boundedcontext.childprofile.app.outbox.ChildProfileOutboxRelayService;
@@ -42,7 +42,7 @@ class OutboxGraceKafkaIntegrationTest {
     @Autowired private MemberOutboxRelay memberRelay;
     @Autowired private SellerOutboxRelay sellerRelay;
     @Autowired private ChildProfileOutboxRelayService childRelay;
-    @Autowired private AuthOutboxRelayService authRelay;
+    @Autowired private AuthOutboxRelay authRelay;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private KafkaContainer kafka;
 

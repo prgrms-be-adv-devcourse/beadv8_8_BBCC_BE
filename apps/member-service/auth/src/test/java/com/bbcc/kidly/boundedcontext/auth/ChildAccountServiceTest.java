@@ -8,7 +8,7 @@ import static org.mockito.Mockito.when;
 import com.bbcc.kidly.boundedcontext.auth.app.ChildAccountService;
 import com.bbcc.kidly.boundedcontext.auth.app.RefreshTokenService;
 import com.bbcc.kidly.boundedcontext.auth.app.dto.ChildAccountCreateRequest;
-import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthEventOutbox;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildProfileReplica;
 import com.bbcc.kidly.boundedcontext.auth.domain.ChildProfileReplicaRepository;

@@ -1,6 +1,6 @@
 package com.bbcc.kidly.boundedcontext.auth.app;
 
-import com.bbcc.kidly.boundedcontext.auth.app.port.AuthEventOutbox;
+import com.bbcc.kidly.boundedcontext.auth.app.outbox.AuthEventOutbox;
 import com.bbcc.kidly.shared.auth.PrincipalId;
 import com.bbcc.kidly.shared.auth.event.AuthTokensRevokedEvent;
 import com.bbcc.kidly.shared.auth.out.MemberTokenRevoker;
