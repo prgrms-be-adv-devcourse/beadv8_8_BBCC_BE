@@ -139,9 +139,11 @@ public class DeliveryTrackerChecker implements DeliveryStatusChecker {
         try {
             List<TrackEventRow> rows = historyCircuitBreaker.callPermitted(
                 () -> client.events(carrierId, trackingNumber));
+            // 시각 없는 줄은 뺀다(#1604): 택배사가 시각 없이 준 줄(예: 한진 "상품위치")은 진행 이력으로 보여 줄 수 없다.
+            // 최근 30개는 택배사 조회가 자른 것이라 빼고 나면 그보다 적을 수 있다
             return TrackingHistory.ok(rows.reversed().stream()
-                .map(row -> new TrackingEvent(
-                    row.time() == null ? null : row.time().atZoneSameInstant(zone).toLocalDateTime(),
+                .filter(row -> row.time() != null)
+                .map(row -> new TrackingEvent(row.time().atZoneSameInstant(zone).toLocalDateTime(),
                     row.location(), row.statusCode()))
                 .toList());
         } catch (DeliveryTrackerException e) {

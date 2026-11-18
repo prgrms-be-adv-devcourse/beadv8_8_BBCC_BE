@@ -66,17 +66,48 @@ class TrackingHistoryCheckerTest {
     }
 
     @Test
-    @DisplayName("응답 이벤트(오래된 것부터)를 최신 먼저로 뒤집고, 시각(Z · +09:00)은 서버 시간대로, 장소 · 시각이 없으면 null로 담는다")
+    @DisplayName("응답 이벤트(오래된 것부터)를 최신 먼저로 뒤집고, 시각(Z · +09:00)은 서버 시간대로, 장소가 없으면 null로 담는다. "
+        + "시각 없는 이벤트는 뺀다(#1604)")
     void mapsEventsNewestFirst() {
         server.expect(requestTo(URL)).andRespond(withSuccess(events(), MediaType.APPLICATION_JSON));
 
         TrackingHistory history = checker.history(Delivery.Carrier.CJ, "1234567890");
 
         assertThat(history).isEqualTo(TrackingHistory.ok(List.of(
-            new TrackingEvent(null, "고객", "DELIVERED"),
             new TrackingEvent(LocalDateTime.of(2026, 11, 12, 9, 30), null, "OUT_FOR_DELIVERY"),
             new TrackingEvent(LocalDateTime.of(2026, 11, 11, 18, 0), "대전HUB", "IN_TRANSIT"),
             new TrackingEvent(LocalDateTime.of(2026, 11, 11, 15, 0), "서울", "AT_PICKUP"))));
+    }
+
+    @Test
+    @DisplayName("시각 없는 이벤트가 중간 · 맨 끝에 섞여 있어도(한진 \"상품위치\" 등) 그 줄만 빠지고 나머지 순서(최신 먼저)는 그대로다(#1604)")
+    void dropsEventsWithoutTime() {
+        server.expect(requestTo(URL)).andRespond(withSuccess("""
+            {"data":{"track":{"events":{"edges":[
+              {"node":{"time":"2026-11-11T15:00:00+09:00","status":{"code":"AT_PICKUP"},"location":{"name":"서울"}}},
+              {"node":{"time":null,"status":{"code":"UNKNOWN"},"location":{"name":"중간"}}},
+              {"node":{"time":"2026-11-11T18:00:00+09:00","status":{"code":"IN_TRANSIT"},"location":{"name":"대전HUB"}}},
+              {"node":{"status":{"code":"UNKNOWN"},"location":{"name":"상품위치"}}}
+            ]}}}}
+            """, MediaType.APPLICATION_JSON));
+
+        TrackingHistory history = checker.history(Delivery.Carrier.HANJIN, "123456789012");
+
+        assertThat(history).isEqualTo(TrackingHistory.ok(List.of(
+            new TrackingEvent(LocalDateTime.of(2026, 11, 11, 18, 0), "대전HUB", "IN_TRANSIT"),
+            new TrackingEvent(LocalDateTime.of(2026, 11, 11, 15, 0), "서울", "AT_PICKUP"))));
+    }
+
+    @Test
+    @DisplayName("이벤트가 모두 시각 없으면 빈 이력(events [])이다(#1604)")
+    void allEventsWithoutTimeIsEmpty() {
+        server.expect(requestTo(URL)).andRespond(withSuccess("""
+            {"data":{"track":{"events":{"edges":[
+              {"node":{"status":{"code":"UNKNOWN"},"location":{"name":"상품위치"}}}
+            ]}}}}
+            """, MediaType.APPLICATION_JSON));
+
+        assertThat(checker.history(Delivery.Carrier.HANJIN, "123456789012")).isEqualTo(TrackingHistory.ok(List.of()));
     }
 
     @Test
@@ -244,7 +275,7 @@ class TrackingHistoryCheckerTest {
         spacedServer.verify();
     }
 
-    // 오래된 것부터: 집하(+09:00) · 이동(Z) · 배송 출발(장소 없음) · 배송 완료(시각 없음)
+    // 오래된 것부터: 집하(+09:00) · 이동(Z) · 배송 출발(장소 없음) · 배송 완료(시각 없음 → 뺀다, #1604)
     private static String events() {
         return """
             {"data":{"track":{"events":{"edges":[

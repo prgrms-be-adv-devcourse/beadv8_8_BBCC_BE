@@ -10,7 +10,7 @@ import java.util.List;
 public record DeliveryTrackingResponse(String deliveryId, String carrier, String trackingNumber, List<Event> events) {
 
     /**
-     * @param time 서버 시간대 시각(없으면 null)
+     * @param time 서버 시간대 시각. 늘 있다(시각 없는 택배사 이벤트는 빼고 준다, #1604)
      * @param location 장소 이름(없으면 null)
      * @param status 택배 조회 상태 코드(IN_TRANSIT · OUT_FOR_DELIVERY · DELIVERED 등)
      */
