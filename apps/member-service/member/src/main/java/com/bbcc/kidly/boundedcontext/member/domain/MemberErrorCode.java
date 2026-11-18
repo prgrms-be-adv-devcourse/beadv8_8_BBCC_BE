@@ -17,8 +17,7 @@ public enum MemberErrorCode implements ErrorCode {
     SELLER_WITHDRAWAL_BLOCKED(HttpStatus.CONFLICT, "탈퇴할 수 없는 판매자입니다", "처리할 항목이 남아 있어요."),
     SELLER_WITHDRAWAL_CHECK_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "탈퇴 조건을 확인하지 못했어요", "잠시 뒤 다시 시도해 주세요."),
     DEFAULT_SHIPPING_ADDRESS_NOT_DELETABLE(HttpStatus.CONFLICT, "기본 배송지는 삭제할 수 없습니다", "다른 배송지를 기본으로 바꾼 뒤 삭제해 주세요."),
-    NICKNAME_ALREADY_USED(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다", "다른 닉네임을 입력해 주세요."),
-    DEAD_LETTER_NOT_FOUND(HttpStatus.NOT_FOUND, "DLT 메시지를 찾을 수 없습니다", "DLT 목록을 새로고침해 주세요.");
+    NICKNAME_ALREADY_USED(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다", "다른 닉네임을 입력해 주세요.");
 
     private final HttpStatus status;
     private final String title;

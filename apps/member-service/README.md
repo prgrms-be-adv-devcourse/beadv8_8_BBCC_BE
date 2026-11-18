@@ -4,7 +4,7 @@
 
 - 실행 앱(이 폴더의 `src`): `member.config`에 실행 설정과 빈 조립, `member.web`에 필터 · 오류 응답 처리 · 로그인 인자 resolver를 둔다. 통합·기능 테스트도 앱에서 실행한다.
 - auth/member/seller/childprofile: 도메인 코드, 리소스, 단위 테스트, fixture. 서로 직접 의존하지 않고 shared 계약을 사용한다.
-- support: 오류 타입, 기본 엔티티, 인증 인자, 페이지 응답만 둔다. Refresh Token 쿠키는 auth가 소유한다. 테스트 fixture에는 로그인 헤더(`TestMembers` · `TestAdmins`)와 도메인 모듈의 계층 규칙(`LayerRules`)이 있다.
+- support: 오류 타입, 기본 엔티티, 인증 인자, 페이지 응답, DLT 보관 · 재처리 공통 구현만 둔다. DLT는 도메인 모듈마다 모양이 같아 한 곳에서 고치도록 모았고, Kafka 리스너 · 컨테이너 설정 · 토픽별 처리기는 도메인 모듈에 남긴다. Refresh Token 쿠키는 auth가 소유한다. 테스트 fixture에는 로그인 헤더(`TestMembers` · `TestAdmins`)와 도메인 모듈의 계층 규칙(`LayerRules`)이 있다.
 - 공통 빌드 설정(Java 25, Checkstyle, Lombok, Boot BOM, 테스트 태스크)은 루트 `build.gradle.kts`의 `allprojects` · `subprojects`에 있다. 각 모듈의 `build.gradle.kts`는 실제로 쓰는 의존성만 선언한다.
 
 ```sh
