@@ -143,6 +143,15 @@ class TracingVerificationTests(unittest.TestCase):
             marker.touch()
             self.assertFalse(dict(state.selection_checks('app', root))['payment Agent selection removed'])
 
+    def test_rollback_checks_additional_deployments_without_marker(self):
+        resources = {name: deployment(name) for name in ('gateway', 'order', 'chatbot')}
+        resources['payment'] = deployment('payment', applied=True)
+        read = lambda namespace, kind, name: resources.get(name, {}) if kind == 'deployment' else {}
+        result = dict(state.app_checks(read, False, state.SERVICES))
+        self.assertFalse(result['payment Agent wiring'])
+        self.assertTrue(result['chatbot Agent wiring'])
+        self.assertNotIn('search rollout', result)
+
     def test_kubernetes_read_failure_reports_only_requested_resource(self):
         error = subprocess.CalledProcessError(1, ['kubectl'], stderr='fixture private stderr')
         with mock.patch.object(state.subprocess, 'check_output', side_effect=error):

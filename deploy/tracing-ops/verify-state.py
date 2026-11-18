@@ -106,6 +106,8 @@ def app_checks(read, applied, services=('gateway', 'order')):
     namespace = 'kidly-dev'
     for name in services:
         deployment = read(namespace, 'deployment', name)
+        if not applied and not deployment and name not in ('gateway', 'order'):
+            continue
         yield f'{name} rollout', ready(deployment)
         yield f'{name} Agent wiring', agent_matches(deployment, name, applied)
     collector = read(namespace, 'deployment', 'tracing-alloy')
@@ -185,6 +187,7 @@ def pod_status(namespace, name, read=read_pods):
 def selection_checks(role, app_root):
     if role == 'app':
         operations = app_root / 'dev' / 'operations' / 'tracing-agent'
+        yield 'Agent selection files removed', not any(operations.glob('*.enabled'))
         for service in SERVICES:
             yield f'{service} Agent selection removed', not (operations / f'{service}.enabled').exists()
     else:
@@ -201,7 +204,7 @@ def main():
     applied = args.state == 'applied'
     reports = []
     try:
-        services = selected_services(Path('/opt/app')) if args.role == 'app' and applied else ('gateway', 'order')
+        services = selected_services(Path('/opt/app')) if args.role == 'app' and applied else SERVICES
         results = list(app_checks(get, applied, services) if args.role == 'app'
                        else monitoring_checks(get, applied))
         if applied:
