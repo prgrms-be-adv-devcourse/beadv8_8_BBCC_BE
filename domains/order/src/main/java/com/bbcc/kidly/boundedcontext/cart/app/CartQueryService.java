@@ -19,9 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 장바구니 조회(#1508, CartService에서 분리): 주인의 줄 목록과 판매자 상호 · 합계. 담기 · 수량 변경 · 빼기 · 칸 예약 · 결제 후
  * 정리는 CartService다. 상품 · 판매자는 {@link CartCatalog}(주문 컨텍스트의 복사본)로 읽는다.
+ * 조회만 하므로 클래스 전체를 읽기 전용 트랜잭션으로 둔다(#1562).
  */
 @Service
-@Transactional
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class CartQueryService {
 
@@ -31,7 +32,6 @@ public class CartQueryService {
     /**
      * 그 주인의 줄을 최근에 담은 것부터. 합계는 구매 가능한 줄만 더한다. 상품 · 판매자 복사본은 한 번씩 읽어 합친다.
      */
-    @Transactional(readOnly = true)
     public CartView getCart(Actor owner) {
         List<CartItem> items = cartItemRepository.findAllByOwnerTypeAndOwnerIdOrderByIdDesc(owner.type(), owner.id());
         Map<Long, ProductOption> products = cartCatalog.findProductOptions(
@@ -52,7 +52,6 @@ public class CartQueryService {
             .reduce(0L, Math::addExact);
         return new CartView(lines, totalAmount);
     }
-
 
     private Map<Long, String> sellerNamesOf(Collection<ProductOption> products) {
         Set<Long> sellerIds = products.stream().map(ProductOption::sellerId).collect(Collectors.toSet());

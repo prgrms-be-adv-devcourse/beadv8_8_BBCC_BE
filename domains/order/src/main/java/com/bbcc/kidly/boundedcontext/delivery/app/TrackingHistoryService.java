@@ -39,7 +39,8 @@ public class TrackingHistoryService {
     static final Duration CACHE_TTL = Duration.ofMinutes(10);
     static final Duration NOT_REGISTERED_TTL = Duration.ofMinutes(1);
     // 요청마다 반복되는 이유(서킷 열림 · 꺼짐 · 호출 간격 자리 없음)는 DEBUG로만 남긴다
-    private static final Set<String> QUIET_REASONS = Set.of(TrackingResult.CIRCUIT_OPEN, "DISABLED", "CALL_SLOT_BUSY");
+    private static final Set<String> QUIET_REASONS = Set.of(TrackingResult.CIRCUIT_OPEN, TrackingHistory.DISABLED,
+        TrackingHistory.CALL_SLOT_BUSY);
     static final int CACHE_MAX = 1_000;
 
     private final DeliveryRepository deliveryRepository;

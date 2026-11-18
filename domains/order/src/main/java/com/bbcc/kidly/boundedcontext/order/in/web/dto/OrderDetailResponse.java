@@ -25,9 +25,11 @@ public record OrderDetailResponse(
     }
 
     /**
-     * @param child 자녀를 고르지 않았으면 null
+     * 주문상품 한 줄. 주문 상세와 구매자 구매확정 응답이 쓴다(판매자 주문 목록은 따로 SellerOrderResponse.Item, #997).
+     *
+     * @param child 주문할 때 고른 자녀(주문 당시 스냅샷). 고르지 않았으면 null
      * @param unavailableReason 재고 차감 실패로 취소됐을 때 이 주문상품을 살 수 없던 사유. 그 밖에는 null
-     * @param sellerName 판매자의 지금 상호명. 판매자 정보가 아직 없으면 null(판매 주문 목록에서는 늘 null)
+     * @param sellerName 판매자의 지금 상호명(판매자 복사본, 주문상품에 저장하지 않음). 복사본이 없으면 null
      * @param thumbnailUrl 주문 당시 상품 썸네일(#1328). 없으면 null
      */
     public record Item(

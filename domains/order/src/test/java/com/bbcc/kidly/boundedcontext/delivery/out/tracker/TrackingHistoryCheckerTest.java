@@ -218,7 +218,7 @@ class TrackingHistoryCheckerTest {
         clock.advance(Duration.ofSeconds(61));
 
         assertThat(spaced.history(Delivery.Carrier.CJ, "1234567890"))
-            .as("반열림 허락은 받았지만 자리가 없다").isEqualTo(TrackingHistory.unavailable(DeliveryTrackerChecker.CALL_SLOT_BUSY));
+            .as("반열림 허락은 받았지만 자리가 없다").isEqualTo(TrackingHistory.unavailable(TrackingHistory.CALL_SLOT_BUSY));
         assertThat(history.state()).isEqualTo(CircuitBreaker.State.HALF_OPEN);
         for (int i = 0; i < 3; i++) {
             assertThat(history.tryAcquirePermission()).as("돌려준 자리 포함 시험 자리 3개가 남아 있다").isTrue();
@@ -239,7 +239,7 @@ class TrackingHistoryCheckerTest {
         assertThat(spaced.history(Delivery.Carrier.CJ, "1").kind()).isEqualTo(DeliveryStatusChecker.HistoryKind.OK);
         long start = System.nanoTime();
         assertThat(spaced.history(Delivery.Carrier.CJ, "2"))
-            .isEqualTo(TrackingHistory.unavailable(DeliveryTrackerChecker.CALL_SLOT_BUSY));
+            .isEqualTo(TrackingHistory.unavailable(TrackingHistory.CALL_SLOT_BUSY));
         assertThat(Duration.ofNanos(System.nanoTime() - start)).as("기다리지 않고 바로").isLessThan(Duration.ofSeconds(1));
         spacedServer.verify();
     }

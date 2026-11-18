@@ -32,7 +32,14 @@ public interface DeliveryStatusChecker {
      */
     record TrackingHistory(HistoryKind kind, List<TrackingEvent> events, String reason) {
 
+        // 이유 코드(#1562): 구현(out/tracker)이 만들고 서비스(TrackingHistoryService)가 읽는 값이라 이 포트 한 곳에 둔다.
+        // 택배사 API가 돌려준 오류 코드(DeliveryTrackerException.code)와는 다른 것이다
+        /** 택배사에 아직 등록 전인 운송장. 오류가 아닌 빈 이력이다. */
         public static final String NOT_REGISTERED = "NOT_FOUND";
+        /** 택배 조회가 꺼져 있다(인증값 없음). 일시 오류로 보고 조용히 넘긴다. */
+        public static final String DISABLED = "DISABLED";
+        /** 호출 간격 자리를 최대 대기 안에 못 얻어 부르지 않았다(주기 작업과 간격을 나눠 씀). 일시 오류다. */
+        public static final String CALL_SLOT_BUSY = "CALL_SLOT_BUSY";
 
         public TrackingHistory {
             events = List.copyOf(events);
