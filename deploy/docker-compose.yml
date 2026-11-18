@@ -333,6 +333,8 @@ services:
       MAIL_FROM: ${MAIL_FROM:-}
       # 메일 본문의 사이트 주소. 서비스 prod 설정이 기본값 없이 요구하므로 .env 에서 받는다
       NOTIFICATION_SITE_URL: ${NOTIFICATION_SITE_URL}
+      # 안 읽은 알림 수 변경을 다른 Pod에 알린다(#1194). 같은 k3s namespace 의 redis 서비스에 붙는다
+      SPRING_DATA_REDIS_HOST: redis
       LOG_PATH: /app/logs
     ports:
       - "127.0.0.1:${NOTIFICATION_PORT:-8099}:8080"     # 외부 비공개. 서버 안 수집(Alloy)용. 밖에서는 Gateway 라우트로만 닿는다(엣지가 바로 넘기면 X-Member-* 위조 가능)

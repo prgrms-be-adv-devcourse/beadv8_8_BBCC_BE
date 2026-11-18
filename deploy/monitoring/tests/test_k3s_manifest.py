@@ -224,12 +224,14 @@ class K3sManifestTests(unittest.TestCase):
         self.assertEqual(strategy['rollingUpdate'], {'maxSurge': 1, 'maxUnavailable': 0})
 
     def test_services_with_unlocked_schedulers_never_run_twice(self):
-        for name in ('product', 'notification'):
-            strategy = self.items(name, self.service(volumes=[]))['Deployment/' + name]['spec']['strategy']
-            self.assertEqual(strategy, {'type': 'Recreate'})
+        strategy = self.items('product', self.service(volumes=[]))['Deployment/product']['spec']['strategy']
+        self.assertEqual(strategy, {'type': 'Recreate'})
+        strategy = self.items('notification', self.service(volumes=[]))['Deployment/notification']['spec']['strategy']
+        self.assertEqual(strategy, {'type': 'RollingUpdate',
+                                    'rollingUpdate': {'maxSurge': 1, 'maxUnavailable': 0}})
 
     def test_deploy_script_asks_which_services_stop_first(self):
-        for name, code in (('product', 0), ('member', 1)):
+        for name, code in (('product', 0), ('notification', 1), ('member', 1)):
             with self.assertRaises(SystemExit) as stop:
                 k3s.main(['k3s.py', 'single-instance', 'dev', name])
             self.assertEqual(stop.exception.code, code)

@@ -12,6 +12,12 @@
 
 # 알림 메일 발송용 Gmail SMTP. 팀 공용 계정과 앱 비밀번호(2단계 인증을 켠 뒤 발급)를 쓴다
 spring:
+  # 서버 접속 주소는 SPRING_DATA_REDIS_HOST(docker-compose)로 받는다
+  data:
+    redis:
+      # 커밋 뒤 요청 스레드에서 발행하므로 Redis가 멈춰도 요청이 오래 묶이지 않게 한다. recommend와 같은 값
+      timeout: 300ms
+      connect-timeout: 300ms
   mail:
     host: smtp.gmail.com
     port: 587
@@ -43,6 +49,9 @@ management:
   health:
     mail:
       enabled: false
+    # Redis 장애로 /actuator/health가 DOWN이 되지 않게 한다. 안 읽은 수 전달만 멈춘다
+    redis:
+      enabled: false
 
 kidly:
   mail:
@@ -52,6 +61,8 @@ kidly:
     # 보내는 주소. 없으면 MAIL_USERNAME
     from: ${MAIL_FROM:}
   notification:
+    # 안 읽은 알림 수가 바뀐 받는 사람을 다른 Pod에 알리는 Redis 채널
+    unread-count-channel: kidly.notification.unread-count
     # 메일 본문에 넣는 사이트 주소. 서버는 deploy/.env.<환경>의 값을 쓴다
     site-url: ${NOTIFICATION_SITE_URL:http://localhost:5173}
     # 실패 · 멈춘 알림을 다시 보내는 주기
@@ -64,3 +75,8 @@ kidly:
     firebase-credentials: ${FIREBASE_CREDENTIALS:}
     # 270일 동안 다시 등록되지 않은 푸시 FID를 지우는 시각(cron, KST). "-"면 정리하지 않는다
     push-token-cleanup-cron: "0 10 4 * * *"
+
+# Redis 재연결을 계속 시도할 때 컨테이너 ERROR가 장애 채널에 반복 전달되지 않게 한다
+logging:
+  level:
+    com.bbcc.kidly.boundedcontext.notification.in.web.UnreadCountRelayListenerContainer: "off"
