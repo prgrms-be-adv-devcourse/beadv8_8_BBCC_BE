@@ -1,8 +1,6 @@
 package com.bbcc.kidly.boundedcontext.auth.app.port;
 
-import com.bbcc.kidly.boundedcontext.auth.app.dto.AuthDeadLetterMessage;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterReplay;
 
-public interface AuthDeadLetterReplay {
-
-    void replay(AuthDeadLetterMessage message);
+public interface AuthDeadLetterReplay extends DeadLetterReplay {
 }

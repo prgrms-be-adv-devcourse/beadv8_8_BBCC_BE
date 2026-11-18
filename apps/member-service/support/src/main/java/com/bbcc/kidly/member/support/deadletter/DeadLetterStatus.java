@@ -1,4 +1,4 @@
-package com.bbcc.kidly.boundedcontext.seller.domain;
+package com.bbcc.kidly.member.support.deadletter;
 
 public enum DeadLetterStatus {
     OPEN,

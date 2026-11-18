@@ -2,8 +2,8 @@ package com.bbcc.kidly.boundedcontext.childprofile.in;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.bbcc.kidly.boundedcontext.childprofile.app.dto.ChildProfileDeadLetterMessage;
 import com.bbcc.kidly.boundedcontext.childprofile.app.port.ChildProfileDeadLetterReplay;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.stereotype.Component;
@@ -16,7 +16,7 @@ public class ChildProfileDeadLetterReplayer implements ChildProfileDeadLetterRep
     private final ChildProfileAuthEventListener authEventListener;
 
     @Override
-    public void replay(ChildProfileDeadLetterMessage message) {
+    public void replay(DeadLetterMessage message) {
         var record = new ConsumerRecord<>(message.sourceTopic(), 0, 0L, message.messageKey(), message.payload());
         if (message.eventType() != null) {
             record.headers().add("eventType", message.eventType().getBytes(UTF_8));

@@ -3,9 +3,9 @@ package com.bbcc.kidly.boundedcontext.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.auth.app.AuthDeadLetterService;
-import com.bbcc.kidly.boundedcontext.auth.app.dto.AuthDeadLetterMessage;
 import com.bbcc.kidly.boundedcontext.auth.domain.SocialAccountRepository;
 import com.bbcc.kidly.boundedcontext.auth.out.JpaChildProfileReplicaRepository;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
 import com.bbcc.kidly.member.support.security.TestAdmins;
 import com.bbcc.kidly.support.FunctionalTest;
 import java.util.UUID;
@@ -132,7 +132,7 @@ class AdminAuthDeadLetterApiTest {
 
     private Long receive(String sourceTopic, long dltOffset, String eventType, String payload) {
         var eventId = UUID.randomUUID().toString();
-        service.receive(new AuthDeadLetterMessage(sourceTopic + ".auth.dlt", 0, dltOffset, sourceTopic, 0, 1L,
+        service.receive(new DeadLetterMessage(sourceTopic + ".auth.dlt", 0, dltOffset, sourceTopic, 0, 1L,
             String.valueOf(MEMBER_ID), eventType, eventId, payload, "tools.jackson.core.JacksonException"));
         return jdbc.queryForObject("select id from auth.dead_letter where event_id = ?", Long.class, eventId);
     }

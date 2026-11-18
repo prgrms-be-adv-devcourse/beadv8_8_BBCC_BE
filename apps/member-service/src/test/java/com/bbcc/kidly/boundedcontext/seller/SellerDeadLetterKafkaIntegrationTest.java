@@ -3,9 +3,9 @@ package com.bbcc.kidly.boundedcontext.seller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.seller.app.SellerDeadLetterService;
-import com.bbcc.kidly.boundedcontext.seller.app.dto.SellerDeadLetterMessage;
-import com.bbcc.kidly.boundedcontext.seller.domain.DeadLetterStatus;
 import com.bbcc.kidly.boundedcontext.seller.domain.SellerDeadLetterRepository;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterStatus;
 import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.KafkaIntegrationTest;
 import com.bbcc.kidly.support.KafkaMessages;
@@ -92,7 +92,7 @@ class SellerDeadLetterKafkaIntegrationTest {
         assertThat(stored.getReplayCount()).isZero();
         assertThat(JacksonException.class.isAssignableFrom(Class.forName(stored.getFailureType()))).isTrue();
 
-        var again = new SellerDeadLetterMessage(stored.getDltTopic(), stored.getDltPartition(), stored.getDltOffset(),
+        var again = new DeadLetterMessage(stored.getDltTopic(), stored.getDltPartition(), stored.getDltOffset(),
             TOPIC, sent.partition(), sent.offset(), memberId, "member.changed", eventId.toString(), body,
             stored.getFailureType());
         assertThat(deadLetterService.receive(again)).isFalse();

@@ -2,8 +2,8 @@ package com.bbcc.kidly.boundedcontext.member.in;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.bbcc.kidly.boundedcontext.member.app.dto.MemberDeadLetterMessage;
 import com.bbcc.kidly.boundedcontext.member.app.port.MemberDeadLetterReplay;
+import com.bbcc.kidly.member.support.deadletter.DeadLetterMessage;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.stereotype.Component;
@@ -16,7 +16,7 @@ public class MemberDeadLetterReplayer implements MemberDeadLetterReplay {
     private final ShippingAddressMemberEventListener shippingAddressMemberEventListener;
 
     @Override
-    public void replay(MemberDeadLetterMessage message) {
+    public void replay(DeadLetterMessage message) {
         var record = new ConsumerRecord<>(message.sourceTopic(), 0, 0L, message.messageKey(), message.payload());
         if (message.eventType() != null) {
             record.headers().add("eventType", message.eventType().getBytes(UTF_8));
