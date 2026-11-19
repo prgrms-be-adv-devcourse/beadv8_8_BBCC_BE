@@ -1,4 +1,4 @@
-# 外부 접근 감시
+# 외부 접근 감시
 
 **자동 감시: [Better Stack](https://incidents.betterstack.com/team/t638248/monitors)** · 무료 플랜 · 알림은 가입 계정 이메일.
 기존 Grafana → Slack 알림은 그대로 사용합니다. Better Stack의 Slack 연결은 워크스페이스 무료 앱 한도로 제외했습니다.
