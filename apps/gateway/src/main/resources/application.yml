@@ -19,9 +19,8 @@ spring:
                 allowed-origins: ${cors.allowed-origins}
                 allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
                 allowed-headers: "*"
-                # 프론트가 오류 문의에 traceId를 붙일 수 있게 (common RequestLoggingFilter.TRACE_ID_HEADER),
-                # 요청 수 제한(429)에 걸리면 언제 다시 보낼지 알 수 있게(Retry-After, #816)
-                exposed-headers: X-Request-Id,Retry-After
+                # 프론트가 오류 문의에 traceId를 붙일 수 있게 (common RequestLoggingFilter.TRACE_ID_HEADER)
+                exposed-headers: X-Request-Id
                 allow-credentials: true
                 max-age: 3600
           # 백엔드 호출 timeout(#668). 연결 3초(도메인의 외부 호출 connect-timeout과 같은 값)
@@ -29,9 +28,21 @@ spring:
           httpclient:
             connect-timeout: 3000
             response-timeout: 15s
-          # Host는 Traefik 값(원래 호스트)을 넘긴다. 없으면 백엔드 주소(app:8080)로 바뀐다
+          # 기본 필터는 목록 순서가 실행 순서다(라우트 필터와 순서가 같으면 기본 필터가 먼저). RequestRateLimiter는 첫째에 둔다.
+          # 뒤에 두면 not-found · internal 라우트의 NotFound 필터가 응답을 끝내 버려 이 라우트들의 요청을 세지 못한다
           default-filters:
+            # RequestRateLimiter: 클라이언트(회원 · IP)별 요청 수 제한(#1417, #1628). 리미터 · KeyResolver는 ratelimit/RateLimitConfig의 빈이다.
+            # 한도는 라우트마다 따로 센다(여러 API의 합산이 아니다). 넘으면 본문 없는 429이고 Retry-After도 없다
+            - name: RequestRateLimiter
+              args:
+                rate-limiter: "#{@clientRateLimiter}"
+                key-resolver: "#{@clientKeyResolver}"
+            # Host는 Traefik 값(원래 호스트)을 넘긴다. 없으면 백엔드 주소(app:8080)로 바뀐다
             - PreserveHostHeader
+          # 키 없음(검색어 없는 목록 · 챗봇 질문이 아닌 요청 · client-enabled=false)은 세지 않고 통과시킨다. 기본값은 403으로 막는다
+          filter:
+            request-rate-limiter:
+              deny-empty-key: false
           # 엣지 Traefik은 들어온 X-Forwarded-*를 지우고 다시 넣는다(deploy/traefik). Gateway는 ClusterIP로 클러스터 안에서만 닿는다.
           # native가 원격 주소를 X-Forwarded-For로 바꾼 뒤 검사하므로 trusted-proxies를 프록시 주소로 좁힐 수 없다.
           # Gateway가 헤더를 덧붙이지 않아 앱이 Traefik의 값을 받는다
@@ -54,11 +65,17 @@ spring:
               filters:
                 - NotFound
             # 상품 목록 조회만 검색 서비스로 간다(#526). 상세(/api/v1/products/{id}) · 다른 메서드는 상품 서비스로 간다
+            # 검색어가 있는 요청은 회원 · IP별 한도와 별개로 분당 30번까지만 받는다(#816). 검색 서비스가 검색어마다 OpenAI를 부른다
             - id: search-product-list
               uri: ${kidly.gateway.search-uri}
               predicates:
                 - Method=GET
                 - Path=/api/v1/products
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    rate-limiter: "#{@searchRateLimiter}"
+                    key-resolver: "#{@searchKeyResolver}"
             # 검색 결과 클릭 기록은 검색 서비스로 간다(#1004)
             - id: search-clicks
               uri: ${kidly.gateway.search-uri}
@@ -182,11 +199,18 @@ spring:
               uri: ${kidly.gateway.notification-uri}
               predicates:
                 - Path=/api/v1/notifications/**,/api/v1/child/notifications/**,/api/v1/admin/notification-dead-letters/**
+            # 챗봇 질문(POST /api/v1/chatbot/messages)은 회원 · IP별 한도와 별개로 분당 10번까지만 받는다(#1191). 질문마다 OpenAI를 부른다.
+            # 관리자 문서 저장(POST · PUT)은 같은 라우트지만 KeyResolver가 세지 않는다
             - id: chatbot-long
               uri: ${kidly.gateway.chatbot-uri}
               predicates:
                 - Method=POST,PUT
                 - Path=/api/v1/chatbot/messages,/api/v1/admin/chatbot/documents,/api/v1/admin/chatbot/documents/*
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    rate-limiter: "#{@chatRateLimiter}"
+                    key-resolver: "#{@chatKeyResolver}"
               metadata:
                 response-timeout: 55000
             # 챗봇 API(회원)와 챗봇 관리자 API(답변 근거 문서)는 챗봇 서비스로 간다(#1191)
@@ -238,22 +262,23 @@ management:
 
 kidly:
   gateway:
+    # 요청 수 제한(#1628). 필터는 위 default-filters · 라우트의 RequestRateLimiter이고 리미터는 ratelimit/RateLimitConfig가 만든다.
+    # 값은 capacity번 / period이며 한꺼번에 보낼 수 있는 수도 capacity다(period는 1초 이상). Redis로 세어 Gateway가 여러 대여도 한도를 공유한다.
+    # 라우트마다 따로 센다. 넘으면 본문 없는 429다. Redis가 멈추면 세지 않고 통과시키고 ERROR 로그를 남긴다.
+    # 서버 전체의 과부하는 앞단 Traefik이 막는다. 429는 메트릭 http.server.requests의 status로 본다
     rate-limit:
-      # 모든 요청 수 제한(#1417, ratelimit/GlobalRateLimitFilter). 한 클라이언트의 폭주로 백엔드가 죽지 않게 회원 · IP마다 센다.
-      # Redis에 세어 Gateway가 여러 대여도 한도를 공유한다. 값은 환경 변수로 바꾼다(KIDLY_GATEWAY_RATE_LIMIT_CLIENT_CAPACITY 등).
-      # client-enabled: 부하테스트 때 환경 변수 KIDLY_GATEWAY_RATE_LIMIT_CLIENT_ENABLED=false로 회원 · IP별 한도만 끈다(재시작해야 바뀐다).
+      # 회원(로그인) · IP(비로그인)마다 라우트별로 센다(#1417). 값은 환경 변수로 바꾼다(KIDLY_GATEWAY_RATE_LIMIT_CLIENT_CAPACITY 등).
+      # client-enabled: 부하테스트 때 환경 변수 KIDLY_GATEWAY_RATE_LIMIT_CLIENT_ENABLED=false로 이 한도만 끈다(재시작해야 바뀐다).
       # 검색 · 챗봇은 OpenAI 비용 방어라 끄지 않는다
       client-enabled: true
       client:
         capacity: 200
         period: 1m
-      # 검색어가 있는 상품 목록 요청 수 제한(#816, ratelimit/SearchRateLimitFilter). 회원(로그인) · IP(비로그인)마다 센다.
-      # 검색어마다 검색 서비스가 임베딩 API(OpenAI)를 부른다. Redis에 세어 한도를 공유한다
+      # 검색어가 있는 상품 목록 요청(#816)
       search:
         capacity: 30
         period: 1m
-      # 챗봇 질문(POST /api/v1/chatbot/messages) 요청 수 제한(#1191, ratelimit/ChatRateLimitFilter). 질문마다 챗봇 서비스가 OpenAI를 부른다.
-      # 키 · Redis 동작은 search와 같다. capacity가 한꺼번에 보낼 수 있는 상한이기도 하다
+      # 챗봇 질문(#1191)
       chat:
         capacity: 10
         period: 1m

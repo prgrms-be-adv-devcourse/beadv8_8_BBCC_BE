@@ -3,11 +3,13 @@
 도메인마다 어떤 API가 있고 무엇을 하는지 적는다. 요청 · 응답 칸과 타입은 Swagger에서 본다.
 
 - Swagger: 서비스마다 연다(로컬 `http://localhost:<서비스 포트>/swagger-ui.html`, 포트는 README의 로컬 실행 표). 서비스에 직접 붙으므로 로그인이 필요한 API는 Gateway 헤더(`X-Member-*`)를 직접 넣어야 한다
-- 오류 응답은 ProblemDetail 5필드(`type`, `title`, `status`, `detail`, `instance`)와 오류 코드 `code`다. `code`는 오류 enum 상수 이름(예: `IDEMPOTENCY_KEY_REUSED`)이라 문구가 바뀌어도 그대로이므로, 화면은 `title` 문장 대신 `code`로 분기한다. 도메인 오류의 상태 · `title` · `detail` · `code`는 각 도메인의 `XxxErrorCode` enum에 있다. Gateway가 직접 내는 오류도 같은 `code`를 쓴다(400 `INVALID_INPUT` · 401 `UNAUTHORIZED` · 403 `FORBIDDEN` · 404 `NOT_FOUND` · 429 `TOO_MANY_REQUESTS` · 500 `INTERNAL_ERROR` · 503 `SERVICE_UNAVAILABLE` · 504 `GATEWAY_TIMEOUT`). 스프링이 직접 만드는 오류(405 등)에는 `code`가 없다
+- 오류 응답은 ProblemDetail 5필드(`type`, `title`, `status`, `detail`, `instance`)와 오류 코드 `code`다. `code`는 오류 enum 상수 이름(예: `IDEMPOTENCY_KEY_REUSED`)이라 문구가 바뀌어도 그대로이므로, 화면은 `title` 문장 대신 `code`로 분기한다. 도메인 오류의 상태 · `title` · `detail` · `code`는 각 도메인의 `XxxErrorCode` enum에 있다. Gateway가 직접 내는 오류도 같은 `code`를 쓴다(400 `INVALID_INPUT` · 401 `UNAUTHORIZED` · 403 `FORBIDDEN` · 404 `NOT_FOUND` · 500 `INTERNAL_ERROR` · 503 `SERVICE_UNAVAILABLE` · 504 `GATEWAY_TIMEOUT`). 스프링이 직접 만드는 오류(405 등)에는 `code`가 없다
 - API를 추가 · 변경 · 삭제하는 PR에서 이 표도 같이 고친다
 - 권한: 🌐 누구나 · 🔒 로그인 · 🏪 판매자 · 🛠 관리자 · 내부(서비스끼리만 부름. Gateway가 `/internal/**`을 밖에서 404로 막는다). 판매자 · 관리자 역할은 Gateway가 `/api/v1/seller/**` · `/api/v1/admin/**` 경로로 검사한다
-- 요청 수 제한: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 분당 30번까지 받는다. Redis로 Gateway 여러 대의 한도를 공유한다. 넘으면 429 ProblemDetail(`title` "요청이 너무 많습니다")과 `Retry-After`(초)다(#816)
-- 전체 요청 수 제한: 모든 요청을 Gateway가 로그인 주체 · 비로그인 IP마다 분당 200번(한꺼번에 200번까지)까지 받는다. 넘으면 위와 같은 429다(#1417). 부하테스트 때는 운영자가 Gateway 설정값으로 이 한도를 끄고 재시작한다. 검색 · 챗봇 제한은 끄지 않는다. 서버가 동시에 처리 중인 요청이 많으면 앞단 Traefik이 429를 내며, 이때 본문은 ProblemDetail이 아니다
+- 요청 수 제한(#1628): Gateway가 로그인 주체(회원 · 관리자 · 자녀) · 비로그인 IP마다 센다. Redis로 Gateway 여러 대의 한도를 공유한다. 넘으면 **본문 없는 429**이고 `Retry-After`도 없으므로 화면은 일반 안내 문구를 쓴다. 서버가 동시에 처리 중인 요청이 많을 때 앞단 Traefik이 내는 429도 본문이 없다
+  - 전체: 라우트(API 묶음)마다 따로 분당 200번(한꺼번에 200번까지). 여러 API의 합산이 아니다(#1417). 부하테스트 때는 운영자가 Gateway 설정값으로 이 한도를 끄고 재시작한다
+  - 검색: 검색어가 있는 상품 목록(`GET /api/v1/products?keyword=...`)은 분당 30번(#816)
+  - 챗봇: 질문(`POST /api/v1/chatbot/messages`)은 분당 10번(#1191). 검색 · 챗봇 제한은 OpenAI 비용 때문이라 끄지 않는다
 
 ## 인증
 
