@@ -43,6 +43,11 @@ spring:
         # 처리량 = 스레드 8 ÷ 발송 약 1초 = 초당 8건. 대기열 끝의 알림이 약 50초 안에 발송을 시작해
         # 재시도 스케줄러가 멈춘 PENDING으로 다시 집는 1분(NotificationPolicy.PENDING_TIMEOUT)보다 먼저 나간다
         queue-capacity: 400
+      # 종료할 때 맡은 발송을 마치고 내려간다. 실행기는 JPA보다 먼저 닫힌다(NotificationSendExecutorShutdownOrder).
+      # 대기 35초 = Pod 종료 유예(terminationGracePeriodSeconds 45) - preStop 5 - 나머지 종료 단계 · JVM 종료 여유 5
+      shutdown:
+        await-termination: true
+        await-termination-period: 35s
 
 # 메일 헬스체크를 끈다. SMTP 장애로 /actuator/health가 DOWN이 되면 배포 healthcheck가 실패한다
 management:
