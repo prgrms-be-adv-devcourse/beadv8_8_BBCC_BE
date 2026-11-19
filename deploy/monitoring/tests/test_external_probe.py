@@ -36,6 +36,26 @@ class ExternalProbeTests(unittest.TestCase):
         self.assertFalse(result['ok'])
         self.assertNotIn('synthetic-secret', repr(result))
 
+    def test_expected_gateway_404_requires_matching_problem_code(self):
+        import io
+        tls = MagicMock()
+        tls.wrap_socket.return_value.__enter__.return_value.getpeercert.return_value = {
+            'notAfter': 'Jan 01 00:00:00 2030 GMT'}
+        for code, expected in (('NOT_FOUND', True), ('OTHER', False)):
+            with self.subTest(code=code):
+                error = urllib.error.HTTPError('https://example.invalid/', 404, 'fixture', {},
+                                               io.BytesIO(('{"code":"' + code + '"}').encode()))
+                opener = MagicMock()
+                opener.open.side_effect = error
+                with patch.object(probe.ssl, 'create_default_context', return_value=tls), \
+                        patch.object(probe.socket, 'create_connection'), \
+                        patch.object(probe.urllib.request, 'build_opener', return_value=opener):
+                    result = probe.observe('gateway', 'https://example.invalid/', 'code', 'NOT_FOUND',
+                                           expected_status=404)
+                self.assertEqual(result['ok'], expected)
+                self.assertEqual(result['status'], 404)
+                self.assertNotIn('code', result)
+
     def test_network_failure_is_a_failure_not_zero_latency_success(self):
         with patch.object(probe.socket, 'create_connection', side_effect=OSError('synthetic-secret')):
             result = probe.observe('test', 'https://example.invalid/')

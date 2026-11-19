@@ -170,7 +170,7 @@ def main():
         send_slack(message(('gateway-route', 'down', fake), url, trial=True))
         fake.update(ok=True, status=404)
         send_slack(message(('gateway-route', 'recovered', fake), url, trial=True))
-        print('시험 발화·회복 메시지 Slack 수신 확인(HTTP 응답)')
+        print('시험 발화·회복 메시지 Slack 전송 응답 확인')
         return 0
     if args.operation == 'observe-notify' and not operating_window(now):
         print('운영 점검 시간 밖: 외부 조회·Slack 통보 생략')
@@ -179,7 +179,15 @@ def main():
     print(json.dumps({'environment': 'dev', 'observations': list(rows.values())}, ensure_ascii=False))
     if args.operation == 'diagnostic':
         return 0 if all(row['ok'] for row in rows.values()) else 1
-    previous = previous_state(repo, now)
+    try:
+        previous = previous_state(repo, now)
+    except RuntimeError:
+        # The state service is unavailable, so transition deduplication cannot be trusted.
+        if operating_window(time.time()):
+            send_slack('운영 · 외부 감시 자체 점검 오류\n이전 통보 상태를 읽지 못해 외부 장애 판정·상태 저장을 중단했습니다. '
+                       '현재 서비스 정상 여부를 의미하지 않습니다. Actions 권한·artifact 상태를 확인하세요.\n'
+                       f'실행 기록: {url}')
+        raise
     events, state = transitions(rows, previous, now)
     # Check the runtime again: late Actions runs must not alert after the planned stop.
     if not operating_window(time.time()):

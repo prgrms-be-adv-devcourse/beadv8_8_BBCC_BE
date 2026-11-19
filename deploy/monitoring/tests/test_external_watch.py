@@ -90,6 +90,32 @@ class ExternalWatchTests(unittest.TestCase):
         with patch.object(watch, 'gh_json', side_effect=[{'workflow_runs': []}]):
             self.assertEqual(watch.previous_state('owner/repo', NOW), {})
 
+    def test_previous_state_skips_expired_and_old_artifacts(self):
+        with patch.object(watch, 'gh_json', side_effect=[
+                {'workflow_runs': [{'id': 1, 'event': 'schedule'}]},
+                {'artifacts': [{'id': 2, 'name': watch.ARTIFACT, 'expired': True}]}]):
+            self.assertEqual(watch.previous_state('owner/repo', NOW), {})
+        _, state = watch.transitions({'gateway-route': row(False)}, {}, NOW - 86401)
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as archive:
+            archive.writestr('state.json', json.dumps(state))
+        with patch.object(watch, 'gh_json', side_effect=[
+                {'workflow_runs': [{'id': 1, 'event': 'schedule'}]},
+                {'artifacts': [{'id': 2, 'name': watch.ARTIFACT, 'expired': False}]}, buffer.getvalue()]):
+            self.assertEqual(watch.previous_state('owner/repo', NOW), {})
+
+    def test_previous_state_rejects_non_boolean_flags(self):
+        _, state = watch.transitions({'gateway-route': row(False)}, {}, NOW)
+        state['targets']['gateway-route']['down'] = 'false'
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as archive:
+            archive.writestr('state.json', json.dumps(state))
+        with patch.object(watch, 'gh_json', side_effect=[
+                {'workflow_runs': [{'id': 1, 'event': 'schedule'}]},
+                {'artifacts': [{'id': 2, 'name': watch.ARTIFACT, 'expired': False}]}, buffer.getvalue()]):
+            with self.assertRaisesRegex(RuntimeError, '형식 확인'):
+                watch.previous_state('owner/repo', NOW)
+
     def test_slack_errors_never_reveal_webhook(self):
         with patch.dict(watch.os.environ, {'SLACK_OPS_WEBHOOK_URL': 'https://hooks.slack.com/services/fixture/secret'}), \
              patch.object(watch.urllib.request, 'build_opener', side_effect=ValueError('fixture/secret')):
