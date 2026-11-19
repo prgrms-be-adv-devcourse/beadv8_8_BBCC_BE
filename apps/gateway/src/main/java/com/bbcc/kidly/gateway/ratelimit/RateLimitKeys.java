@@ -5,7 +5,7 @@ import com.bbcc.kidly.shared.auth.PrincipalType;
 import java.net.InetSocketAddress;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 
-/** 요청 수 제한 필터가 같이 쓰는 키. 로그인했으면 주체 ID, 아니면 클라이언트 IP다. */
+/** 요청 수 제한 KeyResolver가 같이 쓰는 키. 로그인했으면 주체 ID, 아니면 클라이언트 IP다. */
 final class RateLimitKeys {
 
     static final String REAL_IP = "X-Real-IP";

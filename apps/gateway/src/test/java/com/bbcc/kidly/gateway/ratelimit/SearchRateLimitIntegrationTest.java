@@ -15,13 +15,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.reactive.server.WebTestClient.ResponseSpec;
 
 /**
- * 검색어가 있는 상품 목록 요청을 회원 · IP마다 분당 30번까지 넘기고, 넘으면 429로 막는지 본다(#816).
+ * 검색어가 있는 상품 목록 요청을 회원 · IP마다 분당 30번까지 넘기고, 넘으면 429로 막는지 본다(#816, #1628).
  * 컨텍스트를 다른 테스트와 같이 쓰므로(한도도 같이 쓴다) 테스트마다 처음 쓰는 IP · 회원 ID로 보낸다.
  * 한도는 2초에 하나씩 다시 차므로, 보내는 사이 시간이 걸려도 깨지지 않게 막힐 때까지 보내고 통과한 수를 범위로 본다.
  */
@@ -36,30 +35,14 @@ class SearchRateLimitIntegrationTest extends GatewayTestSupport {
     @Qualifier(RecordingBackendConfiguration.SEARCH)
     private RecordingBackend searchBackend;
 
-    @Autowired
-    private ReactiveStringRedisTemplate redis;
-
     @Test
-    @DisplayName("검색 요청은 Redis의 검색 버킷에 기록된다")
-    void storesSearchInRedis() {
-        var ip = uniqueIp();
-        searchFrom(ip).expectStatus().isOk();
-        assertThat(redis.hasKey("kidly:gateway:rate-limit:search:IP:" + ip).block()).isTrue();
-    }
-
-    @Test
-    @DisplayName("같은 IP의 검색은 30번까지 넘기고, 31번째는 429 ProblemDetail과 Retry-After로 막고 넘기지 않는다")
+    @DisplayName("같은 IP의 검색은 30번까지 넘기고, 넘으면 본문 없는 429로 막고 백엔드로 넘기지 않는다")
     void limitsByIp() {
         var ip = uniqueIp();
         assertThat(exhaust(() -> searchFrom(ip))).isBetween(CAPACITY, CAPACITY + 5);
         searchBackend.reset();
 
-        var response = searchFrom(ip);
-
-        expectProblem(response, HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다", "잠시 후 다시 시도해 주세요.",
-            "/api/v1/products");
-        // 하나가 다시 차는 데 60초 / 30 = 2초
-        response.expectHeader().valueMatches(HttpHeaders.RETRY_AFTER, "[12]");
+        searchFrom(ip).expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS).expectBody().isEmpty();
         assertThat(searchBackend.lastRequest()).isEmpty();
         // 다른 IP는 따로 센다
         searchFrom(uniqueIp()).expectStatus().isOk();
@@ -83,7 +66,7 @@ class SearchRateLimitIntegrationTest extends GatewayTestSupport {
         var ip = uniqueIp();
         for (String path : List.of("/api/v1/products", "/api/v1/products?keyword=%20%20", "/api/v1/products/1")) {
             for (int i = 0; i <= CAPACITY; i++) {
-                client.get().uri(raw(path)).header(SearchRateLimitFilter.REAL_IP, ip).exchange().expectStatus().isOk();
+                client.get().uri(raw(path)).header(RateLimitKeys.REAL_IP, ip).exchange().expectStatus().isOk();
             }
         }
         searchFrom(ip).expectStatus().isOk();
@@ -95,22 +78,20 @@ class SearchRateLimitIntegrationTest extends GatewayTestSupport {
         for (String query : List.of("keyword=&keyword=%EC%88%98%EC%98%81%EB%B3%B5", "keyword=&keyword=")) {
             var ip = uniqueIp();
             assertThat(exhaust(() -> client.get().uri(raw("/api/v1/products?" + query))
-                .header(SearchRateLimitFilter.REAL_IP, ip).exchange())).isBetween(CAPACITY, CAPACITY + 5);
+                .header(RateLimitKeys.REAL_IP, ip).exchange())).isBetween(CAPACITY, CAPACITY + 5);
         }
     }
 
     @Test
-    @DisplayName("429에도 CORS 헤더가 붙고 Retry-After를 프론트가 읽을 수 있다")
+    @DisplayName("429에도 CORS 헤더가 붙는다")
     void corsOnTooManyRequests() {
         var ip = uniqueIp();
         exhaust(() -> searchFrom(ip));
 
-        client.get().uri(SEARCH).header(SearchRateLimitFilter.REAL_IP, ip)
+        client.get().uri(SEARCH).header(RateLimitKeys.REAL_IP, ip)
             .header(HttpHeaders.ORIGIN, RecordingBackend.ALLOWED_ORIGIN).exchange()
             .expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
-            .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, RecordingBackend.ALLOWED_ORIGIN)
-            .expectHeader().value(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
-                exposed -> assertThat(exposed).contains(HttpHeaders.RETRY_AFTER));
+            .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, RecordingBackend.ALLOWED_ORIGIN);
     }
 
     // 429가 날 때까지 보내고 통과한 수를 돌려준다
@@ -126,11 +107,11 @@ class SearchRateLimitIntegrationTest extends GatewayTestSupport {
     }
 
     private ResponseSpec searchFrom(String ip) {
-        return client.get().uri(SEARCH).header(SearchRateLimitFilter.REAL_IP, ip).exchange();
+        return client.get().uri(SEARCH).header(RateLimitKeys.REAL_IP, ip).exchange();
     }
 
     private ResponseSpec searchAs(String token, String ip) {
-        return client.get().uri(SEARCH).header(SearchRateLimitFilter.REAL_IP, ip)
+        return client.get().uri(SEARCH).header(RateLimitKeys.REAL_IP, ip)
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange();
     }
 
