@@ -7,13 +7,13 @@ import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendResult;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationPolicy;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
+import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.PushTokenRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,7 +41,17 @@ public class NotificationSendService {
         if (found.isEmpty() || !found.get().startSending(LocalDateTime.now())) {
             return Optional.empty();
         }
-        var notification = found.get();
+        return createMessage(found.get());
+    }
+
+    @Transactional
+    public Optional<OutgoingMessage> startClaimed(Long notificationId) {
+        return notificationRepository.findById(notificationId)
+            .filter(notification -> notification.getStatus() == NotificationStatus.SENDING)
+            .flatMap(this::createMessage);
+    }
+
+    private Optional<OutgoingMessage> createMessage(Notification notification) {
         var message = switch (notification.getChannel()) {
             case EMAIL -> email(notification);
             case PUSH -> push(notification);
@@ -49,7 +59,7 @@ public class NotificationSendService {
         if (message.isEmpty()) {
             notification.markSkipped();
             notificationMetrics.recordResult(notification);
-            log.info("보낼 곳이 없어 보내지 않습니다. notificationId={} channel={}", notificationId,
+            log.info("보낼 곳이 없어 보내지 않습니다. notificationId={} channel={}", notification.getId(),
                 notification.getChannel());
         }
         return message;
@@ -99,11 +109,21 @@ public class NotificationSendService {
             .orElse(false);
     }
 
-    @Transactional(readOnly = true)
-    public List<Long> findRetryTargets() {
+    /**
+     * 다시 보낼 알림을 최대 {@code maxCount}건(한 번에 100건까지) 골라 SENDING으로 맡고 ID를 돌려준다.
+     * 다른 Pod가 맡는 중인 행은 건너뛰므로 Pod마다 서로 다른 알림을 맡는다.
+     */
+    @Transactional
+    public List<Long> claimRetryTargets(int maxCount) {
+        if (maxCount <= 0) {
+            return List.of();
+        }
         var now = LocalDateTime.now();
-        return notificationRepository.findRetryTargetIds(now, now.minus(NotificationPolicy.PENDING_TIMEOUT),
-            now.minus(NotificationPolicy.SENDING_TIMEOUT), PageRequest.of(0, RETRY_BATCH_SIZE));
+        return notificationRepository.lockRetryTargets(now, now.minus(NotificationPolicy.PENDING_TIMEOUT),
+                now.minus(NotificationPolicy.SENDING_TIMEOUT), Math.min(maxCount, RETRY_BATCH_SIZE)).stream()
+            .filter(notification -> notification.startSending(now))
+            .map(Notification::getId)
+            .toList();
     }
 
     private static Optional<OutgoingMessage> email(Notification notification) {

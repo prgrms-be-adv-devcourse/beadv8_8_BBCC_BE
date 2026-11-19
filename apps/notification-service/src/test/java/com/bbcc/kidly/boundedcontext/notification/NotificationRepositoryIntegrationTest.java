@@ -10,19 +10,19 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationChannel;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @IntegrationTest
 class NotificationRepositoryIntegrationTest {
-
-    private static final PageRequest FIRST_100 = PageRequest.of(0, 100);
 
     @Autowired
     private NotificationRepository notificationRepository;
@@ -48,7 +48,7 @@ class NotificationRepositoryIntegrationTest {
 
     @Test
     @DisplayName("다음 시도 시각이 된 FAILED, 오래 남은 PENDING · SENDING만 재시도 대상이다")
-    void findRetryTargetIds() {
+    void lockRetryTargets() {
         var now = LocalDateTime.now();
         var dueFailed = notificationRepository.save(
             NotificationFixture.retryableFailed(EMAIL, now.minusMinutes(1))).getId();
@@ -60,24 +60,65 @@ class NotificationRepositoryIntegrationTest {
         var pending = notificationRepository.save(NotificationFixture.welcomeEmail(EMAIL)).getId();
 
         // PENDING은 방금 만들었으므로 기준 시각을 미래로 주면 오래 남은 것으로 잡힌다
-        assertThat(notificationRepository.findRetryTargetIds(
-            now, now.plusMinutes(1), now.minusMinutes(5), FIRST_100))
-            .containsExactly(dueFailed, staleSending, pending);
-        assertThat(notificationRepository.findRetryTargetIds(
-            now, now.minusMinutes(1), now.minusMinutes(5), FIRST_100))
-            .containsExactly(dueFailed, staleSending)
+        var withPending = transactionTemplate.execute(status -> notificationRepository.lockRetryTargets(
+            now, now.plusMinutes(1), now.minusMinutes(5), 100).stream().map(Notification::getId).toList());
+        var withoutPending = transactionTemplate.execute(status -> notificationRepository.lockRetryTargets(
+            now, now.minusMinutes(1), now.minusMinutes(5), 100).stream().map(Notification::getId).toList());
+        assertThat(withPending).containsExactly(dueFailed, staleSending, pending);
+        assertThat(withoutPending).containsExactly(dueFailed, staleSending)
             .doesNotContain(notDueFailed, recentSending);
     }
 
     @Test
     @DisplayName("재시도 대상은 정한 개수까지만 가져온다")
-    void findRetryTargetIdsLimit() {
+    void lockRetryTargetsLimit() {
         var now = LocalDateTime.now();
         notificationRepository.save(NotificationFixture.retryableFailed(EMAIL, now.minusMinutes(1)));
         notificationRepository.save(NotificationFixture.retryableFailed(EMAIL, now.minusMinutes(1)));
 
-        assertThat(notificationRepository.findRetryTargetIds(
-            now, now.minusMinutes(1), now.minusMinutes(5), PageRequest.of(0, 1))).hasSize(1);
+        var targets = transactionTemplate.execute(status -> notificationRepository.lockRetryTargets(
+            now, now.minusMinutes(1), now.minusMinutes(5), 1));
+        assertThat(targets).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("다른 트랜잭션이 잠근 재시도 대상은 건너뛴다")
+    void skipLockedRetryTargets() throws Exception {
+        var now = LocalDateTime.now();
+        var first = notificationRepository.save(
+            NotificationFixture.retryableFailed(EMAIL, now.minusMinutes(1))).getId();
+        var second = notificationRepository.save(
+            NotificationFixture.retryableFailed(EMAIL, now.minusMinutes(1))).getId();
+        var third = notificationRepository.save(
+            NotificationFixture.retryableFailed(EMAIL, now.minusMinutes(1))).getId();
+        var locked = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var holder = executor.submit(() -> transactionTemplate.execute(status -> {
+                var ids = notificationRepository.lockRetryTargets(now, now.minusMinutes(1), now.minusMinutes(5), 2)
+                    .stream().map(Notification::getId).toList();
+                locked.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("잠금 해제 대기 시간 초과");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+                return ids;
+            }));
+            try {
+                assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+                var remaining = transactionTemplate.execute(status -> notificationRepository
+                    .lockRetryTargets(now, now.minusMinutes(1), now.minusMinutes(5), 2)
+                    .stream().map(Notification::getId).toList());
+                assertThat(remaining).containsExactly(third);
+            } finally {
+                release.countDown();
+            }
+            assertThat(holder.get(10, TimeUnit.SECONDS)).containsExactly(first, second);
+        }
     }
 
     @Test

@@ -57,6 +57,28 @@ class NotificationDispatcherTest {
     }
 
     @Test
+    @DisplayName("이미 맡은 알림의 메시지를 보낸다")
+    void sendClaimed() {
+        given(notificationSendService.startClaimed(ID)).willReturn(Optional.of(EMAIL));
+
+        notificationDispatcher.dispatchClaimedAsync(ID);
+
+        verify(notificationEmailSender).send(EMAIL);
+        verify(notificationSendService).recordSent(ID);
+    }
+
+    @Test
+    @DisplayName("이미 맡은 알림에 보낼 메시지가 없으면 보내지 않는다")
+    void nothingClaimedToSend() {
+        given(notificationSendService.startClaimed(ID)).willReturn(Optional.empty());
+
+        notificationDispatcher.dispatchClaimedAsync(ID);
+
+        verify(notificationEmailSender, never()).send(any());
+        verify(notificationPushSender, never()).send(any());
+    }
+
+    @Test
     @DisplayName("보내면 성공을 기록한다")
     void send() {
         given(notificationSendService.start(ID)).willReturn(Optional.of(EMAIL));

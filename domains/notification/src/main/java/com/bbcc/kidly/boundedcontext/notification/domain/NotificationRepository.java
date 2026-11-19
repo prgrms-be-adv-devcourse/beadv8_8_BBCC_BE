@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.data.domain.Pageable;
 
 public interface NotificationRepository {
 
@@ -15,11 +14,12 @@ public interface NotificationRepository {
     boolean existsByEventIdAndChannel(UUID eventId, NotificationChannel channel);
 
     /**
-     * 다시 보낼 알림의 ID. 다음 시도 시각이 된 FAILED, {@code pendingBefore} 전에 만들어져 아직 PENDING인 것,
+     * 다시 보낼 알림. 다음 시도 시각이 된 FAILED, {@code pendingBefore} 전에 만들어져 아직 PENDING인 것,
      * {@code sendingBefore} 전에 맡아 아직 SENDING인 것. ID 순서.
+     * 호출한 트랜잭션이 끝날 때까지 행을 잠그고, 다른 트랜잭션이 잠근 행은 건너뛴다(SKIP LOCKED).
      */
-    List<Long> findRetryTargetIds(LocalDateTime now, LocalDateTime pendingBefore, LocalDateTime sendingBefore,
-                                  Pageable pageable);
+    List<Notification> lockRetryTargets(LocalDateTime now, LocalDateTime pendingBefore, LocalDateTime sendingBefore,
+                                        int limit);
 
     /**
      * 이 회원의 아직 보내지 않은 알림(PENDING, 다음 시도 시각이 있는 FAILED)을 SKIPPED로 끝낸다(회원 탈퇴).
