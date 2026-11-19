@@ -10,7 +10,7 @@ t3.large 의 k3s 내장 Traefik(`kube-system/traefik`)이 80 · 443 을 받아 G
 | HTTP→HTTPS | `http-redirect` 라우터. ACME HTTP-01 경로는 Traefik 이 먼저 받는다 |
 | 추적 헤더 제거 | `strip-trace-headers` 미들웨어(`traceparent` · `tracestate` · `baggage`) |
 | 요청 본문 10MB | `limit-request-body`(Buffering, 넘으면 413). SSE 라우트(`Accept: text/event-stream` 또는 `…/stream`)에는 걸지 않는다. v3.7 Buffering 은 응답도 모아 보내 SSE 가 끊긴 것처럼 보인다 |
-| 동시 처리 상한 | `limit-in-flight`(InFlightReq, api 호스트 전체에서 처리 중인 요청 50건, 넘으면 429). 앱 서버 과부하를 막는 곳은 여기다. 요청마다 비용이 달라 초당 요청 수 대신 동시 처리 수로 막는다. SSE 라우트는 연결을 오래 붙잡아 걸지 않는다. 50은 측정 전 시작값이라 바꿀 때는 `routes.yaml` 을 고쳐 `deploy.sh` 로 다시 적용한다(Traefik 재시작 없음) |
+| 동시 처리 상한 | `limit-in-flight`(InFlightReq, api 호스트 전체에서 처리 중인 요청 50건, 넘으면 429). 앱 서버 과부하를 막는 곳은 여기다. 요청마다 비용이 달라 초당 요청 수 대신 동시 처리 수로 막는다. SSE 라우트는 연결을 오래 붙잡아 걸지 않는다. 50은 측정 전 시작값이라 바꿀 때는 `routes.yaml` 을 고쳐 다시 적용한다(Traefik 재시작 없음) |
 
 모르는 SNI 와 IP 직접 접속(SNI 없음)은 `sniStrict` 가 핸드셰이크를 거부합니다. HTTP 의 모르는 Host 는 Traefik 404 입니다. Nginx 의 444 와 다르지만 앱에는 닿지 않습니다.
 
@@ -51,7 +51,7 @@ sudo k3s kubectl -n kube-system rollout restart deploy/traefik                  
      | sudo python3 -c 'import json,os,sys; d=json.load(sys.stdin); assert d.get("success"), {k:v for k,v in d.items() if not k.startswith("eab_")}; fd=os.open("/etc/kidly/zerossl-eab.env", os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0o600); os.write(fd, ("ZEROSSL_EAB_KID=%s\nZEROSSL_EAB_HMAC_KEY=%s\n" % (d["eab_kid"], d["eab_hmac_key"])).encode())'
    ```
 
-3. k3s 를 `--disable servicelb --disable local-storage` 로 설치합니다. `--disable traefik` 을 붙이면 `deploy.sh` 가 멈춥니다. 그다음 `acme.json` 디렉터리와 EAB Secret 을 만듭니다(ec2-user).
+3. k3s 를 `--disable servicelb --disable local-storage` 로 설치합니다. `--disable traefik` 을 붙이면 내장 Traefik 이 없어 `traefik.yaml` 이 아무 일도 하지 않습니다. 그다음 `acme.json` 디렉터리와 EAB Secret 을 만듭니다(ec2-user).
 
    ```bash
    sudo install -d -m 755 /var/lib/kidly && sudo install -d -m 700 -o 65532 -g 65532 /var/lib/kidly/traefik
@@ -59,6 +59,29 @@ sudo k3s kubectl -n kube-system rollout restart deploy/traefik                  
    ```
 
 4. 아래 「바꾸기 · 배포」대로 올립니다. 처음 뜨면 인증서를 받는 동안 api · grafana 핸드셰이크가 거부됩니다.
+5. Grafana 로 가는 EndpointSlice 를 만듭니다. 모니터링 서버 사설 IP 는 공개 저장소에 두지 않으므로 서버에서 한 번 만듭니다. IP 가 바뀌면 같은 명령을 다시 실행합니다.
+
+   ```bash
+   MONITORING_HOST=<모니터링 서버 사설 IP>
+   kubectl apply --server-side -f - <<EOF
+   apiVersion: discovery.k8s.io/v1
+   kind: EndpointSlice
+   metadata:
+     name: grafana
+     namespace: edge
+     labels:
+       kubernetes.io/service-name: grafana
+   addressType: IPv4
+   endpoints:
+     - addresses: [$MONITORING_HOST]
+       conditions:
+         ready: true
+   ports:
+     - name: http
+       port: 80
+       protocol: TCP
+   EOF
+   ```
 
 ## 바꾸기 · 배포
 
@@ -66,11 +89,12 @@ sudo k3s kubectl -n kube-system rollout restart deploy/traefik                  
 # 내 PC 에서
 git archive origin/develop deploy/traefik | ssh <deploy 유저>@<탄력적 IP> 'rm -rf ~/kidly-traefik && mkdir ~/kidly-traefik && tar -x -C ~/kidly-traefik'
 # t3.large 에서 deploy 유저로
-cd ~/kidly-traefik/deploy/traefik && MONITORING_HOST=<모니터링 서버 사설 IP> ./deploy.sh <도메인>
+export KUBECONFIG=$HOME/.kube/config
+kubectl diff --server-side -f ~/kidly-traefik/deploy/traefik/
+kubectl apply --server-side --force-conflicts -f ~/kidly-traefik/deploy/traefik/
 ```
 
-`traefik.yaml` 이 바뀌면 helm upgrade 로 Pod 가 바뀝니다. hostPort 라 옛 Pod 를 내린 뒤 새 Pod 가 떠서(Recreate) 약 17초 끊깁니다. `routes.yaml` 만 바뀌면 Pod 는 그대로이고, `deploy.sh` 가 끝난 뒤 몇 초 지나 반영됩니다.
-deploy 유저로 kubectl 을 직접 쓸 때는 먼저 `export KUBECONFIG=$HOME/.kube/config` 를 실행합니다(`deploy.sh` 는 스스로 넣는다).
+`routes.yaml` 만 바뀌면 Pod 는 그대로이고 몇 초 뒤 반영됩니다. `traefik.yaml` 이 바뀌면 helm-controller 의 Job(`kube-system/helm-install-traefik`)이 helm upgrade 를 비동기로 하고, hostPort 라 옛 Pod 를 내린 뒤 새 Pod 가 떠서(Recreate) 약 17초 끊깁니다. apply 가 끝난 시점에는 Deployment 가 아직 옛 값일 수 있으니, Job 이 다시 만들어져 끝난 뒤 `kubectl -n kube-system rollout status deploy/traefik` 로 확인합니다.
 
 ## 확인
 
@@ -135,7 +159,7 @@ kubectl -n edge delete ingressroute,service,deployment whoami
 
 이전 커밋의 `deploy/traefik`을 같은 방법으로 다시 배포합니다. `acme.json`은 그대로 씁니다.
 
-k3s 에 `--disable traefik` 을 다시 붙이면 k3s 가 내장 Traefik 과 함께 Traefik CRD 를 지워 `edge` 의 라우트 · 미들웨어도 사라집니다. 그때는 `deploy.sh` 로 라우트를 다시 올려야 응답합니다.
+k3s 에 `--disable traefik` 을 다시 붙이면 k3s 가 내장 Traefik 과 함께 Traefik CRD 를 지워 `edge` 의 라우트 · 미들웨어도 사라집니다. 그때는 내장 Traefik 을 다시 켠 뒤 「바꾸기 · 배포」로 라우트를 다시 적용해야 응답합니다.
 
 ## Nginx 에서 옮긴 기록 (2026-11-16)
 

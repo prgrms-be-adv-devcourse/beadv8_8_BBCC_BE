@@ -53,13 +53,13 @@ spec:
     ports:
       web:
         port: 8000
-        hostPort: __WEB_PORT__
+        hostPort: 80
         forwardedHeaders:
           trustedIPs: []
           insecure: false
       websecure:
         port: 8443
-        hostPort: __WEBSECURE_PORT__
+        hostPort: 443
         http3:
           enabled: false
         forwardedHeaders:
