@@ -80,6 +80,19 @@ spec:
         - name: gateway
           namespace: kidly-dev
           port: http
+    # 응답이 오래 걸리는 API(Gateway 라우트 chatbot-long · payment-toss · settlement-run, 최대 40~55초 이상)는 동시 처리 상한에서 뺀다.
+    # 몇 건만 몰려도 자리를 오래 차지해 짧은 요청까지 429를 받기 때문이다. 챗봇은 Gateway 회원별 한도가 따로 막는다.
+    # priority 는 SSE 라우트(규칙 길이 80자 이상)보다 낮고 아래 기본 라우트(Host 하나)보다 높게 둔다
+    - match: Host(`api.__DOMAIN__`) && (Path(`/api/v1/chatbot/messages`) || PathRegexp(`^/api/v1/admin/chatbot/documents(/[^/]+)?$`) || Path(`/api/v1/wallets/me/charges/confirm`) || PathRegexp(`^/api/v1/wallets/me/charges/[^/]+/cancel$`) || PathRegexp(`^/api/v1/admin/wallets/charges/[^/]+/fail$`) || Path(`/api/v1/admin/settlements/run`))
+      kind: Rule
+      priority: 50
+      middlewares:
+        - name: strip-trace-headers
+        - name: limit-request-body
+      services:
+        - name: gateway
+          namespace: kidly-dev
+          port: http
     - match: Host(`api.__DOMAIN__`)
       kind: Rule
       middlewares:
