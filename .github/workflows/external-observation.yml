@@ -1,11 +1,6 @@
 name: external-observation
 
 on:
-  schedule:
-    # Cron edited to refresh the scheduled actor/registration; confirm actual schedule runs.
-    # KST 09:19~17:49. Avoid startup/shutdown and UTC hour-boundary congestion.
-    - cron: '19,34,49 0 * * *'
-    - cron: '4,19,34,49 1-8 * * *'
   workflow_dispatch:
     inputs:
       environment:
@@ -27,8 +22,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   observe:
-    # Keep the existing manual-only policy until the validated opt-in is enabled.
-    if: github.ref == 'refs/heads/develop' && (github.event_name == 'workflow_dispatch' || vars.EXTERNAL_OBSERVATION_ENABLED == 'true')
+    # Automatic checks run in Better Stack; retain manual diagnostics and explicit tests.
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'workflow_dispatch'
     environment: dev
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -42,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
-          OPERATION: ${{ github.event_name == 'schedule' && 'observe-notify' || inputs.operation || 'diagnostic' }}
+          OPERATION: ${{ inputs.operation || 'diagnostic' }}
         run: |
           python3 deploy/monitoring/external_watch.py --operation "$OPERATION" --state-file "$RUNNER_TEMP/state.json"
       - name: 다음 점검을 위한 알림 상태 보관
