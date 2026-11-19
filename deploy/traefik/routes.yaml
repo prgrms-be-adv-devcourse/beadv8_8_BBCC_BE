@@ -32,6 +32,20 @@ spec:
   buffering:
     maxRequestBodyBytes: 10485760
 ---
+# 앱 서버(노드 하나)를 과부하에서 지키려고 api 호스트로 동시에 처리 중인 요청 수를 묶어 막는다. 넘으면 Traefik이 429를 낸다.
+# 요청마다 비용이 달라 초당 요청 수 대신 동시 처리 수로 막는다. 연결을 오래 붙잡는 SSE 라우트에는 걸지 않는다.
+# 측정 전 시작값: 11-12 피크(134 req/s, 평균 0.11초)에 동시 약 15건에서 CPU 100%였으나 5xx는 거의 없었다. 그 몇 배로 두고 조정한다
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: limit-in-flight
+  namespace: edge
+spec:
+  inFlightReq:
+    amount: 50
+    sourceCriterion:
+      requestHost: true
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -70,6 +84,7 @@ spec:
       kind: Rule
       middlewares:
         - name: strip-trace-headers
+        - name: limit-in-flight
         - name: limit-request-body
       services:
         - name: gateway

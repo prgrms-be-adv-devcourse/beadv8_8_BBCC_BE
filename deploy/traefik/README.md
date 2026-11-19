@@ -10,6 +10,7 @@ t3.large 의 k3s 내장 Traefik(`kube-system/traefik`)이 80 · 443 을 받아 G
 | HTTP→HTTPS | `http-redirect` 라우터. ACME HTTP-01 경로는 Traefik 이 먼저 받는다 |
 | 추적 헤더 제거 | `strip-trace-headers` 미들웨어(`traceparent` · `tracestate` · `baggage`) |
 | 요청 본문 10MB | `limit-request-body`(Buffering, 넘으면 413). SSE 라우트(`Accept: text/event-stream` 또는 `…/stream`)에는 걸지 않는다. v3.7 Buffering 은 응답도 모아 보내 SSE 가 끊긴 것처럼 보인다 |
+| 동시 처리 상한 | `limit-in-flight`(InFlightReq, api 호스트 전체에서 처리 중인 요청 50건, 넘으면 429). 앱 서버 과부하를 막는 곳은 여기다. 요청마다 비용이 달라 초당 요청 수 대신 동시 처리 수로 막는다. SSE 라우트는 연결을 오래 붙잡아 걸지 않는다. 50은 측정 전 시작값이라 바꿀 때는 `routes.yaml` 을 고쳐 `deploy.sh` 로 다시 적용한다(Traefik 재시작 없음) |
 
 모르는 SNI 와 IP 직접 접속(SNI 없음)은 `sniStrict` 가 핸드셰이크를 거부합니다. HTTP 의 모르는 Host 는 Traefik 404 입니다. Nginx 의 444 와 다르지만 앱에는 닿지 않습니다.
 
