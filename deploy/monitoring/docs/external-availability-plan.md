@@ -1,22 +1,27 @@
-# 외부 가용성 확인
+# 외부 접근 감시
 
-GitHub Actions에서 **external-observation → Run workflow → dev**를 실행합니다.
-현재 단일 운영 환경의 수집 라벨은 `dev`이며, Grafana에는 **운영**으로 표시됩니다.
+**GitHub Actions → external-observation → Run workflow → diagnostic**로 지금 상태를 확인합니다. 운영 라벨은 `dev`입니다. 응답 본문·인증정보는 남기지 않습니다.
 
-| 확인 대상 | 실패 시 첫 확인 |
+| 검사 | 기대 응답 · 의미 |
 | --- | --- |
-| 앱 health | 앱 진입 경로와 서비스 상태 |
-| 대표 상품 GET | Gateway 라우팅과 상품 서비스 |
-| Grafana health | Grafana 및 Grafana 자체 DB 상태 |
-| TLS | 각 호스트 인증서 검증 결과와 잔여일 |
+| Gateway 자체 응답 | 고정 미등록 경로의 HTTP 404 + `code=NOT_FOUND`. 의도된 정상 검사이며 업무 서비스·DB는 호출하지 않음 |
+| 상품 GET | `/api/v1/products?page=0&size=1` HTTP 200. Gateway와 검색 경로 접근 여부이며 상품 데이터 정확성 검사는 아님 |
+| Grafana health | HTTP 200 + `database=ok`. 모니터링 서버 접근·Grafana 자체 DB 상태 |
+| TLS | 각 호스트 검증 및 잔여일. 14일 이하 통보, API 호스트 인증서는 중복 통보하지 않음 |
 
-워크플로는 상태 코드·응답 시간·TLS 잔여일을 남깁니다. 응답 본문·헤더·인증정보는 기록에서 제외합니다.
-같은 워크플로를 다시 실행해 실패한 경로의 정상 응답을 확인합니다.
-Actions를 쓸 수 없으면 저장소 루트에서 `python3 deploy/monitoring/external_probe.py --environment dev`를 실행합니다.
-[최근 외부 수동 실행](https://github.com/prgrms-be-adv-devcourse/beadv8_8_BBCC_BE/actions/runs/43150620655)에서 HTTP 200 세 건과 TLS 잔여 66일을 확인했습니다. 수동 실행은 그 시점의 접근 가능성만 확인합니다. 업무 데이터의 정확성·상시 가용성·부하 성능은 별도 검증이 필요합니다.
+## 자동 실행
 
-## 상시 감시 결정
+- 기존 EC2 운영시간 **09~18시 KST 유지**. 점검은 **09:17~17:47 약15분 간격**, 실제 실행이 09:15~17:55 밖이면 조회·통보를 생략합니다.
+- 활성화/중지는 저장소 Actions 변수 **EXTERNAL_OBSERVATION_ENABLED=true/false**. 검증 전 기본은 꺼짐입니다.
+- 정상 때 대상당 GET 1회, 실패한 대상만 30초 뒤 재확인합니다. 최대로도 회당 GET 6회이며 부하 테스트가 아닙니다.
+- 연속 확인 실패·응답 회복·인증서 만료 임박/잔여일 회복을 기존 운영 Slack으로 보냅니다. 같은 날 같은 상태는 반복 통보하지 않습니다. 회복은 전체 업무 복구를 보장하지 않습니다.
+- 지난 알림 상태만 Actions artifact로 2일 보관합니다. 새 실행기·exporter·서버 프로세스·외부 유료 API는 없습니다.
+- Actions 예약은 지연·누락될 수 있습니다. 24시간 가용성 감시나 엄격한 장애 탐지 SLA로 해석하지 않습니다. 야간 정지와 다음 날 시작은 장애/회복 통보로 세지 않습니다.
 
-- 현재 AWS 자동 시작·정지 정책을 유지합니다. 정기 호출과 외부 Slack 통보는 보류 중입니다.
-- 모니터링 서버가 중단되면 Grafana 내부 알림도 멈춥니다. 상시 감시는 서버 외부에서 실행하고, 운영시간·확인 주기·연속 실패 기준·수신 담당자를 정합니다.
-- 운영 경로 중단 없이 시험 URL에서 실패·복구 통보를 검증하고 결과를 #987에 기록합니다.
+## 시험과 조치
+
+- `notify-test`: 운영을 중단하지 않고 **[시험]** 발화·회복 메시지 2개를 보냅니다. 실제 점검 상태는 덮어쓰지 않습니다.
+- `observe-notify`: 운영시간 안에서 실제 확인·상태 보관·변화 통보를 1회 수행합니다.
+- Gateway 실패: DNS·인증서·엣지·Gateway를 확인합니다. Gateway는 정상이고 상품만 실패하면 검색·Elasticsearch부터 확인합니다.
+- Grafana 실패: 모니터링 서버·엣지·Grafana를 확인합니다. 내부 Grafana 알림도 멈췄을 수 있습니다.
+- 로그의 HTTP 상태·응답 시간·TLS 잔여일과 Slack의 실행 기록 링크를 함께 봅니다. 자동 복구·재시작은 하지 않습니다.

@@ -1,27 +1,54 @@
 name: external-observation
 
-# Manual diagnostic only. No schedule or Slack notification until operating hours are agreed.
 on:
+  schedule:
+    # KST 09:17~17:47. Avoid startup/shutdown and UTC hour-boundary congestion.
+    - cron: '17,32,47 0 * * *'
+    - cron: '2,17,32,47 1-8 * * *'
   workflow_dispatch:
     inputs:
       environment:
-        description: 읽기 점검할 환경 (앱 상태 변경 없음)
+        description: 점검 환경 (현재 운영 라벨 dev)
         type: choice
         options: [dev]
         default: dev
         required: true
+      operation:
+        description: diagnostic 조회만 / observe-notify 상태변화 통보 / notify-test 시험 메시지 2개
+        type: choice
+        options: [diagnostic, observe-notify, notify-test]
+        default: diagnostic
 permissions:
   contents: read
+  actions: read
+concurrency:
+  group: external-observation
+  cancel-in-progress: false
 jobs:
   observe:
+    # Keep the existing manual-only policy until the validated opt-in is enabled.
+    if: github.ref == 'refs/heads/develop' && (github.event_name == 'workflow_dispatch' || vars.EXTERNAL_OBSERVATION_ENABLED == 'true')
+    environment: dev
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - name: 검사 로직 확인
-        run: python3 -m unittest discover -s deploy/monitoring/tests -p test_external_probe.py -v
-      - name: 외부 HTTPS 경로 관측
-        env:
-          TARGET_ENV: ${{ inputs.environment }}
         run: |
-          python3 deploy/monitoring/external_probe.py --environment "$TARGET_ENV"
+          python3 -m unittest discover -s deploy/monitoring/tests -p 'test_external*.py' -v
+      - name: 외부 접근·인증서 점검
+        id: observe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
+          OPERATION: ${{ github.event_name == 'schedule' && 'observe-notify' || inputs.operation || 'diagnostic' }}
+        run: |
+          python3 deploy/monitoring/external_watch.py --operation "$OPERATION" --state-file "$RUNNER_TEMP/state.json"
+      - name: 다음 점검을 위한 알림 상태 보관
+        if: always() && steps.observe.outputs.state_written == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: kidly-external-observation-state
+          path: ${{ runner.temp }}/state.json
+          retention-days: 2
+          if-no-files-found: error

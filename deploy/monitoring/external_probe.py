@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manual external observation. Never print response bodies or accept credentials."""
+"""Bounded external observation. Never print response bodies or accept credentials."""
 import argparse
 import json
 import socket
@@ -19,7 +19,7 @@ class SameOriginRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(request, response, code, message, headers, new_url)
 
 
-def observe(name, url, health_key=None, health_value=None):
+def observe(name, url, health_key=None, health_value=None, expected_status=200):
     parts = urllib.parse.urlsplit(url)
     if parts.scheme != 'https' or parts.username or parts.password:
         raise ValueError('Only credential-free HTTPS is allowed')
@@ -32,7 +32,13 @@ def observe(name, url, health_key=None, health_value=None):
                 expires = ssl.cert_time_to_seconds(tls.getpeercert()['notAfter'])
                 result['tls_days'] = int((expires - time.time()) // 86400)
         opener = urllib.request.build_opener(SameOriginRedirect(), urllib.request.HTTPSHandler(context=context))
-        with opener.open(url, timeout=5) as response:
+        try:
+            response = opener.open(url, timeout=5)
+        except urllib.error.HTTPError as error:
+            if error.code != expected_status:
+                raise
+            response = error
+        with response as response:
             result['status'] = response.status
             # Health endpoints need their actual health field, not just an HTTP 200 page.
             if health_key:
@@ -43,7 +49,7 @@ def observe(name, url, health_key=None, health_value=None):
                 healthy = isinstance(payload, dict) and payload.get(health_key) == health_value
             else:
                 healthy = True  # Representative GET checks reachability only, not business correctness.
-            result['ok'] = 200 <= response.status < 300 and healthy
+            result['ok'] = response.status == expected_status and healthy
     except urllib.error.HTTPError as error:
         result['status'] = error.code
         result['error'] = 'http_error'
