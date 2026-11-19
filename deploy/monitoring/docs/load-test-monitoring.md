@@ -119,7 +119,7 @@ Grafana → Kidly → **Kidly 부하 테스트** (운영 홈 · 서비스 오류
 | 요청 수 · 초당 요청 | `k6_http_reqs_total` (라벨 `testid` · `name` · `status` · `expected_response`) |
 | 응답 시간 | `k6_http_req_duration_p95` · `_p99` · `_avg` (초 단위, 테스트 시작부터 누적) |
 | 실패율 | `k6_http_reqs_total{expected_response="false",status!="429"}` ÷ 전체 (429는 `status="429"` 따로) |
-| 앱 서버 · 파드 · 속도 제한 | `node_cpu_seconds_total`(idle · steal) · `container_cpu_usage_seconds_total`(namespace `kidly-dev`) · `kidly_gateway_rate_limited_total`(라벨 `target`) |
+| 앱 서버 · 파드 · 속도 제한 | `node_cpu_seconds_total`(idle · steal) · `container_cpu_usage_seconds_total`(namespace `kidly-dev`) · Gateway `http_server_requests_seconds_count{status="429"}`(요청 수 제한 메트릭 `kidly_gateway_rate_limited_total`은 #1628에서 없앴다) |
 | 가상 사용자 | `k6_vus` · `k6_vus_max` |
 | check | `k6_checks_rate` (라벨 `check`) |
 
