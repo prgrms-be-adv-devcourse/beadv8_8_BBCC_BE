@@ -194,14 +194,6 @@ spring:
               uri: ${kidly.gateway.chatbot-uri}
               predicates:
                 - Path=/api/v1/chatbot/**,/api/v1/admin/chatbot/**
-            # 전체 요청 수 제한 설정 관리자 API(#1417). 백엔드로 넘기지 않고 Gateway가 답한다(ratelimit/RateLimitSettingsGatewayFilterFactory)
-            - id: gateway-rate-limit
-              uri: no://op
-              predicates:
-                - Path=/api/v1/admin/gateway/rate-limit
-                - Method=GET,PUT
-              filters:
-                - RateLimitSettings
             # 나머지는 어느 서비스에도 넘기지 않고 404 ProblemDetail로 답한다. 인증 · 역할 검사(GlobalFilter)는 라우트가 있어야 돌므로 모든 경로를 받아 둔다.
             # 새 서비스 경로는 이 위에 더한다
             - id: not-found
@@ -248,16 +240,13 @@ kidly:
   gateway:
     rate-limit:
       # 모든 요청 수 제한(#1417, ratelimit/GlobalRateLimitFilter). 한 클라이언트의 폭주로 백엔드가 죽지 않게 회원 · IP마다 센다.
-      # Redis에 세어 Gateway가 여러 대여도 한도를 공유한다. client · total은 기본값이며 관리자 API로 런타임에 바꾼 Redis 값이 우선한다.
-      # settings-refresh: 관리자 API로 바꾼 설정을 다른 Gateway가 Redis에서 다시 읽는 주기
-      settings-refresh: 2s
+      # Redis에 세어 Gateway가 여러 대여도 한도를 공유한다. 값은 환경 변수로 바꾼다(KIDLY_GATEWAY_RATE_LIMIT_CLIENT_CAPACITY 등).
+      # client-enabled: 부하테스트 때 환경 변수 KIDLY_GATEWAY_RATE_LIMIT_CLIENT_ENABLED=false로 회원 · IP별 한도만 끈다(재시작해야 바뀐다).
+      # 검색 · 챗봇은 OpenAI 비용 방어라 끄지 않는다
+      client-enabled: true
       client:
         capacity: 200
         period: 1m
-      # 모든 Gateway가 공유하는 전체 처리량 한도. 값은 부하테스트 뒤 고친다.
-      total:
-        capacity: 500
-        period: 1s
       # 검색어가 있는 상품 목록 요청 수 제한(#816, ratelimit/SearchRateLimitFilter). 회원(로그인) · IP(비로그인)마다 센다.
       # 검색어마다 검색 서비스가 임베딩 API(OpenAI)를 부른다. Redis에 세어 한도를 공유한다
       search:
