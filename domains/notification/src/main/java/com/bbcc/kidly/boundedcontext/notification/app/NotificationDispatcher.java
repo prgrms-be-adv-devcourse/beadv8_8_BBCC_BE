@@ -9,6 +9,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.port.PushMessage;
 import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendException;
 import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendResult;
 import java.util.Optional;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -35,9 +36,18 @@ public class NotificationDispatcher {
     }
 
     public void dispatch(Long notificationId) {
+        dispatchMessage(notificationId, () -> notificationSendService.start(notificationId));
+    }
+
+    @Async
+    public void dispatchClaimedAsync(Long notificationId) {
+        dispatchMessage(notificationId, () -> notificationSendService.startClaimed(notificationId));
+    }
+
+    private void dispatchMessage(Long notificationId, Supplier<Optional<OutgoingMessage>> start) {
         Optional<OutgoingMessage> message;
         try {
-            message = notificationSendService.start(notificationId);
+            message = start.get();
         } catch (OptimisticLockingFailureException e) {
             log.info("다른 곳이 먼저 맡은 알림이라 보내지 않습니다. notificationId={}", notificationId);
             return;

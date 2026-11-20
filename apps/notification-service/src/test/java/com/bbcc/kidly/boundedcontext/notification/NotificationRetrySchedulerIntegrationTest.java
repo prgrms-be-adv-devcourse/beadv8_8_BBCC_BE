@@ -14,6 +14,11 @@ import com.bbcc.kidly.support.AsyncWait;
 import com.bbcc.kidly.support.IntegrationTest;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -91,11 +96,41 @@ class NotificationRetrySchedulerIntegrationTest {
         AsyncWait.until(() -> statusOf(pending) == NotificationStatus.SENT
             && statusOf(sending) == NotificationStatus.SENT);
 
-        assertThat(notificationSendService.findRetryTargets()).isEmpty();
+        assertThat(notificationSendService.claimRetryTargets(100)).isEmpty();
         assertThat(statusOf(inFlight)).isEqualTo(NotificationStatus.SENDING);
         assertThat(fakeNotificationEmailSender.sent()).extracting(Email::to)
             .filteredOn(List.of(pendingTo, sendingTo, inFlightTo)::contains)
             .containsExactlyInAnyOrder(pendingTo, sendingTo);
+    }
+
+    // 여러 Pod의 스케줄러가 같은 순간에 맡아도 같은 알림을 함께 맡지 않는다. 먼저 끝난 쪽이 있어도 남은 15건은 다른 쪽이 맡는다
+    @Test
+    @DisplayName("두 곳이 동시에 재시도 대상을 맡으면 서로 다른 알림을 나누어 맡는다")
+    void claimConcurrently() throws Exception {
+        var failedAt = LocalDateTime.now().minusHours(1);
+        var ids = IntStream.range(0, 30)
+            .mapToObj(i -> notificationRepository.save(NotificationFixture.retryableFailed(EMAIL, failedAt)).getId())
+            .toList();
+        var barrier = new CyclicBarrier(2);
+        List<Long> firstIds;
+        List<Long> secondIds;
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                return notificationSendService.claimRetryTargets(15);
+            });
+            var second = executor.submit(() -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                return notificationSendService.claimRetryTargets(15);
+            });
+            firstIds = first.get(10, TimeUnit.SECONDS);
+            secondIds = second.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(firstIds).hasSize(15).doesNotContainAnyElementsOf(secondIds);
+        assertThat(Stream.concat(firstIds.stream(), secondIds.stream()).toList())
+            .containsExactlyInAnyOrderElementsOf(ids);
+        assertThat(ids).allSatisfy(id -> assertThat(statusOf(id)).isEqualTo(NotificationStatus.SENDING));
     }
 
     private NotificationStatus statusOf(Long id) {

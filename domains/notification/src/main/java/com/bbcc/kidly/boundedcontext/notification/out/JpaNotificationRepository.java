@@ -5,7 +5,6 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -14,20 +13,17 @@ import org.springframework.data.repository.query.Param;
 public interface JpaNotificationRepository extends JpaRepository<Notification, Long>, NotificationRepository {
 
     @Override
-    @Query("""
-        SELECT n.id FROM Notification n
-        WHERE (n.status = com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.FAILED
-               AND n.nextAttemptAt <= :now)
-           OR (n.status = com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.PENDING
-               AND n.createdAt < :pendingBefore)
-           OR (n.status = com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus.SENDING
-               AND n.claimedAt < :sendingBefore)
-        ORDER BY n.id
-        """)
-    List<Long> findRetryTargetIds(@Param("now") LocalDateTime now,
-                                  @Param("pendingBefore") LocalDateTime pendingBefore,
-                                  @Param("sendingBefore") LocalDateTime sendingBefore,
-                                  Pageable pageable);
+    @Query(value = """
+        SELECT * FROM notification.notification
+        WHERE (status = 'FAILED' AND next_attempt_at <= :now)
+           OR (status = 'PENDING' AND created_at < :pendingBefore)
+           OR (status = 'SENDING' AND claimed_at < :sendingBefore)
+        ORDER BY id LIMIT :limit FOR UPDATE SKIP LOCKED
+        """, nativeQuery = true)
+    List<Notification> lockRetryTargets(@Param("now") LocalDateTime now,
+                                        @Param("pendingBefore") LocalDateTime pendingBefore,
+                                        @Param("sendingBefore") LocalDateTime sendingBefore,
+                                        @Param("limit") int limit);
 
     // 대량 UPDATE는 엔티티를 거치지 않으므로 수정 시각 · 버전을 직접 바꾸고, 영속성 컨텍스트에 남은 옛 값을 비운다
     @Override
