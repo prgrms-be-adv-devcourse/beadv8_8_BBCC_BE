@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.notification.domain.NotificationRepository;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationStatus;
 import com.bbcc.kidly.boundedcontext.notification.domain.PushTokenRepository;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -44,11 +45,23 @@ public class NotificationSendService {
         return createMessage(found.get());
     }
 
+    /**
+     * 맡은 뒤 SENDING_TIMEOUT이 지나 다른 곳이 다시 맡았으면(맡은 시각이 다르면) 보내지 않는다.
+     */
     @Transactional
-    public Optional<OutgoingMessage> startClaimed(Long notificationId) {
-        return notificationRepository.findById(notificationId)
-            .filter(notification -> notification.getStatus() == NotificationStatus.SENDING)
+    public Optional<OutgoingMessage> startClaimed(NotificationClaim claim) {
+        return notificationRepository.findById(claim.notificationId())
+            .filter(notification -> isStillClaimed(notification, claim))
             .flatMap(this::createMessage);
+    }
+
+    private static boolean isStillClaimed(Notification notification, NotificationClaim claim) {
+        if (notification.getStatus() == NotificationStatus.SENDING
+            && claim.claimedAt().equals(notification.getClaimedAt())) {
+            return true;
+        }
+        log.info("다른 곳이 다시 맡은 알림이라 보내지 않습니다. notificationId={}", claim.notificationId());
+        return false;
     }
 
     private Optional<OutgoingMessage> createMessage(Notification notification) {
@@ -110,19 +123,20 @@ public class NotificationSendService {
     }
 
     /**
-     * 다시 보낼 알림을 최대 {@code maxCount}건(한 번에 100건까지) 골라 SENDING으로 맡고 ID를 돌려준다.
+     * 다시 보낼 알림을 최대 {@code maxCount}건(한 번에 100건까지) 골라 SENDING으로 맡고 ID와 맡은 시각을 돌려준다.
      * 다른 Pod가 맡는 중인 행은 건너뛰므로 Pod마다 서로 다른 알림을 맡는다.
      */
     @Transactional
-    public List<Long> claimRetryTargets(int maxCount) {
+    public List<NotificationClaim> claimRetryTargets(int maxCount) {
         if (maxCount <= 0) {
             return List.of();
         }
-        var now = LocalDateTime.now();
+        // DB(timestamp)가 마이크로초까지 저장하므로, 다시 읽은 값과 같게 비교하도록 맞춘다
+        var now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
         return notificationRepository.lockRetryTargets(now, now.minus(NotificationPolicy.PENDING_TIMEOUT),
                 now.minus(NotificationPolicy.SENDING_TIMEOUT), Math.min(maxCount, RETRY_BATCH_SIZE)).stream()
             .filter(notification -> notification.startSending(now))
-            .map(Notification::getId)
+            .map(notification -> new NotificationClaim(notification.getId(), now))
             .toList();
     }
 

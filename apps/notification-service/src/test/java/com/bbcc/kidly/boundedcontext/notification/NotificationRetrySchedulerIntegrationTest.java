@@ -3,6 +3,8 @@ package com.bbcc.kidly.boundedcontext.notification;
 import static com.bbcc.kidly.boundedcontext.notification.NotificationFixture.EMAIL;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bbcc.kidly.boundedcontext.notification.app.NotificationClaim;
+import com.bbcc.kidly.boundedcontext.notification.app.NotificationDispatcher;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationSendService;
 import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
@@ -39,6 +41,9 @@ class NotificationRetrySchedulerIntegrationTest {
 
     @Autowired
     private NotificationSendService notificationSendService;
+
+    @Autowired
+    private NotificationDispatcher notificationDispatcher;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -117,11 +122,11 @@ class NotificationRetrySchedulerIntegrationTest {
         try (var executor = Executors.newFixedThreadPool(2)) {
             var first = executor.submit(() -> {
                 barrier.await(10, TimeUnit.SECONDS);
-                return notificationSendService.claimRetryTargets(15);
+                return claimedIds(15);
             });
             var second = executor.submit(() -> {
                 barrier.await(10, TimeUnit.SECONDS);
-                return notificationSendService.claimRetryTargets(15);
+                return claimedIds(15);
             });
             firstIds = first.get(10, TimeUnit.SECONDS);
             secondIds = second.get(10, TimeUnit.SECONDS);
@@ -131,6 +136,31 @@ class NotificationRetrySchedulerIntegrationTest {
         assertThat(Stream.concat(firstIds.stream(), secondIds.stream()).toList())
             .containsExactlyInAnyOrderElementsOf(ids);
         assertThat(ids).allSatisfy(id -> assertThat(statusOf(id)).isEqualTo(NotificationStatus.SENDING));
+    }
+
+    // A가 맡은 뒤 대기열에서 SENDING_TIMEOUT보다 오래 기다리는 사이 B가 다시 맡으면, 늦게 도는 A는 보내지 않는다
+    @Test
+    @DisplayName("다른 곳이 다시 맡은 알림은 먼저 맡았던 쪽이 보내지 않아 한 번만 나간다")
+    void reclaimedSendsOnce() {
+        var to = "reclaimed@kidly.co.kr";
+        var id = notificationRepository.save(NotificationFixture.retryableFailed(to, LocalDateTime.now().minusHours(1)))
+            .getId();
+        var first = notificationSendService.claimRetryTargets(100);
+        jdbcTemplate.update("UPDATE notification.notification SET claimed_at = ? WHERE id = ?",
+            LocalDateTime.now().minus(NotificationPolicy.SENDING_TIMEOUT).minusMinutes(1), id);
+        var second = notificationSendService.claimRetryTargets(100);
+
+        assertThat(notificationSendService.startClaimed(first.getFirst())).isEmpty();
+        notificationDispatcher.dispatchClaimedAsync(second.getFirst());
+
+        AsyncWait.until(() -> statusOf(id) == NotificationStatus.SENT);
+        assertThat(fakeNotificationEmailSender.sent()).extracting(Email::to).filteredOn(to::equals).hasSize(1);
+    }
+
+    private List<Long> claimedIds(int maxCount) {
+        return notificationSendService.claimRetryTargets(maxCount).stream()
+            .map(NotificationClaim::notificationId)
+            .toList();
     }
 
     private NotificationStatus statusOf(Long id) {
