@@ -15,10 +15,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChildAccountService {
@@ -70,6 +72,14 @@ public class ChildAccountService {
     @Transactional
     public void deleteByChildProfileId(Long childProfileId) {
         accounts.findByChildProfileIdForUpdate(childProfileId).ifPresent(this::deleteAccount);
+    }
+
+    @Transactional
+    public int republishAllChanged() {
+        var all = accounts.findAll();
+        all.forEach(account -> appendChange(account, false));
+        log.info("자녀 계정 변경 이벤트 다시 발행: publishedCount={}", all.size());
+        return all.size();
     }
 
     private void deleteAccount(ChildAccount account) {
