@@ -32,6 +32,8 @@ public class FcmPushSender implements NotificationPushSender, AutoCloseable {
 
     // 기본 Firebase 앱과 겹치지 않게 이름을 붙인다
     private static final String APP_NAME = "kidly-notification";
+    // SDK 기본값 0은 무제한이라 FCM이 멈추면 발송 스레드가 묶인다. SMTP 시간 제한(notification.yml)과 같은 값
+    static final int TIMEOUT_MILLIS = 5000;
 
     private final FirebaseApp firebaseApp;
     private final FirebaseMessaging firebaseMessaging;
@@ -62,7 +64,11 @@ public class FcmPushSender implements NotificationPushSender, AutoCloseable {
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("FIREBASE_CREDENTIALS를 서비스 계정 키 JSON으로 읽지 못했습니다");
         }
-        var options = FirebaseOptions.builder().setCredentials(credentials).build();
+        var options = FirebaseOptions.builder()
+            .setCredentials(credentials)
+            .setConnectTimeout(TIMEOUT_MILLIS)
+            .setReadTimeout(TIMEOUT_MILLIS)
+            .build();
         return new FcmPushSender(FirebaseApp.initializeApp(options, APP_NAME));
     }
 
