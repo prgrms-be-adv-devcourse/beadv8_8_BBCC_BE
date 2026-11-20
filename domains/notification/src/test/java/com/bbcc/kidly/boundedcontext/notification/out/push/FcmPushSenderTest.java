@@ -10,6 +10,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.port.PushFailure;
 import com.bbcc.kidly.boundedcontext.notification.app.port.PushMessage;
 import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendException;
 import com.google.firebase.ErrorCode;
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.MessagingErrorCode;
 import java.nio.charset.StandardCharsets;
@@ -73,6 +74,10 @@ class FcmPushSenderTest {
 
         try (var sender = FcmPushSender.fromBase64ServiceAccount(credentials)) {
             assertThat(sender).isNotNull();
+            // FCM이 응답하지 않아도 정해진 시간 안에 실패로 끝난다(SDK 기본 0은 무제한)
+            var options = FirebaseApp.getInstance("kidly-notification").getOptions();
+            assertThat(options.getConnectTimeout()).isEqualTo(FcmPushSender.TIMEOUT_MILLIS);
+            assertThat(options.getReadTimeout()).isEqualTo(FcmPushSender.TIMEOUT_MILLIS);
         }
     }
 
