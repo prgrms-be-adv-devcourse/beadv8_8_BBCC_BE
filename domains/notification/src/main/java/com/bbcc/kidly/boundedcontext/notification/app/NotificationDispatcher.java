@@ -64,6 +64,7 @@ public class NotificationDispatcher {
         try {
             notificationEmailSender.send(email);
             notificationSendService.recordSent(notificationId);
+            log.info("알림을 보냈습니다. notificationId={} channel=EMAIL", notificationId);
         } catch (EmailSendException e) {
             boolean willRetry = notificationSendService.recordFailed(notificationId, e.getMessage(), e.isRetryable());
             logFailure("이메일을", notificationId, e.getMessage(), willRetry);
@@ -80,6 +81,9 @@ public class NotificationDispatcher {
             return;
         }
         boolean willRetry = notificationSendService.recordPushResult(notificationId, result);
+        if (result.outcome() == PushSendResult.Outcome.SENT) {
+            log.info("알림을 보냈습니다. notificationId={} channel=PUSH", notificationId);
+        }
         switch (result.outcome()) {
             case SENT, SKIPPED -> {
                 if (!result.fidsToDelete().isEmpty()) {
