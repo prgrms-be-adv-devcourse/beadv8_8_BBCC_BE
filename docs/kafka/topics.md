@@ -12,7 +12,7 @@
 | | `child.growth-recorded` | 자녀 ID | | recommend |
 | | `child.growth-record-deleted` | 자녀 ID | | recommend |
 | `kidly.auth.events` | `auth.tokens-revoked` | 토큰 주체 ID | auth | gateway |
-| | `child-account.changed` | 자녀 계정 ID | | childprofile, notification, order, community(#1377: `deleted` true만 — 그 자녀 계정의 찜을 지우고 그 계정의 찜 요청을 막음) |
+| | `child-account.changed` | 자녀 계정 ID | | childprofile, notification, order, community(#1377: `deleted` true만 — 그 자녀 계정의 찜을 지우고 그 계정의 찜 요청을 막음), recommend(자녀 토큰으로 부른 추천을 그 계정의 자녀 프로필로 계산) |
 | `kidly.product.events` | `product.changed`(data에 관리자 판매 중지 `stoppedByAdmin`, 판매 시작 시각 `saleStartedAt`, 카테고리 경로마다 보일 성별 `visibleGender`) | 상품 ID | product | community, notification, order, recommend, search |
 | | `stock.deducted` · `stock.deduction-failed` | 주문 ID | | order |
 | `kidly.order.events` | `order.created` | 주문 ID | order | product |

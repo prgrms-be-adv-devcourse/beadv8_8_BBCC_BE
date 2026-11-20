@@ -56,7 +56,7 @@
 | 보내는 쪽 | 토픽 | 이벤트 → 받는 쪽 (구독 그룹 `kidly.{받는도메인}`) |
 |---|---|---|
 | 회원 | `kidly.member.events` | `member.registered` → 결제 · 알림 · `member.suspended` → 자녀 프로필 · 알림 · `member.changed` → 판매자 · `member.withdrawn` → 인증 · 자녀 프로필 · 커뮤니티 · 회원(배송지) · 알림 · 주문 · 결제 · 추천 · 판매자 |
-| 인증 | `kidly.auth.events` | `auth.tokens-revoked` → Gateway · `child-account.changed` → 자녀 프로필 · 알림 · 주문 |
+| 인증 | `kidly.auth.events` | `auth.tokens-revoked` → Gateway · `child-account.changed` → 자녀 프로필 · 알림 · 주문 · 추천 |
 | 판매자 | `kidly.seller.events` | `seller.changed` → 회원 · 상품 · 주문 · 추천 · 검색 · 알림 |
 | 자녀 프로필 | `kidly.childprofile.events` | `child.changed` → 인증 · 주문 · 추천 · `child.growth-recorded` · `child.growth-record-deleted` → 추천 |
 | 상품 | `kidly.product.events` | `product.changed` → 주문 · 추천 · 검색 · 커뮤니티 · `stock.deducted` · `stock.deduction-failed` → 주문 |
