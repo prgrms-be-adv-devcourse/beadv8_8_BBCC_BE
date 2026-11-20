@@ -34,6 +34,7 @@
 | GET | `/api/v1/admin/auth-dead-letters` | DLT에 남은 메시지 목록(기본 OPEN) | 🛠 |
 | GET | `/api/v1/admin/auth-dead-letters/{id}` | DLT 메시지 상세 | 🛠 |
 | POST | `/api/v1/admin/auth-dead-letters/{id}/reprocess` | DLT 메시지 재처리 | 🛠 |
+| POST | `/api/v1/admin/children/accounts/changed-events` | 남아 있는 자녀 계정마다 `child-account.changed`(`deleted=false`)를 다시 보냄(Kafka 보관 기간이 지난 계정을 추천 · 주문 · 알림 자녀 계정 복사본에 채우기). 지운 계정은 남지 않아 보내지 않는다. 응답 `publishedCount` | 🛠 |
 | POST | `/api/v1/dev/tokens` | 개발용 토큰 발급(local · test · dev 프로필에서만) | 🌐 |
 | POST | `/api/v1/dev/members` | 더미 회원 가입(`key` · `nickname`, 같은 `key`면 기존 회원을 200으로, 이메일 없음). local · test · dev 프로필에서만 | 🌐 |
 

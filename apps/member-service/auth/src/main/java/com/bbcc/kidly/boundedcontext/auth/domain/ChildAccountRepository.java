@@ -12,5 +12,6 @@ public interface ChildAccountRepository {
     Optional<ChildAccount> findByIdAndPasswordHashForUpdate(Long id, String passwordHash);
     List<ChildAccount> findAllByGuardianIdOrderByIdAsc(Long guardianId);
     Optional<ChildAccount> findByLoginId(String loginId);
+    List<ChildAccount> findAll();
     void delete(ChildAccount account);
 }
