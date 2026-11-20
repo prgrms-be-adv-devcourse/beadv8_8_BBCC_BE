@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.bbcc.kidly.boundedcontext.notification.app.NotificationClaim;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationDispatcher;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationSendService;
 import com.bbcc.kidly.boundedcontext.notification.app.port.Email;
@@ -16,6 +17,7 @@ import com.bbcc.kidly.boundedcontext.notification.app.port.PushFailure;
 import com.bbcc.kidly.boundedcontext.notification.app.port.PushMessage;
 import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendException;
 import com.bbcc.kidly.boundedcontext.notification.app.port.PushSendResult;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +32,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 class NotificationDispatcherTest {
 
     private static final Long ID = 10L;
+    private static final NotificationClaim CLAIM = new NotificationClaim(ID, LocalDateTime.of(2026, 11, 20, 10, 0));
     private static final Email EMAIL = new Email("parent@kidly.co.kr", "제목", "본문");
     private static final PushMessage PUSH =
         new PushMessage(List.of("fid-1", "fid-2"), "제목", "본문", "https://kidly.kro.kr/orders/3");
@@ -59,9 +62,9 @@ class NotificationDispatcherTest {
     @Test
     @DisplayName("이미 맡은 알림의 메시지를 보낸다")
     void sendClaimed() {
-        given(notificationSendService.startClaimed(ID)).willReturn(Optional.of(EMAIL));
+        given(notificationSendService.startClaimed(CLAIM)).willReturn(Optional.of(EMAIL));
 
-        notificationDispatcher.dispatchClaimedAsync(ID);
+        notificationDispatcher.dispatchClaimedAsync(CLAIM);
 
         verify(notificationEmailSender).send(EMAIL);
         verify(notificationSendService).recordSent(ID);
@@ -70,9 +73,9 @@ class NotificationDispatcherTest {
     @Test
     @DisplayName("이미 맡은 알림에 보낼 메시지가 없으면 보내지 않는다")
     void nothingClaimedToSend() {
-        given(notificationSendService.startClaimed(ID)).willReturn(Optional.empty());
+        given(notificationSendService.startClaimed(CLAIM)).willReturn(Optional.empty());
 
-        notificationDispatcher.dispatchClaimedAsync(ID);
+        notificationDispatcher.dispatchClaimedAsync(CLAIM);
 
         verify(notificationEmailSender, never()).send(any());
         verify(notificationPushSender, never()).send(any());

@@ -40,8 +40,8 @@ public class NotificationDispatcher {
     }
 
     @Async
-    public void dispatchClaimedAsync(Long notificationId) {
-        dispatchMessage(notificationId, () -> notificationSendService.startClaimed(notificationId));
+    public void dispatchClaimedAsync(NotificationClaim claim) {
+        dispatchMessage(claim.notificationId(), () -> notificationSendService.startClaimed(claim));
     }
 
     private void dispatchMessage(Long notificationId, Supplier<Optional<OutgoingMessage>> start) {
