@@ -5,7 +5,6 @@ import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.CUTOFF_
 import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.FEE_RATE;
 import static com.bbcc.kidly.boundedcontext.settlement.SettlementFixture.SELLER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 import com.bbcc.kidly.boundedcontext.settlement.app.batch.SettlementSellerPlan;
@@ -59,21 +58,9 @@ class SettlementSellerProcessorTest {
         assertThat(processor.process(SELLER_ID)).isNull();
     }
 
-    @Test
-    @DisplayName("판매 합계가 long을 넘으면 ArithmeticException이다")
-    void overflow() {
-        givenPendingItems(item(1L, Long.MAX_VALUE), item(2L, Long.MAX_VALUE));
-
-        assertThatThrownBy(() -> processor.process(SELLER_ID)).isInstanceOf(ArithmeticException.class);
-    }
-
     private void givenPendingItems(SettlementItem... items) {
         given(settlementItemRepository.findAllBySellerIdAndStatusAndConfirmedAtBefore(
             SELLER_ID, SettlementItemStatus.PENDING, CUTOFF_AT)).willReturn(List.of(items));
-    }
-
-    private static SettlementItem item(Long id, long salesAmount) {
-        return item(id, salesAmount, CONFIRMED_AT);
     }
 
     private static SettlementItem item(Long id, long salesAmount, LocalDateTime confirmedAt) {

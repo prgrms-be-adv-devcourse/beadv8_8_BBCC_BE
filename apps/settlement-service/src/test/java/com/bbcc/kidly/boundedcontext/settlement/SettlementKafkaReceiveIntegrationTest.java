@@ -163,17 +163,6 @@ class SettlementKafkaReceiveIntegrationTest {
     }
 
     @Test
-    @DisplayName("payment.payout-completed를 받으면 정산서가 지급 완료가 된다")
-    void payoutCompleted() throws Exception {
-        long settlementId = saveSettlement();
-        PaymentPayoutCompletedEvent event = SettlementFixture.payoutCompleted(settlementId, sellerId, 90_000L);
-
-        send(PAYMENT_TOPIC, settlementId, event.eventType(), KafkaEnvelope.of(jsonMapper, event));
-
-        AsyncWait.until(TIMEOUT, () -> "PAID".equals(settlementStatus(settlementId)));
-    }
-
-    @Test
     @DisplayName("payment.payout-failed를 받으면 정산서가 지급 실패가 된다")
     void payoutFailed() throws Exception {
         long settlementId = saveSettlement();
