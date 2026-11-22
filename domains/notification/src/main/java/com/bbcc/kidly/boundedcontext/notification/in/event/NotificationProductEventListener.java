@@ -24,7 +24,7 @@ public class NotificationProductEventListener {
     public void on(ConsumerRecord<String, String> record) {
         switch (NotificationKafkaListenerConfig.header(record, "eventType")) {
             case "product.changed" -> onChanged(jsonMapper.readValue(record.value(), ProductChangedEvent.class));
-            default -> { }  // 알림이 받지 않는 종류
+            default -> { }
         }
     }
 

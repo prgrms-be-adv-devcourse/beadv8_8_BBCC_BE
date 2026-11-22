@@ -26,7 +26,7 @@ import tools.jackson.core.JacksonException;
  * 알림이 Kafka로 받을 때 쓰는 컨테이너 팩토리와 DLT. DLT는 받는 토픽마다 하나({받는 토픽}.notification.dlt)다.
  * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고,
  * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 DLT로 보낸다. 읽지 못한 메시지는 재시도 없이 보낸다.
- * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate과 다른 도메인에 영향이 없다.
+ * 에러 처리기, DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리, KafkaTemplate과 다른 도메인에 영향이 없다.
  */
 @Slf4j
 @Configuration
@@ -74,7 +74,7 @@ class NotificationKafkaListenerConfig {
         return TopicBuilder.name(topic + DLT_SUFFIX).partitions(1).replicas(1).build();
     }
 
-    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
+    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키, 본문은 앱 설정대로 String이다
     @Bean
     ConcurrentKafkaListenerContainerFactory<Object, Object> notificationKafkaListenerContainerFactory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,

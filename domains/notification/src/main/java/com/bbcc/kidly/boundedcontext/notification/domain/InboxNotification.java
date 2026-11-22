@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 제목 · 본문은 넣을 때 완성해 둔다. 같은 dedupKey는 한 건만 둔다(유니크).
+ * 제목, 본문은 넣을 때 완성해 둔다. 같은 dedupKey는 한 건만 둔다(유니크).
  */
 @Entity
 @Table(schema = "notification", name = "inbox")

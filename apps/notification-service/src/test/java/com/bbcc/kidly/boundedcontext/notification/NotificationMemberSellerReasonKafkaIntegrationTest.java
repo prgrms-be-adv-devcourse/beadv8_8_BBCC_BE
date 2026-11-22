@@ -40,7 +40,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 + data)으로 토픽에 직접 넣는다.
+ * 회원이 보내는 형식(키 correlationId, 헤더 eventType, eventId, 본문 공통 칸 + data)으로 토픽에 직접 넣는다.
  */
 @KafkaIntegrationTest
 class NotificationMemberSellerReasonKafkaIntegrationTest {

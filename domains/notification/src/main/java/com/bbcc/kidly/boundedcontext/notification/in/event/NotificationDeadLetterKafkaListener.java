@@ -10,9 +10,9 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 알림 DLT 여섯 개({받는 토픽}.notification.dlt)를 읽어 notification.dead_letter에 보관한다. DLT 토픽 · 파티션 · 오프셋당 1행이다.
+ * 알림 DLT 여섯 개({받는 토픽}.notification.dlt)를 읽어 notification.dead_letter에 보관한다. DLT 토픽, 파티션, 오프셋당 1행이다.
  * 저장하기 전에는 처리 완료로 넘기지 않고 저장될 때까지 재시도한다(NotificationDeadLetterKafkaListenerConfig).
- * 본문은 DB에만 두고 로그에는 위치 · eventType · eventId · 예외 종류만 남긴다. 같은 위치가 계속 실패하면 첫 실패만 ERROR다.
+ * 본문은 DB에만 두고 로그에는 위치, eventType, eventId, 예외 종류만 남긴다. 같은 위치가 계속 실패하면 첫 실패만 ERROR다.
  */
 @Slf4j
 @Component

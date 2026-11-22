@@ -25,7 +25,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 주문이 아직 보내지 않는 이벤트를 주문에 요청한 메시지 형식(공통 칸 7개 + data) 그대로 읽는지 본다.
- * data의 모르는 칸(memberId · optionId 등)은 무시한다.
+ * data의 모르는 칸(memberId, optionId 등)은 무시한다.
  */
 @ExtendWith(MockitoExtension.class)
 class NotificationOrderEventListenerTest {

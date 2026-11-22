@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 기록으로 남길 일은 아니라 메일은 보내지 않는다.
  * 배송은 주문 × 판매자 단위라 한 주문에서 판매자 수만큼 들어올 수 있다.
- * 같은 배송의 출발 · 완료는 한 건씩만 넣는다.
+ * 같은 배송의 출발, 완료는 한 건씩만 넣는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -32,7 +32,7 @@ public class DeliveryInboxService {
             shippedBody(command), "delivery.shipped:");
     }
 
-    // 택배사 · 운송장 중 하나라도 없으면 "null 운송장 null"이 되지 않게 운송장 없는 문구를 쓴다
+    // 택배사, 운송장 중 하나라도 없으면 "null 운송장 null"이 되지 않게 운송장 없는 문구를 쓴다
     private static String shippedBody(DeliveryCommand command) {
         if (command.carrierName() == null || command.trackingNumber() == null) {
             return SHIPPED_BODY_WITHOUT_TRACKING;

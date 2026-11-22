@@ -80,7 +80,7 @@ class NotificationRetrySchedulerIntegrationTest {
         AsyncWait.until(() -> statusOf(stale) == NotificationStatus.SENT);
     }
 
-    // 서버가 강제 종료(kill -9)되면 넘기기 전(PENDING) · 발송 중(SENDING)인 알림이 그 상태로 DB에 남는다.
+    // 서버가 강제 종료(kill -9)되면 넘기기 전(PENDING), 발송 중(SENDING)인 알림이 그 상태로 DB에 남는다.
     // 타임아웃이 지난 것만 다시 맡아 한 번씩 보내고, 아직 다른 서버가 보내는 중인 것은 건드리지 않는다
     @Test
     @DisplayName("서버가 발송 도중 죽어 남은 PENDING · SENDING은 타임아웃 뒤 한 번씩 보내고, 다음 주기에 다시 맡지 않는다")

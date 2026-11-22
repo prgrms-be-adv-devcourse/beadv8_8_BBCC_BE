@@ -3,9 +3,6 @@ package com.bbcc.kidly.boundedcontext.notification.in.web.dto;
 import com.bbcc.kidly.boundedcontext.notification.app.dto.InboxNotificationView;
 import java.time.LocalDateTime;
 
-/**
- * linkPath는 없으면 null.
- */
 public record InboxNotificationResponse(
     Long notificationId,
     String type,

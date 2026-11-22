@@ -57,7 +57,7 @@ public class WishInboxService {
 
     /**
      * 활성 계정이 없으면(만들지 않았거나 지웠거나, 계정 이벤트가 아직 안 왔으면)
-     * 넣지 않고 ID만 INFO로 남긴다. 계정이 없는 자녀가 정상이라 재시도 · DLT로 보내지 않는다.
+     * 넣지 않고 ID만 INFO로 남긴다. 계정이 없는 자녀가 정상이라 재시도, DLT로 보내지 않는다.
      */
     private void addToChild(Long wishRequestId, Long childProfileId, NotificationType type, String keyPrefix,
         ChildWishInbox content) {

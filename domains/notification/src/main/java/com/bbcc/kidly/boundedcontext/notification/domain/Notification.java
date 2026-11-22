@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 같은 이벤트 · 같은 채널은 한 건만 만든다((event_id, channel) 유니크).
+ * 같은 이벤트, 같은 채널은 한 건만 만든다((event_id, channel) 유니크).
  * 제목과 본문은 만들 때 완성해 두어 재시도해도 같은 내용이 나간다.
  * 커밋 뒤 비동기 발송과 재시도 스케줄러가 같은 알림을 동시에 맡으려 하면 {@code @Version}으로 한쪽만 저장된다.
  */
@@ -129,7 +129,7 @@ public class Notification extends BaseTimeEntity {
         this.nextAttemptAt = null;
     }
 
-    // 보낼 주소(이메일 · 푸시 FID)가 없거나 받을 수 없는 주소다. 시도로 세지 않는다
+    // 보낼 주소(이메일, 푸시 FID)가 없거나 받을 수 없는 주소다. 시도로 세지 않는다
     public void markSkipped() {
         requireSending();
         this.status = NotificationStatus.SKIPPED;

@@ -14,7 +14,6 @@ public interface InboxNotificationRepository {
 
     Optional<InboxNotification> findByIdAndRecipient(Long id, InboxRecipient recipient);
 
-    // 최신순. 같은 시각이면 나중에 넣은 것부터
     Page<InboxNotification> findNewestFirst(InboxRecipient recipient, Pageable pageable);
 
     long countUnread(InboxRecipient recipient);

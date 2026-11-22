@@ -32,7 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 이 구독 그룹은 이 토픽을 처음 읽으므로 책갈피가 없다. 앱 기본값(latest)이면 구독 전에 보낸 이벤트를
- * 건너뛰므로 이 리스너만 처음부터 읽는다. 같은 메시지를 다시 받아도 중복 키(조르기 ID · 주문 ID · 취소 ID · 배송 ID)로 한 건만 넣는다.
+ * 건너뛰므로 이 리스너만 처음부터 읽는다. 같은 메시지를 다시 받아도 중복 키(조르기 ID, 주문 ID, 취소 ID, 배송 ID)로 한 건만 넣는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -66,7 +66,7 @@ public class NotificationOrderEventListener {
                 onDeliveryShipped(jsonMapper.readValue(record.value(), DeliveryShippedEvent.class));
             case "delivery.delivered" ->
                 onDeliveryDelivered(jsonMapper.readValue(record.value(), DeliveryDeliveredEvent.class));
-            default -> { }  // 알림이 받지 않는 종류
+            default -> { }
         }
     }
 
@@ -128,7 +128,7 @@ public class NotificationOrderEventListener {
         sellerOrderInboxService.addOrderPaid(command);
     }
 
-    // 판매자 · 구매자 알림은 따로 커밋된다. 하나가 실패해 다시 받으면 이미 넣은 쪽은 중복 키로 건너뛴다
+    // 판매자, 구매자 알림은 따로 커밋된다. 하나가 실패해 다시 받으면 이미 넣은 쪽은 중복 키로 건너뛴다
     private void onPurchaseConfirmed(OrderItemPurchaseConfirmedEvent event) {
         var data = event.data();
         var command = new PurchaseConfirmedCommand(data.orderItemId(), data.orderId(), data.memberId(),

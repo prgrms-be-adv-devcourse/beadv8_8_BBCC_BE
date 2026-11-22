@@ -21,7 +21,6 @@ public class MemberContactService {
     private final MemberContactRepository memberContactRepository;
     private final WithdrawnMemberRepository withdrawnMemberRepository;
 
-    // 이메일 없이 가입한 회원 · 탈퇴한 회원은 저장하지 않는다. 이미 있으면 그대로 둔다(이메일은 바뀌지 않는다)
     @Transactional
     public void save(Long memberId, String email) {
         if (email == null || email.isBlank() || memberContactRepository.existsById(memberId)

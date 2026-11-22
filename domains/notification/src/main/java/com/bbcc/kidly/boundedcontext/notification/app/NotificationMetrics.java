@@ -13,7 +13,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 실패율은 결과 카운터의 비율로, 적체는 게이지로 본다. 게이지는 수집할 때마다 상태 인덱스로 건수 · 최솟값만 읽는다.
+ * 실패율은 결과 카운터의 비율로, 적체는 게이지로 본다. 게이지는 수집할 때마다 상태 인덱스로 건수, 최솟값만 읽는다.
  */
 @Component
 public class NotificationMetrics {

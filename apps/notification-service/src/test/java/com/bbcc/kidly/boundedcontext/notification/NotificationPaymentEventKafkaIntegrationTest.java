@@ -40,8 +40,8 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 이 서비스에는 결제 도메인이 없으므로 결제가 보내는 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 + data)으로
- * 토픽에 직접 넣는다. 받는 사람 · 정산서 · 주문 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 받는 사람으로 걸러 본다.
+ * 이 서비스에는 결제 도메인이 없으므로 결제가 보내는 형식(키 correlationId, 헤더 eventType, eventId, 본문 공통 칸 + data)으로
+ * 토픽에 직접 넣는다. 받는 사람, 정산서, 주문 ID를 테스트마다 새로 만들고, 결과는 이 테스트의 받는 사람으로 걸러 본다.
  */
 @KafkaIntegrationTest
 class NotificationPaymentEventKafkaIntegrationTest {

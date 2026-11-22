@@ -4,9 +4,9 @@ import com.bbcc.kidly.boundedcontext.notification.app.dto.OrderPaidCommand;
 import java.util.stream.Collectors;
 
 /**
- * 상품명 · 옵션명은 주문할 때의 스냅샷이다. 옵션명이 없는 옛 주문상품은 옵션을 쓰지 않는다.
+ * 상품명, 옵션명은 주문할 때의 스냅샷이다. 옵션명이 없는 옛 주문상품은 옵션을 쓰지 않는다.
  * 주문상품 수에 상한이 없어, 본문 한도(4000자)를 넘지 않도록 상품은 앞의 5개까지만 적고 나머지는 "외 N건"으로 줄인다
- * (상품명 · 옵션명은 각각 255자까지라 한 줄이 600자를 넘지 않는다).
+ * (상품명, 옵션명은 각각 255자까지라 한 줄이 600자를 넘지 않는다).
  */
 public record OrderPaidEmail(String title, String body) implements EmailContent {
 

@@ -10,9 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 처음 받은 ACTIVE는 승인, ACTIVE에서 SUSPENDED로 바뀐 것은 정지다. 정지 해제는 없다(SellerStatus).
- * 처음 받은 SUSPENDED는 언제 정지됐는지 알 수 없어 메일을 만들지 않는다. 상호명만 바뀐 것 · 같은 상태도 만들지 않는다.
+ * 처음 받은 SUSPENDED는 언제 정지됐는지 알 수 없어 메일을 만들지 않는다. 상호명만 바뀐 것, 같은 상태도 만들지 않는다.
  * 같은 판매자의 이벤트는 같은 파티션(키 = 판매자 ID)으로 한 건씩 오므로 같은 행을 동시에 만들지 않는다.
- * 회원 이메일 복사본이 없어도(이메일 없는 회원 · 복사본 이전 회원) 상태 복사본과 알림함 알림은 남기고 메일만 건너뛴다.
+ * 회원 이메일 복사본이 없어도(이메일 없는 회원, 복사본 이전 회원) 상태 복사본과 알림함 알림은 남기고 메일만 건너뛴다.
  */
 @Service
 @RequiredArgsConstructor

@@ -15,7 +15,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 /**
  * 롤링 배포로 Pod가 겹치는 동안 다른 Pod의 연결도 새 수를 받게 Redis 채널로 받는 사람만 알린다.
  * 수는 받는 Pod가 다시 세므로 순서가 바뀌거나 메시지를 잃어도 다음 변경 때 맞는다.
- * Redis가 죽어도 알림 저장 · 이 Pod의 SSE는 그대로고 WARN만 남긴다.
+ * Redis가 죽어도 알림 저장, 이 Pod의 SSE는 그대로고 WARN만 남긴다.
  */
 @Slf4j
 @Component

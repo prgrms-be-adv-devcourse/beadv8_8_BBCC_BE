@@ -31,7 +31,7 @@ public class NotificationSellerEventListener {
             case "seller.application-rejected" ->
                 onApplicationRejected(jsonMapper.readValue(record.value(), SellerApplicationRejectedEvent.class));
             case "seller.changed" -> onChanged(jsonMapper.readValue(record.value(), SellerChangedEvent.class));
-            default -> { }  // 알림이 받지 않는 종류
+            default -> { }
         }
     }
 

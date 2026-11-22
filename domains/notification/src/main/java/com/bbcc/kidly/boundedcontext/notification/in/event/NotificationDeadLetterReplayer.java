@@ -9,7 +9,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.stereotype.Component;
 
 /**
- * 원래 토픽에 다시 쓰지 않고, 보관한 토픽 · 키 · 본문 · eventType/eventId 헤더로 메시지를 만들어 알림 Kafka 리스너의 처리 메서드를 직접 부른다.
+ * 원래 토픽에 다시 쓰지 않고, 보관한 토픽, 키, 본문, eventType/eventId 헤더로 메시지를 만들어 알림 Kafka 리스너의 처리 메서드를 직접 부른다.
  * 원래 토픽은 다른 도메인의 것이고 다른 도메인도 받으므로 다시 보내면 그쪽도 또 받는다.
  */
 @Component

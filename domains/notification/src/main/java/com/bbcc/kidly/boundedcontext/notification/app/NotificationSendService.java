@@ -98,9 +98,6 @@ public class NotificationSendService {
             .orElse(false);
     }
 
-    /**
-     * 다시 시도할 때는 남은 FID를 다시 찾아 보낸다.
-     */
     @Transactional
     public boolean recordPushResult(Long notificationId, PushSendResult result) {
         var invalidFids = result.fidsToDelete();

@@ -4,7 +4,7 @@ import java.util.Optional;
 
 /**
  * 아이가 읽으므로 쉬운 말로 쓴다.
- * 모르는 거절 사유(나중에 늘어난 값 · 없음)는 기타로 쓴다. 상품 이름은 255자까지라 본문 한도(1000자)를 넘지 않는다.
+ * 모르는 거절 사유(나중에 늘어난 값, 없음)는 기타로 쓴다. 상품 이름은 255자까지라 본문 한도(1000자)를 넘지 않는다.
  */
 public record ChildWishInbox(String title, String body) {
 

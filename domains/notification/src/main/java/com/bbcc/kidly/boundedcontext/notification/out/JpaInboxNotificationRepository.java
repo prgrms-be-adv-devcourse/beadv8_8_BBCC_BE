@@ -16,7 +16,7 @@ public interface JpaInboxNotificationRepository
     extends JpaRepository<InboxNotification, Long>, InboxNotificationRepository {
 
     // 있는지 확인한 뒤 저장하면 동시에 같은 키가 오면 유니크 위반 예외가 난다. 트랜잭션 안에서 그 예외를 잡으면
-    // 영속성 컨텍스트가 망가지므로, DB가 충돌을 건너뛰게 한다. 네이티브라 생성 · 수정 시각을 직접 넣는다
+    // 영속성 컨텍스트가 망가지므로, DB가 충돌을 건너뛰게 한다. 네이티브라 생성, 수정 시각을 직접 넣는다
     @Override
     default boolean saveIfAbsent(InboxNotification notification, LocalDateTime now) {
         return insertIgnoringDuplicate(notification.getRecipientType().name(), notification.getRecipientId(),
