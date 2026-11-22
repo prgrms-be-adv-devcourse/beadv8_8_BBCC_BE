@@ -50,7 +50,7 @@ public class AdminSettlementController {
         adminSettlementService.retryPayout(settlementId, admin.id());
     }
 
-    // 끝날 때까지 기다린다(시연용). 이미 정산한 기준일 · 실행 중이면 409
+    // 끝날 때까지 기다린다(시연용). 이미 정산한 기준일이거나 실행 중이면 409
     @PostMapping("/settlements/run")
     @ResponseStatus(HttpStatus.CREATED)
     public SettlementRunResponse run(

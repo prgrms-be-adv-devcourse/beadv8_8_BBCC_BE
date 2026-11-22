@@ -35,7 +35,7 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
         "/getRestDeInfo?serviceKey={serviceKey}&solYear={year}&numOfRows=100&pageNo=1";
     private static final String NORMAL = "00";
     private static final String HOLIDAY = "Y";
-    // 외부 엔티티 · DTD를 읽지 않게 DOCTYPE 선언 자체를 막는다(XXE 방지)
+    // 외부 엔티티와 DTD를 읽지 않게 DOCTYPE 선언 자체를 막는다(XXE 방지)
     private static final String DISALLOW_DOCTYPE = "http://apache.org/xml/features/disallow-doctype-decl";
 
     private final RestClient restClient;
@@ -72,7 +72,7 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
             }
             return body;
         } catch (RestClientException e) {
-            // 연결 실패 · 시간 초과 등. 메시지에 인증키가 든 URL이 있어 종류만 남긴다
+            // 연결 실패나 시간 초과 등. 메시지에 인증키가 든 URL이 있어 종류만 남긴다
             throw new SettlementHolidayLookupException("공휴일 조회에 실패했습니다: " + e.getClass().getSimpleName());
         }
     }
@@ -119,7 +119,6 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
         return node.getTextContent().strip();
     }
 
-    // 응답의 locdate는 yyyyMMdd
     private static LocalDate parseHolidayDate(String value) {
         try {
             return LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE);

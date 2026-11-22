@@ -8,8 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 실행 시각은 kidly.settlement.outbox.cleanup-cron
- * ("-"면 끔). DB만 쓰므로 Kafka 보내기가 꺼져 있어도 있다.
+ * DB만 쓰므로 Kafka 보내기가 꺼져 있어도 있다.
  * 실패는 WARN만 남긴다. 예외 메시지에 행 값(본문)이 들어갈 수 있어 예외 종류만 남긴다.
  */
 @Slf4j

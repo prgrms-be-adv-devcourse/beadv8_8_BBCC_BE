@@ -19,7 +19,6 @@ import org.springframework.util.Assert;
 
 /**
  * 그 판매자의 대상은 대기로 남아 다음 실행에서 다시 정산된다.
- * 기록 시각은 created_at이다.
  */
 @Entity
 @Table(

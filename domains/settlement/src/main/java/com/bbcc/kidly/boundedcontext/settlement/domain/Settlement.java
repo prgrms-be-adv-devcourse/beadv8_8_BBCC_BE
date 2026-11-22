@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 판매자 · 종료일마다 하나다(실행 하나에 판매자당 정산서 하나).
+ * 판매자와 종료일마다 하나다(실행 하나에 판매자당 정산서 하나).
  */
 @Entity
 @Table(

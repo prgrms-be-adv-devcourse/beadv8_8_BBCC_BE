@@ -26,13 +26,13 @@ import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
 /**
- * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받고,
- * 한 건씩 처리 완료를 표시하며 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT로 보낸다.
- * 다시 해도 같은 실패는 재시도 없이 보낸다: 읽지 못한 본문, 정산서와 맞지 않는 지급 결과 · 상태, eventType 헤더 없음.
+ * 팩토리는 Boot configurer로 앱 spring.kafka.listener 설정(테스트의 auto-startup: false 포함)을 그대로 받는다.
+ * 실패하면 1초 간격으로 3번 더 시도한 뒤 받은 토픽의 DLT로 보낸다. 다시 해도 같은 실패(읽지 못한 본문,
+ * 정산서와 맞지 않는 지급 결과나 상태, eventType 헤더 없음)는 재시도 없이 보낸다.
  * 동시에 들어온 같은 구매확정의 유니크 위반(DataIntegrityViolationException)은 재시도한다. 다시 하면 이미 있는 항목이라 건너뛴다.
  * 읽기 시작 위치는 earliest로 덮어쓴다(앱 기본 latest). 처음 Kafka로 바꿀 때 빠지는 메시지가 없게 하고,
- * 정산은 같은 구매확정 · 지급 결과를 다시 받아도 한 번만 반영하므로 이미 Spring으로 처리한 메시지를 다시 읽어도 안전하다.
- * 에러 처리기 · DLT 템플릿은 빈으로 등록하지 않으므로 Boot 기본 팩토리 · KafkaTemplate과 다른 도메인에 영향이 없다.
+ * 정산은 같은 구매확정과 지급 결과를 다시 받아도 한 번만 반영하므로 다시 읽어도 안전하다.
+ * 에러 처리기와 DLT 템플릿은 빈으로 등록하지 않아 Boot 기본 팩토리와 KafkaTemplate, 다른 도메인에 영향이 없다.
  */
 @Slf4j
 @Configuration
@@ -71,7 +71,7 @@ class SettlementKafkaListenerConfig {
         return factory;
     }
 
-    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
+    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키와 본문은 앱 설정대로 String이다
     static ConcurrentKafkaListenerContainerFactory<Object, Object> newListenerFactory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory) {
         var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();

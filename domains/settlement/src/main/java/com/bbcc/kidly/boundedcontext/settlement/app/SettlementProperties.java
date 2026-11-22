@@ -11,7 +11,6 @@ import org.springframework.util.Assert;
 /**
  * 기본값은 settlement.yml에 있다.
  *
- * @param feeRate 수수료율. 0 이상 1 이하, 소수점 넷째 자리까지
  * @param payoutRetryCron 지급 결과를 못 받은 정산서를 다시 요청하는 cron (Asia/Seoul)
  * @param chunkSize 한 트랜잭션에서 처리하는 판매자 수
  * @param staleRunAfter 실행 기록이 STARTED인데 이 시간 넘게 진행이 없으면 죽은 실행으로 보고 다음 실행이 FAILED로 닫는다

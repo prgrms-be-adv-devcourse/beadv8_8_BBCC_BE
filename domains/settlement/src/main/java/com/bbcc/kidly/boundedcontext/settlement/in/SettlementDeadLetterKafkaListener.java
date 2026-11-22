@@ -10,9 +10,9 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * DLT 토픽 · 파티션 · 오프셋당 1행이다.
+ * DLT 토픽, 파티션, 오프셋마다 1행만 저장한다.
  * 저장하기 전에는 처리 완료로 넘기지 않고 저장될 때까지 재시도한다(SettlementDeadLetterKafkaListenerConfig).
- * 본문은 DB에만 두고 로그에는 위치 · eventType · eventId · 예외 종류만 남긴다. 같은 위치가 계속 실패하면 첫 실패만 ERROR다.
+ * 본문은 DB에만 두고 로그에는 위치, eventType, eventId, 예외 종류만 남긴다. 같은 위치가 계속 실패하면 첫 실패만 ERROR로 남긴다.
  */
 @Slf4j
 @Component

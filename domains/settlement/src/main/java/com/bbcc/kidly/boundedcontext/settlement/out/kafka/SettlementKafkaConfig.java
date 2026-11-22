@@ -14,21 +14,19 @@ import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.ProducerListener;
 
 /**
- * 템플릿은 Boot 프로듀서 설정(주소 등)을 그대로 쓰고 직렬화 · 전달 보장 · 대기 시간만 덮어쓴다.
+ * 템플릿은 Boot 프로듀서 설정(주소 등)을 그대로 쓰고 직렬화, 전달 보장, 대기 시간만 덮어쓴다.
  * 빈으로 등록하지 않으므로 Boot 기본 KafkaTemplate과 앱 spring.kafka 설정은 그대로다.
- * 대기 시간을 줄이는 이유: 릴레이는 스케줄러 스레드(앱 전체 1개) · DB 트랜잭션 · 릴레이 잠금을 쥔 채 보내고 기다린다.
- * 기본값(max.block 60초 · delivery 120초)이면 브로커가 죽었을 때 한 주기가 몇 분씩 다른 스케줄러와 DB 연결을 붙잡는다.
+ * 대기 시간을 줄이는 이유: 릴레이는 스케줄러 스레드(앱 전체 1개)와 DB 트랜잭션, 릴레이 잠금을 쥔 채 보내고 기다린다.
+ * 기본값(max.block 60초, delivery 120초)이면 브로커가 죽었을 때 한 주기가 몇 분씩 다른 스케줄러와 DB 연결을 붙잡는다.
  */
 @Configuration
 class SettlementKafkaConfig {
 
-    // 브로커가 응답하지 않거나 토픽 정보가 없을 때 send가 기다리는 시간
     static final int MAX_BLOCK_MS = 3000;
 
-    // 브로커의 요청 응답을 기다리는 시간. delivery.timeout.ms는 linger.ms + request.timeout.ms 이상이어야 한다
+    // delivery.timeout.ms는 linger.ms + request.timeout.ms 이상이어야 한다
     static final int REQUEST_TIMEOUT_MS = 5000;
 
-    // send가 돌아온 뒤 전송 성공 · 실패가 정해지기까지의 최대 시간
     static final int DELIVERY_TIMEOUT_MS = 10_000;
 
     // 메시지 하나씩 보내고 응답을 기다리므로 배치로 모을 일이 없다
@@ -43,7 +41,7 @@ class SettlementKafkaConfig {
         return TopicBuilder.name(SettlementOutboxWriter.TOPIC).partitions(3).replicas(1).build();
     }
 
-    // acks=all · 멱등은 앱 spring.kafka에도 있지만, 정산 서비스를 따로 띄울 때도 같게 여기서 정한다
+    // acks=all과 멱등은 앱 spring.kafka에도 있지만, 정산 서비스를 따로 띄울 때도 같게 여기서 정한다
     @Bean
     SettlementEventSender settlementEventSender(ProducerFactory<String, String> producerFactory) {
         var kafkaTemplate = new KafkaTemplate<String, String>(producerFactory, Map.of(

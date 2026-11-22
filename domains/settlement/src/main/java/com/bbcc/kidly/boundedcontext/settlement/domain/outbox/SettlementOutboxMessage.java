@@ -14,9 +14,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Kafka로 보낼 정산 이벤트(settlement.payout-requested). 이벤트를 발행한 업무 트랜잭션 안에서 저장해, 업무가 롤백되면 메시지도 남지 않는다.
+ * 이벤트를 발행한 업무 트랜잭션 안에서 저장해, 업무가 롤백되면 메시지도 남지 않는다.
  * 릴레이가 id 순서대로 아직 보내지 않은 메시지를 보내고 보낸 시각을 기록한다. 보낸 메시지는 보관 기간 뒤 지운다.
- * 인덱스(안 보낸 메시지 · 보낸 시각)는 부분 인덱스라 마이그레이션에만 둔다.
+ * 인덱스(안 보낸 메시지, 보낸 시각)는 부분 인덱스라 마이그레이션에만 둔다.
  */
 @Entity
 @Table(schema = "settlement", name = "settlement_outbox")
@@ -54,7 +54,6 @@ public class SettlementOutboxMessage extends BaseTimeEntity {
     private LocalDateTime sentAt;
 
     /**
-     * @param eventType 헤더 eventType에 넣을 값(예: settlement.payout-requested)
      * @param messageKey Kafka 메시지 키(이벤트의 correlationId)
      * @param payload 보낼 본문 JSON. 보낼 때 그대로 쓴다
      */

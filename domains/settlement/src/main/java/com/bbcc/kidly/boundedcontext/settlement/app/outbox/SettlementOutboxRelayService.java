@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 업무는 이 결과와 상관없이 이미 커밋돼 있다.
- * 보내지 못하면 WARN만 남긴다. 예외 메시지에 eventType · eventId · 키 · 원인이 있고, 본문은 개인 정보가 있을 수 있어 남기지 않는다.
+ * 보내지 못하면 WARN만 남긴다. 예외 메시지에 eventType, eventId, 키, 원인이 있고, 본문은 개인 정보가 있을 수 있어 남기지 않는다.
  */
 @Slf4j
 @Service
@@ -27,7 +27,7 @@ public class SettlementOutboxRelayService {
     private final SettlementMetrics metrics;
 
     /**
-     * 보낸 시각 · 실패 기록 · 잠금 해제가 커밋 한 번에 함께 된다. 보내다 실패하면 그 메시지에 실패를 기록하고 멈춰
+     * 보낸 시각과 실패 기록, 잠금 해제가 커밋 한 번에 함께 된다. 보내다 실패하면 그 메시지에 실패를 기록하고 멈춰
      * 다음 실행이 같은 메시지부터 다시 보낸다(순서 유지). 보낸 뒤 커밋 전에 멈추면 다음 실행이 다시 보낸다(받는 쪽은 eventId로 거른다).
      */
     @Transactional

@@ -4,7 +4,7 @@ import com.bbcc.kidly.boundedcontext.settlement.app.dto.SellerWithdrawalBlockerR
 import java.util.List;
 
 /**
- * @param blockers 탈퇴를 막는 사유(type: UNSETTLED_ITEM · UNPAID_SETTLEMENT). 없으면 빈 목록
+ * @param blockers 탈퇴를 막는 사유(type: UNSETTLED_ITEM 또는 UNPAID_SETTLEMENT). 없으면 빈 목록
  */
 public record SellerWithdrawalBlockersResponse(List<Blocker> blockers) {
 

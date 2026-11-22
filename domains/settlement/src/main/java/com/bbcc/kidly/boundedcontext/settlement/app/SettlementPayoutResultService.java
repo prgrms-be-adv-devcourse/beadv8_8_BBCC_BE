@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
 
 /**
- * 정산서가 없거나 판매자 · 금액이 다른 결과는 반영하지 않고 예외를 던진다(리스너가 ERROR로 남기고, Kafka 전환 뒤에는 DLT로 간다).
+ * 정산서가 없거나 판매자나 금액이 다른 결과는 반영하지 않고 IllegalStateException을 던진다. Kafka 리스너는 이 예외를 재시도하지 않고 DLT로 보낸다.
  */
 @Service
 @RequiredArgsConstructor

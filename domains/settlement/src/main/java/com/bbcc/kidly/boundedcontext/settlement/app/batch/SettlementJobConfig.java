@@ -32,7 +32,7 @@ public class SettlementJobConfig {
     public static final String JOB_NAME = "settlementJob";
     // 같은 기준일은 같은 작업 인스턴스다
     public static final String CUTOFF_AT = "cutoffAt";
-    // 실행 방식 · 수동 실행한 관리자 ID. 작업 인스턴스를 구분하는 데 쓰지 않고, 자동 실행이면 관리자 ID가 없다
+    // 실행 방식과 수동 실행한 관리자 ID. 작업 인스턴스를 구분하는 데 쓰지 않고, 자동 실행이면 관리자 ID가 없다
     public static final String TRIGGER_TYPE = "triggerType";
     public static final String REQUESTED_BY = "requestedBy";
     private static final String STEP_NAME = "settleSellerStep";

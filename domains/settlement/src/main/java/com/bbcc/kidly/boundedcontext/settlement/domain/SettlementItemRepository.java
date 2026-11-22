@@ -21,6 +21,6 @@ public interface SettlementItemRepository {
 
     long countBySellerIdAndStatus(Long sellerId, SettlementItemStatus status);
 
-    // 정산 실행이 묶음 안에서 충돌(버전 · 유니크)을 바로 드러내 그 판매자만 건너뛰게 한다
+    // 정산 실행이 묶음 안에서 충돌(버전, 유니크)을 바로 드러내 그 판매자만 건너뛰게 한다
     void flush();
 }

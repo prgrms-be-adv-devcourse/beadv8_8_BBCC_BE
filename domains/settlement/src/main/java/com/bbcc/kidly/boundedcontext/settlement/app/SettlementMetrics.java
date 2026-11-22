@@ -19,7 +19,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 정산 지급이 어디서 멈추는지 보는 Micrometer 지표. 지표 이름 · 태그는 이 클래스에만 둔다(Prometheus에서 소문자 snake_case).
+ * 지표 이름과 태그는 이 클래스에만 둔다.
  */
 @Component
 public class SettlementMetrics {

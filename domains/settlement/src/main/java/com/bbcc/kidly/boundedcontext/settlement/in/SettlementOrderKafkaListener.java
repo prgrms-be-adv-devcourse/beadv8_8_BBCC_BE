@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.order.events에서 order-item.purchase-confirmed를 받아 정산 대상으로 쌓는다. 주문의 다른 종류는 건너뛴다.
  * 같은 주문상품을 다시 받아도 정산 대상은 하나다(SettlementItemService).
  * 스위치(kidly.settlement.kafka.consumer.enabled)가 꺼져 있으면 시작하지 않고, 그때는 Spring 리스너(SettlementOrderEventListener)가 받는다.
  */

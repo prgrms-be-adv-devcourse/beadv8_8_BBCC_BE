@@ -25,7 +25,7 @@ public class AdminSettlementDeadLetterController {
 
     private final SettlementDeadLetterService service;
 
-    // status 기본 OPEN. OPEN · REPROCESSED 밖이면 400
+    // status 기본값은 OPEN이고, OPEN과 REPROCESSED 밖이면 400
     @GetMapping
     public PageResponse<SettlementDeadLetterResponse> list(
         @RequestParam(required = false) String status,
