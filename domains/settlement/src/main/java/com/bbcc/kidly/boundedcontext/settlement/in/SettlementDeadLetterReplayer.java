@@ -23,10 +23,10 @@ public class SettlementDeadLetterReplayer implements SettlementDeadLetterReplay 
     public void replay(Message message) {
         var record = new ConsumerRecord<>(message.sourceTopic(), 0, 0L, message.messageKey(), message.payload());
         if (message.eventType() != null) {
-            record.headers().add(SettlementDeadLetterRecords.EVENT_TYPE, message.eventType().getBytes(UTF_8));
+            record.headers().add(SettlementKafkaListenerConfig.EVENT_TYPE, message.eventType().getBytes(UTF_8));
         }
         if (message.eventId() != null) {
-            record.headers().add(SettlementDeadLetterRecords.EVENT_ID, message.eventId().getBytes(UTF_8));
+            record.headers().add(SettlementKafkaListenerConfig.EVENT_ID, message.eventId().getBytes(UTF_8));
         }
         switch (message.sourceTopic()) {
             case SettlementKafkaListenerConfig.ORDER_EVENTS -> orderListener.on(record);

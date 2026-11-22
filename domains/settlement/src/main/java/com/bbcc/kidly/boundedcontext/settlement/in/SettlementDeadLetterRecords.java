@@ -13,16 +13,13 @@ import org.springframework.kafka.support.KafkaHeaders;
  */
 final class SettlementDeadLetterRecords {
 
-    static final String EVENT_TYPE = "eventType";
-    static final String EVENT_ID = "eventId";
-
     private SettlementDeadLetterRecords() {
     }
 
     static Received from(ConsumerRecord<String, String> record) {
         String source = header(record, KafkaHeaders.DLT_ORIGINAL_TOPIC);
         if (source == null) {
-            String suffix = SettlementDeadLetterKafkaListenerConfig.DLT_SUFFIX;
+            String suffix = SettlementKafkaListenerConfig.DLT_SUFFIX;
             source = record.topic().endsWith(suffix)
                 ? record.topic().substring(0, record.topic().length() - suffix.length()) : record.topic();
         }
@@ -30,7 +27,8 @@ final class SettlementDeadLetterRecords {
         return new Received(record.topic(), record.partition(), record.offset(), clip(source, 100),
             partition(record.headers().lastHeader(KafkaHeaders.DLT_ORIGINAL_PARTITION)),
             offset(record.headers().lastHeader(KafkaHeaders.DLT_ORIGINAL_OFFSET)), clip(record.key(), 100),
-            clip(header(record, EVENT_TYPE), 100), clip(header(record, EVENT_ID), 100), record.value(),
+            clip(header(record, SettlementKafkaListenerConfig.EVENT_TYPE), 100),
+            clip(header(record, SettlementKafkaListenerConfig.EVENT_ID), 100), record.value(),
             clip(cause == null ? header(record, KafkaHeaders.DLT_EXCEPTION_FQCN) : cause, 255));
     }
 

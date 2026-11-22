@@ -35,8 +35,8 @@ public class SettlementDeadLetterKafkaListener {
             if (service.receive(SettlementDeadLetterRecords.from(record))) {
                 log.error("정산 DLT 보관: topic={} partition={} offset={} eventType={} eventId={}",
                     record.topic(), record.partition(), record.offset(),
-                    SettlementDeadLetterRecords.header(record, SettlementDeadLetterRecords.EVENT_TYPE),
-                    SettlementDeadLetterRecords.header(record, SettlementDeadLetterRecords.EVENT_ID));
+                    SettlementDeadLetterRecords.header(record, SettlementKafkaListenerConfig.EVENT_TYPE),
+                    SettlementDeadLetterRecords.header(record, SettlementKafkaListenerConfig.EVENT_ID));
             }
             failingPosition.compareAndSet(position, null);
         } catch (RuntimeException e) {

@@ -42,7 +42,9 @@ class SettlementKafkaListenerConfig {
     static final String PAYMENT_EVENTS = "kidly.payment.events";
     static final String GROUP = "kidly.settlement";
     static final String AUTO_STARTUP = "${kidly.settlement.kafka.consumer.enabled:true}";
-    private static final String DLT_SUFFIX = ".settlement.dlt";
+    static final String DLT_SUFFIX = ".settlement.dlt";
+    static final String EVENT_TYPE = "eventType";
+    static final String EVENT_ID = "eventId";
 
     @Bean
     NewTopic settlementOrderEventsDeadLetterTopic() {
@@ -54,17 +56,11 @@ class SettlementKafkaListenerConfig {
         return TopicBuilder.name(PAYMENT_EVENTS + DLT_SUFFIX).partitions(1).replicas(1).build();
     }
 
-    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
     @Bean
     ConcurrentKafkaListenerContainerFactory<Object, Object> settlementKafkaListenerContainerFactory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory,
         ProducerFactory<String, String> producerFactory, SettlementMetrics metrics) {
-        var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
-        configurer.configure(factory, consumerFactory);
-        factory.getContainerProperties().setAckMode(AckMode.RECORD);
-        // 팩토리의 kafkaConsumerProperties는 만들어지는 컨테이너로 복사되지 않아 컨테이너마다 넣는다(ConsumerFactory는 그대로)
-        factory.setContainerCustomizer(container -> container.getContainerProperties().getKafkaConsumerProperties()
-            .setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"));
+        var factory = newListenerFactory(configurer, consumerFactory);
         var deadLetter = new DeadLetterPublishingRecoverer(deadLetterTemplate(producerFactory),
             (record, e) -> new TopicPartition(record.topic() + DLT_SUFFIX, 0));
         factory.setCommonErrorHandler(errorHandler((record, e) -> {
@@ -72,6 +68,18 @@ class SettlementKafkaListenerConfig {
             metrics.countDeadLetter(record.topic());
             deadLetter.accept(record, e);
         }));
+        return factory;
+    }
+
+    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
+    static ConcurrentKafkaListenerContainerFactory<Object, Object> newListenerFactory(
+        ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory) {
+        var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
+        configurer.configure(factory, consumerFactory);
+        factory.getContainerProperties().setAckMode(AckMode.RECORD);
+        // 팩토리의 kafkaConsumerProperties는 만들어지는 컨테이너로 복사되지 않아 컨테이너마다 넣는다(ConsumerFactory는 그대로)
+        factory.setContainerCustomizer(container -> container.getContainerProperties().getKafkaConsumerProperties()
+            .setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"));
         return factory;
     }
 
@@ -94,7 +102,7 @@ class SettlementKafkaListenerConfig {
     private static void logDeadLetter(ConsumerRecord<?, ?> record, Exception e) {
         var exception = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
         log.error("처리하지 못한 이벤트를 DLT로 보냅니다. topic={} eventType={} eventId={} key={} exception={}",
-            record.topic(), header(record, "eventType"), header(record, "eventId"), record.key(), exception);
+            record.topic(), header(record, EVENT_TYPE), header(record, EVENT_ID), record.key(), exception);
     }
 
     private static String header(ConsumerRecord<?, ?> record, String name) {
@@ -104,7 +112,7 @@ class SettlementKafkaListenerConfig {
 
     // eventType이 없으면 어떤 메시지인지 알 수 없다. 다시 해도 같으므로 재시도 없이 DLT로 보낸다
     static String eventType(ConsumerRecord<?, ?> record) {
-        var eventType = header(record, "eventType");
+        var eventType = header(record, EVENT_TYPE);
         if (eventType == null) {
             throw new IllegalStateException("eventType 헤더가 없습니다");
         }
