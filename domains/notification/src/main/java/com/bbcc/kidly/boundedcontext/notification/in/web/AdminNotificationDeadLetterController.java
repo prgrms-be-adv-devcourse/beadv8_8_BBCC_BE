@@ -15,9 +15,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * /api/v1/admin/** 라 관리자 주체만 호출할 수 있다.
- */
 @RestController
 @RequestMapping("/api/v1/admin/notification-dead-letters")
 @RequiredArgsConstructor
@@ -38,9 +35,6 @@ public class AdminNotificationDeadLetterController {
         return NotificationDeadLetterResponse.from(service.get(id));
     }
 
-    /**
-     * 처리 실패도 200/OPEN으로 이력을 반환한다. 이미 성공했으면 재실행 없이 200이다.
-     */
     @PostMapping("/{id}/reprocess")
     public NotificationDeadLetterResponse reprocess(@PathVariable Long id, @LoginAdmin AuthAdmin admin) {
         return NotificationDeadLetterResponse.from(service.reprocess(id, admin.id()));

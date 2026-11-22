@@ -25,7 +25,7 @@ public interface JpaNotificationRepository extends JpaRepository<Notification, L
                                         @Param("sendingBefore") LocalDateTime sendingBefore,
                                         @Param("limit") int limit);
 
-    // 대량 UPDATE는 엔티티를 거치지 않으므로 수정 시각 · 버전을 직접 바꾸고, 영속성 컨텍스트에 남은 옛 값을 비운다
+    // 대량 UPDATE는 엔티티를 거치지 않으므로 수정 시각, 버전을 직접 바꾸고, 영속성 컨텍스트에 남은 옛 값을 비운다
     @Override
     @Modifying(clearAutomatically = true)
     @Query("""

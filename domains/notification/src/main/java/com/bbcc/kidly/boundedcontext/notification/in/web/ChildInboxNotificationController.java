@@ -21,10 +21,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-/**
- * 자녀 알림함 API. 모두 자녀 로그인 필요(받는 사람 = 자녀 계정). 회원 알림함과 같은 응답 · 규칙이고,
- * 자녀 계정의 알림만 보고 바꾼다. 오류: 404 NOTIFICATION_NOT_FOUND.
- */
 @RestController
 @RequestMapping("/api/v1/child/notifications")
 @RequiredArgsConstructor
@@ -42,10 +38,6 @@ public class ChildInboxNotificationController {
             inboxNotificationService.findMine(principal(child), page, size).map(InboxNotificationResponse::from));
     }
 
-    /**
-     * 안 읽은 알림 수 SSE(이벤트 이름 unread-count, 데이터는 unread-count 응답과 같다). 연결하면 지금 수를, 바뀌면 새 수를 보낸다.
-     * 30초마다 주석(:ping)을 보내고 30분 뒤 닫는다. 화면은 끊기면 다시 연결한다.
-     */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamUnreadCount(@LoginChild AuthChild child) {
         return unreadCountStream.open(principal(child));
@@ -56,18 +48,12 @@ public class ChildInboxNotificationController {
         return new UnreadCountResponse(inboxNotificationService.countUnread(principal(child)));
     }
 
-    /**
-     * 읽음 처리. 204. 이미 읽었어도 204.
-     */
     @PatchMapping("/{notificationId}/read")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void read(@LoginChild AuthChild child, @PathVariable Long notificationId) {
         inboxNotificationService.read(principal(child), notificationId);
     }
 
-    /**
-     * 내 안 읽은 알림을 모두 읽음 처리. 204. 안 읽은 알림이 없어도 204.
-     */
     @PatchMapping("/read-all")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void readAll(@LoginChild AuthChild child) {

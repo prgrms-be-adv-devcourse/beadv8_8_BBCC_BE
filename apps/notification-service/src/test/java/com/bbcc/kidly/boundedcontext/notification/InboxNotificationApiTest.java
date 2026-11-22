@@ -326,7 +326,7 @@ class InboxNotificationApiTest {
             "SELECT read_at FROM notification.inbox WHERE dedup_key = ?", Object.class, dedupKey);
     }
 
-    // Gateway가 붙이는 자녀 헤더(자녀 계정 ID · 보호자 회원 ID)
+    // Gateway가 붙이는 자녀 헤더(자녀 계정 ID, 보호자 회원 ID)
     private static Consumer<HttpHeaders> child(long accountId) {
         return headers -> {
             headers.set(PrincipalHeaders.CHILD_ACCOUNT_ID, String.valueOf(accountId));

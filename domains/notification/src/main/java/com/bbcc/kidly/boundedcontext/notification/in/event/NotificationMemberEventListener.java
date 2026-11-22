@@ -35,7 +35,7 @@ public class NotificationMemberEventListener {
             case "member.registered" -> onRegistered(jsonMapper.readValue(record.value(), MemberRegisteredEvent.class));
             case "member.suspended" -> onSuspended(jsonMapper.readValue(record.value(), MemberSuspendedEvent.class));
             case "member.withdrawn" -> onWithdrawn(jsonMapper.readValue(record.value(), MemberWithdrawnEvent.class));
-            default -> { }  // 알림이 받지 않는 종류
+            default -> { }
         }
     }
 

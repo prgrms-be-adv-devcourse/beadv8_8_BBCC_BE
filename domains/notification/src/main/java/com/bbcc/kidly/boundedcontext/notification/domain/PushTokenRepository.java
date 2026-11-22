@@ -7,7 +7,7 @@ import java.util.List;
 public interface PushTokenRepository {
 
     /**
-     * FID를 이 회원의 것으로 등록한다. 이미 있으면 주인 · 마지막 등록 시각을 바꾼다(같은 FID는 한 건).
+     * FID를 이 회원의 것으로 등록한다. 이미 있으면 주인, 마지막 등록 시각을 바꾼다(같은 FID는 한 건).
      */
     void register(Long memberId, String fid, LocalDateTime now);
 
@@ -21,8 +21,5 @@ public interface PushTokenRepository {
 
     int deleteRegisteredBefore(LocalDateTime cutoff);
 
-    /**
-     * 마지막 등록이 최근인 순서.
-     */
     List<String> findFidsOf(Long memberId);
 }

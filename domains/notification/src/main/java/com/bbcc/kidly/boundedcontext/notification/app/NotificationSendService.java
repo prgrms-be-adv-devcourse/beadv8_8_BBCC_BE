@@ -38,11 +38,9 @@ public class NotificationSendService {
      */
     @Transactional
     public Optional<OutgoingMessage> start(Long notificationId) {
-        Optional<Notification> found = notificationRepository.findById(notificationId);
-        if (found.isEmpty() || !found.get().startSending(LocalDateTime.now())) {
-            return Optional.empty();
-        }
-        return createMessage(found.get());
+        return notificationRepository.findById(notificationId)
+            .filter(notification -> notification.startSending(LocalDateTime.now()))
+            .flatMap(this::createMessage);
     }
 
     /**
@@ -98,9 +96,6 @@ public class NotificationSendService {
             .orElse(false);
     }
 
-    /**
-     * 다시 시도할 때는 남은 FID를 다시 찾아 보낸다.
-     */
     @Transactional
     public boolean recordPushResult(Long notificationId, PushSendResult result) {
         var invalidFids = result.fidsToDelete();

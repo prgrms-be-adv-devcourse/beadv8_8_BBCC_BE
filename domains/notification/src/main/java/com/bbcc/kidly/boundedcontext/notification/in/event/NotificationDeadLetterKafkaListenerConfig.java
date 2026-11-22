@@ -32,7 +32,7 @@ class NotificationDeadLetterKafkaListenerConfig {
     static final String AUTH_EVENTS_DLT = NotificationKafkaListenerConfig.AUTH_EVENTS + DLT_SUFFIX;
     private static final long MAX_RETRY_INTERVAL_MS = 60_000L;
 
-    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키 · 본문은 앱 설정대로 String이다
+    // configurer가 <Object, Object> 팩토리만 받으므로 타입 인자를 맞춘다. 키, 본문은 앱 설정대로 String이다
     @Bean(FACTORY)
     ConcurrentKafkaListenerContainerFactory<Object, Object> notificationDeadLetterKafkaListenerContainerFactory(
         ConcurrentKafkaListenerContainerFactoryConfigurer configurer, ConsumerFactory<Object, Object> consumerFactory) {
@@ -45,7 +45,7 @@ class NotificationDeadLetterKafkaListenerConfig {
         var backOff = new ExponentialBackOff(1000L, 2.0);
         backOff.setMaxInterval(MAX_RETRY_INTERVAL_MS);
         var errorHandler = new DefaultErrorHandler(backOff);
-        // 모든 예외를 재시도한다. 실패 로그는 리스너가 본문 · 예외 메시지 없이 남기므로 처리기 로그는 낮춘다
+        // 모든 예외를 재시도한다. 실패 로그는 리스너가 본문, 예외 메시지 없이 남기므로 처리기 로그는 낮춘다
         errorHandler.setClassifications(Map.of(), true);
         errorHandler.setLogLevel(KafkaException.Level.TRACE);
         factory.setCommonErrorHandler(errorHandler);

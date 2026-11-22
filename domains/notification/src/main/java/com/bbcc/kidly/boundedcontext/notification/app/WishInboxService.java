@@ -29,7 +29,7 @@ public class WishInboxService {
     @Transactional
     public void addWishSent(WishSentCommand command) {
         var firstProductName = findFirstProductName(command.productIds());
-        var content = WishInbox.compose(firstProductName, command.productIds().size());
+        var content = WishInbox.sent(firstProductName, command.productIds().size());
         inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
             NotificationType.WISH_SENT, content.title(), content.body(),
             "/my/children/%d/wishes/%d".formatted(command.childId(), command.wishRequestId()),
@@ -39,28 +39,28 @@ public class WishInboxService {
     @Transactional
     public void addWishPaid(ChildWishCommand command) {
         addToChild(command.wishRequestId(), command.childProfileId(), NotificationType.WISH_PAID, "wish.paid:",
-            ChildWishInbox.paid(findFirstProductName(command.productIds()), command.productIds().size()));
+            WishInbox.paid(findFirstProductName(command.productIds()), command.productIds().size()));
     }
 
     @Transactional
     public void addWishRejected(WishRejectedCommand command) {
         addToChild(command.wishRequestId(), command.childProfileId(), NotificationType.WISH_REJECTED,
-            "wish.rejected:", ChildWishInbox.rejected(command.reason(),
+            "wish.rejected:", WishInbox.rejected(command.reason(),
                 findFirstProductName(command.productIds()), command.productIds().size()));
     }
 
     @Transactional
     public void addWishExpired(ChildWishCommand command) {
         addToChild(command.wishRequestId(), command.childProfileId(), NotificationType.WISH_EXPIRED, "wish.expired:",
-            ChildWishInbox.expired(findFirstProductName(command.productIds()), command.productIds().size()));
+            WishInbox.expired(findFirstProductName(command.productIds()), command.productIds().size()));
     }
 
     /**
      * 활성 계정이 없으면(만들지 않았거나 지웠거나, 계정 이벤트가 아직 안 왔으면)
-     * 넣지 않고 ID만 INFO로 남긴다. 계정이 없는 자녀가 정상이라 재시도 · DLT로 보내지 않는다.
+     * 넣지 않고 ID만 INFO로 남긴다. 계정이 없는 자녀가 정상이라 재시도, DLT로 보내지 않는다.
      */
     private void addToChild(Long wishRequestId, Long childProfileId, NotificationType type, String keyPrefix,
-        ChildWishInbox content) {
+        WishInbox content) {
         childAccountService.findActiveAccountId(childProfileId).ifPresentOrElse(accountId ->
                 inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.child(accountId), type,
                     content.title(), content.body(), "/child/wishes/" + wishRequestId, keyPrefix + wishRequestId)),

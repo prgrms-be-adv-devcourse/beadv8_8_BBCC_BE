@@ -10,8 +10,8 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
 /**
- * 인증 실패 · 주소 형식 오류는 다시 보내도 같아서 재시도하지 않고, 그 밖의 메일 오류(연결 실패 · 일시 오류 · 한도 초과)는 재시도한다.
- * SMTP 오류 메시지에는 받는 사람 주소가 들어 있을 수 있어 그대로 넘기지 않고 고정된 사유만 담는다(DB · 로그에 주소를 남기지 않는다).
+ * 인증 실패, 주소 형식 오류는 다시 보내도 같아서 재시도하지 않고, 그 밖의 메일 오류(연결 실패, 일시 오류, 한도 초과)는 재시도한다.
+ * SMTP 오류 메시지에는 받는 사람 주소가 들어 있을 수 있어 그대로 넘기지 않고 고정된 사유만 담는다(DB, 로그에 주소를 남기지 않는다).
  */
 public class SmtpEmailSender implements NotificationEmailSender {
 

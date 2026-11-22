@@ -54,15 +54,14 @@ public class NotificationDeadLetterService {
             .orElseThrow(() -> new BusinessException(NotificationErrorCode.DEAD_LETTER_NOT_FOUND));
     }
 
-    // 트랜잭션을 걸지 않는다: 반영은 원래 처리기의 트랜잭션, 결과 기록은 저장소의 짧은 조건부 UPDATE다
     public Summary reprocess(Long id, Long adminId) {
         var target = repository.findForReplay(id)
             .orElseThrow(() -> new BusinessException(NotificationErrorCode.DEAD_LETTER_NOT_FOUND));
         if (target.state() == State.REPROCESSED) {
             return get(id);
         }
-        // 두 관리자가 동시에 재처리하면 처리기가 두 번 돌 수 있다. 처리기는 멱등하다: 메일 · 푸시는 이벤트 키 · 채널로, 알림함은 중복 키로 한 건이다.
-        // 재처리는 원래 순서를 뒤집을 수 있다. 판매자 · 상품 복사본은 더 새로운 변경만 반영하고(changeIfNewer · applyIfNewer),
+        // 두 관리자가 동시에 재처리하면 처리기가 두 번 돌 수 있다. 처리기는 멱등하다: 메일, 푸시는 이벤트 키, 채널로, 알림함은 중복 키로 한 건이다.
+        // 재처리는 원래 순서를 뒤집을 수 있다. 판매자, 상품 복사본은 더 새로운 변경만 반영하고(changeIfNewer, applyIfNewer),
         // 자녀 계정은 삭제 한 방향이며, 탈퇴한 회원의 가입은 탈퇴 표시로 건너뛴다(MemberWithdrawalService).
         // 기록은 markReprocessed의 조건부 UPDATE로 한 번만 남는다
         try {

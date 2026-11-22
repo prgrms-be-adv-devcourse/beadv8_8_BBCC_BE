@@ -11,7 +11,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.util.StringUtils;
 
 /**
- * 켜져 있어도 SMTP 계정(MAIL_USERNAME · MAIL_PASSWORD)이 없으면 앱은 그대로 띄우고 로그 발송기를 쓴다 (계정이 없는 로컬 · 서버)
+ * 켜져 있어도 SMTP 계정(MAIL_USERNAME, MAIL_PASSWORD)이 없으면 앱은 그대로 띄우고 로그 발송기를 쓴다 (계정이 없는 로컬, 서버)
  */
 @Slf4j
 @Configuration

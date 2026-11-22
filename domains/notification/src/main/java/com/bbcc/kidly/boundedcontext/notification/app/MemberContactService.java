@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 /**
  * 같은 가입 이벤트를 다시 받아도 한 건만 둔다.
@@ -21,10 +22,9 @@ public class MemberContactService {
     private final MemberContactRepository memberContactRepository;
     private final WithdrawnMemberRepository withdrawnMemberRepository;
 
-    // 이메일 없이 가입한 회원 · 탈퇴한 회원은 저장하지 않는다. 이미 있으면 그대로 둔다(이메일은 바뀌지 않는다)
     @Transactional
     public void save(Long memberId, String email) {
-        if (email == null || email.isBlank() || memberContactRepository.existsById(memberId)
+        if (!StringUtils.hasText(email) || memberContactRepository.existsById(memberId)
             || withdrawnMemberRepository.exists(memberId)) {
             return;
         }

@@ -18,7 +18,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * kidly-app이 알림을 가지고 있는 동안 쓰던 DB(dev · prod · 공유 로컬)에는 kidly-app이 baseline 버전까지의 알림 테이블을 이미 만들어 두었다.
+ * kidly-app이 알림을 가지고 있는 동안 쓰던 DB(dev, prod, 공유 로컬)에는 kidly-app이 baseline 버전까지의 알림 테이블을 이미 만들어 두었다.
  * 그런 DB에서는 baseline을 잡고 그 뒤에 더한 알림 마이그레이션(도메인 모듈의 db/migration/notification)만 적용해,
  * 빈 DB에서 처음부터 적용한 것과 스키마가 같아야 한다.
  * 서비스가 뜨기 전의 DB를 만들어야 하므로 스프링 컨텍스트(@IntegrationTest) 없이 Flyway를 직접 돌린다.
@@ -74,7 +74,7 @@ class NotificationMigrationIntegrationTest {
             postgres.getUsername(), postgres.getPassword());
     }
 
-    // kidly-app이 적용한 알림 마이그레이션은 이 서비스의 baseline 버전 파일과 같은 버전 · 구문이다.
+    // kidly-app이 적용한 알림 마이그레이션은 이 서비스의 baseline 버전 파일과 같은 버전, 구문이다.
     // baseline 버전까지만 적용하고 그 이력은 지워 kidly-app이 만든 상태로 둔다
     private static void createNotificationTablesLikeKidlyApp(DriverManagerDataSource dataSource, JdbcTemplate jdbc) {
         Flyway.configure()

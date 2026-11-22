@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
+import org.springframework.util.StringUtils;
+
 public record ApplicationRejectedEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 판매자 신청이 거절됐어요";
@@ -7,7 +9,7 @@ public record ApplicationRejectedEmail(String title, String body) implements Ema
     private static final String REASON = "\n거절 사유: %s\n";
 
     public static ApplicationRejectedEmail compose(String reason) {
-        var hasReason = reason != null && !reason.isBlank();
-        return new ApplicationRejectedEmail(TITLE, hasReason ? BODY + REASON.formatted(reason.strip()) : BODY);
+        return new ApplicationRejectedEmail(TITLE,
+            StringUtils.hasText(reason) ? BODY + REASON.formatted(reason.strip()) : BODY);
     }
 }

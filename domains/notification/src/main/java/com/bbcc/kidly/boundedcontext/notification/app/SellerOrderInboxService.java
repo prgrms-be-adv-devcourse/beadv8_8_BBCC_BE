@@ -6,7 +6,6 @@ import com.bbcc.kidly.boundedcontext.notification.domain.InboxNotificationInfo;
 import com.bbcc.kidly.boundedcontext.notification.domain.InboxRecipient;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,9 +29,9 @@ public class SellerOrderInboxService {
         var itemsBySeller = command.items().stream()
             .collect(Collectors.groupingBy(OrderPaidCommand.Item::sellerId, LinkedHashMap::new, Collectors.toList()));
         itemsBySeller.forEach((sellerId, items) -> {
-            var inbox = new InboxNotificationInfo(
-                InboxRecipient.member(sellerId), NotificationType.SELLER_ORDER_PAID, "새 주문이 들어왔어요",
-                orderPaidBody(items), null,
+            var content = OrderPaidInbox.seller(items);
+            var inbox = new InboxNotificationInfo(InboxRecipient.member(sellerId), NotificationType.SELLER_ORDER_PAID,
+                content.title(), content.body(), null,
                 "order.paid:%d:%d".formatted(command.orderId(), sellerId));
             inboxNotificationService.add(inbox);
             notificationService.createPush(inbox);
@@ -48,11 +47,5 @@ public class SellerOrderInboxService {
         inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(command.sellerId()),
             NotificationType.SELLER_PURCHASE_CONFIRMED, "구매가 확정됐어요", body, null,
             "order-item.purchase-confirmed:" + command.orderItemId()));
-    }
-
-    private static String orderPaidBody(List<OrderPaidCommand.Item> items) {
-        var first = items.getFirst().productName();
-        var name = items.size() == 1 ? first : "%s 외 %d건".formatted(first, items.size() - 1);
-        return "%s 주문이 결제됐어요. 발송을 준비해 주세요.".formatted(name);
     }
 }

@@ -7,9 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 로그에 FID를 남기지 않는다.
- */
 @Service
 @RequiredArgsConstructor
 public class PushTokenService {

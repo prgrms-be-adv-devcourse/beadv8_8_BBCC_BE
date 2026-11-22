@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class JdbcWithdrawnMemberRepository implements WithdrawnMemberRepository {
 
-    // 잠금 키 접두어. 다른 advisory lock은 'kidly.{도메인}.{작업}' 문자열의 해시를 키로 쓴다(주문 · 정산 · 결제 릴레이 등).
+    // 잠금 키 접두어. 다른 advisory lock은 'kidly.{도메인}.{작업}' 문자열의 해시를 키로 쓴다(주문, 정산, 결제 릴레이 등).
     // 알림 전용 접두어에 회원 ID를 붙여 64비트로 해시하므로 그 키들과 겹치지 않는다. 회원끼리 해시가 겹치면 잠깐 더 기다릴 뿐이다
     private static final String LOCK_KEY_PREFIX = "kidly.notification.member-withdrawal:";
 

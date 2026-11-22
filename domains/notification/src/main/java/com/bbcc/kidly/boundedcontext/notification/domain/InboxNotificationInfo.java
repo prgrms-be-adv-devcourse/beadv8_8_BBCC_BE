@@ -1,9 +1,5 @@
 package com.bbcc.kidly.boundedcontext.notification.domain;
 
-/**
- * 제목 · 본문은 완성된 문구다.
- * dedupKey는 같은 일로 두 번 넣지 않기 위한 키다(예: 받은 이벤트 ID와 유형). linkPath는 없으면 null.
- */
 public record InboxNotificationInfo(
     InboxRecipient recipient,
     NotificationType type,

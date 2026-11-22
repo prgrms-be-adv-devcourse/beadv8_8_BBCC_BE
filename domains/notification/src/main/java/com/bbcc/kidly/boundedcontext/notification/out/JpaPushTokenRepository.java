@@ -12,7 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 public interface JpaPushTokenRepository extends JpaRepository<PushToken, Long>, PushTokenRepository {
 
     // 찾은 뒤 저장하면 같은 FID가 동시에 오면 유니크 위반 예외가 난다. DB가 넣거나 고치게 한다.
-    // 네이티브라 생성 · 수정 시각을 직접 넣는다
+    // 네이티브라 생성, 수정 시각을 직접 넣는다
     @Override
     @Modifying
     @Query(value = """

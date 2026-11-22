@@ -19,8 +19,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 판매자에게 관리자 판매 중지 · 옵션 품절을 알리려고 마지막으로 본 판매 상태도 두고, 바뀐 것을 알려 준다.
- * 발생 시각은 DB 정밀도(마이크로초)로 잘라 저장 · 비교한다. 자르지 않으면 같은 메시지를 다시 받았을 때 늦은 이벤트로 보인다.
+ * 판매자에게 관리자 판매 중지, 옵션 품절을 알리려고 마지막으로 본 판매 상태도 두고, 바뀐 것을 알려 준다.
+ * 발생 시각은 DB 정밀도(마이크로초)로 잘라 저장, 비교한다. 자르지 않으면 같은 메시지를 다시 받았을 때 늦은 이벤트로 보인다.
  */
 @Entity
 @Table(schema = "notification", name = "product_name")

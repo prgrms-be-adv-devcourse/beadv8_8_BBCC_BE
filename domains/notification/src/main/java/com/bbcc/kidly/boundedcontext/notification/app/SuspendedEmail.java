@@ -1,5 +1,7 @@
 package com.bbcc.kidly.boundedcontext.notification.app;
 
+import org.springframework.util.StringUtils;
+
 public record SuspendedEmail(String title, String body) implements EmailContent {
 
     private static final String TITLE = "[Kidly] 계정 이용이 정지됐어요";
@@ -7,7 +9,6 @@ public record SuspendedEmail(String title, String body) implements EmailContent 
     private static final String REASON = "\n정지 사유: %s\n";
 
     public static SuspendedEmail compose(String reason) {
-        var hasReason = reason != null && !reason.isBlank();
-        return new SuspendedEmail(TITLE, hasReason ? BODY + REASON.formatted(reason.strip()) : BODY);
+        return new SuspendedEmail(TITLE, StringUtils.hasText(reason) ? BODY + REASON.formatted(reason.strip()) : BODY);
     }
 }

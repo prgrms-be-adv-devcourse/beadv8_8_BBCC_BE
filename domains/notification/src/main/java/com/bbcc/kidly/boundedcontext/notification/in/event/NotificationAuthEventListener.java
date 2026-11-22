@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.auth.events에서 자녀 계정 생성 · 삭제를 받아 자녀 계정 복사본을 갱신한다(자녀 알림함 받는 사람을 찾는 데 쓴다).
+ * kidly.auth.events에서 자녀 계정 생성, 삭제를 받아 자녀 계정 복사본을 갱신한다(자녀 알림함 받는 사람을 찾는 데 쓴다).
  * 이 구독 그룹은 이 토픽을 처음 읽으므로 책갈피가 없다. 앱 기본값(latest)이면 구독 전에 만든 계정을 모르므로
  * 이 리스너만 처음부터 읽는다. 같은 메시지를 다시 받아도 결과가 같다(ChildAccountService).
  */
