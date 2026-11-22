@@ -24,7 +24,7 @@ public class SettlementOutboxCleanupScheduler {
     @Scheduled(cron = "${kidly.settlement.outbox.cleanup-cron}", zone = "Asia/Seoul")
     public void cleanUp() {
         try {
-            int deleted = cleanupService.cleanUp();
+            var deleted = cleanupService.cleanUp();
             log.info("정산 아웃박스 정리: deleted={} retention={}", deleted, properties.retention());
         } catch (RuntimeException e) {
             log.warn("정산 아웃박스 정리가 예외로 끝났습니다. error={}", e.getClass().getSimpleName());

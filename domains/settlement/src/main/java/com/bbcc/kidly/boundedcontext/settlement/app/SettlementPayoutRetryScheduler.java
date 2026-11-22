@@ -47,7 +47,7 @@ public class SettlementPayoutRetryScheduler {
             Limit.of(BATCH_SIZE));
         // 한 번에 다 채우지 못했으면 끝에 닿은 것이라 다음 실행은 처음부터 찾는다
         nextAfterId = stuck.size() < BATCH_SIZE ? 0L : stuck.getLast().getId();
-        int requested = 0;
+        var requested = 0;
         for (var settlement : stuck) {
             if (retry(settlement.getId())) {
                 requested++;

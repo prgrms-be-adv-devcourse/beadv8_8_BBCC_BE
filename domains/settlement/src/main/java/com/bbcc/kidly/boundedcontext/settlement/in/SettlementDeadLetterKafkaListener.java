@@ -30,7 +30,7 @@ public class SettlementDeadLetterKafkaListener {
             SettlementDeadLetterKafkaListenerConfig.PAYMENT_EVENTS_DLT},
         autoStartup = SettlementKafkaListenerConfig.AUTO_STARTUP)
     public void on(ConsumerRecord<String, String> record) {
-        String position = record.topic() + "-" + record.partition() + "@" + record.offset();
+        var position = record.topic() + "-" + record.partition() + "@" + record.offset();
         try {
             if (service.receive(SettlementDeadLetterRecords.from(record))) {
                 log.error("정산 DLT 보관: topic={} partition={} offset={} eventType={} eventId={}",
@@ -40,7 +40,7 @@ public class SettlementDeadLetterKafkaListener {
             }
             failingPosition.compareAndSet(position, null);
         } catch (RuntimeException e) {
-            String type = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
+            var type = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
             if (position.equals(failingPosition.getAndSet(position))) {
                 log.debug("정산 DLT 보관 재시도: position={} exception={}", position, type);
             } else {

@@ -46,7 +46,7 @@ class SettlementKafkaConfig {
     // acks=all · 멱등은 앱 spring.kafka에도 있지만, 정산 서비스를 따로 띄울 때도 같게 여기서 정한다
     @Bean
     SettlementEventSender settlementEventSender(ProducerFactory<String, String> producerFactory) {
-        KafkaTemplate<String, String> kafkaTemplate = new KafkaTemplate<>(producerFactory, Map.of(
+        var kafkaTemplate = new KafkaTemplate<String, String>(producerFactory, Map.of(
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
             ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
             ProducerConfig.ACKS_CONFIG, "all",

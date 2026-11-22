@@ -29,8 +29,8 @@ public class KafkaSettlementEventSender implements SettlementEventSender, Dispos
 
     @Override
     public void send(SettlementOutboxMessage message) {
-        ProducerRecord<String, String> record =
-            new ProducerRecord<>(message.getTopic(), message.getMessageKey(), message.getPayload());
+        var record = new ProducerRecord<String, String>(
+            message.getTopic(), message.getMessageKey(), message.getPayload());
         record.headers()
             .add("eventType", message.getEventType().getBytes(UTF_8))
             .add("eventId", message.getEventId().toString().getBytes(UTF_8));
@@ -43,7 +43,7 @@ public class KafkaSettlementEventSender implements SettlementEventSender, Dispos
             throw failure(message, "응답 대기 중 인터럽트", e);
         } catch (ExecutionException | RuntimeException e) {
             // 보내기 전 실패는 "Send failed", 보낸 뒤 실패는 "Failed to send"로 Spring이 감싸 원인이 없으므로 Kafka 클라이언트 예외를 꺼낸다
-            Throwable cause = kafkaClientCause(e);
+            var cause = kafkaClientCause(e);
             throw failure(message, cause.getMessage(), cause);
         }
     }

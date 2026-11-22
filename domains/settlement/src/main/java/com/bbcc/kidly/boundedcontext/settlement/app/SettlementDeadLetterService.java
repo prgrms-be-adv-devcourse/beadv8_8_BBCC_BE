@@ -48,7 +48,7 @@ public class SettlementDeadLetterService {
         } catch (IllegalArgumentException e) {
             throw new BusinessException(SettlementErrorCode.INVALID_DEAD_LETTER_STATE);
         }
-        PageRequest pageable = PageRequest.of(page, size);
+        var pageable = PageRequest.of(page, size);
         return pageable.getOffset() > Integer.MAX_VALUE
             ? new PageImpl<>(List.of(), pageable, repository.countByState(requested))
             : repository.findByState(requested, pageable);
@@ -73,7 +73,7 @@ public class SettlementDeadLetterService {
         try {
             replayer.replay(target.message());
         } catch (RuntimeException e) {
-            String failureType = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
+            var failureType = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
             transactionTemplate.executeWithoutResult(status -> {
                 repository.recordReplayFailure(id, adminId, LocalDateTime.now(), failureType);
                 recordAdminAction(id, adminId);

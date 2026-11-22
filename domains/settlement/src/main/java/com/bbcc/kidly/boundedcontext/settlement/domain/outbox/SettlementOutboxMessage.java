@@ -60,7 +60,7 @@ public class SettlementOutboxMessage extends BaseTimeEntity {
      */
     public static SettlementOutboxMessage create(UUID eventId, String eventType, String topic, String messageKey,
         String payload) {
-        SettlementOutboxMessage message = new SettlementOutboxMessage();
+        var message = new SettlementOutboxMessage();
         message.eventId = eventId;
         message.eventType = eventType;
         message.topic = topic;

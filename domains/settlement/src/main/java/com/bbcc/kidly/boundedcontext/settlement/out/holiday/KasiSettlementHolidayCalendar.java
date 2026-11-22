@@ -10,7 +10,6 @@ import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -22,7 +21,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
@@ -61,7 +59,7 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
 
     private byte[] fetch(Year year) {
         try {
-            byte[] body = restClient.get()
+            var body = restClient.get()
                 .uri(PATH, serviceKey, year.getValue())
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (request, response) -> {
@@ -85,8 +83,8 @@ public class KasiSettlementHolidayCalendar implements SettlementHolidayCalendar 
         if (!NORMAL.equals(resultCode)) {
             throw new SettlementHolidayLookupException("공휴일 조회 결과가 정상이 아닙니다: resultCode " + resultCode);
         }
-        Map<LocalDate, String> holidays = new TreeMap<>();
-        NodeList items = root.getElementsByTagName("item");
+        var holidays = new TreeMap<LocalDate, String>();
+        var items = root.getElementsByTagName("item");
         for (int i = 0; i < items.getLength(); i++) {
             var item = (Element) items.item(i);
             if (HOLIDAY.equals(text(item, "isHoliday"))) {

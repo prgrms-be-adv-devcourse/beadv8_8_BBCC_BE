@@ -4,11 +4,9 @@ import com.bbcc.kidly.boundedcontext.settlement.app.SettlementMetrics;
 import com.bbcc.kidly.boundedcontext.settlement.app.outbox.SettlementOutboxRelayResult.Outcome;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementEventSendException;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementEventSender;
-import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxMessage;
 import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxRepository;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,9 +35,9 @@ public class SettlementOutboxRelayService {
         if (!outboxRepository.tryLockRelay()) {
             return new SettlementOutboxRelayResult(Outcome.LOCKED, 0, 0);
         }
-        List<SettlementOutboxMessage> unsent = outboxRepository.findUnsent(properties.batchSize());
-        int sent = 0;
-        for (SettlementOutboxMessage message : unsent) {
+        var unsent = outboxRepository.findUnsent(properties.batchSize());
+        var sent = 0;
+        for (var message : unsent) {
             try {
                 sender.send(message);
             } catch (SettlementEventSendException e) {
@@ -49,7 +47,7 @@ public class SettlementOutboxRelayService {
                     message.getAttemptCount(), e.getMessage());
                 return new SettlementOutboxRelayResult(Outcome.STOPPED, unsent.size(), sent);
             }
-            LocalDateTime now = LocalDateTime.now();
+            var now = LocalDateTime.now();
             message.markSent(now);
             metrics.recordSent(Duration.between(message.getCreatedAt(), now));
             sent++;

@@ -17,13 +17,13 @@ final class SettlementDeadLetterRecords {
     }
 
     static Received from(ConsumerRecord<String, String> record) {
-        String source = header(record, KafkaHeaders.DLT_ORIGINAL_TOPIC);
+        var source = header(record, KafkaHeaders.DLT_ORIGINAL_TOPIC);
         if (source == null) {
-            String suffix = SettlementKafkaListenerConfig.DLT_SUFFIX;
+            var suffix = SettlementKafkaListenerConfig.DLT_SUFFIX;
             source = record.topic().endsWith(suffix)
                 ? record.topic().substring(0, record.topic().length() - suffix.length()) : record.topic();
         }
-        String cause = header(record, KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN);
+        var cause = header(record, KafkaHeaders.DLT_EXCEPTION_CAUSE_FQCN);
         return new Received(record.topic(), record.partition(), record.offset(), clip(source, 100),
             partition(record.headers().lastHeader(KafkaHeaders.DLT_ORIGINAL_PARTITION)),
             offset(record.headers().lastHeader(KafkaHeaders.DLT_ORIGINAL_OFFSET)), clip(record.key(), 100),
@@ -33,7 +33,7 @@ final class SettlementDeadLetterRecords {
     }
 
     static String header(ConsumerRecord<?, ?> record, String name) {
-        Header header = record.headers().lastHeader(name);
+        var header = record.headers().lastHeader(name);
         return header == null || header.value() == null ? null : new String(header.value(), UTF_8);
     }
 
@@ -41,7 +41,7 @@ final class SettlementDeadLetterRecords {
         if (h == null || h.value() == null || h.value().length != Integer.BYTES) {
             return null;
         }
-        int value = ByteBuffer.wrap(h.value()).getInt();
+        var value = ByteBuffer.wrap(h.value()).getInt();
         return value < 0 ? null : value;
     }
 
@@ -49,7 +49,7 @@ final class SettlementDeadLetterRecords {
         if (h == null || h.value() == null || h.value().length != Long.BYTES) {
             return null;
         }
-        long value = ByteBuffer.wrap(h.value()).getLong();
+        var value = ByteBuffer.wrap(h.value()).getLong();
         return value < 0 ? null : value;
     }
 
@@ -57,7 +57,7 @@ final class SettlementDeadLetterRecords {
         if (value == null) {
             return null;
         }
-        String text = value.replace((char) 0, '�').replace('\r', ' ').replace('\n', ' ');
+        var text = value.replace((char) 0, '�').replace('\r', ' ').replace('\n', ' ');
         return text.length() <= max ? text : text.substring(0, max);
     }
 }
