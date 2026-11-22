@@ -14,13 +14,8 @@ import org.springframework.batch.core.step.StepExecution;
 /**
  * @param periodStartOn 이 실행이 만든 정산서 중 가장 이른 시작일. 만든 정산서가 없으면 periodEndOn과 같다
  * @param periodEndOn 기준일 전날
- * @param triggerType SCHEDULED · MANUAL
- * @param status RUNNING · COMPLETED · PARTIAL_FAILED · FAILED
  * @param successCount 정산서를 쓴 판매자 수
  * @param failCount 건너뛴 판매자 수
- * @param requestedBy 수동 실행한 관리자 ID. 자동 실행이면 null
- * @param finishedAt 끝나기 전에는 null
- * @param skippedSellers 건너뛴 판매자. 없으면 빈 목록
  */
 public record SettlementRunResult(Long runId, LocalDateTime cutoffAt, LocalDate periodStartOn, LocalDate periodEndOn,
     String triggerType, String status, int successCount, int failCount, Long requestedBy,
@@ -46,10 +41,6 @@ public record SettlementRunResult(Long runId, LocalDateTime cutoffAt, LocalDate 
         };
     }
 
-    /**
-     * @param phase PROCESS · WRITE
-     * @param reason 예외 이름: 메시지 (200자까지)
-     */
     public record SkippedSeller(Long sellerId, String phase, String reason) {
 
         static SkippedSeller from(SettlementSkip skip) {

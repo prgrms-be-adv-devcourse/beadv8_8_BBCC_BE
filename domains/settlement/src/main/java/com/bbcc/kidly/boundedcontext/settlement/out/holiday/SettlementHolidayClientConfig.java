@@ -12,10 +12,10 @@ class SettlementHolidayClientConfig {
 
     @Bean
     SettlementHolidayCalendar settlementHolidayCalendar(SettlementHolidayProperties properties) {
-        HttpClient httpClient = HttpClient.newBuilder()
+        var httpClient = HttpClient.newBuilder()
             .connectTimeout(properties.connectTimeout())
             .build();
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        var requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(properties.readTimeout());
         return new KasiSettlementHolidayCalendar(RestClient.builder().requestFactory(requestFactory), properties);
     }

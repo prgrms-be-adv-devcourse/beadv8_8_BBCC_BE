@@ -14,7 +14,7 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.kafka.core.KafkaTemplate;
 
 /**
- * 아웃박스 메시지를 저장된 토픽 · 키 · 본문 그대로 Kafka로 보낸다. 헤더는 eventType · eventId 두 개만 붙인다.
+ * 아웃박스 메시지를 저장된 토픽, 키, 본문 그대로 보낸다. 헤더는 eventType과 eventId 두 개만 붙인다.
  * 릴레이가 결과를 보고 보낸 시각이나 실패를 기록하므로, 브로커 응답을 sendTimeout까지 기다린다.
  */
 public class KafkaSettlementEventSender implements SettlementEventSender, DisposableBean {
@@ -29,8 +29,8 @@ public class KafkaSettlementEventSender implements SettlementEventSender, Dispos
 
     @Override
     public void send(SettlementOutboxMessage message) {
-        ProducerRecord<String, String> record =
-            new ProducerRecord<>(message.getTopic(), message.getMessageKey(), message.getPayload());
+        var record = new ProducerRecord<String, String>(
+            message.getTopic(), message.getMessageKey(), message.getPayload());
         record.headers()
             .add("eventType", message.getEventType().getBytes(UTF_8))
             .add("eventId", message.getEventId().toString().getBytes(UTF_8));
@@ -43,7 +43,7 @@ public class KafkaSettlementEventSender implements SettlementEventSender, Dispos
             throw failure(message, "응답 대기 중 인터럽트", e);
         } catch (ExecutionException | RuntimeException e) {
             // 보내기 전 실패는 "Send failed", 보낸 뒤 실패는 "Failed to send"로 Spring이 감싸 원인이 없으므로 Kafka 클라이언트 예외를 꺼낸다
-            Throwable cause = kafkaClientCause(e);
+            var cause = kafkaClientCause(e);
             throw failure(message, cause.getMessage(), cause);
         }
     }
@@ -54,7 +54,7 @@ public class KafkaSettlementEventSender implements SettlementEventSender, Dispos
         kafkaTemplate.destroy();
     }
 
-    // 예외 메시지는 로그 · last_error에 남으므로 본문 대신 eventType · eventId · 키와 원인만 담는다
+    // 예외 메시지는 로그와 last_error에 남으므로 본문 대신 eventType, eventId, 키와 원인만 담는다
     private static SettlementEventSendException failure(SettlementOutboxMessage message, String reason,
         Throwable cause) {
         return new SettlementEventSendException(

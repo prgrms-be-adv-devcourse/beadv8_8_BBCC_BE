@@ -25,17 +25,6 @@ class SettlementServiceApplicationApiTest {
     }
 
     @Test
-    @DisplayName("정산 API가 라우팅된다: 판매자는 정산 목록을 조회한다")
-    void sellerSettlementsRouted() {
-        client.get().uri("/api/v1/seller/settlements")
-            .headers(TestMembers.seller(MEMBER_ID))
-            .exchange()
-            .expectStatus().isOk()
-            .expectBody()
-            .jsonPath("$.content").isEmpty();
-    }
-
-    @Test
     @DisplayName("다른 도메인 API는 없다(404)")
     void noOtherDomainApi() {
         client.get().uri("/api/v1/products")

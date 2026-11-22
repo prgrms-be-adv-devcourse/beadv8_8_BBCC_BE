@@ -48,7 +48,7 @@ public class SettlementDeadLetterService {
         } catch (IllegalArgumentException e) {
             throw new BusinessException(SettlementErrorCode.INVALID_DEAD_LETTER_STATE);
         }
-        PageRequest pageable = PageRequest.of(page, size);
+        var pageable = PageRequest.of(page, size);
         return pageable.getOffset() > Integer.MAX_VALUE
             ? new PageImpl<>(List.of(), pageable, repository.countByState(requested))
             : repository.findByState(requested, pageable);
@@ -60,20 +60,19 @@ public class SettlementDeadLetterService {
             .orElseThrow(() -> new BusinessException(SettlementErrorCode.DEAD_LETTER_NOT_FOUND));
     }
 
-    // 메서드 전체에 트랜잭션을 걸지 않는다: 반영은 원래 처리기의 트랜잭션이다. 결과 기록과 감사 기록은 짧은 트랜잭션 하나로 묶어,
-    // 감사 기록이 실패하면 결과 기록도 되돌린다(DLT가 OPEN으로 남아 다시 재처리할 수 있다)
+    // 감사 기록이 실패하면 결과 기록도 되돌려 DLT를 OPEN으로 남긴다. 그래야 다시 재처리할 수 있다
     public Summary reprocess(Long id, Long adminId) {
         var target = repository.findForReplay(id)
             .orElseThrow(() -> new BusinessException(SettlementErrorCode.DEAD_LETTER_NOT_FOUND));
         if (target.state() == State.REPROCESSED) {
             return get(id);
         }
-        // 두 관리자가 동시에 재처리하면 처리기가 두 번 돌 수 있다. 처리기는 멱등하다: 구매확정은 주문상품 ID 유일 키로 항목 1건,
-        // 지급 결과는 이미 PAID면 그대로 둔다(SettlementKafkaReceiveIntegrationTest). 기록은 markReprocessed의 조건부 UPDATE로 한 번만 남는다
+        // 두 관리자가 동시에 재처리하면 처리기가 두 번 돌 수 있지만 처리기는 멱등하다. 구매확정은 주문상품 ID 유일 키로 항목이
+        // 1건이고, 지급 결과는 이미 PAID면 그대로 둔다. 재처리 기록은 markReprocessed의 조건부 UPDATE라 한 번만 남는다
         try {
             replayer.replay(target.message());
         } catch (RuntimeException e) {
-            String failureType = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
+            var failureType = NestedExceptionUtils.getMostSpecificCause(e).getClass().getName();
             transactionTemplate.executeWithoutResult(status -> {
                 repository.recordReplayFailure(id, adminId, LocalDateTime.now(), failureType);
                 recordAdminAction(id, adminId);

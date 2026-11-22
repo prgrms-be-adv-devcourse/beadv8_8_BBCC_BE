@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.settlement.app;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutFailedEvent;
 import java.time.Duration;
@@ -12,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
 
 /**
- * 정산서가 없거나 판매자 · 금액이 다른 결과는 반영하지 않고 예외를 던진다(리스너가 ERROR로 남기고, Kafka 전환 뒤에는 DLT로 간다).
+ * 정산서가 없거나 판매자나 금액이 다른 결과는 반영하지 않고 IllegalStateException을 던진다. Kafka 리스너는 이 예외를 재시도하지 않고 DLT로 보낸다.
  */
 @Service
 @RequiredArgsConstructor
@@ -24,10 +23,7 @@ public class SettlementPayoutResultService {
     @Transactional
     public void markPaid(PaymentPayoutCompletedEvent.Data data) {
         var settlement = getMatching(data.settlementId(), data.sellerId(), data.amount());
-        // 같은 결과를 다시 받으면 이미 PAID라 지표를 한 번만 남긴다
-        boolean alreadyPaid = settlement.getStatus() == SettlementStatus.PAID;
-        settlement.markPaid(data.paidAt());
-        if (!alreadyPaid) {
+        if (settlement.markPaid(data.paidAt())) {
             metrics.recordPayout(Duration.between(settlement.getCompletedAt(), data.paidAt()));
         }
     }
@@ -35,9 +31,7 @@ public class SettlementPayoutResultService {
     @Transactional
     public void markPaymentFailed(PaymentPayoutFailedEvent.Data data) {
         var settlement = getMatching(data.settlementId(), data.sellerId(), data.amount());
-        boolean alreadyFailed = settlement.getStatus() == SettlementStatus.FAILED;
-        settlement.markPaymentFailed(data.reasonCode().name());
-        if (!alreadyFailed) {
+        if (settlement.markPaymentFailed(data.reasonCode().name())) {
             metrics.countPayoutFailed();
         }
     }

@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.util.Assert;
 
 /**
- * 판매자 · 종료일마다 하나다(실행 하나에 판매자당 정산서 하나).
+ * 판매자와 종료일마다 하나다(실행 하나에 판매자당 정산서 하나).
  */
 @Entity
 @Table(
@@ -118,27 +118,29 @@ public class Settlement extends BaseTimeEntity {
             feeRate.stripTrailingZeros().scale() <= FEE_RATE_SCALE, "수수료율은 소수점 넷째 자리까지입니다");
     }
 
-    // 결제가 같은 결과를 다시 보내도 처음 반영한 지급 시각을 유지한다
-    public void markPaid(LocalDateTime paidAt) {
+    // 결제가 같은 결과를 다시 보내도 처음 반영한 지급 시각을 유지하고 false를 돌려준다
+    public boolean markPaid(LocalDateTime paidAt) {
         requireNonNull(paidAt, "paidAt은 필수입니다");
         if (status == SettlementStatus.PAID) {
-            return;
+            return false;
         }
         Assert.state(status == SettlementStatus.COMPLETED, "지급을 요청한 정산서만 지급 완료할 수 있습니다");
         this.status = SettlementStatus.PAID;
         this.paidAt = paidAt;
+        return true;
     }
 
-    // 결제가 같은 결과를 다시 보내도 처음 반영한 사유를 유지한다
-    public void markPaymentFailed(String failReason) {
+    // 결제가 같은 결과를 다시 보내도 처음 반영한 사유를 유지하고 false를 돌려준다
+    public boolean markPaymentFailed(String failReason) {
         Assert.hasText(failReason, "failReason은 필수입니다");
         Assert.isTrue(failReason.length() <= FAIL_REASON_MAX_LENGTH, "failReason은 50자 이하여야 합니다");
         if (status == SettlementStatus.FAILED) {
-            return;
+            return false;
         }
         Assert.state(status == SettlementStatus.COMPLETED, "지급을 요청한 정산서만 지급 실패할 수 있습니다");
         this.status = SettlementStatus.FAILED;
         this.failReason = failReason;
+        return true;
     }
 
     // 지급 결과를 받지 못한 정산서(COMPLETED)만 같은 정산서 ID로 지급을 다시 요청할 수 있다

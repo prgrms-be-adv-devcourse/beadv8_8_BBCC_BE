@@ -39,10 +39,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 작업은 묶음마다 자기 트랜잭션을 열어야 하므로
- * 트랜잭션을 걸지 않고, 끝날 때까지 기다린다(동기). 서버가 실행 도중 죽어 STARTED로 남은 기록은 진행(step 갱신)이
- * {@link SettlementProperties#staleRunAfter()} 넘게 없으면 다음 실행이 FAILED로 닫고 진행한다(self-heal).
- * 자동 실행이 보는 남은 자동 실행은 바로 닫는다.
+ * 작업이 묶음마다 자기 트랜잭션을 열어야 해서 트랜잭션을 걸지 않고, 끝날 때까지 기다린다.
+ * 서버가 실행 도중 죽어 STARTED로 남은 기록은 다음 실행이 FAILED로 닫고 진행한다(recoverIfDead).
  */
 @Slf4j
 @Service
@@ -114,7 +112,7 @@ public class SettlementRunService {
         return execution;
     }
 
-    // 실행 중 확인은 조회라 동시에 온 요청이 함께 통과할 수 있다. 같은 대상은 정산서 유니크 · 낙관적 락이 막는다
+    // 실행 중 확인은 조회라 동시에 온 요청이 함께 통과할 수 있다. 같은 대상은 정산서 유니크 제약과 낙관적 락이 막는다
     private SettlementRunResult run(LocalDateTime cutoffAt, SettlementTriggerType triggerType, Long requestedBy) {
         var cutoff = cutoffOf(cutoffAt);
         if (isCompleted(cutoff)) {
@@ -149,7 +147,7 @@ public class SettlementRunService {
     }
 
     // 죽은 실행은 FAILED로 닫고, 살아 있을 수 있으면 실행 중이다.
-    // 자동 실행은 CronJob Pod(SettlementDailyRunner)만 하고, Job은 하나씩(Forbid) · 재시도 Pod는 앞 Pod가 완전히 끝난 뒤에만
+    // 자동 실행은 CronJob Pod(SettlementDailyRunner)만 하고, Job은 한 번에 하나만 돌고(Forbid) 재시도 Pod는 앞 Pod가 완전히 끝난 뒤에만
     // 뜬다(podReplacementPolicy Failed). 그래서 자동 실행이 보는 남은 자동 실행은 죽은 것이라 바로 닫는다.
     // 수동 실행은 살아 있을 수 있어 진행(step 갱신)이 staleRunAfter 넘게 없을 때만 닫는다.
     // 다시 돌릴 때는 관리자 수동 실행을 쓴다. `kubectl create job --from`은 Forbid를 우회해 살아 있는 실행을 닫는다
@@ -168,7 +166,7 @@ public class SettlementRunService {
     }
 
     // 닫은 이유는 Batch 실행 기록(exit_message)에 남긴다. 닫는 사이 실제 작업이 step 기록을 갱신했으면 버전 충돌이 나므로
-    // 실행 중으로 본다(job 갱신은 버전을 맞추고 쓴다). 겹친 실행이 같은 판매자를 정산하는 것은 정산서 유니크 · 낙관적 락이 막는다
+    // 실행 중으로 본다(job 갱신은 버전을 맞추고 쓴다). 겹친 실행이 같은 판매자를 정산하는 것은 정산서 유니크 제약과 낙관적 락이 막는다
     private void markFailed(JobExecution execution, String reason) {
         log.warn("정산 실행 {}을 FAILED로 닫습니다: {}", execution.getId(), reason);
         execution.setExitStatus(ExitStatus.FAILED.addExitDescription(reason));
@@ -179,7 +177,7 @@ public class SettlementRunService {
         }
     }
 
-    // step은 chunk 커밋마다 갱신되지만 job은 시작 · 끝에만 갱신된다. step 기록이 없으면 job 시작 시각,
+    // step은 chunk 커밋마다 갱신되지만 job은 시작과 끝에만 갱신된다. step 기록이 없으면 job 시작 시각,
     // 시작 전(STARTING)에 죽어 시작 시각도 없으면 생성 시각을 본다(생성 시각은 항상 있다)
     private static LocalDateTime lastActivityOf(JobExecution execution) {
         return execution.getStepExecutions().stream()
@@ -191,7 +189,7 @@ public class SettlementRunService {
     }
 
     // 같은 기준일을 동시에 시작하면 늦은 쪽은 Batch 안 어디서 끼었는지에 따라 다른 예외로 실패한다
-    // (인스턴스 확인 Assert · 인스턴스 유니크 · 실행 버전 충돌 등). 예외 종류 대신 그 기준일 작업의 상태로
+    // (인스턴스 확인 Assert, 인스턴스 유니크, 실행 버전 충돌 등). 예외 종류 대신 그 기준일 작업의 상태로
     // 경쟁에서 졌는지 판단하고, 상태로 설명되지 않으면 원래 예외를 던진다
     private RuntimeException conflictOr(JobParameters cutoff, Exception e) {
         var failure = e instanceof RuntimeException runtime

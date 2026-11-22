@@ -10,8 +10,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * kidly.payment.events에서 payment.payout-completed · payment.payout-failed를 받아 정산서에 반영한다. 결제의 다른 종류는 건너뛴다.
- * 정산서가 없거나 판매자 · 금액이 다른 결과는 IllegalStateException으로 재시도 없이 DLT로 간다(SettlementPayoutResultService).
+ * 정산서가 없거나 판매자나 금액이 다른 결과는 IllegalStateException이라 재시도 없이 DLT로 간다(SettlementPayoutResultService).
  * 스위치(kidly.settlement.kafka.consumer.enabled)가 꺼져 있으면 시작하지 않고, 그때는 Spring 리스너(SettlementPaymentEventListener)가 받는다.
  */
 @Component

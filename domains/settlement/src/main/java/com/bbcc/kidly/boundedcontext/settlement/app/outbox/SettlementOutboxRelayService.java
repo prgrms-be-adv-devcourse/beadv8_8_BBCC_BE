@@ -4,11 +4,9 @@ import com.bbcc.kidly.boundedcontext.settlement.app.SettlementMetrics;
 import com.bbcc.kidly.boundedcontext.settlement.app.outbox.SettlementOutboxRelayResult.Outcome;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementEventSendException;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementEventSender;
-import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxMessage;
 import com.bbcc.kidly.boundedcontext.settlement.domain.outbox.SettlementOutboxRepository;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 업무는 이 결과와 상관없이 이미 커밋돼 있다.
- * 보내지 못하면 WARN만 남긴다. 예외 메시지에 eventType · eventId · 키 · 원인이 있고, 본문은 개인 정보가 있을 수 있어 남기지 않는다.
+ * 보내지 못하면 WARN만 남긴다. 예외 메시지에 eventType, eventId, 키, 원인이 있고, 본문은 개인 정보가 있을 수 있어 남기지 않는다.
  */
 @Slf4j
 @Service
@@ -29,7 +27,7 @@ public class SettlementOutboxRelayService {
     private final SettlementMetrics metrics;
 
     /**
-     * 보낸 시각 · 실패 기록 · 잠금 해제가 커밋 한 번에 함께 된다. 보내다 실패하면 그 메시지에 실패를 기록하고 멈춰
+     * 보낸 시각과 실패 기록, 잠금 해제가 커밋 한 번에 함께 된다. 보내다 실패하면 그 메시지에 실패를 기록하고 멈춰
      * 다음 실행이 같은 메시지부터 다시 보낸다(순서 유지). 보낸 뒤 커밋 전에 멈추면 다음 실행이 다시 보낸다(받는 쪽은 eventId로 거른다).
      */
     @Transactional
@@ -37,9 +35,9 @@ public class SettlementOutboxRelayService {
         if (!outboxRepository.tryLockRelay()) {
             return new SettlementOutboxRelayResult(Outcome.LOCKED, 0, 0);
         }
-        List<SettlementOutboxMessage> unsent = outboxRepository.findUnsent(properties.batchSize());
-        int sent = 0;
-        for (SettlementOutboxMessage message : unsent) {
+        var unsent = outboxRepository.findUnsent(properties.batchSize());
+        var sent = 0;
+        for (var message : unsent) {
             try {
                 sender.send(message);
             } catch (SettlementEventSendException e) {
@@ -49,7 +47,7 @@ public class SettlementOutboxRelayService {
                     message.getAttemptCount(), e.getMessage());
                 return new SettlementOutboxRelayResult(Outcome.STOPPED, unsent.size(), sent);
             }
-            LocalDateTime now = LocalDateTime.now();
+            var now = LocalDateTime.now();
             message.markSent(now);
             metrics.recordSent(Duration.between(message.getCreatedAt(), now));
             sent++;

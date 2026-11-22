@@ -13,7 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 지급 결과를 받지 못한 정산서에 지급을 다시 요청한다. 메모리 이벤트를 잃었을 때(서버 재시작 등) 복구하는 장치다.
+ * 메모리 이벤트를 잃었을 때(서버 재시작 등) 지급 결과를 받지 못한 정산서에 지급을 다시 요청해 복구한다.
  * 결제가 같은 정산서 ID로 한 번만 입금하므로 서버가 여러 대여도 잠금 없이 돌린다.
  */
 @Slf4j
@@ -38,16 +38,13 @@ public class SettlementPayoutRetryScheduler {
         retryStuckPayouts(LocalDateTime.now());
     }
 
-    /**
-     * 한 건이 실패해도 나머지는 계속한다.
-     */
     public int retryStuckPayouts(LocalDateTime now) {
         var stuck = settlementRepository.findByStatusAndCompletedAtBetweenAndIdGreaterThanOrderByIdAsc(
             SettlementStatus.COMPLETED, now.minus(RETRY_WINDOW), now.minus(RETRY_AFTER), nextAfterId,
             Limit.of(BATCH_SIZE));
         // 한 번에 다 채우지 못했으면 끝에 닿은 것이라 다음 실행은 처음부터 찾는다
         nextAfterId = stuck.size() < BATCH_SIZE ? 0L : stuck.getLast().getId();
-        int requested = 0;
+        var requested = 0;
         for (var settlement : stuck) {
             if (retry(settlement.getId())) {
                 requested++;

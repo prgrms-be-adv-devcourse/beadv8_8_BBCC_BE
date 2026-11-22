@@ -13,8 +13,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
- * k3s CronJob이 하루 한 번 띄우는 일회 실행. 영업일이면 전날까지 확정된 대상을 정산하고 종료 코드로 끝난다.
- * 같은 기준일을 다시 실행하면(Job 재시도 · 수동 실행) SETTLEMENT_ALREADY_RUN이라 성공으로 끝낸다. 그 밖의 예외는 기동 실패(0 아님)다.
+ * k3s CronJob이 하루 한 번 띄우는 일회 실행이라 결과를 종료 코드로 알린다.
+ * 같은 기준일을 다시 실행하면(Job 재시도나 수동 실행) SETTLEMENT_ALREADY_RUN이므로 성공으로 끝낸다. 그 밖의 예외는 0이 아닌 종료 코드가 된다.
  */
 @Slf4j
 @Component
