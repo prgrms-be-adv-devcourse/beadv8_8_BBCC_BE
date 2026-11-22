@@ -2,9 +2,13 @@ package com.bbcc.kidly.boundedcontext.notification;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doThrow;
 
 import com.bbcc.kidly.boundedcontext.notification.app.MemberContactService;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationDeadLetterService;
+import com.bbcc.kidly.boundedcontext.notification.app.SellerStatusService;
 import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationDeadLetters.State;
 import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationDeadLetters.Summary;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
@@ -36,11 +40,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 회원 이메일 복사본이 없으면 승인 처리가 실패한다(SellerStatusService). 판매자 리스너와 DLT 보관 리스너만 켠다.
+ * 판매자 처리기(SellerStatusService)를 일부러 실패시켜 DLT 보관과 재처리를 본다. 판매자 리스너와 DLT 보관 리스너만 켠다.
  * DLT에는 앞 테스트가 남긴 메시지도 있으므로 이 테스트의 eventId로 고른다.
  */
 @KafkaIntegrationTest
@@ -75,6 +80,9 @@ class NotificationDeadLetterKafkaIntegrationTest {
     @Autowired
     private NotificationDeadLetterService deadLetterService;
 
+    @MockitoSpyBean
+    private SellerStatusService sellerStatusService;
+
     private final long sellerId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
     private final String sellerEmail = "seller-" + UUID.randomUUID() + "@kidly.co.kr";
 
@@ -95,8 +103,9 @@ class NotificationDeadLetterKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("이메일 복사본 없는 판매자 승인 → DLT DB 보관 → 그대로 재처리하면 실패 기록 → 복사본이 생긴 뒤 재처리하면 승인 메일")
+    @DisplayName("판매자 처리 실패 → DLT DB 보관 → 그대로 재처리하면 실패 기록 → 원인이 풀린 뒤 재처리하면 승인 메일")
     void storesAndReprocessesDeadLetter() throws Exception {
+        doThrow(new IllegalStateException("판매자 처리 실패")).when(sellerStatusService).apply(any());
         var event = new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new SellerChangedEvent.Data(sellerId, "키들리 상점", SellerStatus.ACTIVE));
         String eventId = event.eventId().toString();
@@ -122,6 +131,7 @@ class NotificationDeadLetterKafkaIntegrationTest {
         assertThat(failed.getLastReplayFailureType()).isEqualTo(IllegalStateException.class.getName());
         assertThat(notifications()).isEmpty();
 
+        doCallRealMethod().when(sellerStatusService).apply(any());
         memberContactService.save(sellerId, sellerEmail);
         Summary reprocessed = deadLetterService.reprocess(id, ADMIN_ID);
         assertThat(reprocessed.getState()).isEqualTo(State.REPROCESSED);
