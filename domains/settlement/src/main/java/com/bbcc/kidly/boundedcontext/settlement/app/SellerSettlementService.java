@@ -5,7 +5,6 @@ import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementDetailResult;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementSearchRequest;
 import com.bbcc.kidly.boundedcontext.settlement.app.dto.SettlementTargetResult;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementHolidayLookupException;
-import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSearch;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSummaryQuery;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementSummaryRow;
 import com.bbcc.kidly.boundedcontext.settlement.app.port.SettlementTargetQuery;
@@ -54,9 +53,7 @@ public class SellerSettlementService {
     @Transactional(readOnly = true)
     public Page<SettlementSummaryRow> getSettlements(
         Long sellerId, SettlementSearchRequest request, Pageable pageable) {
-        var status = request.status() == null ? null : SettlementStatus.valueOf(request.status());
-        var search = new SettlementSearch(sellerId, status, request.fromOn(), request.toOn());
-        return settlementSummaryQuery.findAll(search, pageable);
+        return settlementSummaryQuery.findAll(request.toSearch(sellerId), pageable);
     }
 
     @Transactional(readOnly = true)

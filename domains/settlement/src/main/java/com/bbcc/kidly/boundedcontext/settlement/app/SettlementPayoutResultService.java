@@ -2,7 +2,6 @@ package com.bbcc.kidly.boundedcontext.settlement.app;
 
 import com.bbcc.kidly.boundedcontext.settlement.domain.Settlement;
 import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementRepository;
-import com.bbcc.kidly.boundedcontext.settlement.domain.SettlementStatus;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutCompletedEvent;
 import com.bbcc.kidly.shared.payment.event.PaymentPayoutFailedEvent;
 import java.time.Duration;
@@ -24,10 +23,7 @@ public class SettlementPayoutResultService {
     @Transactional
     public void markPaid(PaymentPayoutCompletedEvent.Data data) {
         var settlement = getMatching(data.settlementId(), data.sellerId(), data.amount());
-        // 같은 결과를 다시 받으면 이미 PAID라 지표를 한 번만 남긴다
-        boolean alreadyPaid = settlement.getStatus() == SettlementStatus.PAID;
-        settlement.markPaid(data.paidAt());
-        if (!alreadyPaid) {
+        if (settlement.markPaid(data.paidAt())) {
             metrics.recordPayout(Duration.between(settlement.getCompletedAt(), data.paidAt()));
         }
     }
@@ -35,9 +31,7 @@ public class SettlementPayoutResultService {
     @Transactional
     public void markPaymentFailed(PaymentPayoutFailedEvent.Data data) {
         var settlement = getMatching(data.settlementId(), data.sellerId(), data.amount());
-        boolean alreadyFailed = settlement.getStatus() == SettlementStatus.FAILED;
-        settlement.markPaymentFailed(data.reasonCode().name());
-        if (!alreadyFailed) {
+        if (settlement.markPaymentFailed(data.reasonCode().name())) {
             metrics.countPayoutFailed();
         }
     }

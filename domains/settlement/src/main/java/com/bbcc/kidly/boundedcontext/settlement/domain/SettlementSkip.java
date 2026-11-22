@@ -50,23 +50,21 @@ public class SettlementSkip extends BaseTimeEntity {
     @Column(name = "reason", nullable = false, length = REASON_MAX_LENGTH)
     private String reason;
 
-    private SettlementSkip(Long jobExecutionId, Long sellerId, SettlementSkipPhase phase, String reason) {
-        this.jobExecutionId = jobExecutionId;
-        this.sellerId = sellerId;
-        this.phase = phase;
-        this.reason = reason;
+    private SettlementSkip(SettlementSkipCreateInfo info) {
+        this.jobExecutionId = info.jobExecutionId();
+        this.sellerId = info.sellerId();
+        this.phase = info.phase();
+        this.reason = info.reason().length() <= REASON_MAX_LENGTH
+            ? info.reason() : info.reason().substring(0, REASON_MAX_LENGTH);
     }
 
     public static SettlementSkip create(SettlementSkipCreateInfo info) {
         requireNonNull(info, "info는 필수입니다");
-        var jobExecutionId = requireNonNull(info.jobExecutionId(), "jobExecutionId는 필수입니다");
-        Assert.isTrue(jobExecutionId > 0, "jobExecutionId는 0보다 커야 합니다");
-        var sellerId = requireNonNull(info.sellerId(), "sellerId는 필수입니다");
-        Assert.isTrue(sellerId > 0, "sellerId는 0보다 커야 합니다");
-        var phase = requireNonNull(info.phase(), "phase는 필수입니다");
-        var reason = info.reason();
-        Assert.hasText(reason, "reason은 필수입니다");
-        return new SettlementSkip(jobExecutionId, sellerId, phase,
-            reason.length() <= REASON_MAX_LENGTH ? reason : reason.substring(0, REASON_MAX_LENGTH));
+        Assert.isTrue(
+            requireNonNull(info.jobExecutionId(), "jobExecutionId는 필수입니다") > 0, "jobExecutionId는 0보다 커야 합니다");
+        Assert.isTrue(requireNonNull(info.sellerId(), "sellerId는 필수입니다") > 0, "sellerId는 0보다 커야 합니다");
+        requireNonNull(info.phase(), "phase는 필수입니다");
+        Assert.hasText(info.reason(), "reason은 필수입니다");
+        return new SettlementSkip(info);
     }
 }
