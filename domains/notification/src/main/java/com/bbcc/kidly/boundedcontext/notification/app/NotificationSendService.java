@@ -38,11 +38,9 @@ public class NotificationSendService {
      */
     @Transactional
     public Optional<OutgoingMessage> start(Long notificationId) {
-        Optional<Notification> found = notificationRepository.findById(notificationId);
-        if (found.isEmpty() || !found.get().startSending(LocalDateTime.now())) {
-            return Optional.empty();
-        }
-        return createMessage(found.get());
+        return notificationRepository.findById(notificationId)
+            .filter(notification -> notification.startSending(LocalDateTime.now()))
+            .flatMap(this::createMessage);
     }
 
     /**

@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StringUtils;
 
 /**
  * 같은 이벤트, 같은 채널은 한 건만 만들고, 커밋된 뒤에 비동기 발송을 넘긴다.
@@ -77,8 +78,9 @@ public class NotificationService {
     // 주문 결제완료는 주문마다 한 번만 나가므로 이벤트 ID로 한 통만 만든다. 알림함과 같은 내용을 푸시로도 보낸다
     @Transactional
     public void createOrderPaidEmail(OrderPaidCommand command) {
+        var content = OrderPaidInbox.buyer(command);
         var inbox = new InboxNotificationInfo(InboxRecipient.member(command.memberId()),
-            NotificationType.ORDER_PAID, "주문이 결제됐어요", orderPaidInboxBody(command), "/orders/" + command.orderId(),
+            NotificationType.ORDER_PAID, content.title(), content.body(), "/orders/" + command.orderId(),
             "order.paid:" + command.orderId());
         inboxNotificationService.add(inbox);
         createPush(inbox);
@@ -109,10 +111,10 @@ public class NotificationService {
     // 거절 사유는 회원 서비스가 200자까지 받으므로 본문 한도(4000자)를 넘지 않는다
     @Transactional
     public void createApplicationRejectedEmail(UUID eventId, Long memberId, String reason) {
-        var hasReason = reason != null && !reason.isBlank();
         inboxNotificationService.add(new InboxNotificationInfo(InboxRecipient.member(memberId),
             NotificationType.SELLER_APPLICATION_REJECTED,
-            "판매자 신청이 거절됐어요", hasReason ? REJECTED_INBOX_BODY + " 거절 사유: " + reason.strip() : REJECTED_INBOX_BODY,
+            "판매자 신청이 거절됐어요",
+            StringUtils.hasText(reason) ? REJECTED_INBOX_BODY + " 거절 사유: " + reason.strip() : REJECTED_INBOX_BODY,
             null, "seller.application-rejected:" + eventId));
         createMemberEmail(eventId, memberId, NotificationType.SELLER_APPLICATION_REJECTED,
             ApplicationRejectedEmail.compose(reason));
@@ -178,28 +180,18 @@ public class NotificationService {
             return;
         }
         memberContactService.findEmail(memberId).ifPresent(email ->
-            createEmail(new EmailNotificationInfo(key, memberId, type, email, content.title(), content.body())));
+            saveEmail(new EmailNotificationInfo(key, memberId, type, email, content.title(), content.body())));
     }
 
     private void createEmail(EmailNotificationInfo info) {
-        if (exists(info.eventId())) {
-            return;
+        if (!exists(info.eventId())) {
+            saveEmail(info);
         }
-        var notification = notificationRepository.save(Notification.email(info));
-        dispatchAfterCommit(notification.getId());
     }
 
-    // 알림함 본문은 1000자까지라 첫 상품 이름(255자까지)만 적고 나머지는 "외 N건"으로 줄인다
-    private static String orderPaidInboxBody(OrderPaidCommand command) {
-        var items = command.items();
-        var total = "총 결제 금액은 %,d원이에요.".formatted(command.totalAmount());
-        // 주문은 상품 없이 만들어지지 않지만, 받는 쪽은 상품이 빈 메시지도 실패시키지 않는다
-        if (items.isEmpty()) {
-            return "주문의 결제가 끝났어요. " + total;
-        }
-        var first = items.getFirst().productName();
-        var name = items.size() == 1 ? first : "%s 외 %d건".formatted(first, items.size() - 1);
-        return "%s 주문의 결제가 끝났어요. %s".formatted(name, total);
+    private void saveEmail(EmailNotificationInfo info) {
+        var notification = notificationRepository.save(Notification.email(info));
+        dispatchAfterCommit(notification.getId());
     }
 
     private boolean exists(UUID eventId) {
