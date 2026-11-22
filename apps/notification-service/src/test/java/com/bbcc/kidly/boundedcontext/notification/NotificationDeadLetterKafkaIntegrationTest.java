@@ -5,13 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bbcc.kidly.boundedcontext.notification.app.MemberContactService;
 import com.bbcc.kidly.boundedcontext.notification.app.NotificationDeadLetterService;
+import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationDeadLetters.Received;
 import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationDeadLetters.State;
 import com.bbcc.kidly.boundedcontext.notification.app.port.NotificationDeadLetters.Summary;
 import com.bbcc.kidly.boundedcontext.notification.domain.Notification;
 import com.bbcc.kidly.boundedcontext.notification.domain.NotificationType;
 import com.bbcc.kidly.boundedcontext.notification.in.event.NotificationDeadLetterKafkaListener;
 import com.bbcc.kidly.boundedcontext.notification.out.JpaNotificationRepository;
-import com.bbcc.kidly.shared.event.DomainEvent;
 import com.bbcc.kidly.shared.seller.domain.SellerStatus;
 import com.bbcc.kidly.shared.seller.event.SellerChangedEvent;
 import com.bbcc.kidly.support.AsyncWait;
@@ -40,7 +40,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 회원 이메일 복사본이 없으면 승인 처리가 실패한다(SellerStatusService). 판매자 리스너와 DLT 보관 리스너만 켠다.
+ * 본문을 읽을 수 없는 판매자 메시지는 재시도 없이 DLT로 가고, DLT 보관 리스너가 DB에 남긴다. 판매자 리스너와 DLT 보관 리스너만 켠다.
  * DLT에는 앞 테스트가 남긴 메시지도 있으므로 이 테스트의 eventId로 고른다.
  */
 @KafkaIntegrationTest
@@ -95,12 +95,10 @@ class NotificationDeadLetterKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("이메일 복사본 없는 판매자 승인 → DLT DB 보관 → 그대로 재처리하면 실패 기록 → 복사본이 생긴 뒤 재처리하면 승인 메일")
-    void storesAndReprocessesDeadLetter() throws Exception {
-        var event = new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
-            new SellerChangedEvent.Data(sellerId, "키들리 상점", SellerStatus.ACTIVE));
-        String eventId = event.eventId().toString();
-        RecordMetadata sent = send(event);
+    @DisplayName("본문을 읽을 수 없는 판매자 메시지 → DLT DB 보관 → 그대로 재처리하면 실패를 기록하고 OPEN으로 남는다")
+    void storesUnreadableMessageAndRecordsFailedReprocess() throws Exception {
+        String eventId = UUID.randomUUID().toString();
+        RecordMetadata sent = send(eventId, "seller.changed", "{not-json");
 
         AsyncWait.until(TIMEOUT, () -> deadLetterCount(eventId) == 1);
         Long id = deadLetterId(eventId);
@@ -111,29 +109,39 @@ class NotificationDeadLetterKafkaIntegrationTest {
         assertThat(stored.getSourceTopic()).isEqualTo(SELLER_TOPIC);
         assertThat(stored.getSourcePartition()).isEqualTo(sent.partition());
         assertThat(stored.getSourceOffset()).isEqualTo(sent.offset());
-        assertThat(stored.getMessageKey()).isEqualTo(event.correlationId());
         assertThat(stored.getEventType()).isEqualTo("seller.changed");
-        assertThat(stored.getFailureType()).isEqualTo(IllegalStateException.class.getName());
+        assertThat(stored.getFailureType()).isNotNull();
 
         Summary failed = deadLetterService.reprocess(id, ADMIN_ID);
         assertThat(failed.getState()).isEqualTo(State.OPEN);
         assertThat(failed.getReplayCount()).isOne();
         assertThat(failed.getLastReplayedBy()).isEqualTo(ADMIN_ID);
-        assertThat(failed.getLastReplayFailureType()).isEqualTo(IllegalStateException.class.getName());
-        assertThat(notifications()).isEmpty();
+        assertThat(failed.getLastReplayFailureType()).isNotNull();
+    }
 
+    @Test
+    @DisplayName("보관된 판매자 승인을 재처리하면 승인 메일과 알림함 알림이 한 번 생기고, 다시 재처리해도 늘지 않는다")
+    void reprocessesStoredSellerApprovalOnce() throws Exception {
         memberContactService.save(sellerId, sellerEmail);
+        var event = new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
+            new SellerChangedEvent.Data(sellerId, "키들리 상점", SellerStatus.ACTIVE));
+        long dltOffset = ThreadLocalRandom.current().nextLong(1_000_000, Long.MAX_VALUE);
+        deadLetterService.receive(new Received(SELLER_DLT, 0, dltOffset, SELLER_TOPIC, 0, dltOffset,
+            event.correlationId(), event.eventType(), event.eventId().toString(),
+            jsonMapper.writeValueAsString(EventEnvelope.of(event)), IllegalStateException.class.getName()));
+        Long id = deadLetterId(event.eventId().toString());
+
         Summary reprocessed = deadLetterService.reprocess(id, ADMIN_ID);
         assertThat(reprocessed.getState()).isEqualTo(State.REPROCESSED);
-        assertThat(reprocessed.getReplayCount()).isEqualTo(2);
+        assertThat(reprocessed.getReplayCount()).isOne();
         assertThat(reprocessed.getLastReplayFailureType()).isNull();
         assertThat(notifications()).singleElement()
             .satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.SELLER_APPROVED));
-        assertThat(deadLetterService.list("REPROCESSED", 0, 100).getContent()).extracting(Summary::getId)
-            .contains(id);
+        assertThat(inboxCount()).isOne();
 
-        assertThat(deadLetterService.reprocess(id, ADMIN_ID).getReplayCount()).isEqualTo(2);
+        assertThat(deadLetterService.reprocess(id, ADMIN_ID).getReplayCount()).isOne();
         assertThat(notifications()).hasSize(1);
+        assertThat(inboxCount()).isOne();
     }
 
     private List<Notification> notifications() {
@@ -142,17 +150,21 @@ class NotificationDeadLetterKafkaIntegrationTest {
             .toList();
     }
 
-    private RecordMetadata send(DomainEvent event) throws Exception {
-        var record = new ProducerRecord<>(SELLER_TOPIC, event.correlationId(),
-            jsonMapper.writeValueAsString(EventEnvelope.of(event)));
-        record.headers().add("eventId", event.eventId().toString().getBytes(UTF_8));
-        record.headers().add("eventType", event.eventType().getBytes(UTF_8));
+    private RecordMetadata send(String eventId, String eventType, String body) throws Exception {
+        var record = new ProducerRecord<>(SELLER_TOPIC, String.valueOf(sellerId), body);
+        record.headers().add("eventId", eventId.getBytes(UTF_8));
+        record.headers().add("eventType", eventType.getBytes(UTF_8));
         try (var producer = new KafkaProducer<String, String>(Map.of(
             ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
             ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class))) {
             return producer.send(record).get(10, TimeUnit.SECONDS);
         }
+    }
+
+    private long inboxCount() {
+        return jdbcTemplate.queryForObject("select count(*) from notification.inbox where recipient_id = ?",
+            Long.class, sellerId);
     }
 
     private long deadLetterCount(String eventId) {

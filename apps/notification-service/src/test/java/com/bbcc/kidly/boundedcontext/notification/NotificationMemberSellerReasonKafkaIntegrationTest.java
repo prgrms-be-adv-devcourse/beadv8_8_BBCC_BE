@@ -32,10 +32,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
@@ -46,7 +43,6 @@ import tools.jackson.databind.json.JsonMapper;
  * 회원이 보내는 형식(키 correlationId, 헤더 eventType · eventId, 본문 공통 칸 + data)으로 토픽에 직접 넣는다.
  */
 @KafkaIntegrationTest
-@ExtendWith(OutputCaptureExtension.class)
 class NotificationMemberSellerReasonKafkaIntegrationTest {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -139,20 +135,19 @@ class NotificationMemberSellerReasonKafkaIntegrationTest {
     }
 
     @Test
-    @DisplayName("승인을 받았을 때 회원 이메일 복사본이 아직 없어도, 다시 시도하는 사이 이메일이 오면 승인 메일을 보낸다")
-    void sendSellerApprovedEmailAfterContactArrives(CapturedOutput output) throws Exception {
+    @DisplayName("회원 이메일 복사본이 없는 판매자의 승인을 받아도 실패하지 않고 알림함 알림과 상태 복사본을 남기며 메일은 만들지 않는다")
+    void sellerApprovedWithoutEmail() throws Exception {
         var sellerId = ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE);
-        var sellerEmail = "seller-" + UUID.randomUUID() + "@kidly.co.kr";
 
         send("kidly.seller.events", new SellerChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
             new SellerChangedEvent.Data(sellerId, "키들리 상점", SellerStatus.ACTIVE)));
-        AsyncWait.until(TIMEOUT, () -> output.getOut().contains("memberId=" + sellerId));
-        memberContactService.save(sellerId, sellerEmail);
 
-        AsyncWait.until(TIMEOUT, () -> notifications(sellerEmail).stream().map(Notification::getStatus).toList()
-            .equals(List.of(NotificationStatus.SENT)));
-        assertThat(notifications(sellerEmail)).singleElement()
-            .satisfies(n -> assertThat(n.getType()).isEqualTo(NotificationType.SELLER_APPROVED));
+        // 처리에 실패하면 트랜잭션이 되돌려져 복사본이 남지 않는다. ACTIVE가 보이면 처리에 성공한 것이다
+        AsyncWait.until(TIMEOUT, () -> "ACTIVE".equals(sellerStatus(sellerId)));
+        assertThat(jdbcTemplate.queryForList("SELECT type FROM notification.inbox WHERE recipient_id = ?",
+            String.class, sellerId)).containsExactly(NotificationType.SELLER_APPROVED.name());
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM notification.notification WHERE member_id = ?",
+            Long.class, sellerId)).isZero();
     }
 
     @Test
@@ -172,17 +167,17 @@ class NotificationMemberSellerReasonKafkaIntegrationTest {
     }
 
     private String sellerStatus() {
+        return sellerStatus(memberId);
+    }
+
+    private String sellerStatus(Long sellerId) {
         return jdbcTemplate.queryForList("SELECT status FROM notification.seller_status WHERE seller_id = ?",
-            String.class, memberId).stream().findFirst().orElse(null);
+            String.class, sellerId).stream().findFirst().orElse(null);
     }
 
     private List<Notification> notifications() {
-        return notifications(email);
-    }
-
-    private List<Notification> notifications(String recipient) {
         return jpaNotificationRepository.findAll().stream()
-            .filter(notification -> recipient.equals(notification.getRecipient()))
+            .filter(notification -> email.equals(notification.getRecipient()))
             .toList();
     }
 
